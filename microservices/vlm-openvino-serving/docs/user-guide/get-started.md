@@ -150,7 +150,7 @@ docker compose -f docker/compose.yaml down
 curl --location 'http://localhost:9764/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "microsoft/Phi-3.5-vision-instruct",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "messages": [
         {
             "role": "user",
@@ -181,7 +181,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 curl --location 'http://localhost:9764/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "microsoft/Phi-3.5-vision-instruct",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "max_completion_tokens": 100,
     "messages": [
         {
@@ -209,7 +209,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 curl --location 'http://localhost:9764/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "microsoft/Phi-3.5-vision-instruct",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "messages": [
       {
         "role": "user",
@@ -246,7 +246,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
     curl --location 'http://localhost:9764/v1/chat/completions' \
     --header 'Content-Type: application/json' \
     --data '{
-        "model": "microsoft/Phi-3.5-vision-instruct",
+        "model": "Qwen/Qwen2.5-VL-3B-Instruct",
         "messages": [
         {
             "role": "user",
@@ -272,7 +272,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 
     client = OpenAI(
         base_url = "http://localhost:9764/v1",
-        api_key="",
+        api_key="EMPTY",
     )
 
     # Define the conversation history
@@ -293,7 +293,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 
     # Send the request to the model
     response = client.chat.completions.create(
-        model="microsoft/Phi-3.5-vision-instruct",
+        model="Qwen/Qwen2.5-VL-3B-Instruct",
         messages=messages,
         max_completion_tokens=1000,
     )
@@ -303,13 +303,13 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 
 ### Test **video** type input
 
-> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models. Although other models will accept input as `video` type, but internally they will process it as multi-image input only.
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-3B-Instruct`, `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models. Although other models will accept input as `video` type, but internally they will process it as multi-image input only.
 
 ```bash
 curl --location 'http://localhost:9764/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "microsoft/Phi-3.5-vision-instruct",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "messages": [
       {
         "role": "user",
@@ -334,14 +334,14 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 
 ### Test **video_url** type input
 
-> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-3B-Instruct`, `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
 > **_NOTE:_** `max_pixels` and `fps` are optional parameters.
 
 ```bash
 curl --location 'http://localhost:9764/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "messages": [
       {
         "role": "user",
@@ -368,14 +368,17 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 
 ### Test **video_url** as base64 encoded video input
 
-> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-3B-Instruct`, `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
 > **_NOTE:_** `max_pixels` and `fps` are optional parameters.
 
 ```bash
-curl --location 'http://localhost:9764/v1/chat/completions' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+# Encode video to base64 (ensure you have a video file named 'test.mp4')
+export VIDEO_B64=$(base64 -w 0 test.mp4)
+
+# Create JSON payload
+cat <<EOF > payload.json
+{
+    "model": "Qwen/Qwen2.5-VL-3B-Instruct",
     "messages": [
       {
         "role": "user",
@@ -387,7 +390,7 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
           {
             "type": "video_url",
             "video_url": {
-              "url": "data:video/mp4;base64,{video_base64}"
+              "url": "data:video/mp4;base64,$VIDEO_B64"
             }
           }
         ]
@@ -395,7 +398,13 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
     ],
     "max_completion_tokens": 1000,
     "stream":true
-  }'
+}
+EOF
+
+# Send request
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data @payload.json
 ```
 
 ### Test GET Device
@@ -406,12 +415,12 @@ To get the list of available devices
 curl --location --request GET 'http://localhost:9764/device'
 ```
 
-### Test POST Device details
+### Test GET Device details
 
 To get specific device details
 
 ```bash
-curl --location --request POST 'http://localhost:9764/device?device=GPU' \
+curl --location --request GET 'http://localhost:9764/device/CPU' \
 --header 'Content-Type: application/json'
 ```
 
