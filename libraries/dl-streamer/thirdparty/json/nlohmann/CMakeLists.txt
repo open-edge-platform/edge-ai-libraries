@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 
 set(TARGET_NAME "json-hpp")
 

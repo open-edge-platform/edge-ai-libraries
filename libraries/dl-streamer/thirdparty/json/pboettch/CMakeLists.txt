@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 
 option(BUILD_TESTS "" OFF)
 option(BUILD_EXAMPLES "" OFF)
