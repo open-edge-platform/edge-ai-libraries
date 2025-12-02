@@ -1,0 +1,117 @@
+- name: ch_PP-OCRv4_rec_infer
+  display_name: PaddleOCR (FP32)
+  source: public
+  type: classification
+  model_path: public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: FP32
+  default: true
+- name: efficientnet-b0_INT8
+  display_name: EfficientNet B0 (INT8)
+  source: pipeline-zoo-models
+  type: classification
+  model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
+  model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
+  unsupported_devices: "NPU"
+  precision: INT8
+  default: true
+- name: mobilenet-v2-pytorch
+  display_name: MobileNet V2 PyTorch (FP16)
+  source: omz
+  type: classification
+  model_path: omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+  model_proc: omz/mobilenet-v2-pytorch/mobilenet-v2.json
+  unsupported_devices: ""
+  precision: FP16
+  default: false
+- name: resnet-50-tf_INT8
+  display_name: ResNet-50 TF (INT8)
+  source: pipeline-zoo-models
+  type: classification
+  model_path: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
+  model_proc: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+  unsupported_devices: ""
+  precision: INT8
+  default: true
+- name: ssdlite_mobilenet_v2_INT8
+  display_name: SSDLite MobileNet V2 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml
+  model_proc: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json
+  unsupported_devices: ""
+  precision: INT8
+  default: true
+- name: vehicle-attributes-recognition-barrier-0039
+  display_name: Vehicle Attributes Recognition Barrier 0039 (FP16)
+  source: omz
+  type: classification
+  model_path: omz/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml
+  model_proc: omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
+  unsupported_devices: ""
+  precision: FP16
+  default: true
+- name: yolov5m-416_INT8
+  display_name: YOLO v5m 416x416 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml
+  model_proc: pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json
+  unsupported_devices: ""
+  precision: INT8
+  default: true
+- name: yolov5m-640_INT8
+  display_name: YOLO v5m 640x640 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml
+  model_proc: pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json
+  unsupported_devices: ""
+  precision: INT8
+  default: false
+- name: yolov5s-416_INT8
+  display_name: YOLO v5s 416x416 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
+  model_proc: pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+  unsupported_devices: ""
+  precision: INT8
+  default: true
+- name: yolov8_license_plate_detector
+  display_name: YOLO v8 License Plate Detector (FP32)
+  source: public
+  type: detection
+  model_path: public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
+  model_proc: ""
+  unsupported_devices: "NPU"
+  precision: FP32
+  default: true
+- name: yolov10m
+  display_name: YOLO v10m 640x640 (FP16)
+  source: public
+  type: detection
+  model_path: public/yolov10m/FP16/yolov10m.xml
+  model_proc: ""
+  unsupported_devices: "NPU"
+  precision: FP16
+  default: false
+- name: yolov10s
+  display_name: YOLO v10s 640x640 (FP16)
+  source: public
+  type: detection
+  model_path: public/yolov10s/FP16/yolov10s.xml
+  model_proc: ""
+  unsupported_devices: "NPU"
+  precision: FP16
+  default: false
+- name: human-pose-estimation-0001
+  display_name: Human Pose Estimation 0001 (FP16)
+  source: omz
+  type: classification
+  model_path: omz/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
+  model_proc: omz/human-pose-estimation-0001/human-pose-estimation-0001.json
+  unsupported_devices: ""
+  precision: FP16
+  default: false

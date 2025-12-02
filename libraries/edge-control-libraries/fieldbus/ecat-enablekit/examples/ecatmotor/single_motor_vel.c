@@ -32,8 +32,6 @@
 #include <time.h>
 #include <getopt.h>
 
-#define ECAT_MULTIPLE_DOMAIN_MODE
-
 #define CYCLE_US				(1000)
 #define PERIOD_NS				(CYCLE_US*1000)
 #define NSEC_PER_SEC			(1000000000L)

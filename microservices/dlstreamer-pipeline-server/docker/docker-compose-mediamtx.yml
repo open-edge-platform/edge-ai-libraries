@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -126,7 +126,16 @@ services:
       - "9997:9997"
     networks:
       - app_network
-    network_mode: host
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+    command: ["-v"]  # Verbose mode for logging
+    networks:
+      - app_network
 
 networks:
   app_network:
@@ -138,13 +147,3 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-
-  coturn:
-    image: coturn/coturn:latest
-    container_name: coturn
-    ports:
-      - "3478:3478"
-      - "3478:3478/udp"
-    command: ["-v"]  # Verbose mode for logging
-    networks:
-      - app_network

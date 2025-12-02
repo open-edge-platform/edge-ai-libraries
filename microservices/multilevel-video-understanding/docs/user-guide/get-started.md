@@ -195,8 +195,8 @@ Generate a summary text from a video file to describe its content.
 curl http://localhost:8192/v1/summary -H "Content-Type: application/json" -d '{
     "video": "https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4",
     "method": "USE_ALL_T-1",
-    "processor_kwargs": {"process_fps": 1}
-  }' 
+    "processor_kwargs": {"levels": 4, "level_sizes": [1,6,8,-1], "process_fps": 1}
+}'
 ```
 
 Response example:

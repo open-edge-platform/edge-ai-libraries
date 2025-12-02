@@ -25,19 +25,25 @@ By following this guide, you will learn how to:
       ```bash
       mkdir -p visual-pipeline-and-platform-evaluation-tool/models
       mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
+      mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
       cd visual-pipeline-and-platform-evaluation-tool
       ```
 
     - Download all required files:
 
       ```bash
-      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
-      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
-      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
-      curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
-      curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
-      curl -Lo shared/models/supported_models.lst "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.lst"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.cpu.yml"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml"
+      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
+      curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
+      curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
+      curl -Lo shared/videos/default_recordings.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/videos/default_recordings.yaml"
+      curl -Lo shared/models/supported_models.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml"
       chmod +x models/model_manager.sh
+      chmod +x setup_env.sh
       ```
 
 2. **Start the Application**:
@@ -54,13 +60,8 @@ By following this guide, you will learn how to:
       docker compose ps
       ```
 
-4. **Access the Application**:
-    - Open a browser and go to `http://localhost:7860/?__theme=light` to access the application UI.
-
-    - **Expected Results**:
-      - The microservice’s UI loads successfully.
-      - The Smart NVR or Simple VS pipeline is automatically executed when the "Run" button is clicked, and the
-        output video is shown with device metrics.
+4. **Access the Application Swagger UI**:
+    - Open a browser and go to `http://localhost:7860/docs` to access the Swagger UI.
 
 ## Validation
 
@@ -84,14 +85,6 @@ If you want to manage your installed models again, run the following command:
 ```bash
 make install-models-force
 ```
-
-### Known Issues
-
-- **Issue 1**: The Visual Pipeline and Platform Evaluation Tool container fails to start the analysis when the "Run"
-  button is clicked in the UI, specifically for systems without GPU. This results in the analysis process either
-  failing or becoming unresponsive for users without GPU hardware.
-  - **Solution**: To avoid this issue, consider upgrading the hardware to meet the required specifications for
-    optimal performance.
 
 ## Troubleshooting
 

@@ -10,9 +10,11 @@ import traceback
 import uuid
 from typing import Dict, List, Tuple, Optional
 from PIL import Image
+from fastapi import HTTPException, status
 
 from video_chunking import PeltChunking, UniformChunking
 from video_chunking.data import ChunkMeta, MicroChunkMeta, MacroChunkMeta
+from video_analyzer.schemas.summarization import ErrorResponse
 
 from video_analyzer.core.settings import settings
 from video_analyzer.core.prompts import (
@@ -76,13 +78,36 @@ class VideoSummarizer:
         # Multi-level configurations
         self.total_levels = levels
         self.level_sizes = level_sizes
+        if not isinstance(self.total_levels, int) or self.total_levels < 1:
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message=f"Summarization failed!",
+                        details=f"Invalid levels is specified, levels must be integer and at least 1, got: {self.total_levels}"
+                    ).model_dump()
+                )
         if not len(self.level_sizes) == self.total_levels:
-            raise AttributeError(f"The configured level sizes ({self.level_sizes}) "
-                                 f"should match with total levels: {self.total_levels}")
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message=f"Summarization failed!",
+                        details=f"The configured level sizes ({self.level_sizes}) "
+                                f"should match with total levels: {self.total_levels}"
+                    ).model_dump()
+                )
         
         # Parse processor_kwargs from user's request
         self.chunking_method = chunking_method
         self.process_fps = process_fps
+        # for sanity
+        if not isinstance(self.process_fps, (int, float)) or self.process_fps <= 0:
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message=f"Summarization failed!",
+                        details=f"Invalid process_fps is specified: ({self.process_fps}) "
+                    ).model_dump()
+                )
 
         # Summarization method
         self.method = method
@@ -107,6 +132,13 @@ class VideoSummarizer:
             self.origin_fps = round(self.vr.get_avg_fps())
             self.numFrame = len(self.vr)
             self.length = self.numFrame / self.origin_fps
+            
+        if self.total_levels == 1:
+            logger.warning("Received only 1 level in configuration, will be degraded to a generic single level video summarization method that only"
+                        "uses extracted frames to summarize over the overall video contents...")
+            # Reset all related configurations to degrading as a generic VLM summarization method
+            settings.UNIFORM_CHUNK_CONFIG.chunk_duration = self.length + 1
+            self.chunking_method = UniformChunking.METHOD_NAME
             
         self.chunk_dict: Dict[Tuple[int, int], ChunkMeta] = {}
         self.chunklist_dict: Dict[int, List[ChunkMeta]] = {}
@@ -145,8 +177,14 @@ class VideoSummarizer:
             self.video_chunker = UniformChunking(**(settings.UNIFORM_CHUNK_CONFIG.model_dump()))
             
         else:
-            raise NotImplementedError(f"Unsupported video chunking method: {self.chunking_method}, "
-                                      f"choices:[{PeltChunking.METHOD_NAME}, {UniformChunking.METHOD_NAME}]")
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message=f"Summarization failed!",
+                        details=f"Unsupported video chunking method: {self.chunking_method}, "
+                                f"choices:[{PeltChunking.METHOD_NAME}, {UniformChunking.METHOD_NAME}]"
+                    ).model_dump()
+                )
         
         logger.info(f"Video chunking method: {self.video_chunker.METHOD_NAME}")
         
@@ -217,19 +255,23 @@ class VideoSummarizer:
             self.chunklist_dict[level] = listMacroChunk
             level += 1
 
-        # Create root chunk containing all macro chunks
-        chunk = MacroChunkMeta()
-        chunk.fps = chunk_level0_fps
-        chunk.time_st = 0
-        chunk.time_end = self.chunklist_dict[level - 1][-1].time_end
-        chunk.desc = ""
-        chunk.num_subchunk = len(self.chunklist_dict[level - 1])
-        chunk.chunk_list = self.chunklist_dict[level - 1]
-        chunk.id = 0
-        chunk.level = level
-        self.chunk_dict[(chunk.level, chunk.id)] = chunk
-        self.rootChunk = chunk
-        self.rootLevel = level
+        if self.total_levels > 1:
+            # Create root chunk containing all macro chunks
+            chunk = MacroChunkMeta()
+            chunk.fps = chunk_level0_fps
+            chunk.time_st = 0
+            chunk.time_end = self.chunklist_dict[level - 1][-1].time_end
+            chunk.desc = ""
+            chunk.num_subchunk = len(self.chunklist_dict[level - 1])
+            chunk.chunk_list = self.chunklist_dict[level - 1]
+            chunk.id = 0
+            chunk.level = level
+            self.chunk_dict[(chunk.level, chunk.id)] = chunk
+            self.rootChunk = chunk
+            self.rootLevel = level
+        else:
+            # only single level
+            self.rootLevel = 0
         logger.debug("Chunking complete")
     
     async def summarize(self) -> Tuple[str, Dict[str, str]]:
@@ -244,6 +286,25 @@ class VideoSummarizer:
         try:
             job_id = str(uuid.uuid4())[-8:]
             logger.debug(f"Generated job ID: {job_id}")
+            
+            # total_levels = 1, degrading as a generic VLM summarization method
+            if self.rootLevel == 0:
+                if len(self.chunklist_dict[0]) > 1:
+                    bad_summary = f"Error: Speficy total levels = 1, but got several chunks in level-0, this is not allowed!"
+                    logger.error(bad_summary)
+                    response = {
+                        "summary": bad_summary,
+                        "video_duration": self.length
+                    }
+                    return job_id, response
+                await self.summarize_micro_chunk(self.chunklist_dict[0][0])
+                logger.debug("Return summarization with single level and single inference!!")
+                # Directly return the description of the single level summarization result
+                response = {
+                    "summary": self.chunklist_dict[0][0].desc,
+                    "video_duration": self.length
+                }
+                return job_id, response
             
             # Process micro chunks (level 0)
             logger.debug("Processing level 0 (micro chunks)")
