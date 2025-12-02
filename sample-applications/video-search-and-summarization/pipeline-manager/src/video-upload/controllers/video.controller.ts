@@ -52,7 +52,7 @@ export class VideoController {
 
     if (!streamable) {
       throw new UnprocessableEntityException(
-        'The video file is not streamable. Please upload a valid video file.',
+        'The video file is not streamable. Please upload a streamable MP4 video.',
       );
     }
 
