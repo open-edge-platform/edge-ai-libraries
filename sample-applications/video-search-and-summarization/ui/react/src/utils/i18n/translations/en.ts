@@ -144,7 +144,7 @@ export const enTranslations = {
   OnlyStreamableMp4: 'The video file is not streamable. Please upload a streamable MP4 video.',
   StreamableHelpText:
     'You can use ffmpeg to convert your video to a streamable format with the following command:',
-  BatchSizeHelpText: 'Please update "Frame per chunk" or "Frames Overlap", so that their sum is less than the maximum supported batch size.',
+  BatchSizeHelpText: 'Please update "Frame per chunk" or "Frames Overlap", so that their sum is not greater than the maximum supported batch size.',
 
   IngestionSettings: 'Ingestion Settings',
   AudioSettings: 'Audio Settings',
