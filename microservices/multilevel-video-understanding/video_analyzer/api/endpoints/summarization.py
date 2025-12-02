@@ -1,12 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import logging
 import traceback
-from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status
 
 from video_analyzer.schemas.summarization import (
     ErrorResponse,
@@ -17,6 +14,7 @@ from video_analyzer.schemas.summarization import (
 from video_analyzer.schemas.state import SummarizationStatus
 from video_analyzer.core.summarizer import ModelConfig, VideoSummarizer
 from video_analyzer.utils.logger import logger
+from video_analyzer.utils.file_utils import validate_video_path
 
 router = APIRouter()
 model_cfg = ModelConfig()
@@ -48,7 +46,7 @@ async def summarize_video(
     """
     try:
         # Parse request parameters
-        video_path = request.video
+        video_path = validate_video_path(request.video)
         user_prompt = request.prompt
         method = request.method
         
