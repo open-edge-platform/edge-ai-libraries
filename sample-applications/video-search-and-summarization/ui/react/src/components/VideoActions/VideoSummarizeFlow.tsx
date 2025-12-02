@@ -338,7 +338,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     } catch (error) {
       console.error('Failed to trigger summary pipeline:', error);
       setProgressText(t('errorTriggeringPipeline', 'Unable to trigger summary pipeline.'));
-      return null;
+      throw error;
     }
   };
 
@@ -829,7 +829,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
             formatError === t('OnlyStreamableMp4') ? (
               <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
                 <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
-                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
                 <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
               </ErrorBox>
             ) : (
@@ -1103,9 +1103,15 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                 </div>
                 {uploadErrorMessage && (
                   <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
-                    <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
-                    <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
-                    <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                    <div style={{ fontSize: '1.1rem' }}><strong>{uploadErrorMessage}</strong></div>
+                    {((uploadErrorMessage === t('OnlyStreamableMp4') && (
+                    <div>
+                      <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
+                      <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                    </div>
+                    ))) || ((uploadErrorMessage.toLowerCase().includes('batch size') && 
+                      (<div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('BatchSizeHelpText')}</div>)
+                    ))}
                   </ErrorBox>
                 )}
                 {uploading && (
