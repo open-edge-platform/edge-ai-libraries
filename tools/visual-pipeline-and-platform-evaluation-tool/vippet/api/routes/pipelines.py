@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from typing import List
 
@@ -15,6 +16,7 @@ router = APIRouter()
 pipeline_manager = get_pipeline_manager()
 optimization_manager = get_optimization_manager()
 validation_manager = get_validation_manager()
+logger = logging.getLogger("api.routes.pipelines")
 
 
 @router.post(
@@ -108,11 +110,13 @@ def create_pipeline(body: schemas.PipelineDefinition):
             status_code=201,
         )
     except ValueError as e:
+        logger.error("Failed to create pipeline due to invalid input: %s", e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=400,
         )
     except Exception as e:
+        logger.error("Unexpected error while creating pipeline", exc_info=True)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Failed to create pipeline: {str(e)}"
@@ -215,11 +219,15 @@ def validate_pipeline(body: schemas.PipelineValidation):
         )
     except ValueError as e:
         # ValidationManager uses ValueError for user-level input problems.
+        logger.error("Invalid pipeline validation request: %s", e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=400,
         )
     except Exception as e:
+        logger.error(
+            "Unexpected error while starting pipeline validation", exc_info=True
+        )
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error: {str(e)}"
@@ -335,11 +343,15 @@ def get_pipeline(pipeline_id: str):
     try:
         return pipeline_manager.get_pipeline_by_id(pipeline_id)
     except ValueError as e:
+        logger.warning("Pipeline %s not found: %s", pipeline_id, e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=404,
         )
     except Exception as e:
+        logger.error(
+            "Unexpected error while retrieving pipeline %s", pipeline_id, exc_info=True
+        )
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error: {str(e)}"
@@ -425,36 +437,54 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         and body.parameters is None
         and body.pipeline_graph is None
     ):
+        message = "At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided."
+        logger.error(
+            "Invalid update request for pipeline %s: %s",
+            pipeline_id,
+            message,
+        )
         return JSONResponse(
-            content=schemas.MessageResponse(
-                message="At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided."
-            ).model_dump(),
+            content=schemas.MessageResponse(message=message).model_dump(),
             status_code=400,
         )
 
     # Additional lightweight validation to avoid accepting empty values.
     if body.name is not None and body.name.strip() == "":
+        message = "Field 'name' must not be empty."
+        logger.error(
+            "Invalid update request for pipeline %s: %s",
+            pipeline_id,
+            message,
+        )
         return JSONResponse(
-            content=schemas.MessageResponse(
-                message="Field 'name' must not be empty."
-            ).model_dump(),
+            content=schemas.MessageResponse(message=message).model_dump(),
             status_code=400,
         )
 
     if body.description is not None and body.description.strip() == "":
+        message = "Field 'description' must not be empty."
+        logger.error(
+            "Invalid update request for pipeline %s: %s",
+            pipeline_id,
+            message,
+        )
         return JSONResponse(
-            content=schemas.MessageResponse(
-                message="Field 'description' must not be empty."
-            ).model_dump(),
+            content=schemas.MessageResponse(message=message).model_dump(),
             status_code=400,
         )
 
     if body.pipeline_graph is not None:
         if not body.pipeline_graph.nodes or not body.pipeline_graph.edges:
+            message = (
+                "Field 'pipeline_graph' must contain at least one node and one edge."
+            )
+            logger.error(
+                "Invalid update request for pipeline %s: %s",
+                pipeline_id,
+                message,
+            )
             return JSONResponse(
-                content=schemas.MessageResponse(
-                    message="Field 'pipeline_graph' must contain at least one node and one edge."
-                ).model_dump(),
+                content=schemas.MessageResponse(message=message).model_dump(),
                 status_code=400,
             )
 
@@ -468,11 +498,19 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         )
         return updated_pipeline
     except ValueError as e:
+        logger.warning(
+            "Failed to update pipeline %s due to invalid input: %s",
+            pipeline_id,
+            e,
+        )
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=404,
         )
     except Exception as e:
+        logger.error(
+            "Unexpected error while updating pipeline %s", pipeline_id, exc_info=True
+        )
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error: {str(e)}"
@@ -553,11 +591,21 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
         job_id = optimization_manager.run_optimization(pipeline, body)
         return schemas.OptimizationJobResponse(job_id=job_id)
     except ValueError as e:
+        logger.warning(
+            "Pipeline %s not found for optimization request: %s",
+            pipeline_id,
+            e,
+        )
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=404,
         )
     except Exception as e:
+        logger.error(
+            "Unexpected error while starting optimization for pipeline %s",
+            pipeline_id,
+            exc_info=True,
+        )
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error: {str(e)}"
@@ -613,6 +661,7 @@ def delete_pipeline(pipeline_id: str):
     try:
         pipeline_manager.delete_pipeline_by_id(pipeline_id)
     except ValueError as e:
+        logger.warning("Pipeline %s not found for deletion: %s", pipeline_id, e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=404,

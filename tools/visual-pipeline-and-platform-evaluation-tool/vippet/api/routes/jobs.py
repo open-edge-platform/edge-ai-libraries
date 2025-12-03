@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 from fastapi import APIRouter
@@ -12,11 +13,13 @@ router = APIRouter()
 optimization_manager = get_optimization_manager()
 tests_manager = get_tests_manager()
 validation_manager = get_validation_manager()
+logger = logging.getLogger("api.routes.jobs")
 
 
 def get_job_status_or_404(job_id: str, job_type: str):
     status = tests_manager.get_job_status(job_id)
     if status is None:
+        logger.warning("%s job %s not found", job_type, job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"{job_type} job {job_id} not found"
@@ -50,15 +53,20 @@ def stop_test_job_handler(job_id: str):
     if success:
         return response
     if "not found" in message.lower() or "no active runner found" in message.lower():
+        logger.warning("Failed to stop job %s: %s", job_id, message)
         return JSONResponse(
             content=response.model_dump(),
             status_code=404,
         )
     if "not running" in message.lower():
+        logger.warning(
+            "Job %s stop requested but job is not running: %s", job_id, message
+        )
         return JSONResponse(
             content=response.model_dump(),
             status_code=409,
         )
+    logger.error("Unexpected error while stopping job %s: %s", job_id, message)
     return JSONResponse(
         content=response.model_dump(),
         status_code=500,
@@ -227,6 +235,7 @@ def get_performance_job_summary(job_id: str):
     """
     summary = tests_manager.get_job_summary(job_id)
     if summary is None:
+        logger.warning("Performance job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Job {job_id} not found"
@@ -429,6 +438,7 @@ def get_density_job_summary(job_id: str):
     """
     summary = tests_manager.get_job_summary(job_id)
     if summary is None:
+        logger.warning("Density job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Job {job_id} not found"
@@ -568,6 +578,7 @@ def get_optimization_job_summary(job_id: str):
     # is unknown, which we map to a 404 HTTP response.
     summary = optimization_manager.get_job_summary(job_id)
     if summary is None:
+        logger.warning("Optimization job summary requested for unknown job %s", job_id)
         # The explicit JSONResponse is used instead of raising HTTPException
         # to mirror the style used by other routes (e.g. pipelines.py) and
         # to fully control the response payload.
@@ -612,6 +623,7 @@ def get_optimization_job_status(job_id: str):
     # to a 404 response, mirroring the behaviour of the summary endpoint.
     status = optimization_manager.get_job_status(job_id)
     if status is None:
+        logger.warning("Optimization job status requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Optimization job {job_id} not found"
@@ -689,6 +701,7 @@ def get_validation_job_summary(job_id: str):
     """
     summary = validation_manager.get_job_summary(job_id)
     if summary is None:
+        logger.warning("Validation job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Validation job {job_id} not found"
@@ -735,6 +748,7 @@ def get_validation_job_status(job_id: str):
     """
     status = validation_manager.get_job_status(job_id)
     if status is None:
+        logger.warning("Validation job status requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Validation job {job_id} not found"

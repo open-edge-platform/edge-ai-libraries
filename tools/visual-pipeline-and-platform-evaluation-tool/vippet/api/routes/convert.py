@@ -1,3 +1,5 @@
+import logging
+
 from graph import Graph
 
 from fastapi import APIRouter
@@ -6,6 +8,7 @@ from fastapi.responses import JSONResponse
 from api.api_schemas import MessageResponse, PipelineDescription, PipelineGraph
 
 router = APIRouter()
+logger = logging.getLogger("api.routes.convert")
 
 
 @router.post(
@@ -79,6 +82,7 @@ def to_graph(request: PipelineDescription):
         graph = Graph.from_pipeline_description(request.pipeline_description)
         return PipelineGraph.model_validate(graph.to_dict())
     except ValueError as e:
+        logger.error("Invalid pipeline description received: %s", e)
         return JSONResponse(
             content=MessageResponse(
                 message=f"Invalid pipeline description: {str(e)}"
@@ -86,6 +90,7 @@ def to_graph(request: PipelineDescription):
             status_code=400,
         )
     except Exception as e:
+        logger.error("Failed to convert pipeline description to graph", exc_info=True)
         return JSONResponse(
             content=MessageResponse(message=str(e)).model_dump(),
             status_code=500,
@@ -163,11 +168,13 @@ def to_description(request: PipelineGraph):
         pipeline_description = graph.to_pipeline_description()
         return PipelineDescription(pipeline_description=pipeline_description)
     except ValueError as e:
+        logger.error("Invalid pipeline graph received: %s", e)
         return JSONResponse(
             content=MessageResponse(message=f"Invalid graph: {str(e)}").model_dump(),
             status_code=400,
         )
     except Exception as e:
+        logger.error("Failed to convert pipeline graph to description", exc_info=True)
         return JSONResponse(
             content=MessageResponse(message=str(e)).model_dump(), status_code=500
         )
