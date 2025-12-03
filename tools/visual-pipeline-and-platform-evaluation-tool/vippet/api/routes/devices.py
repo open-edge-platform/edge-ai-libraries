@@ -1,11 +1,14 @@
+import logging
 from typing import List
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
 from device import DeviceDiscovery
 
 router = APIRouter()
+logger = logging.getLogger("api.routes.devices")
 
 
 @router.get(
@@ -71,14 +74,23 @@ def get_devices():
               }
             ]
     """
-    device_list = DeviceDiscovery().list_devices()
-    return [
-        schemas.Device(
-            device_name=device.device_name,
-            full_device_name=device.full_device_name,
-            device_type=device.device_type,
-            device_family=device.device_family,
-            gpu_id=getattr(device, "gpu_id", None),
+    try:
+        device_list = DeviceDiscovery().list_devices()
+        return [
+            schemas.Device(
+                device_name=device.device_name,
+                full_device_name=device.full_device_name,
+                device_type=device.device_type,
+                device_family=device.device_family,
+                gpu_id=getattr(device, "gpu_id", None),
+            )
+            for device in device_list
+        ]
+    except Exception:
+        logger.error("Failed to discover devices", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message="Unexpected error when discovering devices"
+            ).model_dump(),
+            status_code=500,
         )
-        for device in device_list
-    ]

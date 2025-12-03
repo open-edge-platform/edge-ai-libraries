@@ -417,7 +417,7 @@ parse_test_cases = [
                 Node(
                     id="20",
                     type="video/x-raw\\(memory:VAMemory\\)",
-                    data={"width": "320", "height": "240"},
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
                 ),
                 Node(id="21", type="fakesink", data={}),
             ],
@@ -473,7 +473,7 @@ parse_test_cases = [
                 Node(
                     id="11",
                     type="video/x-raw\\(memory:VAMemory\\)",
-                    data={"width": "320", "height": "240"},
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
                 ),
                 Node(id="12", type="fakesink", data={}),
             ],
@@ -1037,7 +1037,7 @@ parse_test_cases = [
                 Node(
                     id="7",
                     type="video/x-raw\\(memory:VAMemory\\)",
-                    data={"width": "320", "height": "240"},
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
                 ),
                 Node(id="8", type="fakesink", data={}),
             ],
@@ -1050,6 +1050,100 @@ parse_test_cases = [
                 Edge(id="5", source="5", target="6"),
                 Edge(id="6", source="6", target="7"),
                 Edge(id="7", source="7", target="8"),
+            ],
+        ),
+    ),
+    # Caps without parentheses, width/height
+    ParseTestCase(
+        r"filesrc ! video/x-raw,width=320,height=240 ! fakesink",
+        Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(
+                    id="1",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "320", "height": "240"},
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+    # Caps with memory feature, simple numeric props
+    ParseTestCase(
+        r"filesrc ! video/x-raw(memory:NVMM),format=UYVY,width=2592,height=1944,framerate=28/1 ! fakesink",
+        Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:NVMM)",
+                    data={
+                        "__node_kind": "caps",
+                        "format": "UYVY",
+                        "width": "2592",
+                        "height": "1944",
+                        "framerate": "28/1",
+                    },
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+    # Caps without memory, with explicit types in values
+    ParseTestCase(
+        r"filesrc ! video/x-raw,format=(string)UYVY,width=(int)2592,height=(int)1944,framerate=(fraction)28/1 ! fakesink",
+        Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(
+                    id="1",
+                    type="video/x-raw",
+                    data={
+                        "__node_kind": "caps",
+                        "format": "(string)UYVY",
+                        "width": "(int)2592",
+                        "height": "(int)1944",
+                        "framerate": "(fraction)28/1",
+                    },
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+    # Caps with memory and explicit types in values
+    ParseTestCase(
+        r"filesrc ! video/x-raw(memory:NVMM),format=(string)UYVY,width=(int)2592,height=(int)1944,framerate=(fraction)28/1 ! fakesink",
+        Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:NVMM)",
+                    data={
+                        "__node_kind": "caps",
+                        "format": "(string)UYVY",
+                        "width": "(int)2592",
+                        "height": "(int)1944",
+                        "framerate": "(fraction)28/1",
+                    },
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
             ],
         ),
     ),
@@ -1267,6 +1361,85 @@ class TestParseDescription(unittest.TestCase):
 
         self.assertEqual(result.edges[0].id, "0")
         self.assertEqual(result.edges[1].id, "1")
+
+    def test_edge_ids_unique_for_consecutive_caps_nodes(self):
+        """
+        When multiple caps segments appear in sequence, edge IDs must remain
+        unique across all edges in the graph.
+
+        Example:
+            filesrc ! video/x-raw,width=320,height=240 ! video/x-raw,format=NV12 ! fakesink
+        """
+        pipeline = (
+            "filesrc ! "
+            "video/x-raw,width=320,height=240 ! "
+            "video/x-raw,format=NV12 ! "
+            "fakesink"
+        )
+        result = Graph.from_pipeline_description(pipeline)
+
+        # We expect 4 nodes: filesrc, caps1, caps2, fakesink
+        self.assertEqual(len(result.nodes), 4)
+        # And 3 edges: 0->1, 1->2, 2->3
+        self.assertEqual(len(result.edges), 3)
+
+        # Edge IDs must be unique strings
+        edge_ids = [e.id for e in result.edges]
+        self.assertEqual(len(edge_ids), len(set(edge_ids)))
+
+        # Sanity-check the connectivity: ids should form a simple chain.
+        sources_targets = [(e.source, e.target) for e in result.edges]
+        self.assertIn(("0", "1"), sources_targets)
+        self.assertIn(("1", "2"), sources_targets)
+        self.assertIn(("2", "3"), sources_targets)
+
+    def test_edge_ids_unique_with_single_caps_segment(self):
+        """
+        Basic sanity check that even with a single caps segment the edge IDs
+        remain unique and correctly represent the chain.
+        """
+        pipeline = "filesrc ! video/x-raw,width=320,height=240 ! fakesink"
+        result = Graph.from_pipeline_description(pipeline)
+
+        # filesrc, caps, fakesink
+        self.assertEqual(len(result.nodes), 3)
+        self.assertEqual(len(result.edges), 2)
+
+        edge_ids = [e.id for e in result.edges]
+        self.assertEqual(len(edge_ids), len(set(edge_ids)))
+
+        sources_targets = [(e.source, e.target) for e in result.edges]
+        self.assertIn(("0", "1"), sources_targets)
+        self.assertIn(("1", "2"), sources_targets)
+
+    def test_tee_end_without_tee_element_raises_error_for_regular_node(self):
+        """
+        Using a tee endpoint (e.g. 't.') without a corresponding tee element
+        should raise a clear ValueError instead of an IndexError.
+
+        This test covers the case where TEE_END is followed by a regular
+        element segment.
+        """
+        # There is no 'tee name=t0' element, but 't0.' is used.
+        pipeline = "filesrc ! t0. ! queue ! fakesink"
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.from_pipeline_description(pipeline)
+
+        self.assertIn("TEE_END without corresponding tee element", str(cm.exception))
+
+    def test_tee_end_without_tee_element_raises_error_for_caps_node(self):
+        """
+        Using a tee endpoint (e.g. 't.') without a corresponding tee element
+        should also raise a clear ValueError when the next segment is a caps
+        node.
+        """
+        pipeline = "filesrc ! t0. ! video/x-raw,width=320,height=240 ! fakesink"
+
+        with self.assertRaises(ValueError) as cm:
+            Graph.from_pipeline_description(pipeline)
+
+        self.assertIn("TEE_END without corresponding tee element", str(cm.exception))
 
 
 class TestNegativeCases(unittest.TestCase):
