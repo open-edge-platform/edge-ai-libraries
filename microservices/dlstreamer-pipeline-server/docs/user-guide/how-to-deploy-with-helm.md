@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0-rc2`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-2025.2.0-rc2.tgz`
+    `tar -xvf dlstreamer-pipeline-server-2025.2.0.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
@@ -44,7 +44,7 @@ Update the below fields in `values.yaml` file in the helm chart
     http_proxy: # example: http_proxy: http://proxy.example.com:891
     https_proxy: # example: http_proxy: http://proxy.example.com:891
   images:
-    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2025.2.0-ubuntu22
   ```
 
 ### Install the helm chart
