@@ -21,15 +21,18 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example, this is primarily used for inference on Intel single-GPU or multiple-GPUs, optimized for Intel® Arc™ Pro B60 Graphics.
 
 First of all, prepare GenAIComps from Open Platform for Enterprise AI (OPEA):
+
 ```bash
 git clone https://github.com/opea-project/GenAIComps.git
 cd GenAIComps
 ```
 
 ### Start model serving for VLM
+
 Following the tutorial in [LVM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/lvms/src/README_vllm_ipex.html)
 
 **Key Configuration**
+
 - `MAX_MODEL_LEN`: max model length, constraints to GPU memory.
 - `LLM_MODEL_ID`: huggingface model id.
 - `LOAD_QUANTIZATION`: model precision.
@@ -38,6 +41,7 @@ Following the tutorial in [LVM Microservice with vLLM on Intel XPU](https://opea
 - `TENSOR_PARALLEL_SIZE`: tensor parallel size.
 
 Override with below specific environment variables that has been verified by this microservice:
+
 ```bash
 export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
@@ -48,6 +52,7 @@ export TENSOR_PARALLEL_SIZE=2
 ```
 
 Then, check existence of serving:
+
 ```bash
 docker logs -f lvm-vllm-ipex-service
 
@@ -59,10 +64,11 @@ INFO:     Application startup complete.
 ```
 
 ### Start model serving for LLM
+
 Following the tutorial in [LLM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/llms/src/text-generation/README_vllm_ipex.html)
 
-
 **Key Configuration**
+
 - `MAX_MODEL_LEN`: max model length, constraints to GPU memory.
 - `LLM_MODEL_ID`: huggingface model id.
 - `LOAD_QUANTIZATION`: model precision.
@@ -71,6 +77,7 @@ Following the tutorial in [LLM Microservice with vLLM on Intel XPU](https://opea
 - `TENSOR_PARALLEL_SIZE`: tensor parallel size.
 
 Override with below specific environment variables that has been verified by this microservice:
+
 ```bash
 export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
@@ -81,6 +88,7 @@ export TENSOR_PARALLEL_SIZE=2
 ```
 
 Then, check existence of serving:
+
 ```bash
 docker logs -f textgen-vllm-ipex-service
 
@@ -88,11 +96,9 @@ docker logs -f textgen-vllm-ipex-service
 INFO:     Started server process [411]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-
 ```
 
 > Note: Please refer to [validated models](./Overview.md#validated-models) for the list of models that can has been verified in video summarization.
-
 
 ## Quick Start with Docker
 
@@ -109,6 +115,7 @@ Then, use the following commands to set up the `multilevel-video-understanding` 
 The following environment variables can be configured:
 
 **Basic configuration**
+
 - `REGISTRY_URL`: Docker image registry url
 - `TAG`: Docker image tag (default: latest)
 - `SERVICE_PORT`: Multi-level Video Understanding Microservice port (default: 8192)
@@ -116,12 +123,14 @@ The following environment variables can be configured:
 - `DEBUG`: Enable debug mode (default: False)
 
 **Model configuration**
+
 - `VLM_MODEL_NAME`: Vison-Language model(VLM), this should comply with model serving's `model` field.
 - `VLM_BASE_URL`: Model serving's base url for VLM. (e.g., `http://localhost:41091/v1`)
 - `LLM_MODEL_NAME`: Large Language model(LLM), this should comply with model serving's `model` field.
 - `LLM_BASE_URL`: Model serving's base url for LLM. (e.g., `http://localhost:41090/v1`)
 
 **Example of minimum required environment variables**
+
 ```bash
 export REGISTRY_URL=intel/
 export TAG=latest
@@ -131,14 +140,17 @@ export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
 export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
 export SERVICE_PORT=8192
 ```
-> **Note:** 
-> - Please remember to change `REGISTRY_URL` and `TAG` as needed. 
+
+> **Note:**
+>
+> - Please remember to change `REGISTRY_URL` and `TAG` as needed.
 >   - If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`.
 >   - If `REGISTRY_URL` is not provided, the image name will be: `multilevel-video-understanding:${TAG}`
 > - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
 > - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
 **step3.** Launch the microservice
+
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 cd edge-ai-libraries/microservices/multilevel-video-understanding
@@ -147,6 +159,7 @@ chmod +x ./setup_docker.sh
 ```
 
 Once the service is up, you can check the log:
+
 ```bash
 $ docker ps
 
@@ -162,6 +175,7 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 ```
+
 > **Note**: Please ensure that the dependent VLM and LLM model services have been successfully set up, and the `VLM_MODEL_NAME`, `LLM_MODEL_NAME`, `VLM_BASE_URL`, `LLM_BASE_URL` variables are correctly set. Users can refer to [Setting up GenAI model services to support VLM and LLM](#setup-genai-model-servings-for-vlm-and-llm)
 
 ## Microservice Usage Examples
@@ -200,6 +214,7 @@ curl http://localhost:8192/v1/summary -H "Content-Type: application/json" -d '{
 ```
 
 Response example:
+
 ```json
 {
   "status":"completed",
@@ -209,70 +224,78 @@ Response example:
   "video_duration":55.6
 }
 ```
+
 This API endpoint returns a video summary, job ID, and other details once the summarization is done.
 
 ## API Documentation
 
 When running the service, you can access the Swagger UI documentation at:
 
-```
+```bash
 http://localhost:8192/docs
 ```
 
 ## Manual Host Setup using Poetry
 
 1. Clone the repository and change directory to the audio-analyzer microservice:
-```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-cd edge-ai-libraries/microservices/multilevel-video-understanding
-```
+
+   ```bash
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   cd edge-ai-libraries/microservices/multilevel-video-understanding
+   ```
 
 2. Install Poetry if not already installed.
-```bash
-pip install poetry==1.8.3
-```
+
+   ```bash
+   pip install poetry==1.8.3
+   ```
 
 3. Configure poetry to create a local virtual environment.
-```bash
-poetry config virtualenvs.create true
-poetry config virtualenvs.in-project true
-```
+
+   ```bash
+   poetry config virtualenvs.create true
+   poetry config virtualenvs.in-project true
+   ```
 
 4. Install dependencies:
-```bash
-poetry lock --no-update
-poetry install
-```
+
+   ```bash
+   poetry lock --no-update
+   poetry install
+   ```
 
 5. Install video-chunking-utils from OEP/EAL source
-```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-cd edge-ai-libraries/libraries/video-chunking-utils
-pip install .
-```
+
+   ```bash
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   cd edge-ai-libraries/libraries/video-chunking-utils
+   pip install .
+   ```
 
 6. Set the environment variables as needed:
-```bash
-export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
-export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
-export SERVICE_PORT=8192
-```
-> **Note:** 
+
+   ```bash
+   export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
+   export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
+   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+   export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
+   export SERVICE_PORT=8192
+   ```
+
+> **Note:**
 > - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
 > - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
 7. Run the service:
+
 ```bash
 DEBUG=True poetry run uvicorn video_analyzer.main:app --host 0.0.0.0 --port ${SERVICE_PORT} --reload
 ```
 
 <!-- ## Troubleshooting -->
 
-
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](Overview.md)
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)

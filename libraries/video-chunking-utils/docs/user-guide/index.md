@@ -95,3 +95,11 @@ from video_chunking.data import MicroChunkMeta
 ## Other Resources
 
 - [Release Notes](./release-notes.md): Information on the latest release, improvements, and bug fixes.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+release-notes
+:::
+hide_directive-->
