@@ -156,6 +156,9 @@ Before lauching the service as documented below, users need to prepare the docke
 
 - **Option1.** [Build the docker images](./how-to-build-from-source.md#steps-to-build)
 - **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
+   ```bash
+   docker pull intel/multilevel-video-understanding:2025.2.0
+   ```
 
 Then, use the following commands to set up the `multilevel-video-understanding` microservice.
 
@@ -182,7 +185,7 @@ The following environment variables can be configured:
 
 ```bash
 export REGISTRY_URL=intel/
-export TAG=latest
+export TAG=2025.2.0
 export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
 export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
@@ -213,7 +216,7 @@ Once the service is up, you can check the log:
 $ docker ps
 
 CONTAINER ID   IMAGE                                         PORTS                                         NAMES
-6f00712bf4b6   intel/multilevel-video-understanding:latest   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+6f00712bf4b6   intel/multilevel-video-understanding:2025.2.0   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
 
 # the container name may change depend to your runtime
 $ docker logs -f docker-multilevel-video-understanding-1
