@@ -37,7 +37,7 @@ The Model Download Service is a microservice that enables downloading models fro
     - Set the below environment variables
       ```bash
       export REGISTRY="intel/"
-      export TAG=1.0.0
+      export TAG=1.0.1
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
 4. **Launch the service**

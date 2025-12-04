@@ -2,6 +2,14 @@
 
 ## Current Release
 
+**Version**: 1.0.1  
+**Release Date**: WW49 2025
+- Enhanced response structure consistency across all plugins
+
+## Known Issues/Behavior:
+- EMF deployment is not supported right now
+
+
 **Version**: 1.0.0  
 **Release Date**: WW45 2025
 - Introduces a Model Download Microservice featuring a plugin-based architecture for extensibility.
