@@ -125,7 +125,7 @@ jobs:
     # ======================================================== DOCKER TESTING PART ========================================================
     - name: Check models
       run: |
-        echo "## 📂 Environment checks" >> $GITHUB_STEP_SUMMARY
+        echo "## 📂 ${matrix.runner_print_label} Environment checks" >> $GITHUB_STEP_SUMMARY
         echo "Test repo branch: $test_repo_branch" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
@@ -146,7 +146,7 @@ jobs:
 
     - name: Init docker tests configurations
       run: |
-        echo "## 🚢 Docker tests summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚢 ${matrix.runner_print_label} Docker tests summary" >> $GITHUB_STEP_SUMMARY
         if [[ ${{ matrix.runner_print_label }} == "TGL" ]]; then
           echo "DOCKER_TEST_CONFIGS=docker/aliveness_TGL.json" >> $GITHUB_ENV
           echo "Selected test configuration file: docker/aliveness_TGL.json ✅" >> $GITHUB_STEP_SUMMARY
@@ -198,8 +198,10 @@ jobs:
 
     - name: Clean up tests results
       if: always ()
+      env:
+        DLS_TESTS_RESULTS_PATH: ${{ env.DLS_TESTS_RESULTS_PATH }}
       run: |
-        rm -rf "${{ env.DLS_TESTS_RESULTS_PATH }}"
+        rm -rf "$DLS_TESTS_RESULTS_PATH"
 
 
     # ======================================================== OH HOST TESTING PART ========================================================
@@ -220,7 +222,7 @@ jobs:
         echo "Running hello_dlstreamer.sh on CPU with model yolo11s"
         /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=CPU --model=yolo11s --precision=INT8
         OUTPUT_FILE_FOUND=0
-        echo "## 💻 On host tests summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 💻 ${matrix.runner_print_label} On host tests summary" >> $GITHUB_STEP_SUMMARY
         for file in *.mp4; do
             # Check if the file exists and is at least 1kB in size
             if [[ -f "$file" && $(stat --printf="%s" "$file") -ge 1024 ]]; then
