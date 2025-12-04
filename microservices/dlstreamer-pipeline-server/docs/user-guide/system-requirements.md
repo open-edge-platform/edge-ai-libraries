@@ -22,6 +22,9 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Software Requirements
 
+**DL Streamer requirements**
+- Ensure all [requirements](../../../../libraries/dl-streamer/docs/source/get_started/install/install_guide_ubuntu.md) of DL Streamer are fulfilled.
+
 **Required Software**:
 - Docker 27.3.1 or higher
 - Python 3.10 for Ubuntu 22.04, Python 3.12 for Ubuntu 24.04
