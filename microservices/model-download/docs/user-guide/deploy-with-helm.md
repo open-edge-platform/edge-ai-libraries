@@ -73,7 +73,7 @@ Below is a summary of key configuration options available in the `values.yaml` f
 | `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
 | `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins | `all` | Yes |
 | `image.repository`	| image repository url	| intel/model-download | Yes |
-| `image.tag`	        | latest image tag	    | 1.0.0                | Yes |
+| `image.tag`	        | latest image tag	    | 1.0.1                | Yes |
 
 
 > **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.
