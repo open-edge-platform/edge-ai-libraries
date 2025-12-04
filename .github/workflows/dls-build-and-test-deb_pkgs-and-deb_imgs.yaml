@@ -149,10 +149,10 @@ jobs:
         echo "## 🚢 ${matrix.runner_print_label} Docker tests summary" >> $GITHUB_STEP_SUMMARY
         if [[ ${{ matrix.runner_print_label }} == "TGL" ]]; then
           echo "DOCKER_TEST_CONFIGS=docker/aliveness_TGL.json" >> $GITHUB_ENV
-          echo "Selected test configuration file: docker/aliveness_TGL.json ✅" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: docker/aliveness_TGL.json" >> $GITHUB_STEP_SUMMARY
         elif [[ ${{ matrix.runner_print_label }} == "ARL" ]]; then
           echo "DOCKER_TEST_CONFIGS=docker/aliveness_ARL.json" >> $GITHUB_ENV
-          echo "Selected test configuration file: docker/aliveness_ARL.json ✅" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: docker/aliveness_ARL.json" >> $GITHUB_STEP_SUMMARY
         else
           echo "Test configuration file: not found ❌" >> $GITHUB_STEP_SUMMARY
           echo "❌ Cannot assign correct test configuration JSON file for runner based on label: ${{ matrix.runner_print_label }}"
@@ -248,10 +248,10 @@ jobs:
       run: |
         if [[ ${{ matrix.runner_print_label }} == "TGL" ]]; then
           echo "HOST_TEST_CONFIGS=on_host/samples_TGL.json" >> $GITHUB_ENV
-          echo "Selected test configuration file: on_host/samples_TGL.json ✅" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: on_host/samples_TGL.json" >> $GITHUB_STEP_SUMMARY
         elif [[ ${{ matrix.runner_print_label }} == "ARL" ]]; then
           echo "HOST_TEST_CONFIGS=on_host/samples_ARL.json" >> $GITHUB_ENV
-          echo "Selected test configuration file: on_host/samples_ARL.json ✅" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: on_host/samples_ARL.json" >> $GITHUB_STEP_SUMMARY
         else
           echo "Test configuration file: not found ❌" >> $GITHUB_STEP_SUMMARY
           echo "❌ Cannot assign correct test configuration JSON file for runner based on label: ${{ matrix.runner_print_label }}"
