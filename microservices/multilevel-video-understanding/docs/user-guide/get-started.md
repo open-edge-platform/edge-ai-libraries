@@ -156,6 +156,9 @@ Before lauching the service as documented below, users need to prepare the docke
 
 - **Option1.** [Build the docker images](./how-to-build-from-source.md#steps-to-build)
 - **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
+   ```bash
+   docker pull intel/multilevel-video-understanding:latest
+   ```
 
 Then, use the following commands to set up the `multilevel-video-understanding` microservice.
 
