@@ -3,23 +3,22 @@
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
+import sys
+import time
+#from contextlib import contextmanager
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstAnalytics', '1.0')
 from gi.repository import Gst, GLib, GstAnalytics
-import sys
-import sys
-import time
-from contextlib import contextmanager
-
 
 
 class DualStreamController:
+    """Class to create and control dual GStreamer streams with a valve element."""
     def __init__(self, video_source):
         """
         Initialize dual stream controller
-
         """
+
         Gst.init(None)
         self.video_source = video_source
         self.pipeline = None
@@ -126,7 +125,7 @@ class DualStreamController:
                 return False
             else:
                 print("Found control_valve element")    
-            
+
             # Get pre_view_classify element from pipeline
             # Below we add a probe to the sink pad of pre_view_classify to monitor detected objects
             self.pre_view_classify = self.pipeline.get_by_name("pre_view_classify")
@@ -135,7 +134,7 @@ class DualStreamController:
                 return False
             else:
                 print("Found pre_view_classify element")
-            
+
             # Get sink pad of pre_view_classify
             pre_view_classify_pad = self.pre_view_classify.get_static_pad("sink")
             if not pre_view_classify_pad:
@@ -143,15 +142,14 @@ class DualStreamController:
                 return False
             else:
                 print("Got sink pad of pre_view_classify")
-            
+
             # and add probe/callback
-            pre_view_classify_pad.add_probe(Gst.PadProbeType.BUFFER, self.object_detector_callback, 0)
-            
+            pre_view_classify_pad.add_probe(Gst.PadProbeType.BUFFER,
+                                            self.object_detector_callback, 0)
             print("All elements found and pipeline created successfully")
         except Exception as e:
             print(f"Error creating pipeline: {e}")
             return False
-        
         return True
 
     def object_detector_callback(self, pad, info, u_data):
@@ -232,6 +230,7 @@ class DualStreamController:
 
 
 def display_header():
+    """Display the header information for the Open/Close Valve sample."""
     print("\n# ====================================== #")
     print("#  Copyright (C) 2025 Intel Corporation  #")
     print("#                                        #")
@@ -241,6 +240,7 @@ def display_header():
     print("# ====================================== #\n")
 
 def main():
+    """Main function to run the Open/Close Valve sample."""
     # Display header
     display_header()
 
@@ -248,7 +248,6 @@ def main():
     video_source = "./videos/cars_extended.mp4"
     controller = DualStreamController(video_source)
 
-    
     # Create pipeline
     if not controller.create_pipeline():
         print("Failed to create pipeline. Exiting...")
@@ -261,14 +260,14 @@ def main():
     if not controller.start():
         print("Failed to start pipeline. Exiting...")
         return 1
-    
+
     # Run until interrupted
     print("Running pipeline. Press Ctrl+C to stop...")
-    controller.pipeline.set_state(Gst.State.PLAYING)
     terminate = False
     try:
         while not terminate:
-            msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+            msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE,
+                                         Gst.MessageType.EOS | Gst.MessageType.ERROR)
             if msg:
                 if msg.type == Gst.MessageType.ERROR:
                     err, debug_info = msg.parse_error()
@@ -284,7 +283,7 @@ def main():
         terminate = True
     except Exception as e:
         print(f"Exception occurred: {e}")
-    
+
     # Stop pipeline
     controller.pipeline.set_state(Gst.State.NULL)
 
