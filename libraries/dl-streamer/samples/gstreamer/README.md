@@ -26,6 +26,7 @@ Samples separated into several categories
     * [Draw Face Attributes C++ Sample](./cpp/draw_face_attributes/README.md) - constructs pipeline and sets "C" callback to access frame metadata and visualize inference results
 3. Python samples
     * [Draw Face Attributes Python Sample](./python/draw_face_attributes/README.md) - constructs pipeline and sets Python callback to access frame metadata and visualize inference results
+    * [Open Close Valve Sample](./python/open_close_valve/README.md) - constructs pipeline with two sinks. On of them has valve element, which is managed based object detection result and opened/closed by callback.
 4. Benchmark
     * [Benchmark Sample](./benchmark/README.md) - measures overall performance of single-channel or multi-channel video analytics pipelines
 
