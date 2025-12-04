@@ -40,8 +40,6 @@ This will create a directory named `model-download` containing the chart files. 
 cd model-download
 ```
 
-
-
 ### Option 2: Install from Source
 
 #### Step 1: Clone the Repository
@@ -60,8 +58,6 @@ Navigate to the chart directory:
 ```bash
 cd edge-ai-libraries/microservices/model-download/chart
 ```
-
-
 
 ## Common Steps
 
@@ -101,7 +97,7 @@ kubectl get services -n <your-namespace>
 
 ### Step 6: Access the Application
 
-Open the application swagger documentation in a browser at `http://\<node-ip\>:\<node-port\>/api/v1/docs`
+Open the application swagger documentation in a browser at `http://<node-ip>:<node-port>/api/v1/docs`
 
 ### Step 7: Uninstall Helm chart
 

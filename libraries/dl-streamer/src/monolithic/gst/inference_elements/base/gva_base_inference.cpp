@@ -422,6 +422,9 @@ void gva_base_inference_cleanup(GvaBaseInference *base_inference) {
     g_free(base_inference->model_instance_id);
     base_inference->model_instance_id = nullptr;
 
+    g_free(base_inference->scheduling_policy);
+    base_inference->scheduling_policy = nullptr;
+
     g_free(base_inference->pre_proc_type);
     base_inference->pre_proc_type = nullptr;
 
@@ -802,6 +805,9 @@ void gva_base_inference_get_property(GObject *object, guint property_id, GValue 
         break;
     case PROP_SHARE_VADISPLAY_CTX:
         g_value_set_boolean(value, base_inference->share_va_display_ctx);
+        break;
+    case PROP_SCHEDULING_POLICY:
+        g_value_set_string(value, base_inference->scheduling_policy);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);

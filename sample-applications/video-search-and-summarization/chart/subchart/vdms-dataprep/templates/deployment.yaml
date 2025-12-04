@@ -58,22 +58,65 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
             {{- toYaml .Values.startupProbe | nindent 12 }}
-          {{- with .Values.resources }}
+      {{- if .Values.global.gpu.vdmsdataprepEnabled }}
           resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            requests:
+              {{ .Values.global.gpu.key }}: 1
+            limits:
+              {{ .Values.global.gpu.key }}: 1
+      {{- else if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
             - name: volume-data
-              mountPath: /root/.cache
-              subPath: cache
+              mountPath: /home/appuser/.cache/huggingface
+              subPath: huggingface
+      {{- if .Values.modelPvc.enabled }}
+            - name: models-data
+              mountPath: /app/ov_models
+              subPath: ovmodels
+            - name: models-data
+              mountPath: /app/models/yolox
+              subPath: yoloxmodels
+      {{- else }}
+            - name: volume-data
+              mountPath: /app/ov_models
+              subPath: ovmodels
+            - name: volume-data
+              mountPath: /app/models/yolox
+              subPath: yoloxmodels
+      {{- end }}
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
       volumes:
         - name: tmp
           emptyDir: {}
+      {{- if .Values.global.gpu.vdmsdataprepEnabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+      {{- end }}
+      {{- if .Values.modelPvc.enabled }}
+        - name: models-data
+          {{- if .Values.modelPvc.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.modelPvc.existingClaim }}
+          {{- else if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ include "vdms-dataprep.fullname" . }}-models-pvc
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- end }}
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:

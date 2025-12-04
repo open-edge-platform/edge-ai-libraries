@@ -9,7 +9,7 @@
                 "name": "object_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! gvadetect name=detection pre-process-backend=ie ! queue ! gvametaconvert ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! gvametapublish name=destination ! appsink name=appsink",
+                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! gvadetect name=detection pre-process-backend=ie ! queue ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! fakesink",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -69,7 +69,7 @@
                 "name": "video_ingestion",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! queue ! gvametaconvert ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! gvametapublish name=destination ! appsink name=appsink",
+                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! queue ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! fakesink",
                 "parameters": {
                     "type": "object",
                     "properties": {

@@ -15,12 +15,56 @@ data:
   APP_HOST: "vdms-dataprep"
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-  MULTIMODAL_EMBEDDING_MODEL_NAME: {{ .Values.multimodalEmbeddingModelName | quote }}
-  MULTIMODAL_EMBEDDING_NUM_FRAMES: {{ .Values.multimodalEmbeddingNumFrames | quote }}
   no_proxy: "localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
   MINIO_ACCESS_KEY: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
   MINIO_SECRET_KEY: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
   MINIO_ENDPOINT: {{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}
   MINIO_SECURE: "false"
+  DEFAULT_BUCKET_NAME: {{ .Values.defaultBucketName | default .Values.global.env.DEFAULT_BUCKET_NAME | default "video-summary" | quote }}
+  MULTIMODAL_EMBEDDING_ENDPOINT: {{ .Values.multimodalEmbeddingEndpoint | default .Values.global.env.MULTIMODAL_EMBEDDING_ENDPOINT | default "http://multimodal-embedding-ms:8000/embeddings" | quote }}
+  {{- $embeddingModel := dict "value" "" }}
+  {{- if .Values.multimodalEmbeddingModelName }}
+  {{- $_ := set $embeddingModel "value" .Values.multimodalEmbeddingModelName }}
+  {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
+  {{- $_ := set $embeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
+  {{- else }}
+  {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override vdmsdataprep.multimodalEmbeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
+  {{- end }}
+  MULTIMODAL_EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
+  EMBEDDING_PROCESSING_MODE: {{ .Values.embedding.processingMode | default .Values.global.env.EMBEDDING_PROCESSING_MODE | quote }}
+  {{- if .Values.global.gpu.vdmsdataprepEnabled }}
+  SDK_USE_OPENVINO: "true"
+  VDMS_DATAPREP_DEVICE: "GPU"
+  DEVICE: "GPU"
+  {{- else }}
+  {{- $dataprepDevice := .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default .Values.global.env.VDMS_DATAPREP_DEVICE | default .Values.global.env.DEVICE | default "CPU" }}
+  {{- if hasKey .Values.embedding "sdkUseOpenVino" }}
+  SDK_USE_OPENVINO: {{ printf "%v" .Values.embedding.sdkUseOpenVino | quote }}
+  {{- else if hasKey .Values.global.env "SDK_USE_OPENVINO" }}
+  SDK_USE_OPENVINO: {{ printf "%v" .Values.global.env.SDK_USE_OPENVINO | quote }}
+  {{- else }}
+  SDK_USE_OPENVINO: "true"
+  {{- end }}
+  VDMS_DATAPREP_DEVICE: {{ $dataprepDevice | quote }}
+  DEVICE: {{ $dataprepDevice | quote }}
+  {{- end }}
+  OV_MODELS_DIR: {{ .Values.embedding.ovModelsDir | default .Values.global.env.OV_MODELS_DIR | default "/app/ov_models" | quote }}
+  OV_PERFORMANCE_MODE: {{ .Values.embedding.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
+  FRAME_INTERVAL: {{ .Values.frameProcessing.frameInterval | default 15 | quote }}
+  {{- if hasKey .Values.frameProcessing "enableObjectDetection" }}
+  ENABLE_OBJECT_DETECTION: {{ printf "%v" .Values.frameProcessing.enableObjectDetection | quote }}
+  {{- else }}
+  ENABLE_OBJECT_DETECTION: "true"
+  {{- end }}
+  DETECTION_CONFIDENCE: {{ .Values.frameProcessing.detectionConfidence | default 0.85 | quote }}
+  DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/yolox" | quote }}
+  FRAMES_TEMP_DIR: {{ .Values.frameProcessing.framesTempDir | default "/tmp/dataprep" | quote }}
+  HF_HOME: "/home/appuser/.cache/huggingface"
+  TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"
+  HUGGINGFACE_HUB_CACHE: "/home/appuser/.cache/huggingface"
+  XDG_CACHE_HOME: "/home/appuser/.cache"
+  LOG_LEVEL: {{ .Values.logLevel | default .Values.global.env.VDMS_DATAPREP_LOG_LEVEL | default "INFO" | quote }}
+  ALLOW_ORIGINS: {{ .Values.cors.allowOrigins | default "*" | quote }}
+  ALLOW_METHODS: {{ .Values.cors.allowMethods | default "*" | quote }}
+  ALLOW_HEADERS: {{ .Values.cors.allowHeaders | default "*" | quote }}
   FASTAPI_ENV: development

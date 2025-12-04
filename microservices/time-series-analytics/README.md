@@ -30,8 +30,9 @@ For more details on Architecture, see [Architecture](docs/user-guide/high-level-
 ## Learn More
 
   - [Overview](docs/user-guide/Overview.md): A high-level introduction to the Time Series Analytics Microservice.
-  - [Docker compose deployment](docs/user-guide/get-started.md): Instructions for building the microservice from source code.
-  - [Helm deployment](./docs/user-guide/how-to-deploy-with-helm.md): Instructions for advanced configuration.
+  - [Docker compose deployment](docs/user-guide/get-started.md): Instructions for deploying the microservice using docker compose.
+  - [Helm deployment](./docs/user-guide/how-to-deploy-with-helm.md): Instructions for deploying the microservice using helm.
+  - [Configuration](./docs/user-guide/how-to-configure.md): Instructions for advanced configuration.
   - [API reference](./docs/user-guide/how-to-access-api.md): Instructions to exercise REST APIs
   - [Release Notes](docs/user-guide/release_notes/Overview.md): Information on the latest updates, improvements, and bug fixes.
 

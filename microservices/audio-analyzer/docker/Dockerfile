@@ -73,7 +73,7 @@ ENV UPLOAD_DIR=/data/upload
 ENV AUDIO_DIR=/data/audio
 ENV GGML_MODEL_DIR=/data/models/ggml
 ENV OPENVINO_MODEL_DIR=/data/models/openvino
-
+ENV STORAGE_BACKEND=local
 
 FROM python-base AS builder-base
 
@@ -103,19 +103,16 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 WORKDIR $SETUP_PATH
-# Install remaining dev dependencies
-USER appuser
-# Create models and data directories
-RUN mkdir -p $HOME/models $HOME/data
-RUN poetry install --no-interaction --no-ansi
 
-# Create directories and set ownership
-RUN mkdir -p $OUTPUT_DIR /app && chown -R appuser:appuser $OUTPUT_DIR /app
+# Create directories and set ownership; Update ownership for SETUP_PATH as well
+RUN mkdir -p $OUTPUT_DIR /app && chown -R appuser:appuser $SETUP_PATH $OUTPUT_DIR /app
+
+USER appuser
+# Install remaining dev dependencies as appuser
+RUN poetry lock --no-update && poetry install --no-interaction --no-ansi
 
 # In dev mode, the application code will be mounted to /app from host to allow hot-reloads
 WORKDIR /app
-
-USER appuser
 
 EXPOSE 8000
 # Run with reload for development and increased timeout

@@ -38,14 +38,14 @@ RUN pip install --upgrade pip
 FROM python-base AS builder-base
 
 # Install system dependencies
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+RUN apt-get update -y && apt-get install --no-install-recommends --fix-missing -y \
     git \
     build-essential \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry 1.8.3 - based on $POETRY_VERSION env var
-RUN curl -sSL https://install.python-poetry.org | python -
+RUN set -o pipefail && curl -sSL https://install.python-poetry.org | python -
 
 WORKDIR $SETUP_PATH
 # Copy poetry configuration files
@@ -55,37 +55,39 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry lock --no-update && poetry install --no-dev --no-interaction --no-ansi
 
 # Install video-chunking-utils from OEP/EAL source
-RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries && \
-    cd edge-ai-libraries/libraries/video-chunking-utils && \
-    pip install .
+RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+RUN pip install $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils/ && \
+    rm -rf $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils
 
+# JWT token clean up
+RUN [ -f $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py ] && \
+    sed -i '/>>>.*token=/d' $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py
+    
 # Production stage - optimized for deployment
 FROM python-base AS prod
 
 ENV FASTAPI_ENV=production
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-WORKDIR /app
-
-# Copy the application code for production
-COPY . /app/
-
 # Install dependencies to be used in runtime
-RUN apt update -y && apt install -y \
-    libglib2.0-0 \
+RUN apt-get update -y && apt-get install --no-install-recommends -y \
     libsm6 \
     libxext6 \
     libxrender1 \
     libgl1
 
 # Download copyleft sources if requested
-ARG COPYLEFT_SOURCES=true
-RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
-    sed -Ei "s/Types: deb/Types: deb deb-src/g" /etc/apt/sources.list.d/debian.sources && \
+RUN mkdir -p /copyleft_sources/deb
+WORKDIR /copyleft_sources/deb
+RUN sed -Ei "s/Types: deb/Types: deb deb-src/g" /etc/apt/sources.list.d/debian.sources && \
     apt-get update -y && \
-    mkdir -p /copyleft_sources/deb && cd /copyleft_sources/deb && \
-    apt-get source -q --download-only glib2.0; \
-    fi
+    apt-get install --no-install-recommends -y libglib2.0-0 && \
+    apt-get source --no-install-recommends -q --download-only glib2.0
+
+WORKDIR /app
+
+# Copy the application code for production
+COPY . /app/
 
 RUN chown -R appuser:appuser /app 
 

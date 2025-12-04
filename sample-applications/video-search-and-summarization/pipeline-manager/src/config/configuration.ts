@@ -40,7 +40,7 @@ export default () => ({
     datetimeFormat: 'yyyy_MM_dd-HH_mm_ss.S',
     model: 'yolov8l-worldv2',
     modelPath:
-      '/home/pipeline-server/models/yoloworld/FP32/yolov8l-worldv2.xml',
+      '/home/pipeline-server/models/yoloworld/v2/FP32/yolov8l-worldv2.xml',
     device: process.env.EVAM_DEVICE ?? 'CPU',
     rmq: {
       queue: 'my_mqtt_queue',

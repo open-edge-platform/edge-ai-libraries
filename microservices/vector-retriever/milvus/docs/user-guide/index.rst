@@ -57,6 +57,7 @@ Learn More
 
 .. toctree::
    :hidden:
-   
+
    get-started
    api-reference
+   release-notes

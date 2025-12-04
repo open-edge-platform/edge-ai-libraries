@@ -11,9 +11,10 @@ Assess Intel® hardware options, benchmark performance, and analyze key metrics 
 
 ## Overview
 
-The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads by allowing you
-to configure workload parameters, benchmark performance, and analyze key metrics such as throughput, CPU, and GPU usage.
-With its intuitive interface, the tool provides actionable insights to help you optimize hardware selection and performance.
+The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads by enabling
+configuration of workload parameters, performance benchmarking, and analysis of key metrics such as throughput,
+CPU usage, and GPU usage. With its intuitive interface, the tool provides actionable insights that support
+optimized hardware selection and performance tuning.
 
 ### Use Cases
 
@@ -23,11 +24,12 @@ With its intuitive interface, the tool provides actionable insights to help you 
 - Ensure use cases are practical and highlight unique features of the application.
 -->
 
-**Evaluating Hardware for AI Workloads**: Assess Intel® hardware options to balance cost, performance, and efficiency.
-Benchmark AI workloads under real-world conditions by adjusting pipeline parameters and comparing performance metrics.
+**Evaluating Hardware for AI Workloads**: Intel® hardware options can be assessed to balance cost, performance,
+and efficiency. AI workloads can be benchmarked under real-world conditions by adjusting pipeline parameters
+and comparing performance metrics.
 
-**Performance Benchmarking for AI Models**: Ensure your models meet performance goals and KPIs. Test AI inference
-pipelines with different accelerators to measure throughput, latency, and resource utilization.
+**Performance Benchmarking for AI Models**: Model performance targets and KPIs can be validated by testing AI
+inference pipelines with different accelerators to measure throughput, latency, and resource utilization.
 
 ### Key Features
 
@@ -37,17 +39,17 @@ pipelines with different accelerators to measure throughput, latency, and resour
 - Use concise, benefit-driven statements.
 -->
 
-**Optimized for Intel® AI Edge Systems**: Run the pipeline directly on target devices for seamless Intel® hardware
-integration.
+**Optimized for Intel® AI Edge Systems**: Pipelines can be run directly on target devices for seamless Intel®
+hardware integration.
 
-**Comprehensive Hardware Evaluation**: Access metrics like CPU frequency, GPU power usage, memory utilization, and
-system temperature.
+**Comprehensive Hardware Evaluation**: Metrics such as CPU frequency, GPU power usage, and memory utilization
+are available for detailed analysis.
 
-**Configurable AI Pipelines**: Adjust parameters like input channels, object detection models, and inference engines
-for tailored performance tests.
+**Configurable AI Pipelines**: Parameters such as input channels, object detection models, and inference engines
+can be adjusted to create tailored performance tests.
 
-**Automated Video Generation**: Generate synthetic test videos to evaluate system performance under controlled
-conditions.
+**Automated Video Generation**: Synthetic test videos can be generated to evaluate system performance under
+controlled conditions.
 
 ## How It Works
 
@@ -57,23 +59,22 @@ conditions.
 - Describe the key processing steps in a structured workflow.
 -->
 
-The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video processing pipelines to help you
-evaluate hardware performance.
+The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video processing pipelines to support
+hardware performance evaluation.
 
 ![System Architecture Diagram](docs/user-guide/_images/architecture.png)
 
 ### **Workflow Overview**
 
-**Data Ingestion**: Provide video streams from live cameras or recorded files. Configure pipeline parameters to match
-your evaluation needs.
+**Data Ingestion**: Video streams from live cameras or recorded files are provided and pipeline parameters are
+configured to match evaluation needs.
 
-**AI Processing**: Apply AI inference using OpenVINO™ models to detect objects in video streams.
+**AI Processing**: AI inference is applied using OpenVINO™ models to detect objects in the video streams.
 
-**Performance Evaluation**: Collect hardware performance metrics, including CPU/GPU usage, power consumption, and
-thermal data.
+**Performance Evaluation**: Hardware performance metrics are collected, including CPU/GPU usage and power consumption.
 
-**Visualization & Analysis**: View real-time performance metrics on the dashboard to compare configurations and
-optimize settings.
+**Visualization & Analysis**: Real-time performance metrics are displayed on the dashboard to enable comparison of
+configurations and optimization of settings.
 
 ## Learn More
 

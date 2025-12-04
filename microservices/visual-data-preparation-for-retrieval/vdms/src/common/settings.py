@@ -3,6 +3,7 @@
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
@@ -24,7 +25,7 @@ class Settings(BaseSettings):
     ALLOW_METHODS: str = "*"  # Comma separated values for allowed HTTP Methods
     ALLOW_HEADERS: str = "*"  # Comma separated values for allowed HTTP Headers
 
-    DEFAULT_BUCKET_NAME: str = "vdms-bucket-test"  # Default bucket if none specified
+    DEFAULT_BUCKET_NAME: str = "video-summary"  # Reuse existing bucket from sample app
     DB_COLLECTION: str = "video-rag-test"
 
     METADATA_FILENAME: str = "metadata.json"
@@ -39,10 +40,37 @@ class Settings(BaseSettings):
     # VDMS and embedding settings
     VDMS_VDB_HOST: str = ""
     VDMS_VDB_PORT: str = ""
-    MULTIMODAL_EMBEDDING_MODEL_NAME: str = "openai/clip-vit-base-patch32"
-    MULTIMODAL_EMBEDDING_NUM_FRAMES: int = 64
-    MULTIMODAL_EMBEDDING_ENDPOINT: str = ""
-    EMBEDDING_LENGTH: int = 0
+    MULTIMODAL_EMBEDDING_MODEL_NAME: str = ""  # Model name for both SDK and API modes - must be explicitly set
+    MULTIMODAL_EMBEDDING_ENDPOINT: str = ""  # 0 means auto-detect from API
+    
+    # Embedding processing mode: "api" or "sdk"
+    # api: Use HTTP API calls to multimodal embedding service (current default)
+    # sdk: Use multimodal embedding service directly as SDK (new optimized approach)
+    EMBEDDING_PROCESSING_MODE: str = "sdk"
+    
+    # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
+    # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
+    SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
+    DEVICE: str = Field(
+        default="CPU",
+        validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),
+        description="Device for all processing components (embedding model, object detection)",
+    )
+    OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by both SDK and embedding service)
 
+    # Frame-based processing settings
+    FRAME_INTERVAL: int = 15
+    ENABLE_OBJECT_DETECTION: bool = True
+    DETECTION_CONFIDENCE: float = 0.85
+    DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
+    FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
+
+    # Allow environment override for bucket name (useful for different deployments)
+    # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME
+    @property
+    def effective_bucket_name(self) -> str:
+        """Get the effective bucket name, checking environment variables first"""
+        import os
+        return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
 
 settings = Settings()

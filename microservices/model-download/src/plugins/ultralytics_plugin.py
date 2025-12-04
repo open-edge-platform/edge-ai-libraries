@@ -60,7 +60,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             "model_name": model_name,
             "source": "ultralytics",
             "download_path": host_path,
-            "return_code": return_code
+            "success": True
         }
     
     def get_supported_models(self) -> List[str]:

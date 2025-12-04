@@ -15,7 +15,6 @@ spec:
           runAsUser: 101
           runAsGroup: 101
           fsGroup: 101
-          allowPrivilegeEscalation: false
           seccompProfile:
             type: RuntimeDefault
       containers:
@@ -37,3 +36,5 @@ spec:
               value: {{ .Values.global.proxy.no_proxy }}
             - name: APP_MAX_TOKENS
               value: "{{ .Values.chatqnaui.env.APP_MAX_TOKENS }}"
+          securityContext:
+            allowPrivilegeEscalation: false

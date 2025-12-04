@@ -1,5 +1,5 @@
 # Dependencies for MLflow
-mlflow==2.22.2
+mlflow==3.5.0rc0
 # Dependencies for Postgres DB adapter
 psycopg2-binary==2.9.10
 # Dependencies for Minio client

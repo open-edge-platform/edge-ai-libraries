@@ -17,6 +17,7 @@ services:
       - "5432:5432"
 
   dataprep_microservice:
+    image: ${REGISTRY}document-ingestion:${TAG}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -24,7 +25,7 @@ services:
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
         no_proxy: ${no_proxy}
-    image: intel/document-ingestion:1.2.0
+    container_name: document-ingestion    
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
@@ -41,8 +42,8 @@ services:
       MINIO_HOST: ${MINIO_HOST:-minio-server}
       MINIO_API_PORT: ${MINIO_API_PORT:-9000}
       # Raise error if following required env vars is not set
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?error}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?error}
+      MINIO_ACCESS_KEY: ${MINIO_USER:?error}
+      MINIO_SECRET_KEY: ${MINIO_PASSWD:?error}
     ports:
       - "${DATAPREP_HOST_PORT:-8000}:8000"
     depends_on:

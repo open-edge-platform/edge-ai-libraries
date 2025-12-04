@@ -51,9 +51,6 @@ spec:
               {{ .Values.gpu.key}}: 1
             limits:
               {{ .Values.gpu.key}}: 1
-          devices:
-            - name: dri-device
-              containerPath: /dev/dri
           {{ end }}
           ports:
             - containerPort: 8888

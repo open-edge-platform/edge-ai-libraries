@@ -10,6 +10,12 @@ services:
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - NO_PROXY=
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-}/volumes/etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
@@ -46,6 +52,12 @@ services:
     environment:
       ETCD_ENDPOINTS: milvus-etcd:2379
       MINIO_ADDRESS: milvus-minio:9000
+      http_proxy: ""
+      https_proxy: ""
+      no_proxy: ""
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      NO_PROXY: ""
     volumes:
       - ./config/milvus.yaml:/milvus/configs/milvus.yaml
       - ${DOCKER_VOLUME_DIRECTORY:-}/volumes/milvus:/var/lib/milvus

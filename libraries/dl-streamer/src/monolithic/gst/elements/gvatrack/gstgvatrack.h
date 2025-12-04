@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018-2022 Intel Corporation
+ * Copyright (C) 2018-2025 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  ******************************************************************************/
@@ -29,6 +29,8 @@ typedef struct _GstGvaTrack {
     gchar *device;
     GstGvaTrackingType tracking_type;
     gchar *tracking_config;
+    gchar *feature_model;
+    gchar *deepsort_trck_cfg;
 
     ITracker *tracker;
 } GstGvaTrack;

@@ -5,4 +5,4 @@ apiVersion: v2
 name: chatqna-ui 
 description: The Helm chart for Chatqna UI
 type: application
-version: 2.0.0
+version: 2.0.1

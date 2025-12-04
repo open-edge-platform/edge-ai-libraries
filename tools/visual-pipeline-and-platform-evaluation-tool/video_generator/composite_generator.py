@@ -5,10 +5,7 @@ import random
 
 from PIL import Image, ImageSequence
 
-# Configure logging (INFO for important steps, DEBUG for in-depth tracking)
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger()
 
 
 def create_composite_frames(
@@ -57,7 +54,7 @@ def create_composite_frames(
     cell_height = frame_height // grid_rows
     padding = int(min(cell_width, cell_height) * 0.1)
 
-    logging.info(f"Generating frames with a {grid_cols}x{grid_rows} grid...")
+    logger.info(f"Generating frames with a {grid_cols}x{grid_rows} grid...")
 
     # Initialize Objects
     objects = []
@@ -109,13 +106,13 @@ def create_composite_frames(
         swap_indices = random.sample(range(len(objects)), num_to_swap * 2)
         swap_pairs = list(zip(swap_indices[:num_to_swap], swap_indices[num_to_swap:]))
 
-        logging.debug(f"Swapping positions of {num_to_swap} objects...")
+        logger.debug(f"Swapping positions of {num_to_swap} objects...")
 
         for idx1, idx2 in swap_pairs:
             if idx1 == idx2:
                 continue  # Skip if same object is chosen
 
-            logging.debug(
+            logger.debug(
                 f"Before Swap: {idx1} -> (row={objects[idx1]['grid_row']}, col={objects[idx1]['grid_col']}, x={objects[idx1]['x']}, y={objects[idx1]['y']}) "
                 f"<-> {idx2} -> (row={objects[idx2]['grid_row']}, col={objects[idx2]['grid_col']}, x={objects[idx2]['x']}, y={objects[idx2]['y']})"
             )
@@ -136,7 +133,7 @@ def create_composite_frames(
             objects[idx2]["x"] = objects[idx2]["grid_col"] * cell_width + padding
             objects[idx2]["y"] = objects[idx2]["grid_row"] * cell_height + padding
 
-            logging.debug(
+            logger.debug(
                 f"After Swap: {idx1} -> (row={objects[idx1]['grid_row']}, col={objects[idx1]['grid_col']}, x={objects[idx1]['x']}, y={objects[idx1]['y']}) "
                 f"<-> {idx2} -> (row={objects[idx2]['grid_row']}, col={objects[idx2]['grid_col']}, x={objects[idx2]['x']}, y={objects[idx2]['y']})"
             )
@@ -248,4 +245,4 @@ def create_composite_frames(
         background = background.convert("RGB")
         background.save(frame_path, format="JPEG")
 
-    logging.info(f"Composite frames saved in '{temp_dir}'.")
+    logger.info(f"Composite frames saved in '{temp_dir}'.")

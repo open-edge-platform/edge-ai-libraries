@@ -325,7 +325,8 @@ export class LlmService {
       const currentLength =
         currentTexts.reduce((acc, text) => acc + text.length, 0) +
         tempTemplate.length;
-
+      console.log('maxContextLength:', maxContextLength);
+      console.log('currentLength:', currentLength);
       if (currentLength <= maxContextLength) {
         // final response generated from here
         // if stream == true then send from here

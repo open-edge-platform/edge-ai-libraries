@@ -10,23 +10,24 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.10,<3.13"
-torch = { version = "==2.7.1", source = "pytorch-cpu" }
-torchvision = { version = "==0.22.1", source = "pytorch-cpu" }
-fastapi = "^0.115.12"
+python = "^3.10,<3.14"
+torch = { version = "==2.8.0", source = "pytorch-cpu" }
+torchvision = { version = "==0.23.0", source = "pytorch-cpu" }
+fastapi = "^0.121.3"
 fastapi-utils = "^0.8.0"
 typing-inspect = "^0.9.0"
-uvicorn = "^0.34.2"
+uvicorn = "^0.38.0"
 gunicorn = "^23.0.0"
-pydantic = "^2.11.5"
-pydantic-settings = "^2.9.1"
-nncf = "^2.17.0"
-transformers = "^4.51.3"
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
+aiohttp = "^3.13.2"
+nncf = "^2.18.0"
+transformers = "4.53.3"
 pillow = "^11.3.0"
 openvino = "^2025.3.0"
 openvino-tokenizers = "^2025.3.0.0"
 openvino-genai = "^2025.3.0.0"
-optimum-intel = "^1.25.2"
+optimum-intel = "^1.26.0"
 qwen_vl_utils = "^0.0.11"
 
 [[tool.poetry.source]]

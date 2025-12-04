@@ -1,0 +1,2980 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Visual Pipeline and Platform Evaluation Tool API",
+    "description": "API for Visual Pipeline and Platform Evaluation Tool",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/convert/to-graph": {
+      "post": {
+        "tags": [
+          "convert"
+        ],
+        "summary": "Convert pipeline description to pipeline graph",
+        "description": "Convert a GStreamer-like pipeline description string into a structured pipeline graph.\n\nThis endpoint parses the textual pipeline description, validates it and builds a list\nof nodes and edges that can be used by the UI or other services.\n\nArgs:\n    request: PipelineDescription body containing the ``pipeline_description`` string\n        to be converted.\n\nReturns:\n    PipelineGraph: On success (HTTP 200) a graph representation of the pipeline,\n        with resolved model and video display names.\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The pipeline description is syntactically correct and all referenced models\n      and input videos can be resolved.\n    * The description can be mapped to a non-empty, acyclic graph with at least one\n      start node.\n\nFailure cases:\n    * 400 \u2013 invalid or unparsable pipeline description (syntax error, unsupported\n      token, missing required data, unknown model/video).\n    * 500 \u2013 unexpected internal error while converting the description.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n            {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n          ]\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid pipeline description: Unrecognized token in pipeline description: '??'\"\n        }",
+        "operationId": "to_graph",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineDescription"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversion successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pipeline description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/convert/to-description": {
+      "post": {
+        "tags": [
+          "convert"
+        ],
+        "summary": "Convert pipeline graph to pipeline description",
+        "description": "Convert a structured pipeline graph into a GStreamer-like pipeline description string.\n\nThis endpoint validates the input graph and serializes its nodes and edges back into\na single pipeline description line.\n\nArgs:\n    request: PipelineGraph body containing nodes and edges that define the pipeline.\n\nReturns:\n    PipelineDescription: On success (HTTP 200) a textual ``pipeline_description``\n        that can be used to run the pipeline.\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The graph is non-empty and contains at least one start node.\n    * The graph is a valid directed acyclic graph for a pipeline (no unresolved\n      references, no fully circular graph).\n    * All model and input video display names can be mapped back to real paths.\n\nFailure cases:\n    * 400 \u2013 invalid graph structure (no start nodes, circular graph, missing nodes\n      for edges, unknown model/video, or empty graph).\n    * 500 \u2013 unexpected internal error while converting the graph.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n            {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid graph: circular graph detected or no start nodes found\"\n        }",
+        "operationId": "to_description",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineGraph"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversion successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineDescription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List available inference devices",
+        "description": "Return all devices discovered by the OpenVINO runtime.\n\nThis endpoint discovers CPU, GPU and NPU devices available in the system and\nexposes them in a simplified, API-friendly format.\n\nReturns:\n    200 OK:\n        List[Device] with one entry per detected device. Each entry contains:\n        * device_name \u2013 short identifier used by the runtime (e.g. ``\"CPU\"``,\n          ``\"GPU\"``, ``\"GPU.0\"``, ``\"NPU\"``).\n        * full_device_name \u2013 human-readable name (e.g. CPU / GPU marketing name).\n        * device_type \u2013 ``INTEGRATED`` or ``DISCRETE``.\n        * device_family \u2013 ``CPU``, ``GPU`` or ``NPU``.\n        * gpu_id \u2013 integer index for GPU devices when applicable, otherwise null.\n    500 Internal Server Error:\n        MessageResponse with a generic error description if device discovery fails\n        unexpectedly (for example if OpenVINO cannot be initialized).\n\nSuccess conditions:\n    * OpenVINO Core initializes correctly.\n    * At least zero devices are returned (empty list is still success).\n\nFailure conditions:\n    * 500 \u2013 any unhandled exception during device discovery.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"device_name\": \"CPU\",\n            \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n            \"device_type\": \"INTEGRATED\",\n            \"device_family\": \"CPU\",\n            \"gpu_id\": null\n          },\n          {\n            \"device_name\": \"GPU.0\",\n            \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n            \"device_type\": \"INTEGRATED\",\n            \"device_family\": \"GPU\",\n            \"gpu_id\": 0\n          }\n        ]",
+        "operationId": "get_devices",
+        "responses": {
+          "200": {
+            "description": "List of devices successfully retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  },
+                  "type": "array",
+                  "title": "Response 200 Get Devices"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error when discovering devices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/performance/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Performance Statuses",
+        "description": "List statuses of all performance test jobs.\n\nOperation:\n    Read current state and metrics for every performance test job created\n    via the performance test API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of PerformanceJobStatus objects.\n\nSuccess:\n    * TestsManager is initialized.\n    * Zero or more jobs may be present.\n\nFailure:\n    * Any unexpected internal error (propagated as 500 by FastAPI).\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"job123\",\n            \"start_time\": 1715000000000,\n            \"elapsed_time\": 120000,\n            \"state\": \"RUNNING\",\n            \"total_fps\": 480.0,\n            \"per_stream_fps\": 30.0,\n            \"total_streams\": 16,\n            \"streams_per_pipeline\": [\n              {\"id\": \"pipeline-1\", \"streams\": 8},\n              {\"id\": \"pipeline-2\", \"streams\": 8}\n            ],\n            \"video_output_paths\": {\n              \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n            },\n            \"error_message\": null\n          }\n        ]",
+        "operationId": "get_performance_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PerformanceJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Performance Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/performance/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Performance Job Status",
+        "description": "Get detailed status of a single performance test job.\n\nPath parameters:\n    job_id: Identifier of the performance job to inspect.\n\nReturns:\n    200 OK:\n        PerformanceJobStatus with current state, timings, FPS and output paths.\n    404 Not Found:\n        MessageResponse if job with given id does not exist.\n\nSuccess:\n    * Job with given id exists in TestsManager.\n\nFailure:\n    * Unknown job id \u2192 404.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"job123\",\n          \"start_time\": 1715000000000,\n          \"elapsed_time\": 60000,\n          \"state\": \"COMPLETED\",\n          \"total_fps\": 480.0,\n          \"per_stream_fps\": 30.0,\n          \"total_streams\": 16,\n          \"streams_per_pipeline\": [\n            {\"id\": \"pipeline-1\", \"streams\": 8},\n            {\"id\": \"pipeline-2\", \"streams\": 8}\n          ],\n          \"video_output_paths\": {\n            \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n          },\n          \"error_message\": null\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Performance job job123 not found\"\n        }",
+        "operationId": "get_performance_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/performance/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Performance Job Summary",
+        "description": "Get a short summary of a performance test job.\n\nPath parameters:\n    job_id: Identifier of the performance job created earlier.\n\nReturns:\n    200 OK:\n        PerformanceJobSummary with job id and original PerformanceTestSpec.\n    404 Not Found:\n        MessageResponse when job does not exist.\n\nSuccess:\n    * Job exists in TestsManager.\n\nFailure:\n    * Unknown job id \u2192 404.\n\nResponse example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"job123\",\n          \"request\": {\n            \"pipeline_performance_specs\": [\n              {\"id\": \"pipeline-1\", \"streams\": 8}\n            ],\n            \"video_output\": {\n              \"enabled\": false,\n              \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n            }\n          }\n        }",
+        "operationId": "get_performance_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stop Performance Test Job",
+        "description": "Stop a running performance test job.\n\nPath parameters:\n    job_id: Identifier of the performance test job to stop.\n\nReturns:\n    200 OK:\n        MessageResponse when the job was RUNNING and cancellation was\n        successfully requested.\n    404 Not Found:\n        MessageResponse when job id is unknown or there is no active runner\n        (job already finished or was never started).\n    409 Conflict:\n        MessageResponse when job exists but is not in RUNNING state.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs while stopping.\n\nSuccess:\n    * Job exists and state == RUNNING.\n    * TestsManager.stop_job() returns success.\n\nFailure:\n    * TestsManager.stop_job() returns \"not found\" / \"no active runner\" \u2192 404.\n    * TestsManager.stop_job() returns \"not running\" \u2192 409.\n    * Any other error message from stop_job() \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"message\": \"Job job123 stopped\"\n        }\n\nConflict example (409):\n    .. code-block:: json\n\n        {\n          \"message\": \"Job job123 is not running (state: COMPLETED)\"\n        }",
+        "operationId": "stop_performance_test_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Performance test job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Performance test job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/density/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Density Statuses",
+        "description": "List statuses of all density test jobs.\n\nOperation:\n    Read current state and metrics for every density test job.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of DensityJobStatus objects.\n\nSuccess:\n    * TestsManager is initialized.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"job456\",\n            \"start_time\": 1715000000000,\n            \"elapsed_time\": 45000,\n            \"state\": \"RUNNING\",\n            \"total_fps\": null,\n            \"per_stream_fps\": 28.5,\n            \"total_streams\": 32,\n            \"streams_per_pipeline\": [\n              {\"id\": \"pipeline-1\", \"streams\": 16},\n              {\"id\": \"pipeline-2\", \"streams\": 16}\n            ],\n            \"video_output_paths\": {\n              \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n            },\n            \"error_message\": null\n          }\n        ]",
+        "operationId": "get_density_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DensityJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Density Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/density/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Density Job Status",
+        "description": "Get detailed status of a single density test job.\n\nPath parameters:\n    job_id: Identifier of the density job to inspect.\n\nReturns:\n    200 OK:\n        DensityJobStatus for the given job.\n    404 Not Found:\n        MessageResponse when job id is unknown.\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Density job job456 not found\"\n        }",
+        "operationId": "get_density_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DensityJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/density/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Density Job Summary",
+        "description": "Get a short summary of a density test job.\n\nPath parameters:\n    job_id: Identifier of the density job created earlier.\n\nReturns:\n    200 OK:\n        DensityJobSummary with job id and original DensityTestSpec.\n    404 Not Found:\n        MessageResponse if job does not exist.\n\nResponse example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"job456\",\n          \"request\": {\n            \"fps_floor\": 30,\n            \"pipeline_density_specs\": [\n              {\"id\": \"pipeline-1\", \"stream_rate\": 50},\n              {\"id\": \"pipeline-2\", \"stream_rate\": 50}\n            ],\n            \"video_output\": {\n              \"enabled\": false,\n              \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n            }\n          }\n        }",
+        "operationId": "get_density_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DensityJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stop Density Test Job",
+        "description": "Stop a running density test job.\n\nPath parameters:\n    job_id: Identifier of the density test job to stop.\n\nReturns:\n    200 OK:\n        MessageResponse when the job was RUNNING and cancellation was\n        successfully requested.\n    404 Not Found:\n        MessageResponse if job id is unknown or there is no active runner.\n    409 Conflict:\n        MessageResponse if job exists but is not RUNNING.\n    500 Internal Server Error:\n        MessageResponse for other unexpected errors.\n\nBehavior:\n    Same status mapping logic as ``stop_performance_test_job``.",
+        "operationId": "stop_density_test_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Density test job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Density test job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/optimization/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Optimization Statuses",
+        "description": "List statuses of all optimization jobs.\n\nOperation:\n    Read current state and results for every optimization job.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of OptimizationJobStatus objects.\n\nSuccess:\n    * OptimizationManager is initialized.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"opt789\",\n            \"type\": \"OPTIMIZE\",\n            \"start_time\": 1715000000000,\n            \"elapsed_time\": 20000,\n            \"state\": \"RUNNING\",\n            \"total_fps\": null,\n            \"original_pipeline_graph\": {\"nodes\": [], \"edges\": []},\n            \"optimized_pipeline_graph\": null,\n            \"original_pipeline_description\": \"videotestsrc ! fakesink\",\n            \"optimized_pipeline_description\": null,\n            \"error_message\": null\n          }\n        ]",
+        "operationId": "get_optimization_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OptimizationJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Optimization Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/optimization/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Optimization Job Summary",
+        "description": "Get a short summary of an optimization job.\n\nPath parameters:\n    job_id: Identifier of the optimization job created earlier.\n\nReturns:\n    200 OK:\n        OptimizationJobSummary with job id and original optimization request.\n    404 Not Found:\n        MessageResponse if job does not exist.\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Optimization job opt789 not found\"\n        }",
+        "operationId": "get_optimization_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Optimization job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/optimization/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Optimization Job Status",
+        "description": "Get detailed status of a single optimization job.\n\nPath parameters:\n    job_id: Identifier of the optimization job to inspect.\n\nReturns:\n    200 OK:\n        OptimizationJobStatus containing timings, state, graphs,\n        descriptions and total_fps (for OPTIMIZE).\n    404 Not Found:\n        MessageResponse when job does not exist.",
+        "operationId": "get_optimization_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Optimization job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/validation/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Validation Statuses",
+        "description": "List statuses of all validation jobs.\n\nOperation:\n    Read current state and validation result for all validation jobs.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of ValidationJobStatus objects.\n\nSuccess:\n    * ValidationManager is initialized.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"val001\",\n            \"start_time\": 1715000000000,\n            \"elapsed_time\": 10000,\n            \"state\": \"RUNNING\",\n            \"is_valid\": null,\n            \"error_message\": null\n          }\n        ]",
+        "operationId": "get_validation_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ValidationJobStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Validation Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/validation/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Validation Job Summary",
+        "description": "Get a short summary of a validation job.\n\nPath parameters:\n    job_id: Identifier of the validation job created earlier.\n\nReturns:\n    200 OK:\n        ValidationJobSummary with job id and original validation request.\n    404 Not Found:\n        MessageResponse when job does not exist.",
+        "operationId": "get_validation_job_summary",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationJobSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validation job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/validation/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Validation Job Status",
+        "description": "Get detailed status of a single validation job.\n\nPath parameters:\n    job_id: Identifier of the validation job to inspect.\n\nReturns:\n    200 OK:\n        ValidationJobStatus with timings, state, is_valid flag and\n        error_message list.\n    404 Not Found:\n        MessageResponse when job does not exist.\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Validation job val001 not found\"\n        }",
+        "operationId": "get_validation_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validation job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Get Models",
+        "description": "List all installed and available models.\n\nOperation:\n    Read the supported models configuration, filter out models that are not\n    present on disk, and expose the remaining models in an API-friendly format.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Model objects. Each item contains:\n        * name: Internal model identifier.\n        * display_name: Human readable model name.\n        * category: Logical model category (classification, detection) or null\n          when the type from configuration is unknown.\n        * precision: Model precision (e.g. \"FP32\", \"INT8\") if available.\n\nSuccess:\n    * supported_models.yaml is loaded correctly by SupportedModelsManager.\n    * At least zero models are installed on disk (empty list is still success).\n\nFailure:\n    * If SupportedModelsManager cannot be initialized (e.g. file missing,\n      invalid YAML), the application exits at startup and this endpoint\n      will not be available.\n    * No additional non\u20112xx codes are returned directly from this handler.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"name\": \"vehicle-detection-0202\",\n            \"display_name\": \"Vehicle Detection\",\n            \"category\": \"detection\",\n            \"precision\": \"FP32\"\n          },\n          {\n            \"name\": \"person-reidentification-0200\",\n            \"display_name\": \"Person Reidentification\",\n            \"category\": \"classification\",\n            \"precision\": \"INT8\"\n          }\n        ]",
+        "operationId": "get_models",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Model"
+                  },
+                  "type": "array",
+                  "title": "Response Get Models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipelines",
+        "description": "List all pipelines currently registered in the system.\n\nOperation:\n    Return both predefined pipelines loaded from configuration and\n    user-created pipelines added via this API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects.\n\nSuccess conditions:\n    * PipelineManager is initialized.\n\nFailure conditions:\n    * Unexpected errors will be propagated as 500 by FastAPI.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"pipeline-a3f5d9e1\",\n            \"name\": \"vehicle-detection\",\n            \"version\": 1,\n            \"description\": \"Simple vehicle detection pipeline\",\n            \"source\": \"PREDEFINED\",\n            \"type\": \"GStreamer\",\n            \"pipeline_graph\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"parameters\": null\n          }\n        ]",
+        "operationId": "get_pipelines",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Pipeline"
+                  },
+                  "type": "array",
+                  "title": "Response Get Pipelines"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Create Pipeline",
+        "description": "Create a new user-defined pipeline from a GStreamer launch string.\n\nRequest body:\n    body: PipelineDefinition\n        * name \u2013 non-empty pipeline name.\n        * version \u2013 positive integer. Must be exactly 1 for a new name,\n          or \"last_version + 1\" for an existing name.\n        * description \u2013 non-empty human-readable description.\n        * source \u2013 ignored and forced to USER_CREATED by this endpoint.\n        * type \u2013 pipeline type (currently GStreamer is used).\n        * pipeline_description \u2013 full GStreamer launch string.\n        * parameters \u2013 optional default parameters for this pipeline.\n\nReturns:\n    201 Created:\n        PipelineCreationResponse with generated pipeline id.\n    400 Bad Request:\n        MessageResponse when:\n        * versioning rules are violated (e.g. version not next in sequence),\n        * pipeline name or definition is invalid at manager level.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs while creating\n        the pipeline.\n\nSuccess conditions:\n    * PipelineDefinition is structurally valid.\n    * PipelineManager successfully adds the pipeline and converts the\n      launch string to a graph.\n\nFailure conditions (high level):\n    * Version conflicts or invalid name \u2192 400.\n    * Any other unhandled error in PipelineManager / Graph \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! videoconvert ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid version '2' for pipeline 'vehicle-detection'. Expected version '1' for a new pipeline.\"\n        }",
+        "operationId": "create_pipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Pipeline created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineCreationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pipeline definition or version conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/validate": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Validate Pipeline",
+        "description": "Start an asynchronous validation job for an ad-hoc pipeline graph.\n\nOperation:\n    * Convert the provided PipelineGraph to a GStreamer launch string.\n    * Extract validation parameters (for example ``max-runtime``).\n    * Create a new validation job and run ``validator.py`` in a\n      background thread.\n    * Return the generated job id.\n\nRequest body:\n    body: PipelineValidation\n        * type \u2013 pipeline type (currently GStreamer).\n        * pipeline_graph \u2013 nodes and edges representation of the pipeline.\n        * parameters \u2013 optional dict, e.g. ``{\"max-runtime\": 10}``.\n\nReturns:\n    202 Accepted:\n        ValidationJobResponse with job_id of created validation job.\n    400 Bad Request:\n        MessageResponse when request parameters are invalid, e.g.:\n        * ``max-runtime`` is not an integer,\n        * ``max-runtime`` is < 1.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors (e.g. Graph conversion).\n\nSuccess conditions:\n    * Graph can be converted to a valid launch string.\n    * Parameters pass ValidationManager checks.\n    * Background validation job is successfully started.\n\nFailure conditions:\n    * Parameter validation error (ValueError) \u2192 400.\n    * Any other unexpected exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"val001\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n        }",
+        "operationId": "validate_pipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineValidation-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "202": {
+            "description": "Pipeline validation started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid validation request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipeline",
+        "description": "Get details of a single pipeline by its id.\n\nPath parameters:\n    pipeline_id: Unique identifier of the pipeline (for example\n        ``\"pipeline-a3f5d9e1\"``).\n\nReturns:\n    200 OK:\n        Pipeline object with full graph and metadata.\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors in the manager layer.\n\nSuccess conditions:\n    * Pipeline with the given id is present in PipelineManager.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n    * Any other unhandled exception \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
+        "operationId": "get_pipeline",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pipeline"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Update Pipeline",
+        "description": "Partially update selected fields of an existing pipeline.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string).\n        * description \u2013 new human-readable description (non-empty string).\n        * pipeline_graph \u2013 new graph representation. It must contain at\n          least one node and one edge and must be convertible to a valid\n          pipeline description string.\n        * parameters \u2013 new pipeline parameters.\n\nReturns:\n    200 OK:\n        Updated Pipeline object.\n    400 Bad Request:\n        MessageResponse when:\n        * none of the updatable fields is provided,\n        * provided name or description is empty,\n        * provided pipeline_graph has no nodes/edges or cannot be\n          converted to a valid pipeline description.\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n    * For pipeline_graph, Graph.to_pipeline_description() succeeds.\n\nFailure conditions:\n    * Validation failures in this handler or PipelineManager.update_pipeline.\n    * Unknown id \u2192 404.\n    * Any other exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 120\n            }\n          }\n        }\n\nError response example (400, empty body):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided.\"\n        }",
+        "operationId": "update_pipeline",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pipeline updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pipeline"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Delete Pipeline",
+        "description": "Delete a pipeline by its id.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to delete.\n\nReturns:\n    200 OK:\n        MessageResponse when the pipeline was successfully deleted.\n    404 Not Found:\n        MessageResponse when a pipeline with given id does not exist.\n\nSuccess conditions:\n    * Pipeline with the given id is found and removed from manager.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline deleted\"\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
+        "operationId": "delete_pipeline",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/optimize": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Optimize Pipeline",
+        "description": "Start an asynchronous optimization job for a given pipeline.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to optimize.\n\nRequest body:\n    body: PipelineRequestOptimize\n        * type \u2013 optimization type: ``\"preprocess\"`` or ``\"optimize\"``.\n        * parameters \u2013 optional dict with optimizer-specific options,\n          for example:\n\n          .. code-block:: json\n\n              {\n                \"search_duration\": 300,\n                \"sample_duration\": 10\n              }\n\nReturns:\n    202 Accepted:\n        OptimizationJobResponse with job_id of the created optimization job.\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when starting optimization\n        (e.g. Graph conversion, external optimizer issues thrown early).\n\nSuccess conditions:\n    * Pipeline exists and its graph can be converted to a launch string.\n    * OptimizationManager.run_optimization() starts a background job.\n\nFailure conditions:\n    * Unknown pipeline id \u2192 404.\n    * Any unhandled exception in pipeline lookup or job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"optimize\",\n          \"parameters\": {\n            \"search_duration\": 300,\n            \"sample_duration\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"opt789\"\n        }",
+        "operationId": "optimize_pipeline",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequestOptimize"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "202": {
+            "description": "Pipeline optimization started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tests/performance": {
+      "post": {
+        "tags": [
+          "tests"
+        ],
+        "summary": "Run Performance Test",
+        "description": "Start an asynchronous performance test job.\n\nOperation:\n    * Validate the performance test request.\n    * Create a PerformanceJob with RUNNING state.\n    * Spawn a background thread that runs the pipelines using\n      a GStreamer-based runner.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: PerformanceTestSpec\n        * pipeline_performance_specs \u2013 list of pipelines and number of\n          streams per pipeline.\n        * video_output \u2013 configuration for optional encoded video output\n          (enabled flag and encoder_device).\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created performance job.\n    400 Bad Request:\n        MessageResponse if the request is invalid at manager level, for\n        example:\n        * all stream counts are zero,\n        * pipeline ids do not exist (if validated up front in future).\n    500 Internal Server Error:\n        MessageResponse if an unexpected error occurs when creating the\n        job or starting the background thread.\n\nSuccess conditions:\n    * At least one stream is requested across all pipelines.\n    * TestsManager.test_performance() successfully enqueues the job.\n\nFailure conditions (high level):\n    * Validation or configuration error inside TestsManager \u2192 400.\n    * Any unhandled exception in job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"streams\": 8},\n            {\"id\": \"pipeline-b7c2e114\", \"streams\": 4}\n          ],\n          \"video_output\": {\n            \"enabled\": false,\n            \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job123\"\n        }\n\nError response example (400, invalid request):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one stream must be specified to run the pipeline.\"\n        }",
+        "operationId": "run_performance_test",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerformanceTestSpec-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Performance test job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid performance test request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error while starting performance test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tests/density": {
+      "post": {
+        "tags": [
+          "tests"
+        ],
+        "summary": "Run Density Test",
+        "description": "Start an asynchronous density test job.\n\nOperation:\n    * Validate the density test request.\n    * Use requested fps_floor and per\u2011pipeline stream_rate ratios.\n    * Create a DensityJob with RUNNING state.\n    * Spawn a background thread that runs a Benchmark to determine the\n      maximum number of streams that still meets fps_floor.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: DensityTestSpec\n        * fps_floor \u2013 minimum acceptable FPS per stream.\n        * pipeline_density_specs \u2013 list of pipelines with stream_rate\n          percentages that must sum to 100.\n        * video_output \u2013 configuration for optional encoded video output.\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created density job.\n    400 Bad Request:\n        MessageResponse when:\n        * pipeline_density_specs.stream_rate values do not sum to 100,\n        * other validation errors raised by Benchmark or TestsManager.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when creating or starting\n        the job.\n\nSuccess conditions:\n    * stream_rate ratios sum to 100%.\n    * DensityTestSpec is valid and Benchmark.run() can be started in a\n      background thread.\n\nFailure conditions:\n    * Validation errors in Benchmark._calculate_streams_per_pipeline() or\n      TestsManager.test_density() \u2192 400.\n    * Any other unhandled exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"stream_rate\": 50},\n            {\"id\": \"pipeline-b7c2e114\", \"stream_rate\": 50}\n          ],\n          \"video_output\": {\n            \"enabled\": false,\n            \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job456\"\n        }\n\nError response example (400, bad ratios):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n        }",
+        "operationId": "run_density_test",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DensityTestSpec-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Density test job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid density test request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error while starting density test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Get Videos",
+        "description": "List all discovered input videos with basic metadata.\n\nOperation:\n    * Use VideosManager to scan ``RECORDINGS_PATH`` for supported video\n      files (only ``h264`` / ``h265`` codecs).\n    * Load or extract metadata (width, height, fps, frame_count, codec,\n      duration) for each file.\n    * Return the result as a list of Video schema objects.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Video objects. If no videos are found, an empty list\n        is returned.\n\nSuccess conditions:\n    * VideosManager is successfully initialized at application startup\n      (RECORDINGS_PATH exists and is a directory).\n    * The endpoint is able to iterate over the cached videos map.\n\nFailure conditions:\n    * If VideosManager cannot be created (e.g. RECORDINGS_PATH invalid),\n      the application exits at startup and this endpoint will not be\n      available.\n    * Runtime errors inside VideosManager are not mapped to custom status\n      codes here and will surface as 500 responses from FastAPI.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"filename\": \"traffic_1080p_h264.mp4\",\n            \"width\": 1920,\n            \"height\": 1080,\n            \"fps\": 30.0,\n            \"frame_count\": 900,\n            \"codec\": \"h264\",\n            \"duration\": 30.0\n          },\n          {\n            \"filename\": \"people_720p_h265.mp4\",\n            \"width\": 1280,\n            \"height\": 720,\n            \"fps\": 25.0,\n            \"frame_count\": 2500,\n            \"codec\": \"h265\",\n            \"duration\": 100.0\n          }\n        ]",
+        "operationId": "get_videos",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Video"
+                  },
+                  "type": "array",
+                  "title": "Response Get Videos"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DensityJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TestJobState"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "per_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Stream Fps"
+          },
+          "total_streams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Streams"
+          },
+          "streams_per_pipeline": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PipelinePerformanceSpec"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streams Per Pipeline"
+          },
+          "video_output_paths": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Output Paths"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "total_fps",
+          "per_stream_fps",
+          "total_streams",
+          "streams_per_pipeline",
+          "video_output_paths",
+          "error_message"
+        ],
+        "title": "DensityJobStatus",
+        "description": "Status of a density test job.\n\nInherits all fields from TestsJobStatus without changes."
+      },
+      "DensityJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request": {
+            "$ref": "#/components/schemas/DensityTestSpec-Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "request"
+        ],
+        "title": "DensityJobSummary",
+        "description": "Short summary for a density test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original DensityTestSpec used to start the job."
+      },
+      "DensityTestSpec-Input": {
+        "properties": {
+          "fps_floor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fps Floor",
+            "description": "Minimum acceptable FPS per stream.",
+            "examples": [
+              30
+            ]
+          },
+          "pipeline_density_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineDensitySpec"
+            },
+            "type": "array",
+            "title": "Pipeline Density Specs",
+            "description": "List of pipelines with relative stream_rate percentages that must sum to 100.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "stream_rate": 50
+                },
+                {
+                  "id": "pipeline-2",
+                  "stream_rate": 50
+                }
+              ]
+            ]
+          },
+          "video_output": {
+            "$ref": "#/components/schemas/VideoOutputConfig",
+            "description": "Video output configuration.",
+            "default": {
+              "enabled": false,
+              "encoder_device": {
+                "device_name": "GPU",
+                "gpu_id": 0
+              }
+            },
+            "examples": [
+              {
+                "enabled": false,
+                "encoder_device": {
+                  "device_name": "GPU",
+                  "gpu_id": 0
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "fps_floor",
+          "pipeline_density_specs"
+        ],
+        "title": "DensityTestSpec",
+        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    video_output: Optional configuration for storing encoded video outputs."
+      },
+      "DensityTestSpec-Output": {
+        "properties": {
+          "fps_floor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fps Floor",
+            "description": "Minimum acceptable FPS per stream.",
+            "examples": [
+              30
+            ]
+          },
+          "pipeline_density_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineDensitySpec"
+            },
+            "type": "array",
+            "title": "Pipeline Density Specs",
+            "description": "List of pipelines with relative stream_rate percentages that must sum to 100.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "stream_rate": 50
+                },
+                {
+                  "id": "pipeline-2",
+                  "stream_rate": 50
+                }
+              ]
+            ]
+          },
+          "video_output": {
+            "$ref": "#/components/schemas/VideoOutputConfig",
+            "description": "Video output configuration.",
+            "default": {
+              "enabled": false,
+              "encoder_device": {
+                "device_name": "GPU",
+                "gpu_id": 0
+              }
+            },
+            "examples": [
+              {
+                "enabled": false,
+                "encoder_device": {
+                  "device_name": "GPU",
+                  "gpu_id": 0
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "fps_floor",
+          "pipeline_density_specs"
+        ],
+        "title": "DensityTestSpec",
+        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    video_output: Optional configuration for storing encoded video outputs."
+      },
+      "Device": {
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "title": "Device Name"
+          },
+          "full_device_name": {
+            "type": "string",
+            "title": "Full Device Name"
+          },
+          "device_type": {
+            "$ref": "#/components/schemas/DeviceType"
+          },
+          "device_family": {
+            "$ref": "#/components/schemas/DeviceFamily"
+          },
+          "gpu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_name",
+          "full_device_name",
+          "device_type",
+          "device_family",
+          "gpu_id"
+        ],
+        "title": "Device",
+        "description": "Hardware device description used by multiple APIs.\n\nThis model is a simplified view of the device information returned\nby the runtime (for example OpenVINO) and is suitable for UI consumption.\n\nAttributes:\n    device_name: Short identifier used when selecting the device\n        (for example ``\"CPU\"``, ``\"GPU\"``, ``\"GPU.0\"``, ``\"NPU\"``).\n    full_device_name: Human readable device name (CPU/GPU/NPU model).\n    device_type: High level device type (``INTEGRATED`` or ``DISCRETE``).\n    device_family: Hardware family (``CPU``, ``GPU``, ``NPU``).\n    gpu_id: Optional GPU index when applicable; null for non-GPU devices.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"device_name\": \"GPU.0\",\n          \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n          \"device_type\": \"INTEGRATED\",\n          \"device_family\": \"GPU\",\n          \"gpu_id\": 0\n        }"
+      },
+      "DeviceFamily": {
+        "type": "string",
+        "enum": [
+          "CPU",
+          "GPU",
+          "NPU"
+        ],
+        "title": "DeviceFamily",
+        "description": "Hardware family of a device used for inference.\n\nValues:\n    CPU: Central Processing Unit.\n    GPU: Graphics Processing Unit.\n    NPU: Neural Processing Unit / AI accelerator."
+      },
+      "DeviceType": {
+        "type": "string",
+        "enum": [
+          "DISCRETE",
+          "INTEGRATED"
+        ],
+        "title": "DeviceType",
+        "description": "High level type of hardware device.\n\nValues:\n    DISCRETE: Standalone accelerator board (for example a dedicated GPU).\n    INTEGRATED: Device integrated into CPU or SoC."
+      },
+      "Edge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target"
+        ],
+        "title": "Edge",
+        "description": "Directed connection between two nodes in a generic pipeline graph.\n\nAttributes:\n    id: Edge identifier, unique within a single graph.\n    source: ID of the source node.\n    target: ID of the target node."
+      },
+      "EncoderDeviceConfig": {
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "title": "Device Name",
+            "description": "Name of the encoder device (e.g., 'GPU', 'CPU', 'NPU')",
+            "default": "GPU",
+            "examples": [
+              "GPU",
+              "CPU",
+              "NPU"
+            ]
+          },
+          "gpu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Id",
+            "description": "GPU device index (only applicable when device_name indicates a GPU)",
+            "examples": [
+              0,
+              1
+            ]
+          }
+        },
+        "type": "object",
+        "title": "EncoderDeviceConfig",
+        "description": "Encoder device configuration used in video output settings.\n\nAttributes:\n    device_name: Name of the encoder device (for example ``\"GPU\"``).\n    gpu_id: Optional GPU index when applicable.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"device_name\": \"GPU\",\n          \"gpu_id\": 0\n        }"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable error or status message.",
+            "examples": [
+              "Job job123 not found",
+              "Unexpected error while discovering devices."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "MessageResponse",
+        "description": "Generic message payload used as a simple response body.\n\nThis model is used mainly for non-2xx responses to provide a plain\nEnglish description of what happened (error or informational status).\n\nAttributes:\n    message: Description of the error or status.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"message\": \"Performance job job123 not found\"\n        }"
+      },
+      "Model": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "category",
+          "precision"
+        ],
+        "title": "Model",
+        "description": "Description of a single model exposed by the models API.\n\nAttributes:\n    name: Internal model identifier used by the backend.\n    display_name: Human readable model name suitable for UI.\n    category: Logical model category (classification, detection), or null\n        when the type from configuration is unknown or unsupported.\n    precision: Model precision string (for example \"FP32\", \"INT8\"), or null\n        when not specified.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-0202\",\n          \"display_name\": \"Vehicle Detection\",\n          \"category\": \"detection\",\n          \"precision\": \"FP32\"\n        }"
+      },
+      "ModelCategory": {
+        "type": "string",
+        "enum": [
+          "classification",
+          "detection"
+        ],
+        "title": "ModelCategory"
+      },
+      "Node": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "data"
+        ],
+        "title": "Node",
+        "description": "Single node in a generic pipeline graph.\n\nAttributes:\n    id: Node identifier, unique within a single graph.\n    type: Element type, usually a framework-specific element name\n        (for example a GStreamer element).\n    data: Key/value properties for the element (for example element\n        arguments or configuration).\n\n        Reserved keys:\n          * ``\"__node_kind\"`` \u2013 optional internal discriminator used by the\n            backend and UI to distinguish special node types. When present\n            and equal to ``\"caps\"``, the node represents a GStreamer caps\n            string (for example ``\"video/x-raw,width=320,height=240\"``)\n            instead of a regular element.\n\n            This field is stored inside ``data`` instead of being a\n            top-level attribute to avoid breaking existing API contracts."
+      },
+      "OptimizationJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "Identifier of the created optimization job.",
+            "examples": [
+              "opt789"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "OptimizationJobResponse",
+        "description": "Simple envelope with a new optimization job identifier.\n\nUsed as response body when an optimization job is created."
+      },
+      "OptimizationJobState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "ERROR",
+          "ABORTED"
+        ],
+        "title": "OptimizationJobState",
+        "description": "Generic state of an optimization job.\n\nValues:\n    RUNNING: Optimization is in progress.\n    COMPLETED: Optimization finished successfully.\n    ERROR: Optimization failed with an error_message.\n    ABORTED: Optimization was cancelled by the user."
+      },
+      "OptimizationJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/OptimizationJobState"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "original_pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
+          "optimized_pipeline_graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_pipeline_description": {
+            "type": "string",
+            "title": "Original Pipeline Description"
+          },
+          "optimized_pipeline_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimized Pipeline Description"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "total_fps",
+          "original_pipeline_graph",
+          "optimized_pipeline_graph",
+          "original_pipeline_description",
+          "optimized_pipeline_description",
+          "error_message"
+        ],
+        "title": "OptimizationJobStatus",
+        "description": "Detailed status of an optimization job.\n\nAttributes:\n    id: Job identifier.\n    type: Optimization type (PREPROCESS or OPTIMIZE).\n    start_time: Start time in milliseconds since epoch.\n    elapsed_time: Elapsed time in milliseconds.\n    state: Current job state.\n    total_fps: Measured FPS for optimized pipeline (for OPTIMIZE).\n    original_pipeline_graph: Original pipeline graph before optimization.\n    optimized_pipeline_graph: Optimized pipeline graph (if available).\n    original_pipeline_description: Original GStreamer pipeline string.\n    optimized_pipeline_description: Optimized GStreamer pipeline string (if any).\n    error_message: Error details when state is ERROR or ABORTED."
+      },
+      "OptimizationJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request": {
+            "$ref": "#/components/schemas/PipelineRequestOptimize"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "request"
+        ],
+        "title": "OptimizationJobSummary",
+        "description": "Short summary for an optimization job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PipelineRequestOptimize used to start the job."
+      },
+      "OptimizationType": {
+        "type": "string",
+        "enum": [
+          "preprocess",
+          "optimize"
+        ],
+        "title": "OptimizationType"
+      },
+      "PerformanceJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TestJobState"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "per_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Stream Fps"
+          },
+          "total_streams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Streams"
+          },
+          "streams_per_pipeline": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PipelinePerformanceSpec"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streams Per Pipeline"
+          },
+          "video_output_paths": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Output Paths"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "total_fps",
+          "per_stream_fps",
+          "total_streams",
+          "streams_per_pipeline",
+          "video_output_paths",
+          "error_message"
+        ],
+        "title": "PerformanceJobStatus",
+        "description": "Status of a performance test job.\n\nInherits all fields from TestsJobStatus without changes."
+      },
+      "PerformanceJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request": {
+            "$ref": "#/components/schemas/PerformanceTestSpec-Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "request"
+        ],
+        "title": "PerformanceJobSummary",
+        "description": "Short summary for a performance test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PerformanceTestSpec used to start the job."
+      },
+      "PerformanceTestSpec-Input": {
+        "properties": {
+          "pipeline_performance_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelinePerformanceSpec"
+            },
+            "type": "array",
+            "title": "Pipeline Performance Specs",
+            "description": "List of pipelines with number of streams for each.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "streams": 8
+                },
+                {
+                  "id": "pipeline-2",
+                  "streams": 8
+                }
+              ]
+            ]
+          },
+          "video_output": {
+            "$ref": "#/components/schemas/VideoOutputConfig",
+            "description": "Video output configuration.",
+            "default": {
+              "enabled": false,
+              "encoder_device": {
+                "device_name": "GPU",
+                "gpu_id": 0
+              }
+            },
+            "examples": [
+              {
+                "enabled": false,
+                "encoder_device": {
+                  "device_name": "GPU",
+                  "gpu_id": 0
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_performance_specs"
+        ],
+        "title": "PerformanceTestSpec",
+        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    video_output: Optional configuration for storing encoded video outputs."
+      },
+      "PerformanceTestSpec-Output": {
+        "properties": {
+          "pipeline_performance_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelinePerformanceSpec"
+            },
+            "type": "array",
+            "title": "Pipeline Performance Specs",
+            "description": "List of pipelines with number of streams for each.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "streams": 8
+                },
+                {
+                  "id": "pipeline-2",
+                  "streams": 8
+                }
+              ]
+            ]
+          },
+          "video_output": {
+            "$ref": "#/components/schemas/VideoOutputConfig",
+            "description": "Video output configuration.",
+            "default": {
+              "enabled": false,
+              "encoder_device": {
+                "device_name": "GPU",
+                "gpu_id": 0
+              }
+            },
+            "examples": [
+              {
+                "enabled": false,
+                "encoder_device": {
+                  "device_name": "GPU",
+                  "gpu_id": 0
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_performance_specs"
+        ],
+        "title": "PerformanceTestSpec",
+        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    video_output: Optional configuration for storing encoded video outputs."
+      },
+      "Pipeline": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PipelineSource"
+          },
+          "type": {
+            "$ref": "#/components/schemas/PipelineType"
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "description",
+          "source",
+          "type",
+          "pipeline_graph",
+          "parameters"
+        ],
+        "title": "Pipeline",
+        "description": "Full pipeline definition exposed by the pipelines API.\n\nAttributes:\n    id: Unique pipeline identifier generated by the backend.\n    name: Logical pipeline name (may have multiple versions).\n    version: Version number of this pipeline definition.\n    description: Human readable description.\n    source: Origin of the pipeline (PREDEFINED or USER_CREATED).\n    type: Pipeline type (for example GStreamer).\n    pipeline_graph: Structured graph representation derived from\n        the launch string.\n    parameters: Optional default parameter set for this pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+      },
+      "PipelineCreationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PipelineCreationResponse",
+        "description": "Response body returned after a new pipeline is created.\n\nAttributes:\n    id: Identifier of the created pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }"
+      },
+      "PipelineDefinition": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Non-empty pipeline name."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version",
+            "description": "Pipeline version (must be greater than or equal to 1).",
+            "default": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Description",
+            "description": "Non-empty human-readable pipeline description."
+          },
+          "source": {
+            "$ref": "#/components/schemas/PipelineSource",
+            "default": "USER_CREATED"
+          },
+          "type": {
+            "$ref": "#/components/schemas/PipelineType"
+          },
+          "pipeline_description": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Pipeline Description",
+            "description": "GStreamer pipeline definition string (e.g., 'fakesrc ! fakesink')."
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "type",
+          "pipeline_description",
+          "parameters"
+        ],
+        "title": "PipelineDefinition",
+        "description": "Input model used to create a new pipeline via the API.\n\nAttributes:\n    name: Non-empty pipeline name.\n    version: Pipeline version (must be >= 1). For a new name this\n        must be 1; for an existing name it must be the next version.\n    description: Non-empty human-readable pipeline description.\n    source: Pipeline source. For create endpoint this value is\n        overwritten to USER_CREATED.\n    type: Pipeline type (e.g. GStreamer).\n    pipeline_description: GStreamer launch string that will be\n        parsed into a PipelineGraph.\n    parameters: Optional default parameter set.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+      },
+      "PipelineDensitySpec": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "ID of the pipeline used in density test.",
+            "examples": [
+              "pipeline-1"
+            ]
+          },
+          "stream_rate": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Stream Rate",
+            "description": "Relative share of total streams for this pipeline (percentage).",
+            "default": 100,
+            "examples": [
+              50
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PipelineDensitySpec",
+        "description": "Per-pipeline configuration for density tests.\n\nUsed in DensityTestSpec to describe how total streams are split between\npipelines based on relative ratios.\n\nAttributes:\n    id: Pipeline identifier.\n    stream_rate: Relative share of total streams for this pipeline\n        expressed as percentage. All stream_rate values in the request\n        must sum to 100.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-1\",\n          \"stream_rate\": 50\n        }"
+      },
+      "PipelineDescription": {
+        "properties": {
+          "pipeline_description": {
+            "type": "string",
+            "title": "Pipeline Description",
+            "description": "GStreamer-like pipeline string.",
+            "examples": [
+              "videotestsrc ! videoconvert ! autovideosink"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_description"
+        ],
+        "title": "PipelineDescription",
+        "description": "Request or response body containing a pipeline description string.\n\nThe string is a single launch line in the selected pipeline\nframework (for example GStreamer).\n\nAttributes:\n    pipeline_description: Full pipeline description line to be converted\n        or executed."
+      },
+      "PipelineGraph": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "type": "array",
+            "title": "Nodes",
+            "description": "List of pipeline nodes.",
+            "examples": [
+              [
+                {
+                  "data": {},
+                  "id": "0",
+                  "type": "videotestsrc"
+                },
+                {
+                  "data": {},
+                  "id": "1",
+                  "type": "videoconvert"
+                },
+                {
+                  "data": {},
+                  "id": "2",
+                  "type": "autovideosink"
+                }
+              ]
+            ]
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/Edge"
+            },
+            "type": "array",
+            "title": "Edges",
+            "description": "List of directed edges between nodes.",
+            "examples": [
+              [
+                {
+                  "id": "0",
+                  "source": "0",
+                  "target": "1"
+                },
+                {
+                  "id": "1",
+                  "source": "1",
+                  "target": "2"
+                }
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "PipelineGraph",
+        "description": "Request or response body containing the structured pipeline graph.\n\nThis is a generic representation and is used by multiple endpoints\n(conversion, validation, optimization).\n\nAttributes:\n    nodes: List of graph nodes.\n    edges: Directed connections between nodes."
+      },
+      "PipelineParameters": {
+        "properties": {
+          "default": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "default"
+        ],
+        "title": "PipelineParameters",
+        "description": "Optional parameter set attached to a pipeline.\n\nAttributes:\n    default: Arbitrary key/value dictionary with default parameter\n        values to be used when running the pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"default\": {\n            \"max-runtime\": 60,\n            \"threshold\": 0.5\n          }\n        }"
+      },
+      "PipelinePerformanceSpec": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "ID of the pipeline to test.",
+            "examples": [
+              "pipeline-1234abcd"
+            ]
+          },
+          "streams": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Streams",
+            "description": "Number of parallel streams for this pipeline.",
+            "default": 1,
+            "examples": [
+              1,
+              4,
+              16
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PipelinePerformanceSpec",
+        "description": "Per-pipeline configuration for performance and density tests.\n\nAttributes:\n    id: Pipeline identifier to be executed.\n    streams: Number of parallel streams to run for this pipeline."
+      },
+      "PipelineRequestOptimize": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/OptimizationType"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "parameters"
+        ],
+        "title": "PipelineRequestOptimize",
+        "description": "Request body for starting a pipeline optimization job.\n\nAttributes:\n    type: Optimization type:\n        * ``preprocess`` \u2013 run only preprocessing.\n        * ``optimize`` \u2013 run full optimization with search/sampling.\n    parameters: Optional dictionary with optimizer-specific settings.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"optimize\",\n          \"parameters\": {\n            \"search_duration\": 300,\n            \"sample_duration\": 10\n          }\n        }"
+      },
+      "PipelineSource": {
+        "type": "string",
+        "enum": [
+          "PREDEFINED",
+          "USER_CREATED"
+        ],
+        "title": "PipelineSource"
+      },
+      "PipelineType": {
+        "type": "string",
+        "enum": [
+          "GStreamer",
+          "FFmpeg"
+        ],
+        "title": "PipelineType"
+      },
+      "PipelineUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "pipeline_graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PipelineUpdate",
+        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional; at least one must be provided when calling\nthe update endpoint.\n\nAttributes:\n    name: Optional new pipeline name (non-empty if provided).\n    description: Optional new description (non-empty if provided).\n    pipeline_graph: Optional new graph; must be non-empty and valid.\n    parameters: Optional new default parameters for the pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline description\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 120\n            }\n          }\n        }"
+      },
+      "PipelineValidation-Input": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/PipelineType",
+            "default": "GStreamer"
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters",
+            "examples": [
+              {
+                "max-runtime": 10
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_graph"
+        ],
+        "title": "PipelineValidation",
+        "description": "Request body for pipeline validation.\n\nAttributes:\n    type: Pipeline type (default is GStreamer).\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
+      },
+      "PipelineValidation-Output": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/PipelineType",
+            "default": "GStreamer"
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters",
+            "examples": [
+              {
+                "max-runtime": 10
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_graph"
+        ],
+        "title": "PipelineValidation",
+        "description": "Request body for pipeline validation.\n\nAttributes:\n    type: Pipeline type (default is GStreamer).\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
+      },
+      "TestJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "Identifier of the created test job.",
+            "examples": [
+              "job123"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "TestJobResponse",
+        "description": "Simple envelope with a new test job identifier.\n\nUsed as response body when performance or density test job is created."
+      },
+      "TestJobState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "ERROR",
+          "ABORTED"
+        ],
+        "title": "TestJobState",
+        "description": "Generic state of a long-running test job (performance or density).\n\nValues:\n    RUNNING: Job is still executing.\n    COMPLETED: Job finished successfully.\n    ERROR: Job failed with an error_message.\n    ABORTED: Job was cancelled by the user."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "Identifier of the created validation job.",
+            "examples": [
+              "val001"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "ValidationJobResponse",
+        "description": "Simple envelope with a new validation job identifier.\n\nUsed as response body when a validation job is created."
+      },
+      "ValidationJobState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "ERROR",
+          "ABORTED"
+        ],
+        "title": "ValidationJobState",
+        "description": "Generic state of a validation job.\n\nValues:\n    RUNNING: Validation is in progress.\n    COMPLETED: Validation finished.\n    ERROR: Validation failed with a technical error.\n    ABORTED: Validation was cancelled by the user."
+      },
+      "ValidationJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ValidationJobState"
+          },
+          "is_valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Valid"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "is_valid",
+          "error_message"
+        ],
+        "title": "ValidationJobStatus",
+        "description": "Detailed status of a validation job.\n\nAttributes:\n    id: Job identifier.\n    start_time: Start time in milliseconds since epoch.\n    elapsed_time: Elapsed time in milliseconds.\n    state: Current validation job state.\n    is_valid: Final validation result (true/false) when completed.\n    error_message: Optional list of validation error descriptions."
+      },
+      "ValidationJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request": {
+            "$ref": "#/components/schemas/PipelineValidation-Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "request"
+        ],
+        "title": "ValidationJobSummary",
+        "description": "Short summary for a validation job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PipelineValidation request."
+      },
+      "Video": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "fps": {
+            "type": "number",
+            "title": "Fps"
+          },
+          "frame_count": {
+            "type": "integer",
+            "title": "Frame Count"
+          },
+          "codec": {
+            "type": "string",
+            "title": "Codec"
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "width",
+          "height",
+          "fps",
+          "frame_count",
+          "codec",
+          "duration"
+        ],
+        "title": "Video",
+        "description": "Metadata for a single input video file.\n\nAttributes:\n    filename: Base name of the video file located under RECORDINGS_PATH.\n    width: Frame width in pixels.\n    height: Frame height in pixels.\n    fps: Frames per second for the stream.\n    frame_count: Total number of frames in the file.\n    codec: Normalized codec name (for example ``\"h264\"`` or ``\"h265\"``).\n    duration: Approximate duration in seconds.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"filename\": \"traffic_1080p_h264.mp4\",\n          \"width\": 1920,\n          \"height\": 1080,\n          \"fps\": 30.0,\n          \"frame_count\": 900,\n          \"codec\": \"h264\",\n          \"duration\": 30.0\n        }"
+      },
+      "VideoOutputConfig": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Flag to enable or disable video output generation.",
+            "default": false
+          },
+          "encoder_device": {
+            "$ref": "#/components/schemas/EncoderDeviceConfig",
+            "description": "Encoder device configuration (only applicable when video output is enabled).",
+            "default": {
+              "device_name": "GPU",
+              "gpu_id": 0
+            },
+            "examples": [
+              {
+                "device_name": "GPU",
+                "gpu_id": 0
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "VideoOutputConfig",
+        "description": "Generic configuration of optional encoded video output.\n\nAttributes:\n    enabled: Flag to enable or disable video output generation.\n    encoder_device: EncoderDeviceConfig used when video output is enabled.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"enabled\": false,\n          \"encoder_device\": {\n            \"device_name\": \"GPU\",\n            \"gpu_id\": 0\n          }\n        }"
+      }
+    }
+  }
+}

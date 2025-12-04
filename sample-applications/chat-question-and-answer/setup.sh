@@ -158,7 +158,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         
         if ! python3 -m pip show openvino >/dev/null 2>&1; then
                 echo "Installing OpenVINO and required dependencies..."
-                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
+                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/requirements.txt
 		python3 -m pip install -U "huggingface_hub[hf_xet]==0.36.0"
         fi
         mkdir -p ./ovms/models
@@ -166,7 +166,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         if [ -n "$HUGGINGFACEHUB_API_TOKEN" ]; then
                 hf auth login --token "$HUGGINGFACEHUB_API_TOKEN"
         fi
-        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
+        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py -o export_model.py
         echo "OpenVINO and required dependencies installed."
         cd ..
 fi
@@ -175,8 +175,10 @@ setup_inference() {
         local service=$1
         case "${service,,}" in
                 vllm)
-                        export ENDPOINT_URL=http://vllm-service/v1
-                        export COMPOSE_PROFILES=VLLM
+                        echo "Error: vLLM support is deprecated and no longer available."
+                        echo "Please use OVMS as the Model Server instead."
+                        echo "Usage: setup.sh llm=OVMS embed=<Embedding Service>"
+                        #exit 1
                         ;;
                 ovms)
                         export ENDPOINT_URL=http://ovms-service/v3
@@ -194,8 +196,10 @@ setup_inference() {
                         cd ..
                         ;;
                 tgi)
-                        export ENDPOINT_URL=http://text-generation/v1
-                        export COMPOSE_PROFILES=TGI
+                        echo "Error: TGI support is deprecated and no longer available."
+                        echo "Please use OVMS as the Model Server instead."
+                        echo "Usage: setup.sh llm=OVMS embed=<Embedding Service>"
+                        #exit 1
                         ;;
                 *)
                         echo "Invalid Model Server option: $service"
@@ -241,8 +245,10 @@ if [[ -n "$1" && -n "$2" ]]; then
                         *)
                                 echo "Invalid argument: $arg"
                                 echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
-                                echo "Model Server options: VLLM or TGI or OVMS"
+                                echo "Model Server options: OVMS"
                                 echo "Embedding Service options: TEI or OVMS"
+                                echo ""
+                                echo "Note: vLLM and TGI are deprecated and no longer supported."
                                 ;;
                 esac
         done
@@ -251,6 +257,8 @@ if [[ -n "$1" && -n "$2" ]]; then
 else
         echo "Please provide the service to start: specify Model server and Embedding service"
         echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
-        echo "Model Server options: VLLM or TGI or OVMS"
+        echo "Model Server options: OVMS"
         echo "Embedding Service options: TEI or OVMS"
+        echo ""
+        echo "Note: vLLM and TGI are deprecated and no longer supported."
 fi

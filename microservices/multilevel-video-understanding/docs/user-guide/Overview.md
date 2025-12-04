@@ -10,17 +10,18 @@ Among all the components, the `Multi-level Video Understanding` refers to this m
 
 ## Overview
 
-To handle long video summarization, we design a multi-level framework where each level operates via a recurrent approach, effectively control the context length to improve computational efficiency and comply with model constraints or GPU memory constraints. 
+To handle long video summarization, we design a multi-level framework where each level operates via a recurrent approach, effectively control the context length to improve computational efficiency and comply with model constraints or GPU memory constraints.
 This framework operates in three stages: (1) Detect scene-swicth boundaries to segment the long video into chunks. (2) Use VLM to generate captions for each of these short video clips. (3) Use LLM hierarchically and recurrently aggregates the textual captions to a coherent global summary. A dedicated temporal enhancement component is employed at each level to strengthen the connections between units.
 **Features**
+
 * **Feature 1**: Process video from local files or http(s) links.
 * **Feature 2**: Automatic model download and conversion on startup.
 * **Feature 3**: Containerization with Docker.
 * **Feature 4**: RESTful API with FastAPI with support for concurrent requests.
 * **Feature 5**: Support specify video chunking method in user requests.
 * **Feature 6**: Support specify multi-level settings in user requests.
-* **Feature 7**: Designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs.
-
+* **Feature 7**: Support specify temporal enhancement settings in user requests.
+* **Feature 8**: Designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs.
 
 ## How It Works
 
@@ -40,9 +41,9 @@ The following models are validated by the service:
 | Qwen/Qwen3-32B-AWQ            | Language Model            | ~32B          | [link](https://huggingface.co/Qwen/Qwen3-32B-AWQ)      |
 | Qwen/Qwen3-32B                | Language Model            | ~32B          | [link](https://huggingface.co/Qwen/Qwen3-32B)      |
 
-
 ## Supporting Resources
 
 * [Get Started Guide](./get-started.md)
 * [API Reference](./api-reference.md)
 * [System Requirements](./system-requirements.md)
+* [Release Notes](./release-notes.md)

@@ -25,7 +25,7 @@ data:
     #!/bin/bash
     model=$0
     weight_format=$1
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/requirements.txt
     
     # Log in to Hugging Face using the provided token
     huggingface-cli login --token $2
@@ -36,7 +36,7 @@ data:
     else
         echo "Failed to log in to Hugging Face. Please check your token and try again."
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py -o export_model.py
     mkdir models
     python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU
     
@@ -58,6 +58,8 @@ spec:
       labels:
         app: {{ .Values.ovmServer.name }}
     spec:
+      securityContext:
+        fsGroup: 0
       initContainers:
         - name: init-script
           image: "python:3.10.12"
@@ -106,7 +108,6 @@ spec:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
           volumeMounts:
             - name: scripts-volume
               mountPath: /config
