@@ -114,7 +114,7 @@ services:
       - ov-models:/app/ov_models
 
   retriever-milvus:
-    image: intel/retriever-milvus:2025.2-rc2
+    image: ${REGISTRY:-}retriever-milvus:${TAG:-latest}
     container_name: retriever-milvus
     ports:
       - "${RETRIEVER_SERVICE_PORT}:7770"

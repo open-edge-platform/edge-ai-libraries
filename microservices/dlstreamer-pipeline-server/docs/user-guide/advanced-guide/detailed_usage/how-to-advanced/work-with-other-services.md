@@ -1,4 +1,4 @@
-# Working with other services 
+# Working with other services
 DL Streamer Pipeline Server can work with following microservices for visualization and model management.
 - [Model Registry (MRaaS)](#model-registry-mraas) Hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
 
@@ -8,8 +8,8 @@ This document provides instructions on how to get started with the model registr
 
 The model registry microservice provides a centralized repository that can be accessed by different applications, services, or developers to store, and access models. It is an essential tool for deploying machine learning models, as it streamlines model management, fosters collaboration, and ultimately, aids in improving model deployments.
 
-In the current release of DL Streamer Pipeline Server, the following two workflows are supported. 
-1. [Init Model download/deployment](#init-model-downloaddeployment): Model download and deployment during initialization phase of DL Streamer Pipeline Server from the model registry microservice. Based on user inputs in configuration file of DL Streamer Pipeline Server, model is downloaded and the model path is dynamically updated in the pipeline configuration. 
+In the current release of DL Streamer Pipeline Server, the following two workflows are supported.
+1. [Init Model download/deployment](#init-model-downloaddeployment): Model download and deployment during initialization phase of DL Streamer Pipeline Server from the model registry microservice. Based on user inputs in configuration file of DL Streamer Pipeline Server, model is downloaded and the model path is dynamically updated in the pipeline configuration.
 2. [Runtime Model download/deployment](#runtime-model-downloaddeployment): Model download and deployment through REST API during DL Streamer Pipeline Server's runtime. Based on user inputs, model is downloaded and once the model download is completed, current pipeline is stopped and a new pipeline is launched with newly downloaded model.
 
 ### Get Started Guide
@@ -20,9 +20,9 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
     docker pull intel/model-registry:1.0.3
     ```
 
-2.  Follow the instructions in the [Model Registry's Get Started Guide](https://docs.openedgeplatform.intel.com/edge-ai-libraries/model-registry/main/user-guide/get-started.html) to run the microservice.
+2.  Follow the instructions in the [Model Registry's Get Started Guide](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/model-registry/get-started.html) to run the microservice.
 3. Send a POST request to store a model.
-    * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
+    * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties.
 
     ```bash
     curl -X POST 'PROTOCOL://HOSTNAME:32002/models' \
@@ -44,7 +44,7 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
     * Replace `MODEL_VERSION` with the version of the model to be stored.
     > Note: For any manual upload of Intel Geti models on model registry, please make sure to provide `origin` as `Geti`.
 4. Send a GET request to retrieve a list of models and verify the successful storage of the model in Step 3.
-    * Use the following `curl` command to send a GET request to the `/models` endpoint. 
+    * Use the following `curl` command to send a GET request to the `/models` endpoint.
    ```bash
    curl -X GET 'PROTOCOL://HOSTNAME:32002/models'
    ```
@@ -54,12 +54,12 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
 ### DL Streamer Pipeline Server Integration
 #### Pre-requisites
 In order to successfully, store models received from the model registry microservice within the context of DL Streamer Pipeline Server, the following steps are required before starting the Docker* container for DL Streamer Pipeline Server:
-1. Create the `mr_models` directory in the same directory as your `docker-compose.yml` as referenced [here](../../../get-started.md) in the `volumes` section. 
+1. Create the `mr_models` directory in the same directory as your `docker-compose.yml` as referenced [here](../../../get-started.md) in the `volumes` section.
     * This directory will contain the models downloaded from the model registry using DL Streamer Pipeline Server's REST API.
     * The ownership of this directory is required to be the same user of the container (`intelmicroserviceuser`) to enable models to be stored successfully.
     ```sh
     mkdir -p mr_models
-    
+
     sudo useradd -u 1999 intelmicroserviceuser
     # Verify that the user exists
     getent passwd intelmicroserviceuser
@@ -70,11 +70,11 @@ In order to successfully, store models received from the model registry microser
 
 ##### HTTPS and HTTP mode
 
-The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
+The following configuration applies to both the supported protocols HTTPS(default) and HTTP.
 Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice was configured with when started based on the `ENABLE_HTTPS_MODE` environment variable value and the corresponding steps completed in the previous section.
 
 The following environment variables are used to establish a connection with the model registry microservice.
-* **MR_URL**: The URL where the model registry microservice is accessible. 
+* **MR_URL**: The URL where the model registry microservice is accessible.
     * If not set or left empty, the DL Streamer Pipeline Server will not be able to connect to the model registry successfully and an **error** message will be displayed in the logs.
     * Example: `MR_URL=<PROTOCOL>://10.101.10.101:32002`
 * **MR_SAVED_MODELS_DIR**: The directory where models are saved when downloaded from the model registry microservice.
@@ -95,7 +95,7 @@ When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify i
 *Note: If you would prefer to run the model registry in HTTP mode, set the `ENABLE_HTTPS_MODE` environment variable to `false` before starting the containers. The remainder of this section can be skipped if you are using HTTP mode.*
 
 1. Create the `Certificates/model_registry/` directory in the same directory as your `docker-compose.yml`.
-    * This directory should contain the `ca-bundle.crt` file associated to the model registry.  
+    * This directory should contain the `ca-bundle.crt` file associated to the model registry.
     ```sh
     mkdir -p Certificates/model_registry
     ```
@@ -111,7 +111,7 @@ When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify i
     ```
 
 4. Move (**DO NOT Copy**) the newly created `ca-bundle.crt` file from the model registry's `Certificates/ssl` directory to DL Streamer Pipeline Server's `Certificates/model_registry/` directory.
-    * **Note**: By default, DL Streamer Pipeline Server requires the `ca-bundle.crt` file when sending requests to the model registry to verify its SSL certificate. 
+    * **Note**: By default, DL Streamer Pipeline Server requires the `ca-bundle.crt` file when sending requests to the model registry to verify its SSL certificate.
     * The `ca-bundle.crt` file is required for DL Streamer Pipeline Server and should not be kept in the model registry's `Certificates/ssl` directory when its containers are started. It will lead to SSL certificate verification issues between the model registry and its dependent containers.
     ```shell
     sudo mv ca-bundle.crt <path/to>/Certificates/model_registry/
@@ -136,7 +136,7 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
       # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json to config file that DL Streamer Pipeline Server container loads.
       - "../configs/model_registry/config.json:/home/pipeline-server/config.json"
 ```
-* **model_params** (List): The properties used to retrieve a model stored in the model registry microservice provided as list of properties for each model to be downloaded. 
+* **model_params** (List): The properties used to retrieve a model stored in the model registry microservice provided as list of properties for each model to be downloaded.
     * Location: Within an object in the `"config.pipelines"` list.
     * Supported sub-properties:
         * **name** (String, Optional): The name associated to a model.
@@ -151,8 +151,8 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
         	* Example: `"architecture": "YOLOX-TINY"`
         * **precision** (String, Optional): The precision of a model.
         	* Example: `"precision": "FP32"`
-    * **Note**: The query performed is an `AND` search if more than 1 sub-property is provided. Despite all the sub-properties being optional, DL Streamer Pipeline Server requires at least 1 sub-property to execute a query. 
-    
+    * **Note**: The query performed is an `AND` search if more than 1 sub-property is provided. Despite all the sub-properties being optional, DL Streamer Pipeline Server requires at least 1 sub-property to execute a query.
+
     In addition to the properties mentioned above, the following properties would be used to dynamically update the model path in the pipeline configuration for the model retrieved from the model registry microservice.
     * **deploy** (String): The category of a model.
         * Example: `"deploy": true`
@@ -160,7 +160,7 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
         * Example: `"pipeline_element_name": "detection"`
     * **origin** (String, Optional): The origin of a model to differentiate Geti vs non-Geti models. When not provided the model is considered a non-geti (omz) model.
         * Example: `"origin": "Geti"`
-    
+
     The model path is constructed based on the `model query params`.
     * Geti model:
         * Deployment directory path: `{config.model_registry.saved_models_dir}`/`{model_params.name}`\_m-`{model_params.version}`_`{model_params.precision}`/deployment
@@ -208,7 +208,7 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
                }
 }'
 ```
-> Note: When deploy=true, `parameters` might not be required as the model path will be dynamically added to the pipeline configuration. 
+> Note: When deploy=true, `parameters` might not be required as the model path will be dynamically added to the pipeline configuration.
 
 #### Runtime model download/deployment
 Refer to the [documentation](../../detailed_usage/rest_api/restapi_reference_guide.md#post-pipelinesnameversioninstance_idmodels) for more details on downloading/deploying model from model registry during runtime.
@@ -216,7 +216,7 @@ Refer to the [documentation](../../detailed_usage/rest_api/restapi_reference_gui
 For more details on `model query params` to be provided as part of REST request, refer to the above [section](#configuration-configjson)
 
 ##### Example
-Download/Update model: 
+Download/Update model:
 
 Along with model properties, `deploy`, `origin` and `pipeline_element_name` should be provided to download the model and restart the pipeline with the newly downloaded model set for the specific pipeline element.
 ```json
@@ -233,8 +233,8 @@ Along with model properties, `deploy`, `origin` and `pipeline_element_name` shou
 ```
 
 #### Supported Models for Model Update/Deployment
-- Geti models (retrieved and stored from Geti server) which is expected to have `origin` ('Geti'). For any manual upload of Geti models on model registry, please make sure to provide `origin`. 
+- Geti models (retrieved and stored from Geti server) which is expected to have `origin` ('Geti'). For any manual upload of Geti models on model registry, please make sure to provide `origin`.
 - OMZ models having directory structure, for example, `yolo11s-m_v1_FP32/FP32/yolo11s.xml`.
 
 #### Recommendations
-Usage of `model-instance-id` property for inferencing elements in pipeline is not recommended for runtime model updates as using this property would persist the same original model across pipeline instances. 
+Usage of `model-instance-id` property for inferencing elements in pipeline is not recommended for runtime model updates as using this property would persist the same original model across pipeline instances.

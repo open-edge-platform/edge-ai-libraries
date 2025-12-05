@@ -114,7 +114,7 @@ services:
       - ov-models:/app/ov_models
 
   dataprep-visualdata-milvus:
-    image: intel/dataprep-visualdata-milvus:2025.2-rc2
+    image: ${REGISTRY:-}dataprep-visualdata-milvus:${TAG:-latest}
     container_name: dataprep-visualdata-milvus
     ports:
       - "${DATAPREP_SERVICE_PORT}:9990"

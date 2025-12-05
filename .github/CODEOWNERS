@@ -76,6 +76,8 @@ README.md           @xwu2intel
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_moveit/README.md             @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_plc/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/utils/pykdl_utils/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
+/libraries/video-chunking-utils/docs/                                                                        @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/video-chunking-utils/README.md                                                                    @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content: microservices
 /microservices/audio-analyzer/docs/                             @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey              @open-edge-platform/open-edge-platform-docs-write
@@ -96,6 +98,8 @@ README.md           @xwu2intel
 /microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019                @open-edge-platform/open-edge-platform-docs-write
 /microservices/vlm-openvino-serving/docs/                       @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
 /microservices/vlm-openvino-serving/README.md                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
+/microservices/multilevel-video-understanding/docs/             @Johere @zhangcong2019 @llin60 @xwu2intel                       @open-edge-platform/open-edge-platform-docs-write
+/microservices/multilevel-video-understanding/README.md         @Johere @zhangcong2019 @llin60 @xwu2intel                       @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content: sample-applications
 /sample-applications/chat-question-and-answer/docs/             @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write

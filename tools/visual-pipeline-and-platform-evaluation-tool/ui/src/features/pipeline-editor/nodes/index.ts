@@ -23,6 +23,7 @@ import VAH264EncNode from "./VAH264EncNode.tsx";
 import Decodebin3Node from "./Decodebin3Node.tsx";
 import QueueNode, { QueueNodeWidth } from "./QueueNode.tsx";
 import GVAClassifyNode from "./GVAClassifyNode.tsx";
+import VaapiDecodebinNode from "./VaapiDecodebinNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -46,6 +47,7 @@ export const nodeTypes = {
   decodebin3: Decodebin3Node,
   queue: QueueNode,
   gvaclassify: GVAClassifyNode,
+  vaapidecodebin: VaapiDecodebinNode,
 };
 
 export const nodeWidths: Record<string, number> = {

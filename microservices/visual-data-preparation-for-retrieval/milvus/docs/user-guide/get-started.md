@@ -34,8 +34,8 @@ docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$htt
 Set a remote registry by exporting environment variables:
 
 ```bash
-export REGISTRY="intel/"  
-export TAG="latest" 
+export REGISTRY="intel/"
+export TAG="2025.2.0"
 ```
 
 ### Step 2: Prepare host directories for data
@@ -64,11 +64,11 @@ Note: supported media types: jpg, png, mp4
 
     ``` bash
     export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
-    source env.sh 
+    source env.sh
     ```
 
     **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](../../../../multimodal-embedding-serving/docs/user-guide/supported_models.md) for available options.
-    
+
 3.  Deploy with docker compose
 
     ``` bash
@@ -82,14 +82,14 @@ Check if all microservices are up and runnning
     docker compose -f compose_milvus.yaml ps
     ```
 
-Output 
+Output
 ```
 NAME                         COMMAND                  SERVICE                                 STATUS              PORTS
 dataprep-visualdata-milvus   "uvicorn dataprep_vi…"   dataprep-visualdata-milvus              running (healthy)   0.0.0.0:9990->9990/tcp, :::9990->9990/tcp
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
 milvus-minio                 "/usr/bin/docker-ent…"   milvus-minio                            running (healthy)   0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
 milvus-standalone            "/tini -- milvus run…"   milvus-standalone                       running (healthy)   0.0.0.0:9091->9091/tcp, 0.0.0.0:19530->19530/tcp, :::9091->9091/tcp, :::19530->19530/tcp
-multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   0.0.0.0:9777->8000/tcp,:::9777->8000/tcp                                              
+multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   0.0.0.0:9777->8000/tcp,:::9777->8000/tcp
 ```
 
 ## Sample curl commands
@@ -150,6 +150,6 @@ curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 
 -    Check the [API reference](./api-reference.md)
 -    The visual data preparation microservice usually pairs with a retriever microservice, check the retriever's [get-started-guide](../../../retriever/docs/user-guide/get-started.md)
--    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
+-    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
 
 

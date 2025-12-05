@@ -34,8 +34,8 @@ docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$htt
 Set a remote registry by exporting environment variables:
 
 ```bash
-export REGISTRY="intel/"  
-export TAG="latest"
+export REGISTRY="intel/"
+export TAG="2025.2.0"
 ```
 
 ### Step 2: Deploy
@@ -52,7 +52,7 @@ export TAG="latest"
 
     ``` bash
     export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
-    source env.sh 
+    source env.sh
     ```
 
     **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](../../../../multimodal-embedding-serving/docs/user-guide/supported_models.md) for available options.
@@ -76,14 +76,24 @@ NAME                         COMMAND                  SERVICE                   
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
 milvus-minio                 "/usr/bin/docker-ent…"   milvus-minio                            running (healthy)   0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
 milvus-standalone            "/tini -- milvus run…"   milvus-standalone                       running (healthy)   0.0.0.0:9091->9091/tcp, 0.0.0.0:19530->19530/tcp, :::9091->9091/tcp, :::19530->19530/tcp
-multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   0.0.0.0:9777->8000/tcp,:::9777->8000/tcp                                              
+multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   0.0.0.0:9777->8000/tcp,:::9777->8000/tcp
 retriever-milvus             "uvicorn retriever_s…"   retriever-milvus                        running (healthy)   0.0.0.0:7770->7770/tcp, :::7770->7770/tcp
 ```
 
 
 ## Sample curl commands
 
-**Note**: This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. 
+**Note**: This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. After setting up the data preparation service, you can insert, for example a directory, with the curl command:
+
+```console
+curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+-H "Content-Type: application/json" \
+-d '{
+    "file_dir": "/path/to/directory",
+    "frame_extract_interval": 15,
+    "do_detect_and_crop": true
+}'
+```
 
 ### Basic Query
 
@@ -113,6 +123,6 @@ curl -X POST http://localhost:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 ## Learn More
 
 -    Check the [API reference](./api-reference.md)
--    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
+-    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
 
 

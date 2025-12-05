@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
+import AddPipelineButton from "@/components/shared/AddPipelineButton.tsx";
 
 const Home = () => {
   const { data: pipelines, isSuccess } = useGetPipelinesQuery();
@@ -18,6 +19,7 @@ const Home = () => {
       <div className="flex h-full">
         <div className="flex-1 overflow-auto">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 p-4">
+            <AddPipelineButton />
             {pipelines.map((pipeline) => (
               <Card key={pipeline.id}>
                 <CardHeader>

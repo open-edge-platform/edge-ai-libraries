@@ -1,4 +1,4 @@
-name: Smart Network Video Recorder (NVR) Proxy Pipeline - Media Only Branch
+name: Smart NVR Pipeline - Media Only Branch [GPU]
 version: 1
 definition: >
   Part of the Smart Network Video Recorder (NVR) Proxy Pipeline. This branch processes video streams

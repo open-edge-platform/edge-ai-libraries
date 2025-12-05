@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -6,6 +8,7 @@ from managers.tests_manager import get_tests_manager
 
 router = APIRouter()
 test_manager = get_tests_manager()
+logger = logging.getLogger("api.routes.tests")
 
 
 @router.post(
@@ -98,11 +101,13 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
         job_id = test_manager.test_performance(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
+        logger.error("Invalid performance test request: %s", e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=400,
         )
     except Exception as e:
+        logger.error("Unexpected error while starting performance test", exc_info=True)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error while starting performance test: {str(e)}"
@@ -204,11 +209,13 @@ def run_density_test(body: schemas.DensityTestSpec):
         job_id = test_manager.test_density(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
+        logger.error("Invalid density test request: %s", e)
         return JSONResponse(
             content=schemas.MessageResponse(message=str(e)).model_dump(),
             status_code=400,
         )
     except Exception as e:
+        logger.error("Unexpected error while starting density test", exc_info=True)
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Unexpected error while starting density test: {str(e)}"

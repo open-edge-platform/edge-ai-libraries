@@ -114,6 +114,16 @@ class Node(BaseModel):
             (for example a GStreamer element).
         data: Key/value properties for the element (for example element
             arguments or configuration).
+
+            Reserved keys:
+              * ``"__node_kind"`` – optional internal discriminator used by the
+                backend and UI to distinguish special node types. When present
+                and equal to ``"caps"``, the node represents a GStreamer caps
+                string (for example ``"video/x-raw,width=320,height=240"``)
+                instead of a regular element.
+
+                This field is stored inside ``data`` instead of being a
+                top-level attribute to avoid breaking existing API contracts.
     """
 
     id: str

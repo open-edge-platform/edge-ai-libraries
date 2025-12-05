@@ -18,7 +18,7 @@ sudo apt-get install cmake git build-essential libyaml-cpp-dev libeigen3-dev
 
 2. Setup the ECI APT package repository to access the plcopen-motion and EtherCAT packages:
 
-   Follow the [Setup ECI APT Repository](../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst) instructions ([online docs](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/installation_setup/prerequisites/os_setup.html#setup-sources)) to configure the APT package manager.
+   Follow the [Setup ECI APT Repository](../../plcopen-motion-control/docs/rt-motion/installation_setup/prerequisites/Apt-Repositories.rst) instructions ([online docs](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/plcopen-motion-control/rt-motion/installation_setup/prerequisites/os_setup.html#setup-sources)) to configure the APT package manager.
 
    After setting up the repository, update the system APT repository lists:
 
@@ -49,7 +49,7 @@ make
 make install
 ```
 
-6. Install OpenVINO Toolkit using APT repository. For details, visit the [OpenVINO Toolkit Overview Website](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html) 
+6. Install OpenVINO Toolkit using APT repository. For details, visit the [OpenVINO Toolkit Overview Website](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html)
 
 ```shell
 sudo apt install openvino-2025.3.0

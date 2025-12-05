@@ -12,11 +12,11 @@ This repository provides tutorials and usage guides for the GPU ORB Extractor Fe
 ## Quick Start
 
 Refer to the GPU ORB Extractor Feature Overview page for more details on the pre-requisites.
-[ORB Extractor Overview](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/package-use.html)
+[ORB Extractor Overview](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/package-use.html)
 
 ## Documentation
 
-- [API Usage](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/api-use.html)
-- [OpenCV-free Usage](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/orbocvfree-use.html)
-- [Limitations](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/limitation.html)  
-For more details, see the GPU ORB Extractor [index page](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html).
+- [API Usage](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/api-use.html)
+- [OpenCV-free Usage](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/orbocvfree-use.html)
+- [Limitations](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/limitation.html)
+For more details, see the GPU ORB Extractor [index page](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html).

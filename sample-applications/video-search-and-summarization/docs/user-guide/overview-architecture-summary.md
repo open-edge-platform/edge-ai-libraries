@@ -1,6 +1,6 @@
 # Video Summarization Architecture Overview
 
-The application is built on a modular microservices approach. 
+The application is built on a modular microservices approach.
 
 ## Architecture
 
@@ -47,9 +47,9 @@ The Video Summarization UI feeds videos to the Video Summarization Pipeline Mana
 
 You can configure specific capabilities in the Video Summarization pipeline through the UI, as shown in the architecture. The Video Summarization Pipeline Manager manages your requests.
 
-The VLM, LLM, and Embedding microservices are provided as part of Intel's Edge AI inference microservices catalog, supporting open-source models that can be downloaded from model hubs, for example [Hugging Face Hub models that integrate with OpenVINO™ toolkit](https://huggingface.co/OpenVINO). 
+The VLM, LLM, and Embedding microservices are provided as part of Intel's Edge AI inference microservices catalog, supporting open-source models that can be downloaded from model hubs, for example [Hugging Face Hub models that integrate with OpenVINO™ toolkit](https://huggingface.co/OpenVINO).
 
-The video ingestion microservice ingests common video formats, chunks the videos, and feeds the extracted frames into configurable capabilities, such as object detection. It then provides the outputs to the VLM microservice for captioning. 
+The video ingestion microservice ingests common video formats, chunks the videos, and feeds the extracted frames into configurable capabilities, such as object detection. It then provides the outputs to the VLM microservice for captioning.
 
 The LLM microservice provides final summaries of videos by summarizing the individual captions. The audio transcription microservice uses the Whisper model to transcribe the audio. The raw videos, frames, and generated metadata are saved in the object store.
 
@@ -59,9 +59,9 @@ The following are steps in the application flow:
 
 1. **Create the Video Summarization pipeline**
 
-   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
+   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/sample-applications/video-search-and-summarization/cli/config).
 
-   - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.  
+   - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 
 2. **Input Video Sources**:
 
@@ -83,7 +83,7 @@ The following are steps in the application flow:
 
    - **LLM microservice**: The LLM microservice creates a summary of individual captions. The accuracy of the summary depends on the selected LLM model.
 
-5. **Observability dashboard**: 
+5. **Observability dashboard**:
 
    - If set up, the dashboard displays real-time logs, metrics, and traces that provide a view of the application's performance, accuracy, and resource consumption.
 
@@ -128,14 +128,14 @@ The key components of the Video Summarization mode are as follows:
 
    - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/)
 
-   - [Audio Analyzer](../../../../microservices/audio-analyzer/) 
+   - [Audio Analyzer](../../../../microservices/audio-analyzer/)
 
-   - [VLM microservice](../../../../microservices/vlm-openvino-serving/) 
+   - [VLM microservice](../../../../microservices/vlm-openvino-serving/)
 
     **Data-handling microservices**
 
    - [VDMS-based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/)
-   
+
    See the respective documentation for details.
 
 ## Extensibility
@@ -152,7 +152,7 @@ The Video Summarization mode is modular and allows you to:
 
    - Use models from Hugging Face Hub that integrate with OpenVINO toolkit, or from vLLM model hub. The models are passed as parameters to the corresponding model servers.
 
-3. **Configure different capabilities on the Video Summarization pipeline**: 
+3. **Configure different capabilities on the Video Summarization pipeline**:
 
    - In addition to available capabilities, you can enable new capabilities if it makes summaries more accurate.
 

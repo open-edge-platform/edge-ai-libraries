@@ -1,0 +1,194 @@
+openapi: 3.0.0
+info:
+  title: Multilevel Video Understanding API
+  description: API for video summarization using hierarchical LLM and VLM models.
+  version: 1.0.0
+servers:
+  - url: http://{service-ip}:8192
+    description: Default Server
+    variables:
+      service-ip:
+        default: localhost
+        description: The IP address of the service
+
+paths:
+  /v1/health:
+    get:
+      summary: Health Check
+      description: Health check endpoint to verify service status.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/models:
+    get:
+      summary: Get Models
+      description: Get a list of available Whisper model variants (LLMs & VLMs) that can be used for summarization.
+      operationId: getModels
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+
+  /v1/summary:
+    post:
+      summary: Generate Summary
+      description: Generate a summary text from a video file to describe its content.
+      operationId: createSummary
+      requestBody:
+        description: Parameters for video summarization
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummaryRequest'
+      responses:
+        '200':
+          description: Summarization completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+        '400':
+          description: Bad Request (e.g., Invalid file format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    # --- Health API Schemas ---
+    HealthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Service is running smoothly."
+        status:
+          type: string
+          example: "healthy"
+        version:
+          type: string
+          example: "1.0.0"
+
+    # --- Models API Schemas ---
+    ModelItem:
+      type: object
+      properties:
+        base_url:
+          type: string
+          example: "http://localhost:41090/v1"
+        description:
+          type: string
+          example: "Large Language Models for summarization"
+        display_name:
+          type: string
+          example: "Qwen/Qwen3-32B-AWQ"
+        model_id:
+          type: string
+          example: "Qwen/Qwen3-32B-AWQ"
+
+    ModelsResponse:
+      type: object
+      properties:
+        llms:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelItem'
+        vlms:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelItem'
+
+    # --- Summarization API Schemas ---
+    ProcessorKwargs:
+      type: object
+      properties:
+        process_fps:
+          type: number
+          description: Extract frames at process_fps for input video.
+          default: 1
+        levels:
+          type: integer
+          description: Specify total levels for hierarchical summarization.
+          default: 3
+        level_sizes:
+          type: array
+          description: Specify chunk group size for each level. -1 means using single group at the level.
+          items:
+            type: integer
+          default: [1, 6, -1]
+        chunking_method:
+          type: string
+          description: Video chunking algorithm.
+          enum:
+            - pelt
+            - uniform
+          default: pelt
+
+    SummaryRequest:
+      type: object
+      required:
+        - video
+      properties:
+        video:
+          type: string
+          description: Path to the video file. Supports 'file://', 'http://', 'https://' and local path.
+        prompt:
+          type: string
+          description: User prompt to guide summarization details.
+        method:
+          type: string
+          description: Summarization method strategy.
+          enum:
+            - SIMPLE
+            - USE_VLM_T-1
+            - USE_LLM_T-1
+            - USE_ALL_T-1
+          default: USE_ALL_T-1
+        processor_kwargs:
+          $ref: '#/components/schemas/ProcessorKwargs'
+
+    SummaryResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "completed"
+        summary:
+          type: string
+          description: The generated summary text.
+        message:
+          type: string
+        job_id:
+          type: string
+        video_name:
+          type: string
+        video_duration:
+          type: number
+          description: Duration of the video in seconds.
+
+    ErrorResponse:
+      type: object
+      properties:
+        details:
+          type: string
+          example: "Invalid file format"
+        error_message:
+          type: string
+          example: "Summarization failed!"

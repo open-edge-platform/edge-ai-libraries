@@ -6,4 +6,4 @@
 
 [Open Edge Platform custom post-processing documentation.][link_to_OpenEdgePlatformDocumentation]
 
-[link_to_OpenEdgePlatformDocumentation]: https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dl-streamer/dev_guide/custom_processing.html#create-custom-post-processing-library
+[link_to_OpenEdgePlatformDocumentation]: https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/dev_guide/custom_processing.html#create-custom-post-processing-library

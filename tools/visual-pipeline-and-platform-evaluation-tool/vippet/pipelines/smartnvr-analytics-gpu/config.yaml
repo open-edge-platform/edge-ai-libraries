@@ -1,4 +1,4 @@
-name: Smart Network Video Recorder (NVR) Proxy Pipeline - Analytics Branch
+name: Smart NVR Pipeline - Analytics Branch [GPU]
 version: 1
 definition: >
   Part of the Smart Network Video Recorder (NVR) Proxy Pipeline. This branch processes video streams

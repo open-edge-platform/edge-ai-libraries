@@ -6,11 +6,11 @@ framework, and it is used for creating complex media analytics pipelines for the
 or at the Edge. DL Streamer consists of:
 
 - [Deep Learning Streamer Pipeline
-  Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer)
+  Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/libraries/dl-streamer)
   for designing, creating, building, and running media analytics
   pipelines. It includes C++ and Python APIs.
 - [Deep Learning Streamer Pipeline
-  Server](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server)
+  Server](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/microservices/dlstreamer-pipeline-server)
   for deploying and scaling media analytics pipelines as
   micro-services on one or many compute nodes. It includes REST APIs
   for pipelines management.
@@ -70,7 +70,7 @@ deploy, and benchmark. They require:
 
 **DL Streamer** uses OpenVINO™ Runtime inference back-end,
 optimized for Intel hardware platforms and supports over
-[70 NN Intel and open-source community pre-trained models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/scripts/supported_models.json), and models converted
+[70 NN Intel and open-source community pre-trained models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/libraries/dl-streamer/docs/scripts/supported_models.json), and models converted
 [from other training frameworks](https://docs.openvino.ai/2024/openvino-workflow/model-preparation/convert-model-to-ir.html).
 These models include object detection, object classification, human pose
 detection, sound classification, semantic segmentation, and other use
@@ -80,8 +80,8 @@ FasterRCNN, and other models.
 **DL Streamer** provides over two dozen samples, demos and
 reference apps for the most common media analytics use cases. They are
 included in
-[Deep Learning Streamer Pipeline Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer),
-[Deep Learning Streamer Pipeline Server](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server),
+[Deep Learning Streamer Pipeline Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/libraries/dl-streamer),
+[Deep Learning Streamer Pipeline Server](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/microservices/dlstreamer-pipeline-server),
 [Open Visual Cloud](https://github.com/OpenVisualCloud), and
 [Intel® Edge Software Hub](https://www.intel.com/content/www/us/en/edge-computing/edge-software-hub.html)
 The samples demonstrate C++ and/or Python based: Action Recognition, Face Detection and

@@ -36,7 +36,7 @@ Guidance for Authors:
 -->
 ## Example Use Case
 
-- **Use Case 1**: Refer to the [ChatQnA](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer) sample application where this microservice is used.
+- **Use Case 1**: Refer to the [ChatQnA](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2025.2.0/sample-applications/chat-question-and-answer) sample application where this microservice is used.
 
 
 <!--

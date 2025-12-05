@@ -11,7 +11,7 @@ The Edge Control Libraries provides reusable libraries spanning motion control, 
 | [Robot Motion Control Task](fieldbus/robotmctask) | [Link](fieldbus/robotmctask/README.md) | A comprehensive C++ library designed for robot motion control task developement. It provides APIs that enable robot developers to build sophisticated robot applications with integrated AI inference engines and EtherCAT protocol support. |
 | [PLCopen Servo](plcopen-motion-control/plcopen-servo) | [Link](plcopen-motion-control/plcopen-servo/README.md) | PLCopen servo control interface that connects the EtherCAT EnableKit and RTmotion. |
 | [Real-time Data Agent](rt-data-agent) | [Link](rt-data-agent/README.md) | The Real-time Data Agent provides a unified and real-time way to read and write data from and to a shared memory and a demo program to parse, pack, and send data to a container stack for storage and visualization. |
-| [RTmotion](plcopen-motion-control/plcopen-motion) | [Link](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html) | C++ library of PLCopen motion control function blocks. |
+| [RTmotion](plcopen-motion-control/plcopen-motion) | [Link](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/plcopen-motion-control/rt-motion/rt-motion.html) | C++ library of PLCopen motion control function blocks. |
 
 | Sample Application | Documentation | Description |
 | ------------------ | ------------- | ----------- |

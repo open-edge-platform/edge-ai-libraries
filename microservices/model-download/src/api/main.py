@@ -18,7 +18,7 @@ from ..utils.logging import logger
 app = FastAPI(
     root_path="/api/v1",
     title="Model Download Service",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 # Custom OpenAPI schema loader

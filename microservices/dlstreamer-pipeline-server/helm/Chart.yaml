@@ -1,4 +1,4 @@
 apiVersion: v2
 description: A Helm Chart for Deep Learning Streamer Pipeline Server
 name: dlstreamer-pipeline-server
-version: 2025.2.0-rc2
+version: 2025.2.0
