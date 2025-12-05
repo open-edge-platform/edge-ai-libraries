@@ -73,18 +73,36 @@ def is_public_ip(ip: str) -> bool:
 
 def validate_url(url: str) -> Optional[str]:
     """
-    Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks.
+    Validates a given URL based on scheme, canonical hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks and encoding tricks.
 
     Args:
         url (str): The URL to validate.
 
     Returns:
-        Optional[str]: The validated and pinned URL with the resolved IP address, or None if invalid.
+        Optional[str]: The validated and pinned URL, or None if invalid.
     """
     try:
         parsed_url = urlparse(url)
         if parsed_url.scheme not in ["http", "https"]:
             return None
+        # Canonicalize the hostname: lower-case and strip trailing dot
+        canonical_hostname = hostname.lower().rstrip('.')
+
+        # Check against the allowed hosts domains
+        allowed_domains = [d.lower().rstrip('.') for d in config.ALLOWED_DOMAINS] if config.ALLOWED_DOMAINS else []
+        if not allowed_domains:
+            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
+            return None
+        # Only accept exact matches or explicit subdomain matches
+        is_allowed = False
+        for allowed in allowed_domains:
+            if canonical_hostname == allowed or canonical_hostname.endswith('.' + allowed):
+                is_allowed = True
+                break
+        if not is_allowed:
+            logger.info(f"URL hostname {canonical_hostname} is not in the whitelisted domains; rejecting.")
+            return None
+
 
         hostname = parsed_url.hostname
         if not hostname:
@@ -92,7 +110,7 @@ def validate_url(url: str) -> Optional[str]:
 
         # Resolve the hostname to get its IP address
         try:
-            resolved_ip = socket.gethostbyname(hostname)
+            resolved_ip = socket.gethostbyname(canonical_hostname)
         except socket.gaierror:
             return None
 
@@ -100,17 +118,9 @@ def validate_url(url: str) -> Optional[str]:
         if not is_public_ip(resolved_ip):
             return None
 
-        # Check against the allowed hosts domains
-        # Ensure the allowed domains whitelist is set and not empty
-        if not config.ALLOWED_DOMAINS or len(config.ALLOWED_DOMAINS) == 0:
-            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
-            return None
-        if hostname not in config.ALLOWED_DOMAINS:
-            logger.info(f"URL hostname {hostname} is not in the whitelisted domains; rejecting.")
-            return None
-
-        # Return the original URL (hostname is validated)
-        return url
+        # Return the rebuilt, canonicalized URL (with canonical hostname)
+        rebuilt_url = parsed_url._replace(netloc=canonical_hostname).geturl()
+        return rebuilt_url
 
     except Exception as e:
         logger.error(f"URL validation failed: {e}")
