@@ -407,7 +407,7 @@ const Pipelines = () => {
             encoder_device:
               videoOutputEnabled && selectedDevice
                 ? {
-                    device_name: selectedDevice.device_family,
+                    device_name: selectedDevice.device_name,
                     gpu_id:
                       selectedDevice.device_family === "GPU"
                         ? (selectedDevice.gpu_id ?? 0)

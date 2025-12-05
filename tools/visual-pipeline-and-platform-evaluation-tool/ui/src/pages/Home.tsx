@@ -67,7 +67,7 @@ const Home = () => {
               <h1 className="font-medium text-2xl mb-4">
                 Predefined Pipelines
               </h1>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {groupedPredefinedPipelines.map((group, idx) => (
                   <Card
                     key={group.id}
@@ -77,13 +77,11 @@ const Home = () => {
                       <CardTitle className="min-h-8">
                         {group.baseName}
                       </CardTitle>
-                      <div className="w-full h-32 overflow-hidden bg-gray-100 my-2">
-                        <img
-                          src={pipelineImages[idx]}
-                          alt={group.baseName}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                      <img
+                        src={pipelineImages[idx]}
+                        alt={group.baseName}
+                        className="w-full h-full"
+                      />
                       <CardDescription className="line-clamp-4 min-h-18">
                         {group.description}
                       </CardDescription>
