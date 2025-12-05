@@ -88,25 +88,29 @@ def validate_url(url: str) -> Optional[str]:
         
         hostname = parsed_url.hostname
         if not hostname:
-            return None
-
+            return None 
+        
         # Normalize the hostname: lower-case and strip trailing dot
         normalized_hostname = hostname.lower().rstrip('.')
 
         # Check against the allowed hosts domains
-        allowed_domains = config.ALLOWED_DOMAINS
+        allowed_domains = [d.lower().rstrip('.') for d in config.ALLOWED_DOMAINS] if config.ALLOWED_DOMAINS else []
         if not allowed_domains:
-            logger.error("ALLOWED_DOMAINS not configured; refusing all URLs to prevent SSRF.")
+            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
+            return None
+        # Only accept exact matches or explicit subdomain matches
+        is_allowed = False
+        for allowed in allowed_domains:
+            if normalized_hostname == allowed or normalized_hostname.endswith('.' + allowed):
+                is_allowed = True
+                break
+        if not is_allowed:
+            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
             return None
 
-        # Only allow URLs with hostnames that either match exactly or are valid subdomains
-        is_allowed_domain = False
-        for allowed_domain in allowed_domains:
-            if normalized_hostname == allowed_domain or normalized_hostname.endswith('.' + allowed_domain):
-                is_allowed_domain = True
-                break
-        if not is_allowed_domain:
-            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
+
+        hostname = parsed_url.hostname
+        if not hostname:
             return None
 
         # Resolve the hostname to get its IP address
@@ -119,8 +123,8 @@ def validate_url(url: str) -> Optional[str]:
         if not is_public_ip(resolved_ip):
             return None
 
-        # Return the validated URL with pinned IP address
-        validated_pinned_url = url.replace(hostname, resolved_ip)
+        # Return validated URL with pinned IP address
+        validated_pinned_url = url.replace(hostname, resolved_ip, 1)
         return validated_pinned_url
 
     except Exception as e:
