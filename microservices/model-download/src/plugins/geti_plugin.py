@@ -332,13 +332,12 @@ class GetiPlugin(ModelDownloadPlugin):
         self, project_id: str, model_id: str, output_dir: str, **kwargs
     ) -> Optional[str]:
         """
-        Download model files from a Geti server using the export API endpoints.
+        Download model files from a Geti server using the deployment package download API.
 
-        Supports both base model and optimized model exports as per the API specification.
+        Uses POST endpoint: /projects/{project_id}/deployment_package:download
 
         Args:
             project_id (str): The ID of the project
-            model_group_id (str): The ID of the model group
             model_id (str): The ID of the model
             output_dir (str): Output directory for downloaded files
             **kwargs: Additional arguments:
@@ -353,39 +352,47 @@ class GetiPlugin(ModelDownloadPlugin):
         model_group_id = kwargs.get("model_group_id")
         
         try:
+            # Build the POST endpoint URL
+            url_path = (
+                f"/organizations/{self._organization_id}/workspaces/{self._workspace_id}"
+                f"/projects/{project_id}/deployment_package:download"
+            )
+            url = f"{self._server_url}{url_path}"
+            
+            # Prepare the request body
+            # request_body = {
+            #     "model_id": model_id,
+            #     "model_group_id": model_group_id,
+            # }
+            request_body = {
+                    "package_type": "ovms",
+                    "models": [
+                        {
+                            "model_group_id": "691bfb86c7b9a6d48b162af3",
+                            "model_id": "691bfba01fefe127812d9693"
+                        }
+                    ]
+            }
+            
             if export_type == "optimized":
-                # Export optimized model
                 optimized_model_id = kwargs.get("optimized_model_id")
                 if not optimized_model_id:
                     logger.error("optimized_model_id is required for optimized model export")
                     return None
                 
-                model_only = kwargs.get("model_only", True)
-                url_path = (
-                    f"/organizations/{self._organization_id}/workspaces/{self._workspace_id}"
-                    f"/projects/{project_id}/model_groups/{model_group_id}/models/{model_id}"
-                    f"/optimized_models/{optimized_model_id}/export"
-                )
+                request_body["optimized_model_id"] = optimized_model_id
+                request_body["model_only"] = kwargs.get("model_only", True)
                 
-                # Add query parameter for model_only
-                url_query_str = f"?model_only={str(model_only).lower()}"
-                url = f"{self._server_url}{url_path}{url_query_str}"
-                
-                logger.info(f"Downloading optimized model: {optimized_model_id}, model_only={model_only}")
+                logger.info(f"Downloading optimized model: {optimized_model_id}, model_only={request_body['model_only']}")
             else:
-                # Export base model
-                url_path = (
-                    f"/organizations/{self._organization_id}/workspaces/{self._workspace_id}"
-                    f"/projects/{project_id}/model_groups/{model_group_id}/models/{model_id}/export"
-                )
-                url = f"{self._server_url}{url_path}"
-                
                 logger.info(f"Downloading base model: {model_id}")
 
-            # Make the GET request to download the model
-            resp = self._send_request(method=HTTPMethod.GET, url=url)
+            # Make the POST request to download the model
+            data = json.dumps(request_body)
+            headers = {"Content-Type": "application/json"}
+            resp = self._send_request(method=HTTPMethod.POST, url=url, data=data, headers=headers)
 
-            if resp.status_code == 200:
+            if resp.status_code in (200, 201):
                 logger.debug(f"Model ({model_id}) downloaded successfully")
 
                 # Create hub-specific directory

@@ -111,9 +111,14 @@ done
 AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti")
 
 # Install plugin-specific dependencies
-for plugin in "${PLUGIN_LIST[@]}"; do
-    install_dependencies "$plugin"
-done
+print_header "Installing plugin dependencies"
+if [ "$PLUGINS" = "all" ]; then
+    print_info "Installing ALL plugins"
+    
+    # Install dependencies for all available plugins
+    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
+        install_dependencies "$plugin"
+    done
 
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
     print_success "All plugins are activated"
