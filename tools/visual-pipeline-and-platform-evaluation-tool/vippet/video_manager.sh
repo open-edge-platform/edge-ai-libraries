@@ -47,7 +47,7 @@ while IFS=$'\t' read -r url filename; do
     tmp_path="/tmp/$filename"
 
     if [ -f "$target_path" ]; then
-        echo "[INFO] Recording '$filename' already exists at $target_path. Skipping download."
+        # File already exists, skip download
         continue
     fi
 
@@ -73,5 +73,4 @@ done < <(yq -r '
   ] | @tsv
 ' "$RECORDINGS_FILE")
 
-echo "[INFO] Video management complete."
 exit 0

@@ -1,11 +1,13 @@
 # Release Notes
 
 ## Current Release
+
 **Version**: 2025.2
 
 This is the first release for multilevel video understanding. This microservice implements a novel multi-level framework designed specifically for video summarization, with specialized capabilities for processing long-form video content.
 
 **Features**
+
 - Process video from local files or http(s) links.
 - Containerization with Docker.
 - RESTful API with FastAPI with support for concurrent requests.

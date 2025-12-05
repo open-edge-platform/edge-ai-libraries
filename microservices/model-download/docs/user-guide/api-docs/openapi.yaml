@@ -14,7 +14,7 @@ info:
 
     **Note:** HUGGINGFACEHUB_API_TOKEN environment variable is optional and only required for downloading 
     gated models from HuggingFace or for model conversion. Public models can be downloaded without authentication.
-  version: 1.0.0
+  version: 1.0.1
   contact:
     name: Intel GenAI Team
 servers:

@@ -1922,7 +1922,7 @@
           "data"
         ],
         "title": "Node",
-        "description": "Single node in a generic pipeline graph.\n\nAttributes:\n    id: Node identifier, unique within a single graph.\n    type: Element type, usually a framework-specific element name\n        (for example a GStreamer element).\n    data: Key/value properties for the element (for example element\n        arguments or configuration)."
+        "description": "Single node in a generic pipeline graph.\n\nAttributes:\n    id: Node identifier, unique within a single graph.\n    type: Element type, usually a framework-specific element name\n        (for example a GStreamer element).\n    data: Key/value properties for the element (for example element\n        arguments or configuration).\n\n        Reserved keys:\n          * ``\"__node_kind\"`` \u2013 optional internal discriminator used by the\n            backend and UI to distinguish special node types. When present\n            and equal to ``\"caps\"``, the node represents a GStreamer caps\n            string (for example ``\"video/x-raw,width=320,height=240\"``)\n            instead of a regular element.\n\n            This field is stored inside ``data`` instead of being a\n            top-level attribute to avoid breaking existing API contracts."
       },
       "OptimizationJobResponse": {
         "properties": {

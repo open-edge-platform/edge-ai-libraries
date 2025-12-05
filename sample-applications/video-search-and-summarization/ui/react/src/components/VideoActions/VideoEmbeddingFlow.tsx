@@ -562,7 +562,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             formatError === t('OnlyStreamableMp4') ? (
               <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
                 <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
-                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
                   <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
               </ErrorBox>
             ) : (
@@ -667,7 +667,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               {uploadErrorMessage && (
                 <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
                   <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
-                  <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                  <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
                   <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
                 </ErrorBox>
               )}

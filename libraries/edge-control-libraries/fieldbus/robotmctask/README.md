@@ -29,13 +29,13 @@ sudo apt-get install cmake git build-essential libyaml-cpp-dev libeigen3-dev
 3. Install plcopen-motion library:
 
 ```shell
-sudo apt-get install plcopen-motion-dev plcopen-servo-dev plcopen-ruckig-dev plcopen-databus-dev plcopen-benchmark-dev
+sudo apt-get install plcopen-motion-dev plcopen-servo-dev plcopen-ruckig-dev plcopen-databus-dev plcopen-benchmark-dev libshmringbuf-dev
 ```
 
 4. Install EtherCAT stack and ECAT-Enablekit. Note: You also can follow [Userspace EtherCAT Master Stack](../ethercat-masterstack/docs/igh_userspace.md) and [EtherCAT Enable Kit](../ecat-enablekit/README.md) to build/deploy these packages.
 
 ```shell
-sudo apt-get install ighethercat-dpdk ecat-enablekit-dpdk
+sudo apt-get install ighethercat-dpdk ecat-enablekit-dpdk libethercatd-dev
 ```
 
 5. Follow with below command to install ruckig:
@@ -47,6 +47,18 @@ mkdir -p build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 make install
+```
+
+6. Install OpenVINO Toolkit using APT repository. For details, visit the [OpenVINO Toolkit Overview Website](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html) 
+
+```shell
+sudo apt install openvino-2025.3.0
+```
+
+7. Install robot_rviz
+
+```shell
+sudo apt install ros-<ROS2 codename>-ti5-rviz
 ```
 
 # Build

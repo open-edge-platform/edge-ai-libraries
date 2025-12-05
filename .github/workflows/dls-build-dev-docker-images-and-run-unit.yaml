@@ -144,13 +144,3 @@ jobs:
       env:
         RESULTS_DIR: test-results
       run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo
-
-    # - name: Schedule reboot
-    #   if: always()
-    #   run: |
-    #     echo "Scheduling reboot in 15 seconds..."
-    #     if [ -x /usr/local/bin/reboot_runner.sh ]; then
-    #       sudo /usr/local/bin/reboot_runner.sh 15
-    #     else
-    #       echo "WARNING: /usr/local/bin/reboot_runner.sh not found or not executable. Skipping reboot."
-    #     fi

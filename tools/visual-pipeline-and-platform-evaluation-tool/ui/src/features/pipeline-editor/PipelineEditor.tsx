@@ -145,6 +145,7 @@ const PipelineEditorContent = ({
         }}
         nodesDraggable={true}
         fitView
+        className="h-full w-full"
       >
         <Controls />
         <Background variant={BackgroundVariant.Dots} gap={12} size={1} />

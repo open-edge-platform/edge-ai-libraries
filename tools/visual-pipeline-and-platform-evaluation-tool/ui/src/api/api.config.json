@@ -1,5 +1,5 @@
 {
-  "schemaFile": "../../../vippet/api/vippet.json",
+  "schemaFile": "../../../docs/user-guide/_assets/vippet.json",
   "apiFile": "./apiSlice.ts",
   "apiImport": "apiSlice",
   "outputFile": "./api.generated.ts",

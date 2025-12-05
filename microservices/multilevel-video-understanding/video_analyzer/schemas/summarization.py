@@ -39,8 +39,9 @@ class SummarizationRequest(BaseModel):
     video: Annotated[str, Field(description="Path to the video file, support 'file:/', 'http://', 'https://' and local path.")]
     prompt: Annotated[Optional[str], Field(description="User prompt to guide summarization details")] = None
     method: Annotated[Optional[str], Field(description="Summarization method")] = "USE_ALL_T-1"
-    processor_kwargs: Annotated[Optional[Dict[str, Union[str, int, list[int]]]], 
-                                Field(description="Summarization processing parameters")] = {}
+    processor_kwargs: Annotated[Optional[Dict[str, Union[float, str, int, list[int]]]], 
+                                Field(description="Summarization processing parameters: "
+                                      "process_fps, chunking_method, levels, level_sizes, etc.")] = {}
 
 
 class SummarizationResponse(BaseModel):

@@ -66,6 +66,7 @@ env-setup: ## Environment setup target: always run before build/run targets that
 	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
+	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
 	./setup_env.sh
 
