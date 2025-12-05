@@ -32,13 +32,13 @@ const PerformanceJobDetail = () => {
         {isLoading ? (
           <p className="text-muted-foreground">Loading job details...</p>
         ) : error ? (
-          <div className="p-4 border border-red-500 rounded-md bg-red-50 dark:bg-red-950">
+          <div className="p-4 border border-red-500 bg-red-50 dark:bg-red-950">
             <p className="text-red-800 dark:text-red-200">
               Error loading job details
             </p>
           </div>
         ) : (
-          <div className="border rounded-md p-6">
+          <div className="border p-6">
             <pre className="whitespace-pre-wrap break-words text-sm">
               {JSON.stringify(jobStatus, null, 2)}
             </pre>

@@ -8,7 +8,7 @@ export const gvaDetectConfig = {
     {
       key: "model",
       label: "Model",
-      type: "text" as const,
+      type: "select" as const,
       defaultValue: "",
       description: "Path to inference model network file",
     },

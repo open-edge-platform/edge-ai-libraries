@@ -1,9 +1,17 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap");
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans:
+    "Montserrat", "Open Sans", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-heading:
+    "Montserrat", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -39,6 +47,25 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Intel colors */
+  --color-classic-blue: var(--classic-blue);
+  --color-classic-blue-tint-2: var(--classic-blue-tint-2);
+  --color-classic-blue-tint-1: var(--classic-blue-tint-1);
+  --color-classic-blue-shade-1: var(--classic-blue-shade-1);
+  --color-classic-blue-shade-2: var(--classic-blue-shade-2);
+  --color-energy-blue: var(--energy-blue);
+  --color-energy-blue-tint-2: var(--energy-blue-tint-2);
+  --color-energy-blue-tint-1: var(--energy-blue-tint-1);
+  --color-energy-blue-shade-1: var(--energy-blue-shade-1);
+  --color-energy-blue-shade-2: var(--energy-blue-shade-2);
+  --color-carbon: var(--carbon);
+  --color-carbon-tint-2: var(--carbon-tint-2);
+  --color-carbon-tint-1: var(--carbon-tint-1);
+  --color-carbon-shade-1: var(--carbon-shade-1);
+  --color-carbon-shade-2: var(--carbon-shade-2);
+
+  --color-classic-blue-hover: var(--classic-blue-hover);
 }
 
 :root {
@@ -49,7 +76,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: var(--classic-blue);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -59,7 +86,7 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --input: var(--carbon-tint-1);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -74,6 +101,25 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Intel colors */
+  --classic-blue: oklch(0.377 0.152 258.338); /* #0054AE */
+  --classic-blue-tint-2: oklch(0.792 0.094 245.571); /* #6CC4F5 */
+  --classic-blue-tint-1: oklch(0.625 0.158 247.996); /* #0099EC */
+  --classic-blue-shade-1: oklch(0.266 0.118 261.226); /* #00377C */
+  --classic-blue-shade-2: oklch(0.157 0.084 264.366); /* #001E50 */
+  --energy-blue: oklch(0.807 0.126 232.661); /* #00C7FD */
+  --energy-blue-tint-2: oklch(0.916 0.063 234.365); /* #A0EBFF */
+  --energy-blue-tint-1: oklch(0.867 0.096 233.398); /* #6DDCFF */
+  --energy-blue-shade-1: oklch(0.622 0.102 233.812); /* #0095CA */
+  --energy-blue-shade-2: oklch(0.413 0.073 235.449); /* #005B85 */
+  --carbon: oklch(0.577 0 0); /* #808080 */
+  --carbon-tint-2: oklch(0.927 0 0); /* #E9E9E9 */
+  --carbon-tint-1: oklch(0.725 0 0); /* #AEAEAE */
+  --carbon-shade-1: oklch(0.381 0 0); /* #525252 */
+  --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
+
+  --classic-blue-hover: oklch(0.333 0.137 258.653); /* #004A9D */
 }
 
 .dark {
@@ -115,6 +161,32 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--carbon-tint-1);
+    border-radius: 6px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--carbon);
   }
 }

@@ -333,9 +333,9 @@ export type CreatePipelineApiResponse =
 export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
-export type ValidatePipelineApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 202 Pipeline validation started */ ValidationJobResponse;
+export type ValidatePipelineApiResponse =
+  /** status 200 Successful Response */
+  any | /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -355,9 +355,9 @@ export type DeletePipelineApiResponse =
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
-export type OptimizePipelineApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
+export type OptimizePipelineApiResponse =
+  /** status 200 Successful Response */
+  any | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
 export type OptimizePipelineApiArg = {
   pipelineId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;

@@ -16,7 +16,12 @@ const Videos = () => {
     return (
       <div className="h-full overflow-auto">
         <div className="container mx-auto py-10">
-          <h1 className="text-3xl font-bold mb-6">Videos</h1>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold">Videos</h1>
+            <p className="text-muted-foreground mt-2">
+              Ready-to-use video clips available in the platform
+            </p>
+          </div>
           <Table>
             <TableCaption>A list of loaded videos.</TableCaption>
             <TableHeader>

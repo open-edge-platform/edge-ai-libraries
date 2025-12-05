@@ -1,21 +1,37 @@
 import { useEffect, useState } from "react";
 import {
   useGetPerformanceJobStatusQuery,
-  useGetPipelinesQuery,
   useRunPerformanceTestMutation,
 } from "@/api/api.generated";
-import {
-  PipelinesDataTable,
-  type PipelineWithStreams,
-} from "@/components/shared/PipelinesDataTable";
 import { TestProgressIndicator } from "@/components/shared/TestProgressIndicator.tsx";
+import { PipelineName } from "@/components/shared/PipelineName.tsx";
+import { useAppSelector } from "@/store/hooks";
+import { selectPipelines } from "@/store/reducers/pipelines";
+import { selectDevices } from "@/store/reducers/devices";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Plus, X } from "lucide-react";
+import { StreamsSlider } from "@/components/shared/StreamsSlider";
+import DeviceSelect from "@/components/shared/DeviceSelect";
+
+interface PipelineSelection {
+  pipelineId: string;
+  streams: number;
+  isRemoving?: boolean;
+  isNew?: boolean;
+}
 
 const PerformanceTests = () => {
-  const { data: pipelines, isLoading, error } = useGetPipelinesQuery();
+  const pipelines = useAppSelector(selectPipelines);
+  const devices = useAppSelector(selectDevices);
   const [runPerformanceTest, { isLoading: isRunning }] =
     useRunPerformanceTestMutation();
-  const [selectedPipelines, setSelectedPipelines] = useState<
-    PipelineWithStreams[]
+  const [pipelineSelections, setPipelineSelections] = useState<
+    PipelineSelection[]
   >([]);
   const [jobId, setJobId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
@@ -54,28 +70,106 @@ const PerformanceTests = () => {
     }
   }, [jobStatus]);
 
-  const handleRunTest = async () => {
-    if (selectedPipelines.length === 0) return;
+  useEffect(() => {
+    if (pipelines.length > 0 && pipelineSelections.length === 0) {
+      setPipelineSelections([
+        {
+          pipelineId: pipelines[0].id,
+          streams: 8,
+          isNew: false,
+        },
+      ]);
+    }
+  }, [pipelines, pipelineSelections.length]);
 
+  const handleAddPipeline = () => {
+    const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
+    const availablePipeline = pipelines.find(
+      (pipeline) => !usedPipelineIds.includes(pipeline.id),
+    );
+    if (availablePipeline) {
+      setPipelineSelections((prev) => [
+        ...prev,
+        {
+          pipelineId: availablePipeline.id,
+          streams: 8,
+          isNew: true,
+        },
+      ]);
+      setTimeout(() => {
+        setPipelineSelections((prev) =>
+          prev.map((sel) =>
+            sel.pipelineId === availablePipeline.id
+              ? { ...sel, isNew: false }
+              : sel,
+          ),
+        );
+      }, 300);
+    }
+  };
+
+  const handleRemovePipeline = (pipelineId: string) => {
+    if (pipelineSelections.length > 1) {
+      setPipelineSelections((prev) =>
+        prev.map((sel) =>
+          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel,
+        ),
+      );
+      setTimeout(() => {
+        setPipelineSelections((prev) =>
+          prev.filter((sel) => sel.pipelineId !== pipelineId),
+        );
+      }, 300);
+    }
+  };
+
+  const handlePipelineChange = (
+    oldPipelineId: string,
+    newPipelineId: string,
+  ) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel) =>
+        sel.pipelineId === oldPipelineId
+          ? { ...sel, pipelineId: newPipelineId }
+          : sel,
+      ),
+    );
+  };
+
+  const handleStreamsChange = (pipelineId: string, streams: number) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel) =>
+        sel.pipelineId === pipelineId ? { ...sel, streams } : sel,
+      ),
+    );
+  };
+
+  const handleRunTest = async () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
+      const selectedDevice = devices.find(
+        (d) => d.device_name === encoderDevice,
+      );
+
       const result = await runPerformanceTest({
         performanceTestSpecInput: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device: videoOutputEnabled
-              ? {
-                  device_name: encoderDevice.startsWith("GPU") ? "GPU" : "CPU",
-                  gpu_id: encoderDevice.startsWith("GPU")
-                    ? parseInt(encoderDevice.split("/")[1])
-                    : undefined,
-                }
-              : undefined,
+            encoder_device:
+              videoOutputEnabled && selectedDevice
+                ? {
+                    device_name: selectedDevice.device_name,
+                    gpu_id:
+                      selectedDevice.device_family === "GPU"
+                        ? (selectedDevice.gpu_id ?? 0)
+                        : undefined,
+                  }
+                : undefined,
           },
-          pipeline_performance_specs: selectedPipelines.map((pipeline) => ({
-            id: pipeline.id,
-            streams: pipeline.streams,
+          pipeline_performance_specs: pipelineSelections.map((selection) => ({
+            id: selection.pipelineId,
+            streams: selection.streams,
           })),
         },
       }).unwrap();
@@ -85,18 +179,10 @@ const PerformanceTests = () => {
     }
   };
 
-  if (isLoading) {
+  if (pipelines.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <p>Loading pipelines...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-red-500">Error loading pipelines</p>
       </div>
     );
   }
@@ -107,56 +193,140 @@ const PerformanceTests = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
           <p className="text-muted-foreground mt-2">
-            Select pipelines to run performance tests on
+            Performance test measures total and per-stream frame rate (FPS) for
+            the specified pipelines with given number of streams
           </p>
         </div>
 
-        <PipelinesDataTable
-          data={pipelines ?? []}
-          onSelectionChange={setSelectedPipelines}
-        />
+        <div className="space-y-3 mb-6">
+          {pipelineSelections.map((selection) => (
+            <div
+              key={selection.pipelineId}
+              className={`flex items-center gap-3 p-2 border bg-white transition-all duration-300 ${
+                selection.isRemoving
+                  ? "opacity-0 -translate-y-2"
+                  : selection.isNew
+                    ? "animate-in fade-in slide-in-from-top-2"
+                    : ""
+              }`}
+            >
+              <div className="flex-1 flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Pipeline
+                  </label>
+                  <select
+                    value={selection.pipelineId}
+                    onChange={(e) =>
+                      handlePipelineChange(selection.pipelineId, e.target.value)
+                    }
+                    className="w-full px-3 py-2 border text-sm cursor-pointer"
+                  >
+                    {pipelines
+                      .filter(
+                        (pipeline) =>
+                          pipeline.id === selection.pipelineId ||
+                          !pipelineSelections.some(
+                            (sel) => sel.pipelineId === pipeline.id,
+                          ),
+                      )
+                      .map((pipeline) => (
+                        <option key={pipeline.id} value={pipeline.id}>
+                          {pipeline.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Streams
+                  </label>
+                  <StreamsSlider
+                    value={selection.streams}
+                    onChange={(val) =>
+                      handleStreamsChange(selection.pipelineId, val)
+                    }
+                    min={1}
+                    max={64}
+                  />
+                </div>
+              </div>
+
+              {pipelineSelections.length > 1 && (
+                <button
+                  onClick={() => handleRemovePipeline(selection.pipelineId)}
+                  className="text-red-500 hover:text-red-700 p-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          <button
+            onClick={handleAddPipeline}
+            disabled={pipelineSelections.length >= pipelines.length}
+            className="w-fit px-4 py-2 bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Pipeline</span>
+          </button>
+        </div>
 
         <div className="my-4 flex flex-col gap-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={videoOutputEnabled}
-              onChange={(e) => setVideoOutputEnabled(e.target.checked)}
-              className="w-4 h-4 cursor-pointer"
-            />
-            <span className="text-sm font-medium">Create Video</span>
-          </label>
+          <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={videoOutputEnabled}
+                    onCheckedChange={(checked) =>
+                      setVideoOutputEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">Save output</span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  Selecting this option changes the last fakesink to filesink so
+                  it is possible to view generated output
+                </p>
+              </TooltipContent>
+            </Tooltip>
 
-          {videoOutputEnabled && (
-            <select
-              value={encoderDevice}
-              onChange={(e) => setEncoderDevice(e.target.value)}
-              className="w-fit px-3 py-2 border rounded-md text-sm cursor-pointer"
-            >
-              <option value="CPU">CPU</option>
-              <option value="GPU/0">GPU/0</option>
-              <option value="GPU/1">GPU/1</option>
-            </select>
-          )}
+            {videoOutputEnabled && (
+              <DeviceSelect
+                value={encoderDevice}
+                onChange={setEncoderDevice}
+                className="w-fit px-3 py-2 border text-sm cursor-pointer"
+              />
+            )}
+          </div>
 
           <button
             onClick={handleRunTest}
-            disabled={isRunning || selectedPipelines.length === 0 || !!jobId}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
+            className="w-fit px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {jobId ? "Running..." : isRunning ? "Starting..." : "Run test"}
+            {jobId
+              ? "Running..."
+              : isRunning
+                ? "Starting..."
+                : "Run performance test"}
           </button>
         </div>
 
         {jobId && jobStatus && (
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+                  <div className="h-2 w-2 bg-blue-500"></div>
                   <span className="text-xs text-blue-700 dark:text-blue-300">
                     Running performance test...
                   </span>
@@ -168,7 +338,7 @@ const PerformanceTests = () => {
         )}
 
         {errorMessage && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
               Test Failed
             </p>
@@ -179,7 +349,7 @@ const PerformanceTests = () => {
         )}
 
         {testResult && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
             <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
               Test Completed Successfully
             </p>
@@ -204,20 +374,17 @@ const PerformanceTests = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(testResult.video_output_paths).map(
                       ([pipelineId, paths]) => {
-                        const pipeline = pipelines?.find(
-                          (p) => p.id === pipelineId,
-                        );
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
                         return (
                           <div
                             key={pipelineId}
-                            className="border border-green-300 dark:border-green-700 rounded-md overflow-hidden"
+                            className="border border-green-300 dark:border-green-700 overflow-hidden"
                           >
                             <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
                               <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                {pipeline?.name || pipelineId}
+                                <PipelineName pipelineId={pipelineId} />
                               </p>
                             </div>
                             {videoPath ? (
