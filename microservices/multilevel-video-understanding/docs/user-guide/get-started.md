@@ -86,6 +86,11 @@ INFO:     Application startup complete.
 ```
 > Note: Please wait for a while since it takes some time to load models, especially for the first time deploying a new model. Resources will be downloaded from huggingface endpoint.
 
+If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
+```bash
+docker compose down lvm-vllm-ipex-service
+```
+
 More details can be found in [LVM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/lvms/src/README_vllm_ipex.html)
 
 ### Start model serving for LLM
@@ -146,6 +151,11 @@ INFO:     Application startup complete.
 ```
 
 > Note: Please refer to [validated models](./Overview.md#validated-models) for the list of models that can has been verified in video summarization.
+
+If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
+```bash
+docker compose -f compose_text-generation.yaml down textgen-vllm-ipex-service
+```
 
 More details can be found in  [LLM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/llms/src/text-generation/README_vllm_ipex.html)
 
