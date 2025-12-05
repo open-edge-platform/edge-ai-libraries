@@ -98,6 +98,7 @@ def validate_url(url: str) -> Optional[str]:
         if not allowed_domains:
             logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
             return None
+
         # Only accept exact matches or explicit subdomain matches
         is_allowed = False
         for allowed in allowed_domains:
@@ -106,11 +107,6 @@ def validate_url(url: str) -> Optional[str]:
                 break
         if not is_allowed:
             logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
-            return None
-
-
-        hostname = parsed_url.hostname
-        if not hostname:
             return None
 
         # Resolve the hostname to get its IP address
