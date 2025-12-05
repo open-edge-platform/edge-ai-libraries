@@ -53,7 +53,10 @@ It generates embeddings for documents, stores them in PGVector, and saves the do
     @computed_field
     @property
     def ALLOWED_DOMAINS(self) -> List[str]:
-        return [h.strip() for h in self.DOMAINS.split(",") if h.strip()]
+        """
+        Returns a list of allowed domains in canonical form (lowercase, stripped of trailing dots).
+        """
+        return [d.lower().rstrip('.') for d in self.DOMAINS.split(",") if d.strip()]
 
 
     class Config:

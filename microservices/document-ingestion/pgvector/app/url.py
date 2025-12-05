@@ -85,32 +85,33 @@ def validate_url(url: str) -> Optional[str]:
         parsed_url = urlparse(url)
         if parsed_url.scheme not in ["http", "https"]:
             return None
-        # Canonicalize the hostname: lower-case and strip trailing dot
-        canonical_hostname = hostname.lower().rstrip('.')
-
-        # Check against the allowed hosts domains
-        allowed_domains = [d.lower().rstrip('.') for d in config.ALLOWED_DOMAINS] if config.ALLOWED_DOMAINS else []
-        if not allowed_domains:
-            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
-            return None
-        # Only accept exact matches or explicit subdomain matches
-        is_allowed = False
-        for allowed in allowed_domains:
-            if canonical_hostname == allowed or canonical_hostname.endswith('.' + allowed):
-                is_allowed = True
-                break
-        if not is_allowed:
-            logger.info(f"URL hostname {canonical_hostname} is not in the whitelisted domains; rejecting.")
-            return None
-
-
+        
         hostname = parsed_url.hostname
         if not hostname:
             return None
 
+        # Normalize the hostname: lower-case and strip trailing dot
+        normalized_hostname = hostname.lower().rstrip('.')
+
+        # Check against the allowed hosts domains
+        allowed_domains = config.ALLOWED_DOMAINS
+        if not allowed_domains:
+            logger.error("ALLOWED_DOMAINS not configured; refusing all URLs to prevent SSRF.")
+            return None
+
+        # Only allow URLs with hostnames that either match exactly or are valid subdomains
+        is_allowed_domain = False
+        for allowed_domain in allowed_domains:
+            if normalized_hostname == allowed_domain or normalized_hostname.endswith('.' + allowed_domain):
+                is_allowed_domain = True
+                break
+        if not is_allowed_domain:
+            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
+            return None
+
         # Resolve the hostname to get its IP address
         try:
-            resolved_ip = socket.gethostbyname(canonical_hostname)
+            resolved_ip = socket.gethostbyname(normalized_hostname)
         except socket.gaierror:
             return None
 
@@ -118,15 +119,15 @@ def validate_url(url: str) -> Optional[str]:
         if not is_public_ip(resolved_ip):
             return None
 
-        # Return the rebuilt, canonicalized URL (with canonical hostname)
-        rebuilt_url = parsed_url._replace(netloc=canonical_hostname).geturl()
-        return rebuilt_url
+        # Return the validated URL with pinned IP address
+        validated_pinned_url = url.replace(hostname, resolved_ip)
+        return validated_pinned_url
 
     except Exception as e:
         logger.error(f"URL validation failed: {e}")
         return None
 
-def safe_fetch_url(validated_url: str, headers: dict, hostname: str):
+def safe_fetch_url(validated_pinned_url: str, headers: dict, hostname: str):
     """
     Securely fetches a URL while mitigating SSRF vulnerabilities.
 
@@ -155,7 +156,7 @@ def safe_fetch_url(validated_url: str, headers: dict, hostname: str):
 
     # Send the request to the validated URL to prevent SSRF
     response = requests.get(
-        validated_url,
+        validated_pinned_url,
         headers=headers,
         timeout=5,
         allow_redirects=False  # prevent redirect SSRF
@@ -188,15 +189,15 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
             # Extract hostname before validating the URL
             hostname = urlparse(url).hostname
 
-            validated_url = validate_url(url)  # Validate and pin the URL
-            if not validated_url:
+            validated_pinned_url = validate_url(url)  # Validate and pin the URL
+            if not validated_pinned_url:
                 logger.info(f"Invalid URL skipped: {url}")
                 invalid_urls += 1
                 continue
 
             try:
                 # Use the safe_fetch_url function to securely fetch the URL
-                response = safe_fetch_url(validated_url, headers, hostname)
+                response = safe_fetch_url(validated_pinned_url, headers, hostname)
 
                 if response.status_code != HTTPStatus.OK:
                     logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
