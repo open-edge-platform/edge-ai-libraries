@@ -101,12 +101,16 @@ def validate_url(url: str) -> Optional[str]:
             return None
 
         # Check against the allowed hosts domains
-        if config.ALLOWED_DOMAINS:
-            if hostname not in config.ALLOWED_DOMAINS:
-                return None
+        # Ensure the allowed domains whitelist is set and not empty
+        if not config.ALLOWED_DOMAINS or len(config.ALLOWED_DOMAINS) == 0:
+            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
+            return None
+        if hostname not in config.ALLOWED_DOMAINS:
+            logger.info(f"URL hostname {hostname} is not in the whitelisted domains; rejecting.")
+            return None
 
-        # Return the pinned URL with the resolved IP address
-        return url.replace(hostname, resolved_ip)
+        # Return the original URL (hostname is validated)
+        return url
 
     except Exception as e:
         logger.error(f"URL validation failed: {e}")
