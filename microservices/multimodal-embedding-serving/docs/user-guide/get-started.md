@@ -23,6 +23,13 @@ Refer to the [Supported Models](./supported-models.md) list for additional choic
 
 > **_NOTE:_** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
 
+### Configure the registry
+
+```bash
+export REGISTRY_URL=intel
+export TAG=1.3.1
+```
+
 ### Optional Environment Variables
 
 The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](../../examples/README.md#environment-variables).
@@ -49,7 +56,9 @@ export EMBEDDING_OV_MODELS_DIR=/app/ov-models
 - **EMBEDDING_USE_OV**: Enable OpenVINO optimizations (`true`/`false`).
 - **EMBEDDING_OV_MODELS_DIR**: Persistent directory for converted models.
 
-Set the environment with default values by running:
+### Set the environment variables
+
+Set the environment with default values by running the below command. Note that this needs to be run anytime the environment variables are changed. For example: if running on GPU, additional environment variables will need to be set.
 
 ```bash
 source setup.sh
@@ -57,14 +66,7 @@ source setup.sh
 
 ## Quick Start with Docker
 
-You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image as shown below.
-
-### Configure the registry
-
-```bash
-export REGISTRY_URL=intel
-export TAG=1.3.1
-```
+You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag. For prebuilt image, the `setup` script will configure the necessary variables to pull the right version of the image. 
 
 ## Running the Server with CPU
 
@@ -72,7 +74,7 @@ export TAG=1.3.1
 docker compose -f docker/compose.yaml up -d
 ```
 
-Verify the deployment:
+Verify the deployment by running the below command. The user should see a `healthy` status printed on the console.
 
 ```bash
 curl --location --request GET 'http://localhost:9777/health'
