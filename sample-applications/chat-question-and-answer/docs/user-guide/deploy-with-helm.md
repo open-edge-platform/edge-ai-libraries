@@ -88,7 +88,7 @@ NOTE: GPU is only enabled for openvino model server (OVMS)
 
 Clone the repository containing the Helm chart:
 ```bash
-# Clone the  release branch
+# Clone the release branch
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 ```
 
