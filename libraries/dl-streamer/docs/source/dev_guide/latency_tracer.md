@@ -12,6 +12,10 @@ precision in the order of **milliseconds**.
   element before the sink element. This also provides latency and fps of full
   pipeline.
 
+**Multi-Branch Support**: The latency tracer now supports tracking multiple independent pipeline branches, 
+each with their own source and sink elements. When multiple sources and sinks are present, the tracer 
+automatically tracks latency for each source-sink pair separately, providing detailed per-branch statistics.
+
 ## Elements and pipeline latency
 
 ### Basic configuration
@@ -32,6 +36,23 @@ elements for each frame. Below there is a sample log for `gvadetect` element and
 0:00:03.014782371 79459 0x55736c57a060 TRACE             GST_TRACER :0:: latency_tracer_pipeline, frame_latency=(double)704.898524, avg=(double)238.748567, min=(double)0.013293, max=(double)704.898524, latency=(double)32.277973, fps=(double)30.980879, frame_num=(uint)27;
 ...
 ```
+
+### Multi-branch pipeline example
+
+When a pipeline has multiple sources and sinks, the latency tracer tracks each branch independently:
+
+```bash
+GST_DEBUG="GST_TRACER:7" GST_TRACERS="latency_tracer" gst-launch-1.0 \
+  filesrc name=src1 location=input1.mp4 ! decodebin ! videoconvert ! fakesink name=sink1 \
+  filesrc name=src2 location=input2.mp4 ! decodebin ! videoconvert ! fakesink name=sink2
+```
+
+The tracer will log statistics for both branches:
+- Source: src1 -> Sink: sink1
+- Source: src2 -> Sink: sink2
+
+Each branch's latency measurements are tracked and reported separately, allowing you to identify performance 
+differences between different data flows in the same pipeline.
 
 Key measurement for `latency_tracer_element`:
 - `frame_latency` - the current frame's processing latency calculated as the time difference
@@ -108,3 +129,70 @@ Key measurements in interval reports:
 - `interval` - The actual duration of the reporting interval in milliseconds
 - All other parameters (`avg`, `min`, `max`, `latency`, `fps`) have the same interpretation as for ordinary latency_tracer,
   but statistics are calculated for the last interval window only
+
+## Advanced Use Cases
+
+### Multi-Branch Pipelines with Tee Elements
+
+When using `tee` elements to split streams to multiple sinks, the tracer tracks each path independently:
+
+```bash
+GST_DEBUG="GST_TRACER:7" GST_TRACERS="latency_tracer" gst-launch-1.0 \
+  filesrc name=src location=input.mp4 ! decodebin ! tee name=t \
+  t. ! queue ! videoconvert ! fakesink name=sink1 \
+  t. ! queue ! videoconvert ! autovideosink name=sink2
+```
+
+This will track two branches:
+- Source: src -> Sink: sink1
+- Source: src -> Sink: sink2
+
+### Multiple Independent Sources
+
+Pipelines with completely independent data flows are also fully supported:
+
+```bash
+GST_DEBUG="GST_TRACER:7" GST_TRACERS="latency_tracer" gst-launch-1.0 \
+  videotestsrc name=test1 ! videoconvert ! fakesink name=out1 \
+  v4l2src name=cam1 device=/dev/video0 ! videoconvert ! autovideosink name=out2 \
+  filesrc name=file1 location=video.mp4 ! decodebin ! videoconvert ! filesink name=out3 location=output.mp4
+```
+
+This tracks three separate branches:
+- Source: test1 -> Sink: out1
+- Source: cam1 -> Sink: out2  
+- Source: file1 -> Sink: out3
+
+Each branch maintains its own independent latency statistics.
+
+## Testing and Validation
+
+A test script with various multi-branch pipeline examples is available at 
+[latency_tracer_test_examples.sh](./latency_tracer_test_examples.sh). 
+
+This script provides interactive examples including:
+- Single source with tee to multiple sinks
+- Multiple independent sources and sinks
+- Sources with different frame rates
+- Various tracer configuration options
+
+To use the test script:
+```bash
+cd docs/source/dev_guide
+./latency_tracer_test_examples.sh
+```
+
+The script will present a menu allowing you to run different test scenarios to validate 
+the multi-branch latency tracking functionality.
+
+### Output Format
+
+When multiple branches are present, the tracer includes source and sink names in the log output:
+
+```bash
+[Latency Tracer] Source: filesrc0 -> Sink: fakesink0 - Frame: 100, Latency: 45.23 ms, Avg: 42.50 ms, Min: 38.10 ms, Max: 52.30 ms, Pipeline Latency: 33.33 ms, FPS: 30.00
+[Latency Tracer] Source: videotestsrc0 -> Sink: autovideosink0 - Frame: 150, Latency: 16.67 ms, Avg: 16.70 ms, Min: 16.50 ms, Max: 17.00 ms, Pipeline Latency: 16.67 ms, FPS: 60.00
+```
+
+This enhanced output makes it easy to identify which source-sink pair each measurement belongs to, 
+enabling better analysis and debugging of complex multi-branch pipelines.
