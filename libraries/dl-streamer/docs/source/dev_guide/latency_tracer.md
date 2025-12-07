@@ -165,6 +165,26 @@ This tracks three separate branches:
 
 Each branch maintains its own independent latency statistics.
 
+## Testing and Validation
+
+A test script with various multi-branch pipeline examples is available at 
+[latency_tracer_test_examples.sh](./latency_tracer_test_examples.sh). 
+
+This script provides interactive examples including:
+- Single source with tee to multiple sinks
+- Multiple independent sources and sinks
+- Sources with different frame rates
+- Various tracer configuration options
+
+To use the test script:
+```bash
+cd docs/source/dev_guide
+./latency_tracer_test_examples.sh
+```
+
+The script will present a menu allowing you to run different test scenarios to validate 
+the multi-branch latency tracking functionality.
+
 ### Output Format
 
 When multiple branches are present, the tracer includes source and sink names in the log output:
