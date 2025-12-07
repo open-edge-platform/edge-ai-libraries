@@ -28,8 +28,8 @@ struct LatencyTracer {
 
     /*< private >*/
     GstElement *pipeline;
-    GstElement *sink_element;
-    guint frame_count;
+    GstElement *sink_element; // Legacy: first discovered sink, kept for backward compatibility
+    guint frame_count; // Legacy: overall count, kept for backward compatibility
     gdouble toal_latency;
     gdouble min;
     gdouble max;
@@ -41,6 +41,9 @@ struct LatencyTracer {
     gint interval;
     GstClockTime first_frame_init_ts;
     LatencyTracerFlags flags;
+    gpointer branch_stats; // Map of source-sink pairs to their statistics (void* to avoid C++ in header)
+    gpointer sources_list;  // List of source elements (void* to avoid C++ in header)
+    gpointer sinks_list;    // List of sink elements (void* to avoid C++ in header)
 };
 
 struct LatencyTracerClass {
