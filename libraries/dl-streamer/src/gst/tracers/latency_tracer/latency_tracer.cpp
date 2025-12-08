@@ -525,6 +525,8 @@ static gboolean is_source_element(GstElement *element) {
 
         if (direction == GST_PAD_SINK) {
             has_sink_template = TRUE;
+            // Early exit: if has sink template, it's not a pure source
+            break;
         } else if (direction == GST_PAD_SRC) {
             has_src_template = TRUE;
         }
@@ -563,6 +565,10 @@ static gboolean is_sink_element(GstElement *element) {
         } else if (direction == GST_PAD_SRC) {
             // Found source pad template - element is not a pure sink
             has_src_template = TRUE;
+            // Early exit: if has both templates, it's not a pure sink
+            if (has_sink_template) {
+                break;
+            }
         }
     }
 
