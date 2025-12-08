@@ -622,9 +622,9 @@ static gboolean is_source_element(GstElement *element) {
     // Check for source pads (only count "always" pads)
     GstIterator *src_iter = gst_element_iterate_src_pads(element);
     GValue src_val = G_VALUE_INIT;
-    gboolean done = FALSE;
+    gboolean src_done = FALSE;
     
-    while (!done) {
+    while (!src_done) {
         switch (gst_iterator_next(src_iter, &src_val)) {
         case GST_ITERATOR_OK: {
             GstPad *pad = GST_PAD(g_value_get_object(&src_val));
@@ -634,7 +634,7 @@ static gboolean is_source_element(GstElement *element) {
             if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
                 has_src_pad = TRUE;
                 g_value_unset(&src_val);
-                done = TRUE;
+                src_done = TRUE;
                 break;
             }
             g_value_unset(&src_val);
@@ -645,7 +645,7 @@ static gboolean is_source_element(GstElement *element) {
             break;
         case GST_ITERATOR_ERROR:
         case GST_ITERATOR_DONE:
-            done = TRUE;
+            src_done = TRUE;
             break;
         }
     }
@@ -777,7 +777,9 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
                     ElementStats::create(element, ts);
                 }
             }
+            g_value_unset(&gval);
         }
+        gst_iterator_free(iter);
 
         GST_INFO_OBJECT(lt, "Found %zu source(s) and %zu sink(s)", sources->size(), sinks->size());
 
