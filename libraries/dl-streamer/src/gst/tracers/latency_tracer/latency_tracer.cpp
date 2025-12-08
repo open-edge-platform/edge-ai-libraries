@@ -848,7 +848,7 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
         // OPTIMIZATION A: Reserve capacity to avoid reallocations during initialization
         sources->reserve(8);      // Typical pipelines have 1-4 sources
         sinks->reserve(8);        // Typical pipelines have 1-4 sinks
-        type_cache->reserve(32);  // Typical pipelines have 10-30 elements
+        // Note: std::map doesn't support reserve() - tree structure doesn't benefit from pre-allocation
 
         GstIterator *iter = gst_bin_iterate_elements(GST_BIN_CAST(elem));
         while (true) {
