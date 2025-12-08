@@ -407,6 +407,10 @@ static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
 
 // Helper function to determine if an element is a sink
 static gboolean is_sink_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+    
     // Method 1: Check for GST_ELEMENT_FLAG_SINK (traditional sinks like fakesink)
     if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
         return TRUE;
