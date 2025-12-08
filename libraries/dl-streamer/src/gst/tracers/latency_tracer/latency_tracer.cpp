@@ -405,6 +405,29 @@ static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
     return true;
 }
 
+// Helper function to determine if an element is a sink
+static gboolean is_sink_element(GstElement *element) {
+    // Method 1: Check for GST_ELEMENT_FLAG_SINK (traditional sinks like fakesink)
+    if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
+        return TRUE;
+    }
+    
+    // Method 2: Check factory name for common sink patterns
+    GstElementFactory *factory = gst_element_get_factory(element);
+    if (factory) {
+        const gchar *factory_name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+        
+        if (factory_name) {
+            // Check if factory name ends with "sink" (e.g., appsink, filesink, udpsink)
+            if (g_str_has_suffix(factory_name, "sink")) {
+                return TRUE;
+            }
+        }
+    }
+    
+    return FALSE;
+}
+
 // Recursively walk upstream from an element to find a tracked source
 // This function performs topology analysis by traversing the pipeline graph
 // upstream from a given element, following pad connections until it finds
@@ -511,8 +534,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     GstPad *peer_pad = GST_PAD_PEER(pad);
     GstElement *peer_element = peer_pad ? get_real_pad_parent(peer_pad) : nullptr;
 
-    if (lt->flags & LATENCY_TRACER_FLAG_PIPELINE && peer_element &&
-        GST_OBJECT_FLAG_IS_SET(peer_element, GST_ELEMENT_FLAG_SINK)) {
+    if (lt->flags & LATENCY_TRACER_FLAG_PIPELINE && peer_element && is_sink_element(peer_element)) {
 
         GstElement *sink = peer_element;
 
@@ -581,7 +603,7 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
             auto *element = static_cast<GstElement *>(g_value_get_object(&gval));
             GST_INFO_OBJECT(lt, "Element %s ", GST_ELEMENT_NAME(element));
 
-            if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
+            if (is_sink_element(element)) {
                 // Track all sink elements
                 sinks->push_back(element);
                 GST_INFO_OBJECT(lt, "Found sink element: %s", GST_ELEMENT_NAME(element));
