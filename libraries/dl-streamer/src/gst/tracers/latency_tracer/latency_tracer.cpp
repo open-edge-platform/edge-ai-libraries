@@ -796,13 +796,12 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
             BranchKey branch_key = create_branch_key(source, sink);
             auto *stats_map = get_branch_stats_map(lt);
 
-            // OPTIMIZATION C: Single map lookup using insert + iterator (eliminates 2 redundant lookups)
-            // This reduces map lookup overhead by ~66% (1 lookup instead of 3)
-            auto insert_result = stats_map->insert(std::make_pair(branch_key, BranchStats()));
-            BranchStats &branch = insert_result.first->second;
+            // OPTIMIZATION: try_emplace constructs in-place (no copy), single map access
+            auto result = stats_map->try_emplace(branch_key);
+            BranchStats &branch = result.first->second;
 
-            // Initialize only if this is a new branch
-            if (insert_result.second) {
+            // Initialize only if this is a newly inserted branch
+            if (result.second) {
                 branch.source_name = GST_ELEMENT_NAME(source);
                 branch.sink_name = GST_ELEMENT_NAME(sink);
                 branch.source_element = source;
