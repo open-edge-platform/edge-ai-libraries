@@ -443,8 +443,8 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer,
                              GstElement *elem) {
     if (!gst_buffer_is_writable(buffer)) {
-        // Skip non-writable buffers silently - shared buffers from upstream elements (like decoders)
-        // are commonly non-writable and this is normal GStreamer behavior
+        // Skip non-writable buffers silently - these are commonly shared buffers from upstream elements
+        // (like decoders) which is normal GStreamer behavior
         return;
     }
     meta = LATENCY_TRACER_META_ADD(buffer);
