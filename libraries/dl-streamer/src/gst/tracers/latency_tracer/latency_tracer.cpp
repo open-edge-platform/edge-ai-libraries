@@ -417,12 +417,15 @@ static gboolean is_sink_element(GstElement *element) {
     }
     
     // Method 2: Check factory name for common sink patterns
+    // GStreamer has a universal naming convention where all sink elements
+    // end with "sink" (e.g., appsink, filesink, udpsink, tcpsink, alsasink, etc.)
+    // This is a well-established pattern in GStreamer's ecosystem.
     GstElementFactory *factory = gst_element_get_factory(element);
     if (factory) {
         const gchar *factory_name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
         
         if (factory_name) {
-            // Check if factory name ends with "sink" (e.g., appsink, filesink, udpsink)
+            // Check if factory name ends with "sink"
             if (g_str_has_suffix(factory_name, "sink")) {
                 return TRUE;
             }
