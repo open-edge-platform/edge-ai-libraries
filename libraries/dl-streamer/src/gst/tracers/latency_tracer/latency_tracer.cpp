@@ -39,9 +39,7 @@ enum class ElementType {
 struct BranchStats {
     string source_name;
     string sink_name;
-    GstElement *source_element;
-    GstElement *sink_element;
-    gdouble toal_latency;  // Note: typo in original, but keep for compatibility
+    gdouble total_latency;
     gdouble min;
     gdouble max;
     guint frame_count;
@@ -54,7 +52,7 @@ struct BranchStats {
     mutex mtx;
 
     BranchStats() {
-        toal_latency = 0.0;
+        total_latency = 0.0;
         min = G_MAXDOUBLE;  // Initialize to max value so first frame sets it
         max = 0.0;
         frame_count = 0;
@@ -64,8 +62,6 @@ struct BranchStats {
         interval_frame_count = 0;
         interval_init_time = 0;
         first_frame_init_ts = 0;
-        source_element = nullptr;
-        sink_element = nullptr;
     }
 
     void reset_interval(GstClockTime now) {
@@ -87,8 +83,8 @@ struct BranchStats {
             frame_latency = (gdouble)GST_CLOCK_DIFF(init_ts, ts) / ns_to_ms;
             gdouble pipeline_latency_ns = (gdouble)GST_CLOCK_DIFF(first_frame_init_ts, ts) / frame_count;
             pipeline_latency = pipeline_latency_ns / ns_to_ms;
-            toal_latency += frame_latency;
-            avg = toal_latency / frame_count;
+            total_latency += frame_latency;
+            avg = total_latency / frame_count;
             fps = 0;
             if (pipeline_latency > 0)
                 fps = ms_to_s / pipeline_latency;
@@ -142,7 +138,7 @@ struct BranchStats {
 using BranchKey = pair<GstElement*, GstElement*>;
 
 // Helper function to create a branch key using pointers (optimized)
-static BranchKey create_branch_key(GstElement *source, GstElement *sink) {
+static inline BranchKey create_branch_key(GstElement *source, GstElement *sink) {
     return make_pair(source, sink);
 }
 
@@ -320,7 +316,7 @@ static void latency_tracer_class_init(LatencyTracerClass *klass) {
                           "pipeline fps(if frames dropped this may result in invalid value)", NULL),
         "frame_num", GST_TYPE_STRUCTURE,
         gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_UINT, "description", G_TYPE_STRING,
-                          "NUmber of frame processed", NULL),
+                          "Number of frames processed", NULL),
         NULL);
 
     tr_pipeline_interval = gst_tracer_record_new(
@@ -348,7 +344,7 @@ static void latency_tracer_class_init(LatencyTracerClass *klass) {
             "pipeline latency within the interval in ms(if frames dropped this may result in invalid value)", NULL),
         "fps", GST_TYPE_STRUCTURE,
         gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_DOUBLE, "description", G_TYPE_STRING,
-                          "pipeline fps ithin the interval(if frames dropped this may result in invalid value)", NULL),
+                          "pipeline fps within the interval(if frames dropped this may result in invalid value)", NULL),
         NULL);
     tr_element = gst_tracer_record_new("latency_tracer_element.class", "name", GST_TYPE_STRUCTURE,
                                        gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description",
@@ -804,8 +800,6 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
             if (result.second) {
                 branch.source_name = GST_ELEMENT_NAME(source);
                 branch.sink_name = GST_ELEMENT_NAME(sink);
-                branch.source_element = source;
-                branch.sink_element = sink;
                 branch.first_frame_init_ts = meta->init_ts;
                 branch.reset_interval(ts);
                 GST_INFO_OBJECT(lt, "Tracking new branch: %s -> %s", branch.source_name.c_str(),
