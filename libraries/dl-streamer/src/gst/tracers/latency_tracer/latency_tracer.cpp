@@ -405,34 +405,98 @@ static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
     return true;
 }
 
+// Helper function to determine if an element is a source
+static gboolean is_source_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+
+    // Method 1: Check flag (fast path for well-behaved elements)
+    if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SOURCE)) {
+        return TRUE;
+    }
+
+    // Method 2: Check pad topology (definitive test)
+    // A source element MUST have source pads but NO sink pads
+    gboolean has_sink_pad = FALSE;
+    gboolean has_src_pad = FALSE;
+
+    // Check for sink pads
+    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
+    GValue sink_val = G_VALUE_INIT;
+    if (gst_iterator_next(sink_iter, &sink_val) == GST_ITERATOR_OK) {
+        has_sink_pad = TRUE;
+        g_value_unset(&sink_val);
+    }
+    gst_iterator_free(sink_iter);
+
+    // If it has sink pads, it's not a pure source
+    if (has_sink_pad) {
+        return FALSE;
+    }
+
+    // Check for source pads
+    GstIterator *src_iter = gst_element_iterate_src_pads(element);
+    GValue src_val = G_VALUE_INIT;
+    if (gst_iterator_next(src_iter, &src_val) == GST_ITERATOR_OK) {
+        has_src_pad = TRUE;
+        g_value_unset(&src_val);
+    }
+    gst_iterator_free(src_iter);
+
+    // Has source pads but no sink pads = source element
+    return has_src_pad;
+}
+
 // Helper function to determine if an element is a sink
 static gboolean is_sink_element(GstElement *element) {
     if (!element) {
         return FALSE;
     }
-    
-    // Method 1: Check for GST_ELEMENT_FLAG_SINK (traditional sinks like fakesink)
+
+    // Method 1: Check flag (fast path for well-behaved elements)
     if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
         return TRUE;
     }
-    
-    // Method 2: Check factory name for common sink patterns
-    // GStreamer has a universal naming convention where all sink elements
-    // end with "sink" (e.g., appsink, filesink, udpsink, tcpsink, alsasink, etc.)
-    // This is a well-established pattern in GStreamer's ecosystem.
-    GstElementFactory *factory = gst_element_get_factory(element);
-    if (factory) {
-        const gchar *factory_name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
-        
-        if (factory_name) {
-            // Check if factory name ends with "sink"
-            if (g_str_has_suffix(factory_name, "sink")) {
-                return TRUE;
-            }
-        }
+
+    // Method 2: Check pad topology (definitive test)
+    // A sink element MUST have sink pads but NO source pads (or only request/sometimes pads)
+    gboolean has_sink_pad = FALSE;
+    gboolean has_always_src_pad = FALSE;
+
+    // Check for sink pads
+    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
+    GValue sink_val = G_VALUE_INIT;
+    if (gst_iterator_next(sink_iter, &sink_val) == GST_ITERATOR_OK) {
+        has_sink_pad = TRUE;
+        g_value_unset(&sink_val);
     }
-    
-    return FALSE;
+    gst_iterator_free(sink_iter);
+
+    // If it doesn't have sink pads, it's not a sink
+    if (!has_sink_pad) {
+        return FALSE;
+    }
+
+    // Check for source pads (only count "always" pads, not request/sometimes)
+    GstIterator *src_iter = gst_element_iterate_src_pads(element);
+    GValue src_val = G_VALUE_INIT;
+    while (gst_iterator_next(src_iter, &src_val) == GST_ITERATOR_OK) {
+        GstPad *pad = GST_PAD(g_value_get_object(&src_val));
+        GstPadTemplate *templ = gst_pad_get_pad_template(pad);
+
+        // Only count "always" source pads
+        if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
+            has_always_src_pad = TRUE;
+            g_value_unset(&src_val);
+            break;
+        }
+        g_value_unset(&src_val);
+    }
+    gst_iterator_free(src_iter);
+
+    // Has sink pads but no always source pads = sink element
+    return !has_always_src_pad;
 }
 
 // Recursively walk upstream from an element to find a tracked source
@@ -504,8 +568,6 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     gst_iterator_free(iter);
     return found_source;
 }
-
-
 
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
     UNUSED(lt);
@@ -614,7 +676,7 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
                 // Track all sink elements
                 sinks->push_back(element);
                 GST_INFO_OBJECT(lt, "Found sink element: %s", GST_ELEMENT_NAME(element));
-            } else if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SOURCE)) {
+            } else if (is_source_element(element)) {
                 // Track all source elements
                 sources->push_back(element);
                 GST_INFO_OBJECT(lt, "Found source element: %s", GST_ELEMENT_NAME(element));
