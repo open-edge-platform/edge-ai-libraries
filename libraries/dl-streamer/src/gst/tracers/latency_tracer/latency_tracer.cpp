@@ -62,9 +62,9 @@ struct BranchStats {
     }
 
     void reset_interval(GstClockTime now) {
-        interval_total = 0;
+        interval_total = 0.0;
         interval_min = G_MAXDOUBLE;
-        interval_max = 0;
+        interval_max = 0.0;
         interval_init_time = now;
         interval_frame_count = 0;
     }
@@ -352,18 +352,18 @@ struct ElementStats {
 
     ElementStats(GstElement *elem, GstClockTime ts) {
         is_bin = GST_IS_BIN(elem);
-        total = 0;
-        min = G_MAXUINT;
-        max = 0;
+        total = 0.0;
+        min = G_MAXDOUBLE;
+        max = 0.0;
         frame_count = 0;
         name = GST_ELEMENT_NAME(elem);
         reset_interval(ts);
     }
 
     void reset_interval(GstClockTime now) {
-        interval_total = 0;
-        interval_min = G_MAXUINT;
-        interval_max = 0;
+        interval_total = 0.0;
+        interval_min = G_MAXDOUBLE;
+        interval_max = 0.0;
         interval_init_time = now;
         interval_frame_count = 0;
     }
