@@ -475,69 +475,10 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     return found_source;
 }
 
-static void reset_pipeline_interval(LatencyTracer *lt, GstClockTime now) {
-    lt->interval_total = 0;
-    lt->interval_min = G_MAXUINT;
-    lt->interval_max = 0;
-    lt->interval_init_time = now;
-    lt->interval_frame_count = 0;
-}
 
-static void cal_log_pipeline_interval(LatencyTracer *lt, guint64 ts, gdouble frame_latency, const char *source_name,
-                                      const char *sink_name) {
-    lt->interval_frame_count += 1;
-    lt->interval_total += frame_latency;
-    if (frame_latency < lt->interval_min)
-        lt->interval_min = frame_latency;
-    if (frame_latency > lt->interval_max)
-        lt->interval_max = frame_latency;
-    gdouble ms = (gdouble)GST_CLOCK_DIFF(lt->interval_init_time, ts) / ns_to_ms;
-    if (ms >= lt->interval) {
-        gdouble pipeline_latency = ms / lt->interval_frame_count;
-        gdouble fps = ms_to_s / pipeline_latency;
-        gdouble interval_avg = lt->interval_total / lt->interval_frame_count;
-        gst_tracer_record_log(tr_pipeline_interval, source_name, sink_name, ms, interval_avg, lt->interval_min,
-                              lt->interval_max, pipeline_latency, fps);
-        reset_pipeline_interval(lt, ts);
-    }
-}
-
-static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTracerMeta *meta) {
-    GST_OBJECT_LOCK(lt);
-    lt->frame_count += 1;
-    gdouble frame_latency = (gdouble)GST_CLOCK_DIFF(meta->init_ts, ts) / ns_to_ms;
-    gdouble pipeline_latency_ns = (gdouble)GST_CLOCK_DIFF(lt->first_frame_init_ts, ts) / lt->frame_count;
-    gdouble pipeline_latency = pipeline_latency_ns / ns_to_ms;
-    lt->toal_latency += frame_latency;
-    gdouble avg = lt->toal_latency / lt->frame_count;
-    gdouble fps = 0;
-    if (pipeline_latency > 0)
-        fps = ms_to_s / pipeline_latency;
-
-    if (frame_latency < lt->min)
-        lt->min = frame_latency;
-    if (frame_latency > lt->max)
-        lt->max = frame_latency;
-
-    // Use topology analysis to find source for the sink
-    const char *source_name = "unknown";
-    const char *sink_name = "unknown";
-
-    if (lt->sink_element) {
-        sink_name = GST_ELEMENT_NAME(lt->sink_element);
-        GstElement *source = find_upstream_source(lt, lt->sink_element);
-        if (source) {
-            source_name = GST_ELEMENT_NAME(source);
-        }
-    }
-
-    gst_tracer_record_log(tr_pipeline, source_name, sink_name, frame_latency, avg, lt->min, lt->max, pipeline_latency,
-                          fps, lt->frame_count);
-    cal_log_pipeline_interval(lt, ts, frame_latency, source_name, sink_name);
-    GST_OBJECT_UNLOCK(lt);
-}
 
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
+    UNUSED(lt);
     if (!gst_buffer_is_writable(buffer)) {
         // Skip non-writable buffers - expected for shared/read-only buffers
         GST_TRACE("Skipping non-writable buffer for latency metadata");
@@ -546,10 +487,6 @@ static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64
     meta = LATENCY_TRACER_META_ADD(buffer);
     meta->init_ts = ts;
     meta->last_pad_push_ts = ts;
-    if (lt->first_frame_init_ts == 0) {
-        reset_pipeline_interval(lt, ts);
-        lt->first_frame_init_ts = ts;
-    }
 }
 
 static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBuffer *buffer) {
@@ -648,10 +585,6 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
                 // Track all sink elements
                 sinks->push_back(element);
                 GST_INFO_OBJECT(lt, "Found sink element: %s", GST_ELEMENT_NAME(element));
-
-                // Keep first sink for backward compatibility
-                if (!lt->sink_element)
-                    lt->sink_element = element;
             } else if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SOURCE)) {
                 // Track all source elements
                 sources->push_back(element);
@@ -685,13 +618,7 @@ static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
 
 static void latency_tracer_init(LatencyTracer *lt) {
     GST_OBJECT_LOCK(lt);
-    lt->toal_latency = 0;
-    lt->frame_count = 0;
-    lt->first_frame_init_ts = 0;
     lt->pipeline = nullptr;
-    lt->sink_element = nullptr;
-    lt->min = G_MAXUINT;
-    lt->max = 0;
     lt->flags = static_cast<LatencyTracerFlags>(LATENCY_TRACER_FLAG_ELEMENT | LATENCY_TRACER_FLAG_PIPELINE);
     lt->interval = 1000;
     lt->branch_stats = nullptr;
