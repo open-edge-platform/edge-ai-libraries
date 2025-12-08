@@ -145,10 +145,10 @@ using BranchKey = pair<GstElement*, GstElement*>;
 // Combines pointer hashes efficiently for O(1) average lookup time vs O(log n) for map
 struct BranchKeyHash {
     std::size_t operator()(const BranchKey& k) const {
-        // Combine pointer hashes efficiently
+        // Use improved hash combination for better distribution (boost::hash_combine pattern)
         std::size_t h1 = std::hash<GstElement*>{}(k.first);
         std::size_t h2 = std::hash<GstElement*>{}(k.second);
-        return h1 ^ (h2 << 1);
+        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
     }
 };
 
