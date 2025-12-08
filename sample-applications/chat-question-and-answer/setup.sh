@@ -158,7 +158,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         
         if ! python3 -m pip show openvino >/dev/null 2>&1; then
                 echo "Installing OpenVINO and required dependencies..."
-                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/requirements.txt
+                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
 		python3 -m pip install -U "huggingface_hub[hf_xet]==0.36.0"
         fi
         mkdir -p ./ovms/models
@@ -166,7 +166,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         if [ -n "$HUGGINGFACEHUB_API_TOKEN" ]; then
                 hf auth login --token "$HUGGINGFACEHUB_API_TOKEN"
         fi
-        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py -o export_model.py
+        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
         echo "OpenVINO and required dependencies installed."
         cd ..
 fi

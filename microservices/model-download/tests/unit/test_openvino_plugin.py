@@ -297,7 +297,7 @@ class TestOpenVINOConverter:
         assert result == 0
         # Verify curl was called to download the script
         curl_call = call(["curl", 
-                         "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py",
+                         "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py",
                          "-o", "export_model.py"], check=True)
         assert curl_call in mock_run.call_args_list
 
