@@ -405,6 +405,76 @@ static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
     return true;
 }
 
+// Recursively walk upstream from an element to find a tracked source
+// This function performs topology analysis by traversing the pipeline graph
+// upstream from a given element, following pad connections until it finds
+// a source element that was discovered during pipeline initialization.
+// This approach correctly identifies sources even when intermediate elements
+// (like decodebin) create new buffers, unlike metadata-based tracking.
+static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
+    if (!elem)
+        return nullptr;
+
+    auto *sources = static_cast<vector<GstElement *> *>(lt->sources_list);
+    if (!sources)
+        return nullptr;
+
+    // Check if this element itself is a tracked source
+    for (auto *src : *sources) {
+        if (src == elem)
+            return src;
+    }
+
+    // Walk through all sink pads of this element
+    GstIterator *iter = gst_element_iterate_sink_pads(elem);
+    GValue val = G_VALUE_INIT;
+    GstElement *found_source = nullptr;
+    gboolean done = FALSE;
+
+    while (!done) {
+        switch (gst_iterator_next(iter, &val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *sink_pad = GST_PAD(g_value_get_object(&val));
+            GstPad *peer_pad = gst_pad_get_peer(sink_pad);
+
+            if (peer_pad) {
+                GstElement *upstream = get_real_pad_parent(peer_pad);
+                gst_object_unref(peer_pad);
+
+                // Recursively search upstream
+                found_source = find_upstream_source(lt, upstream);
+                if (found_source) {
+                    g_value_unset(&val);
+                    done = TRUE;
+                    break;
+                }
+            }
+            g_value_unset(&val);
+            break;
+        }
+        case GST_ITERATOR_RESYNC:
+            // Iterator was invalidated, resync and retry
+            gst_iterator_resync(iter);
+            break;
+        case GST_ITERATOR_ERROR:
+            // Error occurred, log with element context and stop
+            if (elem) {
+                GST_WARNING("Error while iterating sink pads for element %s", GST_ELEMENT_NAME(elem));
+            } else {
+                GST_WARNING("Error while iterating sink pads for unknown element");
+            }
+            done = TRUE;
+            break;
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
+    }
+
+    gst_iterator_free(iter);
+    return found_source;
+}
+
 static void reset_pipeline_interval(LatencyTracer *lt, GstClockTime now) {
     lt->interval_total = 0;
     lt->interval_min = G_MAXUINT;
@@ -449,11 +519,16 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
     if (frame_latency > lt->max)
         lt->max = frame_latency;
 
-    // Determine source and sink names for logging
+    // Use topology analysis to find source for the sink
     const char *source_name = "unknown";
-    const char *sink_name = lt->sink_element ? GST_ELEMENT_NAME(lt->sink_element) : "unknown";
-    if (meta->source_element) {
-        source_name = GST_ELEMENT_NAME(meta->source_element);
+    const char *sink_name = "unknown";
+
+    if (lt->sink_element) {
+        sink_name = GST_ELEMENT_NAME(lt->sink_element);
+        GstElement *source = find_upstream_source(lt, lt->sink_element);
+        if (source) {
+            source_name = GST_ELEMENT_NAME(source);
+        }
     }
 
     gst_tracer_record_log(tr_pipeline, source_name, sink_name, frame_latency, avg, lt->min, lt->max, pipeline_latency,
@@ -462,15 +537,15 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
     GST_OBJECT_UNLOCK(lt);
 }
 
-static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer,
-                             GstElement *elem) {
+static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
     if (!gst_buffer_is_writable(buffer)) {
+        // Skip non-writable buffers - expected for shared/read-only buffers
+        GST_TRACE("Skipping non-writable buffer for latency metadata");
         return;
     }
     meta = LATENCY_TRACER_META_ADD(buffer);
     meta->init_ts = ts;
     meta->last_pad_push_ts = ts;
-    meta->source_element = elem; // Track which source element originated this buffer
     if (lt->first_frame_init_ts == 0) {
         reset_pipeline_interval(lt, ts);
         lt->first_frame_init_ts = ts;
@@ -483,7 +558,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
         return;
     LatencyTracerMeta *meta = LATENCY_TRACER_META_GET(buffer);
     if (!meta) {
-        add_latency_meta(lt, meta, ts, buffer, elem);
+        add_latency_meta(lt, meta, ts, buffer);
         return;
     }
     if (lt->flags & LATENCY_TRACER_FLAG_ELEMENT) {
@@ -501,9 +576,11 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
 
     if (lt->flags & LATENCY_TRACER_FLAG_PIPELINE && peer_element &&
         GST_OBJECT_FLAG_IS_SET(peer_element, GST_ELEMENT_FLAG_SINK)) {
-        // This buffer is going to a sink - calculate pipeline latency for this source-sink pair
-        GstElement *source = meta->source_element;
+
         GstElement *sink = peer_element;
+
+        // Use topology analysis to find the source feeding this sink
+        GstElement *source = find_upstream_source(lt, sink);
 
         if (source && sink) {
             string branch_key = create_branch_key(source, sink);
@@ -527,7 +604,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
         }
 
         // Also log for backward compatibility with single sink tracking
-        if (lt->sink_element == peer_element) {
+        if (lt->sink_element == sink) {
             cal_log_pipeline_latency(lt, ts, meta);
         }
     }
@@ -538,7 +615,7 @@ static void do_pull_range_post(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     if (!is_parent_pipeline(lt, elem))
         return;
     LatencyTracerMeta *meta = nullptr;
-    add_latency_meta(lt, meta, ts, buffer, elem);
+    add_latency_meta(lt, meta, ts, buffer);
 }
 
 static void do_push_buffer_list_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBufferList *list) {

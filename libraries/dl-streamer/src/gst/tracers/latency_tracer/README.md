@@ -11,10 +11,10 @@ The latency_tracer has been enhanced to support tracking latency across multiple
 - Tracks independent latency statistics for each source-sink pair
 - Works with simple linear pipelines, tee elements, and complex multi-branch topologies
 
-### 2. Enhanced Metadata
-- `LatencyTracerMeta` now includes `source_element` field
-- Each buffer carries information about which source element originated it
-- Metadata is properly propagated through buffer transformations
+### 2. Topology-Based Source Tracking
+- Uses pipeline topology analysis instead of buffer metadata
+- Recursively walks upstream from sink elements to find originating sources
+- Works correctly even when elements like `decodebin` create new buffers
 
 ### 3. Per-Branch Statistics
 - `BranchStats` structure maintains separate statistics for each source-sink pair
@@ -51,15 +51,16 @@ struct LatencyTracer {
 };
 ```
 
-#### LatencyTracerMeta Extensions (latency_tracer_meta.h)
+#### LatencyTracerMeta (latency_tracer_meta.h)
 ```cpp
 struct _LatencyTracerMeta {
     GstMeta meta;
     GstClockTime init_ts;
     GstClockTime last_pad_push_ts;
-    GstElement *source_element;  // NEW: tracks buffer origin
+    GstElement *source_element;  // DEPRECATED: no longer used for tracking
 };
 ```
+Note: The `source_element` field is retained for backward compatibility but is no longer used. Source tracking is now done via topology analysis.
 
 ### Key Functions
 
@@ -69,14 +70,20 @@ struct _LatencyTracerMeta {
 - Identifies and stores all sinks (GST_ELEMENT_FLAG_SINK)
 - Creates ElementStats for processing elements
 
+#### Topology Analysis (`find_upstream_source`)
+- Recursively walks upstream from a sink element
+- Follows pad connections through the pipeline graph
+- Identifies the originating source element feeding into the sink
+- Handles complex topologies including tees, decoders, and transforming elements
+
 #### Metadata Management (`add_latency_meta`)
-- Attaches LatencyTracerMeta to buffers at source elements
-- Sets `source_element` to track buffer origin
+- Attaches LatencyTracerMeta to buffers when first encountered
 - Initializes timestamps for latency measurement
+- No longer tracks source_element in metadata
 
 #### Buffer Processing (`do_push_buffer_pre`)
 - Checks if buffer is reaching a sink element
-- Identifies source-sink pair from metadata and current element
+- Uses topology analysis to determine source-sink pair
 - Creates BranchStats entry if this is a new source-sink pair
 - Calculates and logs per-branch latency statistics
 
