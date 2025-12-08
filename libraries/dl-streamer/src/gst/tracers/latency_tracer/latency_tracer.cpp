@@ -34,7 +34,7 @@ struct BranchStats {
     string sink_name;
     GstElement *source_element;
     GstElement *sink_element;
-    gdouble total;
+    gdouble toal_latency;  // Note: typo in original, but keep for compatibility
     gdouble min;
     gdouble max;
     guint frame_count;
@@ -47,13 +47,13 @@ struct BranchStats {
     mutex mtx;
 
     BranchStats() {
-        total = 0;
-        min = G_MAXUINT;
-        max = 0;
+        toal_latency = 0.0;
+        min = G_MAXDOUBLE;  // Initialize to max value so first frame sets it
+        max = 0.0;
         frame_count = 0;
-        interval_total = 0;
-        interval_min = G_MAXUINT;
-        interval_max = 0;
+        interval_total = 0.0;
+        interval_min = G_MAXDOUBLE;
+        interval_max = 0.0;
         interval_frame_count = 0;
         interval_init_time = 0;
         first_frame_init_ts = 0;
@@ -62,9 +62,9 @@ struct BranchStats {
     }
 
     void reset_interval(GstClockTime now) {
-        interval_total = 0;
-        interval_min = G_MAXUINT;
-        interval_max = 0;
+        interval_total = 0.0;
+        interval_min = G_MAXDOUBLE;
+        interval_max = 0.0;
         interval_init_time = now;
         interval_frame_count = 0;
     }
@@ -75,8 +75,8 @@ struct BranchStats {
         gdouble frame_latency = (gdouble)GST_CLOCK_DIFF(init_ts, ts) / ns_to_ms;
         gdouble pipeline_latency_ns = (gdouble)GST_CLOCK_DIFF(first_frame_init_ts, ts) / frame_count;
         gdouble pipeline_latency = pipeline_latency_ns / ns_to_ms;
-        total += frame_latency;
-        gdouble avg = total / frame_count;
+        toal_latency += frame_latency;
+        gdouble avg = toal_latency / frame_count;
         gdouble fps = 0;
         if (pipeline_latency > 0)
             fps = ms_to_s / pipeline_latency;
@@ -352,18 +352,18 @@ struct ElementStats {
 
     ElementStats(GstElement *elem, GstClockTime ts) {
         is_bin = GST_IS_BIN(elem);
-        total = 0;
-        min = G_MAXUINT;
-        max = 0;
+        total = 0.0;
+        min = G_MAXDOUBLE;
+        max = 0.0;
         frame_count = 0;
         name = GST_ELEMENT_NAME(elem);
         reset_interval(ts);
     }
 
     void reset_interval(GstClockTime now) {
-        interval_total = 0;
-        interval_min = G_MAXUINT;
-        interval_max = 0;
+        interval_total = 0.0;
+        interval_min = G_MAXDOUBLE;
+        interval_max = 0.0;
         interval_init_time = now;
         interval_frame_count = 0;
     }
