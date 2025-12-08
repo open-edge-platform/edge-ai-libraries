@@ -465,8 +465,6 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer,
                              GstElement *elem) {
     if (!gst_buffer_is_writable(buffer)) {
-        GST_DEBUG_OBJECT(lt, "buffer not writable, skipping LatencyTracerMeta at element=%s, ts=%ld, buffer=%p",
-                         GST_ELEMENT_NAME(elem), ts, buffer);
         return;
     }
     meta = LATENCY_TRACER_META_ADD(buffer);
