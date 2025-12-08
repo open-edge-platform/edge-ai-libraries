@@ -510,64 +510,28 @@ static gboolean is_source_element(GstElement *element) {
         return TRUE;
     }
 
-    // Method 2: Check pad topology (definitive test)
-    // A source element MUST have source pads but NO sink pads
-    gboolean has_sink_pad = FALSE;
-    gboolean has_src_pad = FALSE;
-
-    // Check for sink pads
-    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
-    GValue sink_val = G_VALUE_INIT;
-    gboolean done = FALSE;
-    while (!done) {
-        switch (gst_iterator_next(sink_iter, &sink_val)) {
-        case GST_ITERATOR_OK:
-            has_sink_pad = TRUE;
-            g_value_unset(&sink_val);
-            done = TRUE;
-            break;
-        case GST_ITERATOR_RESYNC:
-            gst_iterator_resync(sink_iter);
-            has_sink_pad = FALSE;
-            break;
-        case GST_ITERATOR_ERROR:
-        case GST_ITERATOR_DONE:
-            done = TRUE;
-            break;
+    // Method 2: Check pad templates (works even before pads are created)
+    // A true source element has NO sink pad templates at all
+    GstElementClass *element_class = GST_ELEMENT_GET_CLASS(element);
+    const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
+    
+    gboolean has_sink_template = FALSE;
+    gboolean has_src_template = FALSE;
+    
+    // Iterate through all pad templates
+    for (const GList *l = pad_templates; l != NULL; l = l->next) {
+        GstPadTemplate *templ = GST_PAD_TEMPLATE(l->data);
+        GstPadDirection direction = GST_PAD_TEMPLATE_DIRECTION(templ);
+        
+        if (direction == GST_PAD_SINK) {
+            has_sink_template = TRUE;
+        } else if (direction == GST_PAD_SRC) {
+            has_src_template = TRUE;
         }
     }
-    gst_iterator_free(sink_iter);
-
-    // If it has sink pads, it's not a pure source
-    if (has_sink_pad) {
-        return FALSE;
-    }
-
-    // Check for source pads
-    GstIterator *src_iter = gst_element_iterate_src_pads(element);
-    GValue src_val = G_VALUE_INIT;
-    done = FALSE;
-    while (!done) {
-        switch (gst_iterator_next(src_iter, &src_val)) {
-        case GST_ITERATOR_OK:
-            has_src_pad = TRUE;
-            g_value_unset(&src_val);
-            done = TRUE;
-            break;
-        case GST_ITERATOR_RESYNC:
-            gst_iterator_resync(src_iter);
-            has_src_pad = FALSE;
-            break;
-        case GST_ITERATOR_ERROR:
-        case GST_ITERATOR_DONE:
-            done = TRUE;
-            break;
-        }
-    }
-    gst_iterator_free(src_iter);
-
-    // Has source pads but no sink pads = source element
-    return has_src_pad;
+    
+    // True source: has source pad template(s) but NO sink pad templates
+    return has_src_template && !has_sink_template;
 }
 
 // Helper function to determine if an element is a sink
@@ -581,73 +545,33 @@ static gboolean is_sink_element(GstElement *element) {
         return TRUE;
     }
 
-    // Method 2: Check pad topology (definitive test)
-    // A sink element MUST have sink pads but NO source pads (or only request/sometimes pads)
-    gboolean has_sink_pad = FALSE;
-    gboolean has_always_src_pad = FALSE;
-
-    // Check for sink pads
-    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
-    GValue sink_val = G_VALUE_INIT;
-    gboolean done = FALSE;
-    while (!done) {
-        switch (gst_iterator_next(sink_iter, &sink_val)) {
-        case GST_ITERATOR_OK:
-            has_sink_pad = TRUE;
-            g_value_unset(&sink_val);
-            done = TRUE;
-            break;
-        case GST_ITERATOR_RESYNC:
-            gst_iterator_resync(sink_iter);
-            has_sink_pad = FALSE;
-            break;
-        case GST_ITERATOR_ERROR:
-        case GST_ITERATOR_DONE:
-            done = TRUE;
-            break;
+    // Method 2: Check pad templates (works even before pads are created)
+    // A true sink element has NO source pad templates at all
+    GstElementClass *element_class = GST_ELEMENT_GET_CLASS(element);
+    const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
+    
+    gboolean has_sink_template = FALSE;
+    gboolean has_src_template = FALSE;
+    
+    // Iterate through all pad templates
+    for (const GList *l = pad_templates; l != NULL; l = l->next) {
+        GstPadTemplate *templ = GST_PAD_TEMPLATE(l->data);
+        GstPadDirection direction = GST_PAD_TEMPLATE_DIRECTION(templ);
+        
+        if (direction == GST_PAD_SINK) {
+            has_sink_template = TRUE;
+        } else if (direction == GST_PAD_SRC) {
+            // Found source pad template - not a sink, even if pads not created yet!
+            has_src_template = TRUE;
         }
     }
-    gst_iterator_free(sink_iter);
-
-    // If it doesn't have sink pads, it's not a sink
-    if (!has_sink_pad) {
-        return FALSE;
-    }
-
-    // Check for source pads (only count "always" pads, not request/sometimes)
-    GstIterator *src_iter = gst_element_iterate_src_pads(element);
-    GValue src_val = G_VALUE_INIT;
-    done = FALSE;
-    while (!done) {
-        switch (gst_iterator_next(src_iter, &src_val)) {
-        case GST_ITERATOR_OK: {
-            GstPad *pad = GST_PAD(g_value_get_object(&src_val));
-            GstPadTemplate *templ = gst_pad_get_pad_template(pad);
-
-            // Only count "always" source pads
-            if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
-                has_always_src_pad = TRUE;
-                g_value_unset(&src_val);
-                done = TRUE;
-                break;
-            }
-            g_value_unset(&src_val);
-            break;
-        }
-        case GST_ITERATOR_RESYNC:
-            gst_iterator_resync(src_iter);
-            has_always_src_pad = FALSE;
-            break;
-        case GST_ITERATOR_ERROR:
-        case GST_ITERATOR_DONE:
-            done = TRUE;
-            break;
-        }
-    }
-    gst_iterator_free(src_iter);
-
-    // Has sink pads but no always source pads = sink element
-    return !has_always_src_pad;
+    
+    // True sink: has sink pad template(s) but NO source pad templates
+    // This works for:
+    //   - fakesink: has sink templates, no src templates ✅
+    //   - decodebin: has BOTH sink and src templates (even if "sometimes") ✅
+    //   - queue: has BOTH sink and src templates ✅
+    return has_sink_template && !has_src_template;
 }
 
 // Recursively walk upstream from an element to find a tracked source
