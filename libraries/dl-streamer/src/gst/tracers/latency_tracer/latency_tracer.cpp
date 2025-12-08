@@ -561,16 +561,16 @@ static gboolean is_sink_element(GstElement *element) {
         if (direction == GST_PAD_SINK) {
             has_sink_template = TRUE;
         } else if (direction == GST_PAD_SRC) {
-            // Found source pad template - not a sink, even if pads not created yet!
+            // Found source pad template - element is not a pure sink
             has_src_template = TRUE;
         }
     }
 
     // True sink: has sink pad template(s) but NO source pad templates
-    // This works for:
-    //   - fakesink: has sink templates, no src templates ✅
-    //   - decodebin: has BOTH sink and src templates (even if "sometimes") ✅
-    //   - queue: has BOTH sink and src templates ✅
+    // Classification examples:
+    //   - fakesink: has sink templates, no src templates → TRUE (is a sink) ✅
+    //   - decodebin: has BOTH sink and src templates → FALSE (not a sink, is processing element)
+    //   - queue: has BOTH sink and src templates → FALSE (not a sink, is processing element)
     return has_sink_template && !has_src_template;
 }
 
