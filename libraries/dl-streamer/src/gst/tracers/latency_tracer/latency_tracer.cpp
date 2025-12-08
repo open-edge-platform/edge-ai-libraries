@@ -478,6 +478,10 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
 // Helper function to detect sink elements using multiple methods
 // This provides more reliable detection than just checking GST_ELEMENT_FLAG_SINK
 static gboolean is_sink_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+    
     // Method 1: Check for GST_ELEMENT_FLAG_SINK (traditional sinks)
     if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
         return TRUE;
@@ -503,17 +507,32 @@ static gboolean is_sink_element(GstElement *element) {
     // Check for sink pads (only count "always" pads)
     GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
     GValue sink_val = G_VALUE_INIT;
-    while (gst_iterator_next(sink_iter, &sink_val) == GST_ITERATOR_OK) {
-        GstPad *pad = GST_PAD(g_value_get_object(&sink_val));
-        GstPadTemplate *templ = gst_pad_get_pad_template(pad);
-        
-        // Only count "always" sink pads
-        if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
-            has_sink_pad = TRUE;
+    gboolean done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(sink_iter, &sink_val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *pad = GST_PAD(g_value_get_object(&sink_val));
+            GstPadTemplate *templ = gst_pad_get_pad_template(pad);
+            
+            // Only count "always" sink pads
+            if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
+                has_sink_pad = TRUE;
+                g_value_unset(&sink_val);
+                done = TRUE;
+                break;
+            }
             g_value_unset(&sink_val);
             break;
         }
-        g_value_unset(&sink_val);
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(sink_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
     }
     gst_iterator_free(sink_iter);
     
@@ -537,6 +556,10 @@ static gboolean is_sink_element(GstElement *element) {
 // Helper function to detect source elements using multiple methods
 // This provides more reliable detection than just checking GST_ELEMENT_FLAG_SOURCE
 static gboolean is_source_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+    
     // Method 1: Check for GST_ELEMENT_FLAG_SOURCE (traditional sources)
     if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SOURCE)) {
         return TRUE;
@@ -571,17 +594,32 @@ static gboolean is_source_element(GstElement *element) {
     // Check for source pads (only count "always" pads)
     GstIterator *src_iter = gst_element_iterate_src_pads(element);
     GValue src_val = G_VALUE_INIT;
-    while (gst_iterator_next(src_iter, &src_val) == GST_ITERATOR_OK) {
-        GstPad *pad = GST_PAD(g_value_get_object(&src_val));
-        GstPadTemplate *templ = gst_pad_get_pad_template(pad);
-        
-        // Only count "always" source pads
-        if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
-            has_src_pad = TRUE;
+    gboolean done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(src_iter, &src_val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *pad = GST_PAD(g_value_get_object(&src_val));
+            GstPadTemplate *templ = gst_pad_get_pad_template(pad);
+            
+            // Only count "always" source pads
+            if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
+                has_src_pad = TRUE;
+                g_value_unset(&src_val);
+                done = TRUE;
+                break;
+            }
             g_value_unset(&src_val);
             break;
         }
-        g_value_unset(&src_val);
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(src_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
     }
     gst_iterator_free(src_iter);
     
