@@ -137,7 +137,8 @@ struct BranchStats {
     }
 };
 
-// Pointer-based branch key for O(log n) lookups (optimization: ~50% faster than string operations)
+// Pointer-based branch key for fast lookups (optimization: ~50% faster than string-based keys)
+// Using pointer comparison is much faster than string comparison
 using BranchKey = pair<GstElement*, GstElement*>;
 
 // Helper function to create a branch key using pointers (optimized)
