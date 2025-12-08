@@ -539,9 +539,23 @@ static gboolean is_sink_element(GstElement *element) {
     // Check for source pads
     GstIterator *src_iter = gst_element_iterate_src_pads(element);
     GValue src_val = G_VALUE_INIT;
-    if (gst_iterator_next(src_iter, &src_val) == GST_ITERATOR_OK) {
-        has_src_pad = TRUE;
-        g_value_unset(&src_val);
+    done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(src_iter, &src_val)) {
+        case GST_ITERATOR_OK:
+            has_src_pad = TRUE;
+            g_value_unset(&src_val);
+            done = TRUE;
+            break;
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(src_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
     }
     gst_iterator_free(src_iter);
     
@@ -585,9 +599,23 @@ static gboolean is_source_element(GstElement *element) {
     // Check for sink pads
     GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
     GValue sink_val = G_VALUE_INIT;
-    if (gst_iterator_next(sink_iter, &sink_val) == GST_ITERATOR_OK) {
-        has_sink_pad = TRUE;
-        g_value_unset(&sink_val);
+    gboolean done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(sink_iter, &sink_val)) {
+        case GST_ITERATOR_OK:
+            has_sink_pad = TRUE;
+            g_value_unset(&sink_val);
+            done = TRUE;
+            break;
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(sink_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
     }
     gst_iterator_free(sink_iter);
     
