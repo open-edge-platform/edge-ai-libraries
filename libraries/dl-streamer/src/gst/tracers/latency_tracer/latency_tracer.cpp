@@ -626,6 +626,190 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     return found_source;
 }
 
+// Helper function to detect sink elements using multiple methods
+// This provides more reliable detection than just checking GST_ELEMENT_FLAG_SINK
+static gboolean is_sink_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+    
+    // Method 1: Check for GST_ELEMENT_FLAG_SINK (traditional sinks)
+    if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SINK)) {
+        return TRUE;
+    }
+    
+    // Method 2: Check factory name for common sinks
+    GstElementFactory *factory = gst_element_get_factory(element);
+    if (factory) {
+        const gchar *factory_name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+        
+        if (factory_name) {
+            // Check if name ends with "sink" (fakesink, filesink, appsink, etc.)
+            if (g_str_has_suffix(factory_name, "sink")) {
+                return TRUE;
+            }
+        }
+    }
+    
+    // Method 3: Check if element has sink pads but no source pads
+    gboolean has_sink_pad = FALSE;
+    gboolean has_src_pad = FALSE;
+    
+    // Check for sink pads (only count "always" pads)
+    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
+    GValue sink_val = G_VALUE_INIT;
+    gboolean done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(sink_iter, &sink_val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *pad = GST_PAD(g_value_get_object(&sink_val));
+            GstPadTemplate *templ = gst_pad_get_pad_template(pad);
+            
+            // Only count "always" sink pads
+            if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
+                has_sink_pad = TRUE;
+                g_value_unset(&sink_val);
+                done = TRUE;
+                break;
+            }
+            g_value_unset(&sink_val);
+            break;
+        }
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(sink_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
+    }
+    gst_iterator_free(sink_iter);
+    
+    // Check for source pads
+    GstIterator *src_iter = gst_element_iterate_src_pads(element);
+    GValue src_val = G_VALUE_INIT;
+    done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(src_iter, &src_val)) {
+        case GST_ITERATOR_OK:
+            has_src_pad = TRUE;
+            g_value_unset(&src_val);
+            done = TRUE;
+            break;
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(src_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
+    }
+    gst_iterator_free(src_iter);
+    
+    // Has sink pads but no source pads = sink element
+    if (has_sink_pad && !has_src_pad) {
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
+// Helper function to detect source elements using multiple methods
+// This provides more reliable detection than just checking GST_ELEMENT_FLAG_SOURCE
+static gboolean is_source_element(GstElement *element) {
+    if (!element) {
+        return FALSE;
+    }
+    
+    // Method 1: Check for GST_ELEMENT_FLAG_SOURCE (traditional sources)
+    if (GST_OBJECT_FLAG_IS_SET(element, GST_ELEMENT_FLAG_SOURCE)) {
+        return TRUE;
+    }
+    
+    // Method 2: Check factory name for common sources
+    GstElementFactory *factory = gst_element_get_factory(element);
+    if (factory) {
+        const gchar *factory_name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+        
+        if (factory_name) {
+            // Check if name ends with "src" (filesrc, appsrc, videotestsrc, etc.)
+            if (g_str_has_suffix(factory_name, "src")) {
+                return TRUE;
+            }
+        }
+    }
+    
+    // Method 3: Check if element has source pads but no sink pads
+    gboolean has_sink_pad = FALSE;
+    gboolean has_src_pad = FALSE;
+    
+    // Check for sink pads
+    GstIterator *sink_iter = gst_element_iterate_sink_pads(element);
+    GValue sink_val = G_VALUE_INIT;
+    gboolean done = FALSE;
+    
+    while (!done) {
+        switch (gst_iterator_next(sink_iter, &sink_val)) {
+        case GST_ITERATOR_OK:
+            has_sink_pad = TRUE;
+            g_value_unset(&sink_val);
+            done = TRUE;
+            break;
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(sink_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
+    }
+    gst_iterator_free(sink_iter);
+    
+    // Check for source pads (only count "always" pads)
+    GstIterator *src_iter = gst_element_iterate_src_pads(element);
+    GValue src_val = G_VALUE_INIT;
+    gboolean src_done = FALSE;
+    
+    while (!src_done) {
+        switch (gst_iterator_next(src_iter, &src_val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *pad = GST_PAD(g_value_get_object(&src_val));
+            GstPadTemplate *templ = gst_pad_get_pad_template(pad);
+            
+            // Only count "always" source pads
+            if (templ && GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_ALWAYS) {
+                has_src_pad = TRUE;
+                g_value_unset(&src_val);
+                src_done = TRUE;
+                break;
+            }
+            g_value_unset(&src_val);
+            break;
+        }
+        case GST_ITERATOR_RESYNC:
+            gst_iterator_resync(src_iter);
+            break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
+            src_done = TRUE;
+            break;
+        }
+    }
+    gst_iterator_free(src_iter);
+    
+    // Has source pads but no sink pads = source element
+    if (has_src_pad && !has_sink_pad) {
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
     UNUSED(lt);
     if (!gst_buffer_is_writable(buffer)) {
@@ -661,7 +845,6 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     GstElement *peer_element = peer_pad ? get_real_pad_parent(peer_pad) : nullptr;
 
     if (lt->flags & LATENCY_TRACER_FLAG_PIPELINE && peer_element && is_sink_element(peer_element)) {
-
         GstElement *sink = peer_element;
 
         // Use topology analysis to find the source feeding this sink
@@ -743,7 +926,9 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
                     ElementStats::create(element, ts);
                 }
             }
+            g_value_unset(&gval);
         }
+        gst_iterator_free(iter);
 
         GST_INFO_OBJECT(lt, "Found %zu source(s) and %zu sink(s)", sources->size(), sinks->size());
 
