@@ -515,7 +515,6 @@ static gboolean is_source_element(GstElement *element) {
     GstElementClass *element_class = GST_ELEMENT_GET_CLASS(element);
     const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
 
-    gboolean has_sink_template = FALSE;
     gboolean has_src_template = FALSE;
 
     // Iterate through all pad templates
@@ -553,7 +552,6 @@ static gboolean is_sink_element(GstElement *element) {
     const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
 
     gboolean has_sink_template = FALSE;
-    gboolean has_src_template = FALSE;
 
     // Iterate through all pad templates
     for (const GList *l = pad_templates; l != NULL; l = l->next) {
