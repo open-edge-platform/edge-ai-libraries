@@ -406,6 +406,11 @@ static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
 }
 
 // Recursively walk upstream from an element to find a tracked source
+// This function performs topology analysis by traversing the pipeline graph
+// upstream from a given element, following pad connections until it finds
+// a source element that was discovered during pipeline initialization.
+// This approach correctly identifies sources even when intermediate elements
+// (like decodebin) create new buffers, unlike metadata-based tracking.
 static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     if (!elem)
         return nullptr;
