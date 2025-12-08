@@ -457,8 +457,12 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
             gst_iterator_resync(iter);
             break;
         case GST_ITERATOR_ERROR:
-            // Error occurred, log and stop
-            GST_WARNING("Error while iterating sink pads for element");
+            // Error occurred, log with element context and stop
+            if (elem) {
+                GST_WARNING("Error while iterating sink pads for element %s", GST_ELEMENT_NAME(elem));
+            } else {
+                GST_WARNING("Error while iterating sink pads for unknown element");
+            }
             done = TRUE;
             break;
         case GST_ITERATOR_DONE:
@@ -535,7 +539,8 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
 
 static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
     if (!gst_buffer_is_writable(buffer)) {
-        // Skip non-writable buffers silently - expected for shared/read-only buffers
+        // Skip non-writable buffers - expected for shared/read-only buffers
+        GST_TRACE("Skipping non-writable buffer for latency metadata");
         return;
     }
     meta = LATENCY_TRACER_META_ADD(buffer);
