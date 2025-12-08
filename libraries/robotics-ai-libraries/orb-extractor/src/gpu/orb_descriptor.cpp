@@ -1,123 +1,294 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright (C) 2025 Intel Corporation
-#include "orb_descriptor.h"
-#include "orb.h"
+/*
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-namespace gpu
-{
-/* Callback function - orbDescriptorKernel*/
-void ConvertToCVKeypointAndDescriptor(float *gpu_keypoint_buffer, uint32_t keypoint_count,
-        std::vector<KeyType> &keypoints, unsigned char *gpu_descriptor_buffer, MatType &descriptor,
-        uint32_t descriptor_offset, uint32_t level, uint32_t scaled_patch_size)
-{
-    KeypointGPUBufferFloat  *pk = (KeypointGPUBufferFloat *)gpu_keypoint_buffer;
+#include <type_traits>
 
-    keypoints.clear();
-    keypoints.reserve(keypoint_count);
-    for (unsigned int i = 0; i < keypoint_count; i++)
-    {
-        keypoints.emplace_back(pk[i].x, pk[i].y, scaled_patch_size, pk[i].angle,
-                pk[i].response, level);
+#include "device_impl.h"
+#include "gpu_kernels.h"
+
+using namespace gpu;
+
+#define DESCRIPTOR_SIZE 32
+
+template <typename T>
+struct OrbDescriptorKernelParams
+{
+  const T * src_image_ptr;
+  const T * gaussian_image_ptr;
+  const int * u_max_ptr;
+  const float * pattern_ptr;
+  unsigned char * descriptors_ptr;
+  PartKey * keypoints_ptr;
+  int image_cols;
+  int image_rows;
+  int image_steps;
+  int num_keypoints;
+  Rect image_rect;
+};
+
+template <typename T>
+struct computeOrientation
+{
+  OrbDescriptorKernelParams<T> params;
+#define KEYPOINT_X 0
+#define KEYPOINT_Y 1
+#define KEYPOINT_Z 2
+#define KEYPOINT_ANGLE 3
+#define HALF_PATCH_SIZE 15
+
+  computeOrientation(const OrbDescriptorKernelParams<T> in_params) { params = in_params; }
+
+#define _DBL_EPSILON 2.2204460492503131e-16f
+#define atan2_p1 (0.9997878412794807f * 57.29577951308232f)
+#define atan2_p3 (-0.3258083974640975f * 57.29577951308232f)
+#define atan2_p5 (0.1555786518463281f * 57.29577951308232f)
+#define atan2_p7 (-0.04432655554792128f * 57.29577951308232f)
+
+  __device_inline__ float fastAtan2(float y, float x) const
+  {
+    float ax = std::fabs(x), ay = std::fabs(y);
+    float a, c, c2;
+    if (ax >= ay) {
+      c = ay / (ax + _DBL_EPSILON);
+      c2 = c * c;
+      a = (((atan2_p7 * c2 + atan2_p5) * c2 + atan2_p3) * c2 + atan2_p1) * c;
+    } else {
+      c = ax / (ay + _DBL_EPSILON);
+      c2 = c * c;
+      a = 90.f - (((atan2_p7 * c2 + atan2_p5) * c2 + atan2_p3) * c2 + atan2_p1) * c;
+    }
+    if (x < 0) a = 180.f - a;
+    if (y < 0) a = 360.f - a;
+    return a;
+  }
+
+  void operator()(sycl::nd_item<1> it)
+  {
+    int idx = it.get_global_id(0);
+
+    if (idx < params.num_keypoints) {
+      decltype(params.keypoints_ptr) kpt = params.keypoints_ptr + idx;
+
+      decltype(params.src_image_ptr) center =
+        params.src_image_ptr + kpt->pt.y * params.image_steps + kpt->pt.x;
+
+      int u, v, m_01 = 0, m_10 = 0;
+
+      // Treat the center line differently, v=0
+      for (u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; u++) m_10 += u * center[u];
+
+      // Go line by line in the circular patch
+      for (v = 1; v <= HALF_PATCH_SIZE; v++) {
+        // Proceed over the two lines
+        int v_sum = 0;
+        int d = params.u_max_ptr[v];
+        for (u = -d; u <= d; u++) {
+          int val_plus = center[u + v * params.image_steps],
+              val_minus = center[u - v * params.image_steps];
+          v_sum += (val_plus - val_minus);
+          m_10 += u * (val_plus + val_minus);
+        }
+        m_01 += v * v_sum;
+      }
+
+      // we do not use OpenCL's atan2 intrinsic,
+      // because we want to get _exactly_ the same results as the CPU version
+      kpt->angle = fastAtan2((float)m_01, (float)m_10);
+    }
+  }
+};
+
+template <typename T>
+struct computeDescriptor
+{
+#define _PI 3.14159265358979f
+#define _PI_2 (_PI / 2.0f)
+#define _TWO_PI (2.0f * _PI)
+#define _INV_TWO_PI (1.0f / _TWO_PI)
+#define _THREE_PI_2 (3.0f * _PI_2)
+
+  OrbDescriptorKernelParams<T> params;
+  computeDescriptor(const OrbDescriptorKernelParams<T> in_params) { params = in_params; }
+
+  __device_inline__ float _cos(float v)
+  {
+    constexpr float c1 = 0.99940307f;
+    constexpr float c2 = -0.49558072f;
+    constexpr float c3 = 0.03679168f;
+
+    float v2 = v * v;
+    return c1 + v2 * (c2 + c3 * v2);
+  }
+
+  __device_inline__ float cos(float v)
+  {
+    v = sycl::fabs(v - sycl::floor<float>(v * _INV_TWO_PI) * _TWO_PI);
+
+    unsigned char lpi2 = v < _PI_2;
+    unsigned char lpi = (v < _PI) ^ lpi2;
+    unsigned char l3pi2 = (v < _THREE_PI_2) ^ lpi ^ lpi2;
+    unsigned char other = !(lpi2 | lpi | l3pi2);
+
+    float out;
+
+    if (lpi2) {
+      out = _cos(v);
+    } else if (lpi) {
+      out = -_cos(v - _PI);
+    } else if (l3pi2) {
+      out = -_cos(v - _PI);
+    } else if (other) {
+      out = _cos(_TWO_PI - v);
     }
 
-#ifdef OPENCV_FREE
-    memcpy(descriptor.data() + descriptor_offset, gpu_descriptor_buffer + descriptor_offset, keypoint_count*32);
-#else
-    memcpy(descriptor.data + descriptor_offset, gpu_descriptor_buffer + descriptor_offset, keypoint_count*32);
-#endif
-}
+    return out;
+  }
 
-void OrbDescriptor::CreateKernel (Vec8u &image_buffer, Vec32f &pattern_buffer,
-        Vec32i &umax_buffer, Vec8u &descriptor_buffer)
+  __device_inline__ float sin(float v) { return cos(_PI_2 - v); }
+
+  void operator()(sycl::nd_item<1> it)
+  {
+    int idx = it.get_global_id(0);
+
+    if (idx < params.num_keypoints) {
+      decltype(params.keypoints_ptr) kpt = params.keypoints_ptr + idx;
+
+      decltype(params.src_image_ptr) center =
+        params.gaussian_image_ptr + (int)(kpt->pt.y * params.image_steps + kpt->pt.x);
+      const float * pattern = params.pattern_ptr;
+      float angle = kpt->angle;
+      angle *= 0.01745329251994329547f;
+
+      float cosa = cos(angle);
+      float sina = sin(angle);
+
+      T * desc = params.descriptors_ptr + idx * DESCRIPTOR_SIZE;
+
+#define GET_VALUE(idx)                                                                \
+  center[(int)(std::rint(pattern[(idx) * 2] * sina + pattern[(idx) * 2 + 1] * cosa) * \
+                 params.image_steps +                                                 \
+               std::rint(pattern[(idx) * 2] * cosa - pattern[(idx) * 2 + 1] * sina))]
+
+      for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+        int val;
+        int t0, t1;
+        t0 = GET_VALUE(0);
+        t1 = GET_VALUE(1);
+        val = t0 < t1;
+
+        t0 = GET_VALUE(2);
+        t1 = GET_VALUE(3);
+        val |= (t0 < t1) << 1;
+
+        t0 = GET_VALUE(4);
+        t1 = GET_VALUE(5);
+        val |= (t0 < t1) << 2;
+
+        t0 = GET_VALUE(6);
+        t1 = GET_VALUE(7);
+        val |= (t0 < t1) << 3;
+
+        t0 = GET_VALUE(8);
+        t1 = GET_VALUE(9);
+        val |= (t0 < t1) << 4;
+
+        t0 = GET_VALUE(10);
+        t1 = GET_VALUE(11);
+        val |= (t0 < t1) << 5;
+
+        t0 = GET_VALUE(12);
+        t1 = GET_VALUE(13);
+        val |= (t0 < t1) << 6;
+
+        t0 = GET_VALUE(14);
+        t1 = GET_VALUE(15);
+        val |= (t0 < t1) << 7;
+
+        pattern += 16 * 2;
+
+        desc[i] = (T)val;
+      }
+    }
+  }
+};
+
+template <typename T>
+struct OrbDescriptorKernel
 {
-    constexpr uint32_t width_block = 16;
-    constexpr uint32_t block_per_thread = 2;
+  OrbDescriptorKernelParams<T> params_;
 
-    constexpr uint32_t block_size = width_block * block_per_thread;
-    const uint32_t gridx = divUp(keypoints_input_count_, block_size);
-
-    SetCommandListIndex(cmdlist_);
-
-    SetGroupCount(gridx, 1, 1);
-
-    auto image_width = image_buffer.width();
-
-    auto keypoint = keypoint_input_buffer_.raw();
-    auto image = image_buffer.raw();
-    auto gaussian = gaussian_buffer_.raw();
-    auto pattern = pattern_buffer.raw();
-    auto descriptor = descriptor_buffer.raw();
-    auto umax = umax_buffer.raw();
-
-    uint32_t descriptor_offset = 0;
-
-    SetArgs<decltype(keypoint)>(&keypoint);
-    SetArgs<decltype(image)>(&image);
-    SetArgs<decltype(gaussian)>(&gaussian);
-    SetArgs<decltype(pattern)>(&pattern);
-    SetArgs<decltype(descriptor)>(&descriptor);
-    SetArgs<decltype(umax)>(&umax);
-    SetArgs<decltype(keypoints_input_count_)>(&keypoints_input_count_);
-    SetArgs<decltype(image_width)>(&image_width);
-    SetArgs<decltype(descriptor_offset)>(&descriptor_offset);
-}
-
-void OrbDescriptor::AddInputKeypoints(std::vector<PartKey> &src_keypoint)
-{
-    if (keypoint_input_buffer_.size() == 0)
-    {
-        uint32_t keypoint_buffer_size = max_keypoints_ * 2.0 * sizeof(KeypointGPUBufferFloat);
-
-        keypoint_input_buffer_.resize(keypoint_buffer_size);
+  OrbDescriptorKernel(
+    const std::vector<PartKey> & src_keypoints, const DevImage<T> & src_image,
+    const DevImage<T> & gaussian_image, const Vec32f & pattern, const Vec32i & umax,
+    DevArray<PartKey> & dev_keypoints, DevArray<uint8_t> & dev_descriptors)
+  {
+    if (src_image.cols() == 0 || src_image.rows() == 0) {
+      throw("Invalid image buffer size");
     }
 
-    keypoints_input_count_ = src_keypoint.size();
-
-    auto pt = (KeypointGPUBufferFloat *)keypoint_input_buffer_.raw();
-
-    int i = 0;
-    for (auto &kpt : src_keypoint)
-    {
-        pt[i].x = kpt.pt.x;
-        pt[i].y = kpt.pt.y;
-        pt[i].response = kpt.response;
-        pt[i].angle = 0.f;
-        i++;
-    }
-}
-
-void OrbDescriptor::ConvertGaussianImage(Image8u &gaussian_image)
-{
-    if ((gaussian_buffer_.width() == 0) && (gaussian_buffer_.height() == 0))
-    {
-        gaussian_buffer_.resize(gaussian_image.width(), gaussian_image.height(), kDeviceMemory);
+    if (
+      (src_image.cols() != gaussian_image.cols()) || (src_image.rows() != gaussian_image.rows())) {
+      throw("Orb Descriptor expects src image and gaussian image to have same size");
     }
 
-    gaussian_buffer_.upload(gaussian_image.raw(), cmdlist_);
-}
+    dev_descriptors.resize(src_keypoints.size() * DESCRIPTOR_SIZE);
+    dev_keypoints.resize(src_keypoints.size());
 
-void OrbDescriptor::UpdateOutputMat(std::vector<KeyType> &dst_keypoint,
-        MatType &dst_descriptor, Vec8u &descriptor_buffer, uint32_t descriptor_offset,
-        const uint32_t level, const uint32_t scaled_patch_size)
+    dev_keypoints.upload_async(src_keypoints.data(), src_keypoints.size());
+
+    params_.image_cols = src_image.cols();
+    params_.image_rows = src_image.rows();
+    params_.image_steps = src_image.elem_step();
+    params_.src_image_ptr = src_image.data();
+    params_.image_rect = src_image.getRect();
+    params_.gaussian_image_ptr = gaussian_image.data();
+    params_.pattern_ptr = pattern.data();
+    params_.u_max_ptr = umax.data();
+    params_.descriptors_ptr = dev_descriptors.data();
+    params_.keypoints_ptr = dev_keypoints.data();
+    params_.num_keypoints = src_keypoints.size();
+  }
+
+  OrbDescriptorKernelParams<T> getDescriptorParams() { return params_; }
+};
+
+template <typename T>
+void ORBKernel::orbDescriptorImpl(
+  const std::vector<PartKey> & src_keypoints, const DevImage<T> & src_image,
+  const DevImage<T> & gaussian_image, const Vec32f & pattern, const Vec32i & umax,
+  DevArray<PartKey> & dst_keypoint, DevArray<uint8_t> & dst_descriptor, Device::Ptr dev)
 {
-    ze_event_handle_t event = gpuDev_->CreateEvent();
-    AddEventToKernel(event);
+  sycl::queue * q = dev->GetDeviceImpl()->get_queue();
 
-    // Need to modify the kernel with new descriptor offset
-    SetArgs<decltype(descriptor_offset)>(&descriptor_offset, 8);
+  OrbDescriptorKernel<T> sycl_orb(
+    src_keypoints, src_image, gaussian_image, pattern, umax, dst_keypoint, dst_descriptor);
+  OrbDescriptorKernelParams<T> params = sycl_orb.getDescriptorParams();
 
-    action_.reset();
-    action_ = std::make_shared<EventAction>();
-    action_->BindAction(event, &ConvertToCVKeypointAndDescriptor, keypoint_input_buffer_.data(),
-           keypoints_input_count_, std::ref(dst_keypoint), descriptor_buffer.data(),
-           std::ref(dst_descriptor), descriptor_offset, level, scaled_patch_size);
+  auto aligned_width = align(src_keypoints.size(), 16);
 
-    AppendAction(event, action_);
+  sycl::event event = q->submit([&](sycl::handler & cgh) {
+    cgh.depends_on(dst_keypoint.getEvent()->events);
+    cgh.parallel_for(
+      sycl::nd_range<1>({aligned_width}, {16}),
+      [=](sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(16)]] {
+        computeOrientation orientationOps(params);
+        orientationOps(it);
+
+        computeDescriptor descriptorOps(params);
+        descriptorOps(it);
+      });
+  });
+
+  auto eventPtr = DeviceEvent::create();
+  eventPtr->add(event);
+  dst_keypoint.setEvent(eventPtr);
+  dst_descriptor.setEvent(eventPtr);
 }
 
-void OrbDescriptor::Submit(Vec8u &descriptor_buffer)
-{
-    SubmitKernel(GetKernelType());
-}
-
-} //namespace gpu
+template void ORBKernel::orbDescriptorImpl(
+  const std::vector<PartKey> & src_keypoints, const DevImage<uint8_t> & src_image,
+  const DevImage<uint8_t> & gaussian_image, const Vec32f & pattern, const Vec32i & umax,
+  DevArray<PartKey> & dst_keypoint, DevArray<uint8_t> & dst_descriptor, Device::Ptr);

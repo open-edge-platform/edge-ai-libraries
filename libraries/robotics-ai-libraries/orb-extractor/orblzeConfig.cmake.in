@@ -1,3 +1,7 @@
+# Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # Config file for the Level-zero GPU Orb library.
 #
 # It defines the following variables:
@@ -13,10 +17,10 @@ if(NOT orblze_TARGETS_IMPORTED)
 endif()
 
 set(orblze_LIBS gpu_orb)
+#set(orblze_LIBS SyclUtils)
 set(orblzeocvfree_LIBS gpu_orb_ocvfree)
 set(ORBLZE_INCLUDE_DIR  "@PACKAGE_INCLUDE_DIR_CONFIG@")
 set(ORBLZE_LIB_DIR      "@PACKAGE_LIB_DIR_CONFIG@")
-set(ORBLZE_KERNEL_DIR   "@PACKAGE_ORBLZE_KERNEL_PATH_STRING@")
 set(ORBLZE_VERSION_STRING   "@PACKAGE_ORBLZE_VERSION_STRING@")
 
 

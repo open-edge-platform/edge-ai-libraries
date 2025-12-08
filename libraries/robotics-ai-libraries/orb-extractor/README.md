@@ -1,6 +1,16 @@
+<!--
+Copyright (C) 2025 Intel Corporation
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # GPU ORB Extractor Feature Overview
 
-This repository provides tutorials and usage guides for the GPU ORB Extractor Feature, supporting both OpenCV-based and OpenCV-free workflows. The GPU ORB Extractor library enables fast, thread-safe keypoint extraction for visual SLAM and computer vision applications, with support for multiple cameras and multi-threaded processing.
+This repository provides tutorials and usage guides for the GPU ORB Extractor
+Feature, supporting both OpenCV-based and OpenCV-free workflows. The GPU ORB
+Extractor library enables fast, thread-safe `keypoint` extraction for
+visual SLAM and computer vision applications, with support for multiple
+cameras and multi-threaded processing.
 
 ## Features
 

@@ -1,5 +1,9 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright (C) 2025 Intel Corporation
+/*
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef __RESIZE_H__
 #define __RESIZE_H__
 
@@ -13,34 +17,32 @@ static CommandListIndex g_resize_cmdlist;
 class Resize : public KernelBase
 {
 public:
+  using Ptr = std::shared_ptr<Resize>;
 
-    using Ptr = std::shared_ptr<Resize>;
+  static Ptr New(CommandListIndex index, CmBase::Ptr gpuObj)
+  {
+    g_resize_cmdlist = index;
 
-    static Ptr New(CommandListIndex index, CmBase::Ptr gpuObj)
-    {
-        g_resize_cmdlist = index;
-        return std::make_shared<Resize>(gpuObj);
-    }
+    return std::make_shared<Resize>(gpuObj);
+  }
 
-    Resize(CmBase::Ptr gpuObj) : KernelBase(kResize, std::move(gpuObj))
-    {
-        cmdlist_ = g_resize_cmdlist;
-    }
+  Resize(CmBase::Ptr gpuObj) : KernelBase(kResize, std::move(gpuObj))
+  {
+    cmdlist_ = g_resize_cmdlist;
+  }
 
-    ~Resize() { }
+  ~Resize() {}
 
-    void CreateKernel(Vec8u &src_image, Vec8u &dst_image, const double fx,
-            const double fy, const InterpolationType inter);
+  void CreateKernel(
+    Vec8u & src_image, Vec8u & dst_image, const double fx, const double fy,
+    const InterpolationType inter);
 
-    void Submit();
+  void Submit();
 
 private:
-
-    CommandListIndex cmdlist_;
+  CommandListIndex cmdlist_;
 };
 
-} //namespace gpu
+}  // namespace gpu
 
-#endif // !__RESIZE_H__
-
-
+#endif  // __RESIZE_H__
