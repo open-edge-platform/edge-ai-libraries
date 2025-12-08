@@ -185,13 +185,26 @@ static map<GstElement*, GstElement*> *get_topology_cache(LatencyTracer *lt) {
 
 // Helper function to get cached element type with O(1) lookup
 static ElementType get_cached_element_type(LatencyTracer *lt, GstElement *elem) {
+    if (!elem)
+        return ElementType::PROCESSING;
+    
     auto *cache = get_element_type_cache(lt);
     auto it = cache->find(elem);
     if (it != cache->end()) {
         return it->second;
     }
-    // Fallback: shouldn't happen if cache is properly populated
-    return ElementType::PROCESSING;
+    // Fallback: Element not in cache, should only happen before pipeline initialization
+    // Perform expensive check and cache the result
+    if (is_source_element(elem)) {
+        (*cache)[elem] = ElementType::SOURCE;
+        return ElementType::SOURCE;
+    } else if (is_sink_element(elem)) {
+        (*cache)[elem] = ElementType::SINK;
+        return ElementType::SINK;
+    } else {
+        (*cache)[elem] = ElementType::PROCESSING;
+        return ElementType::PROCESSING;
+    }
 }
 
 // Helper function to check if element is a source using cache
@@ -716,7 +729,7 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
 
     gst_iterator_free(iter);
     
-    // Cache the result for future O(1) lookups
+    // Cache the result for future O(1) lookups (only cache valid results)
     if (found_source) {
         (*topo_cache)[elem] = found_source;
     }
