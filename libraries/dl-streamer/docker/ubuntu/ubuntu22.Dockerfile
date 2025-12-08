@@ -109,7 +109,7 @@ USER dlstreamer
 
 RUN \
     python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==24.0 && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==25.3 && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies \
     meson==1.4.1 \
     ninja==1.11.1.1 \
@@ -164,7 +164,7 @@ RUN \
     -DWITH_VA_INTEL=ON \
     -DWITH_FFMPEG=OFF \
     -DWITH_TBB=ON \
-    -DWITH_OPENMP=ON \
+    -DWITH_OPENMP=OFF \
     -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
     -DOPENCV_GENERATE_PKGCONFIG=YES \
     -GNinja .. && \

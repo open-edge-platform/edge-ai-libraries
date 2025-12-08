@@ -72,10 +72,9 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
         sparse-checkout: |
-          libraries/dl-streamer/samples/download_public_models.sh
-          libraries/dl-streamer/samples/download_omz_models.sh
-          libraries/dl-streamer/samples/models_omz_samples.lst
-        sparse-checkout-cone-mode: false
+          libraries/dl-streamer
+          .github
+        fetch-depth: 0
 
     - name: Download only specific model
       env:
@@ -245,13 +244,3 @@ jobs:
       run: |
         rm -rf edge-ai-libraries-repo .virtualenvs
         rm -rf $HOME/.virtualenvs
-
-    # - name: Schedule reboot
-    #   if: always()
-    #   run: |
-    #     echo "Scheduling reboot in 15 seconds..."
-    #     if [[ -x /usr/local/bin/reboot_runner.sh ]]; then
-    #       sudo /usr/local/bin/reboot_runner.sh 15
-    #     else
-    #       echo "WARNING: /usr/local/bin/reboot_runner.sh not found or not executable. Skipping reboot." >&2
-    #     fi

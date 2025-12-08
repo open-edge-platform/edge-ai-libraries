@@ -92,7 +92,7 @@ The program uses a config.json file to customize the video generation process. B
 make run-videogenerator
 ```
 
-The video will be generated in the `shared/videos` directory with the specified file name.
+The video will be generated in the `shared/videos/video-generator` directory with the specified file name.
 
 ## Note on Image Naming Convention
 

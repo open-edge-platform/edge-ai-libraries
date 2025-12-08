@@ -24,6 +24,7 @@ For more information on creating custom UDFs, see the
    system-requirements
    get-started
    how-to-access-api
+   how-to-configure
    how-to-deploy-with-helm
    api-reference
    release_notes/Overview

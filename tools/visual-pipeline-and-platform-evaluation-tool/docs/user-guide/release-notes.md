@@ -32,6 +32,50 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
+## Current Release: [Version 2025.2]
+
+**Release Date**: [2025-12-10]
+
+### New Features (v2025.2)
+
+- **New graphical user interface (GUI)**:
+  - A visual representation of the underlying `gst-launch` pipeline graph is provided, presenting elements, links, and
+    branches in an interactive view.
+  - Pipeline parameters (such as sources, models, and performance-related options) can be inspected and
+    modified graphically, with changes propagated to the underlying configuration.
+
+- **Pipeline import and export**:
+  - Pipelines can be imported from and exported to configuration files, enabling sharing of configurations between
+    environments and easier version control.
+  - Exported definitions capture both topology and key parameters, allowing reproducible pipeline setups.
+
+- **Backend and frontend separation**:
+  - The application is now structured as a separate backend and frontend, allowing independent development and
+    deployment of each part.
+  - A fully functional REST API is exposed by the backend, which can be accessed directly by automation scripts or
+    indirectly through the UI.
+
+- **Extensible architecture for dynamic pipelines**:
+  - The internal architecture has been evolved to support dynamic registration and loading of pipelines.
+  - New pipeline types can be added without modifying core components, enabling easier experimentation with
+    custom topologies.
+
+- **POSE model support**:
+  - POSE estimation model is now supported as part of the pipeline configuration.
+
+- **DLStreamer Optimizer integration**:
+  - Integration with the DLStreamer Optimizer has been added to simplify configuration of GStreamer-based pipelines.
+  - Optimized elements and parameters can be applied automatically, improving performance and reducing manual tuning.
+
+### Improvements (v2025.2)
+
+- **Model management enhancements**:
+  - Supported models can now be added and removed directly through the application.
+  - The model manager updates available models in a centralized configuration, ensuring that only selected models are
+    downloaded, stored, and exposed in the UI and API.
+
+---
+
 ## Current Release: [Version 1.2]
 
 **Release Date**: [2025-08-20]

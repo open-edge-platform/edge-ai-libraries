@@ -2,6 +2,20 @@
 
 ## Current Release
 
+**Version**: 1.3.1 \
+**Release Date**: 20 Nov 2025  
+
+**Features**:
+
+- Fixed dependent package vulnerabilities.
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+## Previous Releases
+
 **Version**: 1.3.0 \
 **Release Date**: 14 Nov 2025  
 
@@ -14,11 +28,6 @@
 - Microservice supports both API and SDK modes of operation for flexible integration.
 - Implemented utility functions for embedding text and images with support for base64 and URL inputs.
 - Created application-level EmbeddingModel class for high-level functionality, including video processing.
-
-**HW used for validation**:
-
-- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
-- Vanilla Kubernetes Cluster
 
 ## Releases 1.2.0, 1.2.1, 1.2.2 and 1.2.3
 

@@ -10,15 +10,23 @@ import tempfile
 from composite_generator import create_composite_frames
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+handler = logging.StreamHandler()
+handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%SZ",
+    )
 )
+
+logger = logging.getLogger()
+logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
+logger.handlers = [handler]
 
 
 def get_temp_folder():
     """Create and return a temporary directory path with debug logging."""
     temp_dir = tempfile.mkdtemp(prefix="poc_videogen_")
-    logging.debug(f"Temporary directory created at: {temp_dir}")
+    logger.debug(f"Temporary directory created at: {temp_dir}")
     return temp_dir
 
 
@@ -27,13 +35,13 @@ def recreate_temp_folder(temp_dir):
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir)
-    logging.info(f"Temporary folder '{temp_dir}' recreated.")
+    logger.info(f"Temporary folder '{temp_dir}' recreated.")
 
 
 def cleanup_temp_folder(temp_dir):
     """Remove temporary directory with debug logging."""
     shutil.rmtree(temp_dir)
-    logging.debug(f"Temporary directory '{temp_dir}' removed.")
+    logger.debug(f"Temporary directory '{temp_dir}' removed.")
 
 
 def load_config(config_file):
@@ -42,12 +50,12 @@ def load_config(config_file):
         with open(config_file, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        logging.warning(
+        logger.warning(
             f"Warning: Configuration file '{config_file}' not found. Using an empty configuration."
         )
         return {}
     except json.JSONDecodeError as e:
-        logging.warning(
+        logger.warning(
             f"Warning: Error parsing JSON configuration: {e}. Using an empty configuration."
         )
         return {}
@@ -68,7 +76,7 @@ def fetch_images_per_category(base_dir, config):
             ]
 
             if not available_images:
-                logging.warning(
+                logger.warning(
                     f"Warning: No images found in category '{category}'. Skipping category."
                 )
                 continue
@@ -77,7 +85,7 @@ def fetch_images_per_category(base_dir, config):
             if len(available_images) >= count:
                 selected_images = random.sample(available_images, count)
             else:
-                logging.warning(
+                logger.warning(
                     f"Category '{category}' only has {len(available_images)} images, but {count} were requested. Reusing images as needed."
                 )
 
@@ -91,7 +99,7 @@ def fetch_images_per_category(base_dir, config):
             images_per_category[category] = selected_images
 
         else:
-            logging.warning(
+            logger.warning(
                 f"Warning: Category folder '{category_path}' does not exist."
             )
 
@@ -185,13 +193,13 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
         f"location={output_file}",
     ]
 
-    logging.debug(f"Running GStreamer Command:\n{' '.join(gst_command)}")
+    logger.debug(f"Running GStreamer Command:\n{' '.join(gst_command)}")
 
     try:
         subprocess.run(gst_command, check=True)
-        logging.info(f"✅ Video generated with {encoding}: {output_file}")
+        logger.info(f"✅ Video generated with {encoding}: {output_file}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"❌ Error generating video with {encoding}: {e}")
+        logger.error(f"❌ Error generating video with {encoding}: {e}")
 
 
 def main():
@@ -230,9 +238,9 @@ def main():
         )
         cleanup_temp_folder(temp_dir)
 
-        logging.info("Process completed successfully!")
+        logger.info("Process completed successfully!")
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logger.error(f"Error: {e}")
 
 
 if __name__ == "__main__":
