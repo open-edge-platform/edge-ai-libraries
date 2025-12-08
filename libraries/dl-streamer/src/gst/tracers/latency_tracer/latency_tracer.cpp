@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 using namespace std;
 
@@ -140,17 +141,29 @@ struct BranchStats {
 // Pointer-based branch key for O(1) lookups (optimization: ~50% faster than string operations)
 using BranchKey = pair<GstElement*, GstElement*>;
 
+// OPTIMIZATION E: Custom hash function for BranchKey (pointer pairs) to enable unordered_map
+// Combines pointer hashes efficiently for O(1) average lookup time vs O(log n) for map
+struct BranchKeyHash {
+    std::size_t operator()(const BranchKey& k) const {
+        // Use improved hash combination for better distribution (boost::hash_combine pattern)
+        std::size_t h1 = std::hash<GstElement*>{}(k.first);
+        std::size_t h2 = std::hash<GstElement*>{}(k.second);
+        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
+    }
+};
+
 // Helper function to create a branch key using pointers (optimized)
 static BranchKey create_branch_key(GstElement *source, GstElement *sink) {
     return make_pair(source, sink);
 }
 
 // Type-safe accessors for C++ objects stored in C struct
-static map<BranchKey, BranchStats> *get_branch_stats_map(LatencyTracer *lt) {
+// OPTIMIZATION E: Using unordered_map for O(1) average lookup vs O(log n) for map
+static unordered_map<BranchKey, BranchStats, BranchKeyHash> *get_branch_stats_map(LatencyTracer *lt) {
     if (!lt->branch_stats) {
-        lt->branch_stats = new map<BranchKey, BranchStats>();
+        lt->branch_stats = new unordered_map<BranchKey, BranchStats, BranchKeyHash>();
     }
-    return static_cast<map<BranchKey, BranchStats> *>(lt->branch_stats);
+    return static_cast<unordered_map<BranchKey, BranchStats, BranchKeyHash> *>(lt->branch_stats);
 }
 
 static vector<GstElement *> *get_sources_list(LatencyTracer *lt) {
@@ -168,19 +181,21 @@ static vector<GstElement *> *get_sinks_list(LatencyTracer *lt) {
 }
 
 // Element type cache accessor (optimization: ~70% reduction in type checking overhead)
-static map<GstElement*, ElementType> *get_element_type_cache(LatencyTracer *lt) {
+// OPTIMIZATION E: Using unordered_map for O(1) average lookup vs O(log n) for map
+static unordered_map<GstElement*, ElementType> *get_element_type_cache(LatencyTracer *lt) {
     if (!lt->element_type_cache) {
-        lt->element_type_cache = new map<GstElement*, ElementType>();
+        lt->element_type_cache = new unordered_map<GstElement*, ElementType>();
     }
-    return static_cast<map<GstElement*, ElementType> *>(lt->element_type_cache);
+    return static_cast<unordered_map<GstElement*, ElementType> *>(lt->element_type_cache);
 }
 
 // Topology cache accessor (optimization: ~80% reduction in topology traversal)
-static map<GstElement*, GstElement*> *get_topology_cache(LatencyTracer *lt) {
+// OPTIMIZATION E: Using unordered_map for O(1) average lookup vs O(log n) for map
+static unordered_map<GstElement*, GstElement*> *get_topology_cache(LatencyTracer *lt) {
     if (!lt->topology_cache) {
-        lt->topology_cache = new map<GstElement*, GstElement*>();
+        lt->topology_cache = new unordered_map<GstElement*, GstElement*>();
     }
-    return static_cast<map<GstElement*, GstElement*> *>(lt->topology_cache);
+    return static_cast<unordered_map<GstElement*, GstElement*> *>(lt->topology_cache);
 }
 
 static gboolean is_source_element(GstElement *element);
@@ -265,7 +280,7 @@ static void latency_tracer_finalize(GObject *object) {
 
     // Clean up C++ objects
     if (lt->branch_stats) {
-        delete static_cast<map<BranchKey, BranchStats> *>(lt->branch_stats);
+        delete static_cast<unordered_map<BranchKey, BranchStats, BranchKeyHash> *>(lt->branch_stats);
         lt->branch_stats = nullptr;
     }
     if (lt->sources_list) {
@@ -277,11 +292,11 @@ static void latency_tracer_finalize(GObject *object) {
         lt->sinks_list = nullptr;
     }
     if (lt->element_type_cache) {
-        delete static_cast<map<GstElement*, ElementType> *>(lt->element_type_cache);
+        delete static_cast<unordered_map<GstElement*, ElementType> *>(lt->element_type_cache);
         lt->element_type_cache = nullptr;
     }
     if (lt->topology_cache) {
-        delete static_cast<map<GstElement*, GstElement*> *>(lt->topology_cache);
+        delete static_cast<unordered_map<GstElement*, GstElement*> *>(lt->topology_cache);
         lt->topology_cache = nullptr;
     }
 
@@ -754,6 +769,11 @@ static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64
 }
 
 static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBuffer *buffer) {
+    // OPTIMIZATION D: Early exit if no flags enabled (skip all processing when tracer is disabled)
+    if (!(lt->flags & (LATENCY_TRACER_FLAG_ELEMENT | LATENCY_TRACER_FLAG_PIPELINE))) {
+        return;
+    }
+    
     GstElement *elem = get_real_pad_parent(pad);
     if (!is_parent_pipeline(lt, elem))
         return;
@@ -790,9 +810,13 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
             BranchKey branch_key = create_branch_key(source, sink);
             auto *stats_map = get_branch_stats_map(lt);
 
-            // Initialize branch stats if this is the first time we see this source-sink pair
-            if (stats_map->find(branch_key) == stats_map->end()) {
-                BranchStats &branch = (*stats_map)[branch_key];
+            // OPTIMIZATION C: Single map lookup using insert + iterator (eliminates 2 redundant lookups)
+            // This reduces map lookup overhead by ~66% (1 lookup instead of 3)
+            auto insert_result = stats_map->insert({branch_key, BranchStats()});
+            BranchStats &branch = insert_result.first->second;
+
+            // Initialize only if this is a new branch
+            if (insert_result.second) {
                 branch.source_name = GST_ELEMENT_NAME(source);
                 branch.sink_name = GST_ELEMENT_NAME(sink);
                 branch.source_element = source;
@@ -803,7 +827,6 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
                                 branch.sink_name.c_str());
             }
 
-            BranchStats &branch = (*stats_map)[branch_key];
             branch.cal_log_pipeline_latency(ts, meta->init_ts, lt->interval);
         }
     }
@@ -836,6 +859,11 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
         auto *sources = get_sources_list(lt);
         auto *sinks = get_sinks_list(lt);
         auto *type_cache = get_element_type_cache(lt);
+
+        // OPTIMIZATION A: Reserve capacity to avoid reallocations during initialization
+        sources->reserve(8);      // Typical pipelines have 1-4 sources
+        sinks->reserve(8);        // Typical pipelines have 1-4 sinks
+        type_cache->reserve(32);  // Typical pipelines have 10-30 elements
 
         GstIterator *iter = gst_bin_iterate_elements(GST_BIN_CAST(elem));
         while (true) {
