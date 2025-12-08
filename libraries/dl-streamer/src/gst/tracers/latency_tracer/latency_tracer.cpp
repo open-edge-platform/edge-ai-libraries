@@ -183,6 +183,9 @@ static map<GstElement*, GstElement*> *get_topology_cache(LatencyTracer *lt) {
     return static_cast<map<GstElement*, GstElement*> *>(lt->topology_cache);
 }
 
+static gboolean is_source_element(GstElement *element);
+static gboolean is_sink_element(GstElement *element);
+
 // Helper function to get cached element type with O(1) lookup
 static ElementType get_cached_element_type(LatencyTracer *lt, GstElement *elem) {
     if (!elem)
