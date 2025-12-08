@@ -125,12 +125,13 @@ static string create_branch_key(GstElement *source, GstElement *sink) {
 - BranchStats uses mutex for thread-safe statistics updates
 - Each branch has its own mutex to allow concurrent updates to different branches
 
-## Backward Compatibility
+## Per-Branch Statistics
 
-The implementation maintains full backward compatibility:
-- Legacy fields (`sink_element`, `frame_count`) retained for first discovered sink
-- Existing single-branch pipelines work without modification
-- Original logging behavior preserved alongside new multi-branch logging
+The implementation tracks statistics independently for each source-sink branch:
+- Each source-sink pair maintains its own frame counter starting from 1
+- Frame counters increment independently across branches
+- No duplicate logging - each frame is logged exactly once per branch
+- Legacy fields (`sink_element`, `frame_count`) retained in struct but no longer used for logging
 
 ## Usage Examples
 
@@ -151,11 +152,15 @@ GST_DEBUG="GST_TRACER:7" GST_TRACERS="latency_tracer" gst-launch-1.0 \
 
 ## Output Format
 
-The enhanced tracer produces output like:
+The enhanced tracer produces output with per-branch frame numbering:
 ```
-[Latency Tracer] Source: videotestsrc0 -> Sink: fakesink0 - Frame: 100, Latency: 15.23 ms, Avg: 15.50 ms, Min: 14.10 ms, Max: 17.30 ms, Pipeline Latency: 16.67 ms, FPS: 60.00
-[Latency Tracer] Source: filesrc0 -> Sink: autovideosink0 - Frame: 50, Latency: 33.33 ms, Avg: 33.40 ms, Min: 32.00 ms, Max: 35.00 ms, Pipeline Latency: 33.33 ms, FPS: 30.00
+[Latency Tracer] Source: videotestsrc0 -> Sink: fakesink0 - Frame: 1, Latency: 15.23 ms, Avg: 15.23 ms, Min: 15.23 ms, Max: 15.23 ms, Pipeline Latency: 16.67 ms, FPS: 60.00
+[Latency Tracer] Source: videotestsrc0 -> Sink: fakesink0 - Frame: 2, Latency: 15.10 ms, Avg: 15.17 ms, Min: 15.10 ms, Max: 15.23 ms, Pipeline Latency: 16.67 ms, FPS: 60.00
+[Latency Tracer] Source: filesrc0 -> Sink: autovideosink0 - Frame: 1, Latency: 33.33 ms, Avg: 33.33 ms, Min: 33.33 ms, Max: 33.33 ms, Pipeline Latency: 33.33 ms, FPS: 30.00
+[Latency Tracer] Source: filesrc0 -> Sink: autovideosink0 - Frame: 2, Latency: 33.40 ms, Avg: 33.37 ms, Min: 33.33 ms, Max: 33.40 ms, Pipeline Latency: 33.33 ms, FPS: 30.00
 ```
+
+Note: Each branch maintains independent frame counters starting from 1.
 
 ## Testing
 
