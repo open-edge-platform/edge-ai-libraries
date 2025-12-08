@@ -628,7 +628,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     GstElement *peer_element = peer_pad ? get_real_pad_parent(peer_pad) : nullptr;
 
     if (lt->flags & LATENCY_TRACER_FLAG_PIPELINE && peer_element &&
-        GST_OBJECT_FLAG_IS_SET(peer_element, GST_ELEMENT_FLAG_SINK)) {
+        is_sink_element(peer_element)) {
 
         GstElement *sink = peer_element;
 
