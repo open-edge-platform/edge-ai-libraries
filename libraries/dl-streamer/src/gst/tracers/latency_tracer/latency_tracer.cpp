@@ -429,23 +429,42 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     GstIterator *iter = gst_element_iterate_sink_pads(elem);
     GValue val = G_VALUE_INIT;
     GstElement *found_source = nullptr;
+    gboolean done = FALSE;
 
-    while (gst_iterator_next(iter, &val) == GST_ITERATOR_OK) {
-        GstPad *sink_pad = GST_PAD(g_value_get_object(&val));
-        GstPad *peer_pad = gst_pad_get_peer(sink_pad);
+    while (!done) {
+        switch (gst_iterator_next(iter, &val)) {
+        case GST_ITERATOR_OK: {
+            GstPad *sink_pad = GST_PAD(g_value_get_object(&val));
+            GstPad *peer_pad = gst_pad_get_peer(sink_pad);
 
-        if (peer_pad) {
-            GstElement *upstream = get_real_pad_parent(peer_pad);
-            gst_object_unref(peer_pad);
+            if (peer_pad) {
+                GstElement *upstream = get_real_pad_parent(peer_pad);
+                gst_object_unref(peer_pad);
 
-            // Recursively search upstream
-            found_source = find_upstream_source(lt, upstream);
-            if (found_source) {
-                g_value_unset(&val);
-                break;
+                // Recursively search upstream
+                found_source = find_upstream_source(lt, upstream);
+                if (found_source) {
+                    g_value_unset(&val);
+                    done = TRUE;
+                    break;
+                }
             }
+            g_value_unset(&val);
+            break;
         }
-        g_value_unset(&val);
+        case GST_ITERATOR_RESYNC:
+            // Iterator was invalidated, resync and retry
+            gst_iterator_resync(iter);
+            break;
+        case GST_ITERATOR_ERROR:
+            // Error occurred, log and stop
+            GST_WARNING("Error while iterating sink pads for element");
+            done = TRUE;
+            break;
+        case GST_ITERATOR_DONE:
+            done = TRUE;
+            break;
+        }
     }
 
     gst_iterator_free(iter);
@@ -514,9 +533,7 @@ static void cal_log_pipeline_latency(LatencyTracer *lt, guint64 ts, LatencyTrace
     GST_OBJECT_UNLOCK(lt);
 }
 
-static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer,
-                             GstElement *elem) {
-    UNUSED(elem);
+static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer) {
     if (!gst_buffer_is_writable(buffer)) {
         // Skip non-writable buffers silently - expected for shared/read-only buffers
         return;
@@ -536,7 +553,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
         return;
     LatencyTracerMeta *meta = LATENCY_TRACER_META_GET(buffer);
     if (!meta) {
-        add_latency_meta(lt, meta, ts, buffer, elem);
+        add_latency_meta(lt, meta, ts, buffer);
         return;
     }
     if (lt->flags & LATENCY_TRACER_FLAG_ELEMENT) {
@@ -593,7 +610,7 @@ static void do_pull_range_post(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     if (!is_parent_pipeline(lt, elem))
         return;
     LatencyTracerMeta *meta = nullptr;
-    add_latency_meta(lt, meta, ts, buffer, elem);
+    add_latency_meta(lt, meta, ts, buffer);
 }
 
 static void do_push_buffer_list_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBufferList *list) {
