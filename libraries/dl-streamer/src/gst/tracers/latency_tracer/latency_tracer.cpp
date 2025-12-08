@@ -30,9 +30,9 @@ static GQuark data_string = g_quark_from_static_string("latency_tracer");
 
 // Element type classification for caching
 enum class ElementType {
-    SOURCE,      // Element with no sink pads (produces data)
-    SINK,        // Element with no source pads (consumes data)
-    PROCESSING   // Element with both sink and source pads
+    SOURCE,    // Element with no sink pads (produces data)
+    SINK,      // Element with no source pads (consumes data)
+    PROCESSING // Element with both sink and source pads
 };
 
 // Structure to track statistics per source-sink branch
@@ -53,7 +53,7 @@ struct BranchStats {
 
     BranchStats() {
         total_latency = 0.0;
-        min = G_MAXDOUBLE;  // Initialize to max value so first frame sets it
+        min = G_MAXDOUBLE; // Initialize to max value so first frame sets it
         max = 0.0;
         frame_count = 0;
         interval_total = 0.0;
@@ -76,7 +76,7 @@ struct BranchStats {
         // Local copies for logging outside the lock
         gdouble frame_latency, avg, local_min, local_max, pipeline_latency, fps;
         guint local_count;
-        
+
         {
             lock_guard<mutex> guard(mtx);
             frame_count += 1;
@@ -103,11 +103,11 @@ struct BranchStats {
         // Log outside the lock to minimize lock duration
         GST_TRACE("[Latency Tracer] Source: %s -> Sink: %s - Frame: %u, Latency: %.2f ms, Avg: %.2f ms, Min: %.2f "
                   "ms, Max: %.2f ms, Pipeline Latency: %.2f ms, FPS: %.2f",
-                  source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, local_min, local_max, pipeline_latency,
-                  fps);
+                  source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, local_min, local_max,
+                  pipeline_latency, fps);
 
-        gst_tracer_record_log(tr_pipeline, source_name.c_str(), sink_name.c_str(), frame_latency, avg, local_min, local_max,
-                              pipeline_latency, fps, local_count);
+        gst_tracer_record_log(tr_pipeline, source_name.c_str(), sink_name.c_str(), frame_latency, avg, local_min,
+                              local_max, pipeline_latency, fps, local_count);
         cal_log_pipeline_interval(ts, frame_latency, interval);
     }
 
@@ -135,7 +135,7 @@ struct BranchStats {
 
 // Pointer-based branch key for fast lookups (optimization: ~50% faster than string-based keys)
 // Using pointer comparison is much faster than string comparison
-using BranchKey = pair<GstElement*, GstElement*>;
+using BranchKey = pair<GstElement *, GstElement *>;
 
 // Helper function to create a branch key using pointers (optimized)
 static inline BranchKey create_branch_key(GstElement *source, GstElement *sink) {
@@ -165,19 +165,19 @@ static vector<GstElement *> *get_sinks_list(LatencyTracer *lt) {
 }
 
 // Element type cache accessor (optimization: ~70% reduction in type checking overhead)
-static map<GstElement*, ElementType> *get_element_type_cache(LatencyTracer *lt) {
+static map<GstElement *, ElementType> *get_element_type_cache(LatencyTracer *lt) {
     if (!lt->element_type_cache) {
-        lt->element_type_cache = new map<GstElement*, ElementType>();
+        lt->element_type_cache = new map<GstElement *, ElementType>();
     }
-    return static_cast<map<GstElement*, ElementType> *>(lt->element_type_cache);
+    return static_cast<map<GstElement *, ElementType> *>(lt->element_type_cache);
 }
 
 // Topology cache accessor (optimization: ~80% reduction in topology traversal)
-static map<GstElement*, GstElement*> *get_topology_cache(LatencyTracer *lt) {
+static map<GstElement *, GstElement *> *get_topology_cache(LatencyTracer *lt) {
     if (!lt->topology_cache) {
-        lt->topology_cache = new map<GstElement*, GstElement*>();
+        lt->topology_cache = new map<GstElement *, GstElement *>();
     }
-    return static_cast<map<GstElement*, GstElement*> *>(lt->topology_cache);
+    return static_cast<map<GstElement *, GstElement *> *>(lt->topology_cache);
 }
 
 static gboolean is_source_element(GstElement *element);
@@ -187,7 +187,7 @@ static gboolean is_sink_element(GstElement *element);
 static ElementType get_cached_element_type(LatencyTracer *lt, GstElement *elem) {
     if (!elem)
         return ElementType::PROCESSING;
-    
+
     auto *cache = get_element_type_cache(lt);
     auto it = cache->find(elem);
     if (it != cache->end()) {
@@ -274,11 +274,11 @@ static void latency_tracer_finalize(GObject *object) {
         lt->sinks_list = nullptr;
     }
     if (lt->element_type_cache) {
-        delete static_cast<map<GstElement*, ElementType> *>(lt->element_type_cache);
+        delete static_cast<map<GstElement *, ElementType> *>(lt->element_type_cache);
         lt->element_type_cache = nullptr;
     }
     if (lt->topology_cache) {
-        delete static_cast<map<GstElement*, GstElement*> *>(lt->topology_cache);
+        delete static_cast<map<GstElement *, GstElement *> *>(lt->topology_cache);
         lt->topology_cache = nullptr;
     }
 
@@ -453,7 +453,7 @@ struct ElementStats {
         // Local copies for logging outside the lock
         gdouble frame_latency, avg, local_min, local_max;
         guint local_count;
-        
+
         {
             lock_guard<mutex> guard(mtx);
             frame_count += 1;
@@ -464,13 +464,13 @@ struct ElementStats {
                 min = frame_latency;
             if (frame_latency > max)
                 max = frame_latency;
-            
+
             // Copy values for logging
             local_min = min;
             local_max = max;
             local_count = frame_count;
         } // Lock released here
-        
+
         // Log outside the lock to minimize lock duration
         gst_tracer_record_log(tr_element, name, frame_latency, avg, local_min, local_max, local_count, is_bin);
         cal_log_interval(frame_latency, src_ts, interval);
@@ -514,22 +514,22 @@ static gboolean is_source_element(GstElement *element) {
     // A true source element has NO sink pad templates at all
     GstElementClass *element_class = GST_ELEMENT_GET_CLASS(element);
     const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
-    
+
     gboolean has_sink_template = FALSE;
     gboolean has_src_template = FALSE;
-    
+
     // Iterate through all pad templates
     for (const GList *l = pad_templates; l != NULL; l = l->next) {
         GstPadTemplate *templ = GST_PAD_TEMPLATE(l->data);
         GstPadDirection direction = GST_PAD_TEMPLATE_DIRECTION(templ);
-        
+
         if (direction == GST_PAD_SINK) {
             has_sink_template = TRUE;
         } else if (direction == GST_PAD_SRC) {
             has_src_template = TRUE;
         }
     }
-    
+
     // True source: has source pad template(s) but NO sink pad templates
     return has_src_template && !has_sink_template;
 }
@@ -549,15 +549,15 @@ static gboolean is_sink_element(GstElement *element) {
     // A true sink element has NO source pad templates at all
     GstElementClass *element_class = GST_ELEMENT_GET_CLASS(element);
     const GList *pad_templates = gst_element_class_get_pad_template_list(element_class);
-    
+
     gboolean has_sink_template = FALSE;
     gboolean has_src_template = FALSE;
-    
+
     // Iterate through all pad templates
     for (const GList *l = pad_templates; l != NULL; l = l->next) {
         GstPadTemplate *templ = GST_PAD_TEMPLATE(l->data);
         GstPadDirection direction = GST_PAD_TEMPLATE_DIRECTION(templ);
-        
+
         if (direction == GST_PAD_SINK) {
             has_sink_template = TRUE;
         } else if (direction == GST_PAD_SRC) {
@@ -565,7 +565,7 @@ static gboolean is_sink_element(GstElement *element) {
             has_src_template = TRUE;
         }
     }
-    
+
     // True sink: has sink pad template(s) but NO source pad templates
     // This works for:
     //   - fakesink: has sink templates, no src templates ✅
@@ -652,16 +652,17 @@ static GstElement *find_upstream_source(LatencyTracer *lt, GstElement *elem) {
     }
 
     gst_iterator_free(iter);
-    
+
     // Cache the result for future O(1) lookups (only cache valid results)
     if (found_source) {
         (*topo_cache)[elem] = found_source;
     }
-    
+
     return found_source;
 }
 
-static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer, GstElement *elem) {
+static void add_latency_meta(LatencyTracer *lt, LatencyTracerMeta *meta, guint64 ts, GstBuffer *buffer,
+                             GstElement *elem) {
     UNUSED(lt);
     UNUSED(elem);
     if (!gst_buffer_is_writable(buffer)) {
@@ -679,7 +680,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     if (!(lt->flags & (LATENCY_TRACER_FLAG_ELEMENT | LATENCY_TRACER_FLAG_PIPELINE))) {
         return;
     }
-    
+
     GstElement *elem = get_real_pad_parent(pad);
     if (!is_parent_pipeline(lt, elem))
         return;
@@ -764,8 +765,8 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
         auto *type_cache = get_element_type_cache(lt);
 
         // OPTIMIZATION A: Reserve capacity to avoid reallocations during initialization
-        sources->reserve(8);      // Typical pipelines have 1-4 sources
-        sinks->reserve(8);        // Typical pipelines have 1-4 sinks
+        sources->reserve(8); // Typical pipelines have 1-4 sources
+        sinks->reserve(8);   // Typical pipelines have 1-4 sinks
         // Note: std::map doesn't support reserve() - tree structure doesn't benefit from pre-allocation
 
         GstIterator *iter = gst_bin_iterate_elements(GST_BIN_CAST(elem));
