@@ -524,16 +524,16 @@ static gboolean is_source_element(GstElement *element) {
         GstPadDirection direction = GST_PAD_TEMPLATE_DIRECTION(templ);
 
         if (direction == GST_PAD_SINK) {
-            has_sink_template = TRUE;
-            // Early exit: if has sink template, it's not a pure source
-            break;
+            // Found sink pad template - element is not a pure source
+            // Can return early since we know it's not a pure source
+            return FALSE;
         } else if (direction == GST_PAD_SRC) {
             has_src_template = TRUE;
         }
     }
 
     // True source: has source pad template(s) but NO sink pad templates
-    return has_src_template && !has_sink_template;
+    return has_src_template;
 }
 
 // Helper function to determine if an element is a sink
@@ -564,11 +564,8 @@ static gboolean is_sink_element(GstElement *element) {
             has_sink_template = TRUE;
         } else if (direction == GST_PAD_SRC) {
             // Found source pad template - element is not a pure sink
-            has_src_template = TRUE;
-            // Early exit: if has both templates, it's not a pure sink
-            if (has_sink_template) {
-                break;
-            }
+            // Can return early since we know it's not a pure sink
+            return FALSE;
         }
     }
 
@@ -577,7 +574,7 @@ static gboolean is_sink_element(GstElement *element) {
     //   - fakesink: has sink templates, no src templates → TRUE (is a sink) ✅
     //   - decodebin: has BOTH sink and src templates → FALSE (not a sink, is processing element)
     //   - queue: has BOTH sink and src templates → FALSE (not a sink, is processing element)
-    return has_sink_template && !has_src_template;
+    return has_sink_template;
 }
 
 // Recursively walk upstream from an element to find a tracked source
