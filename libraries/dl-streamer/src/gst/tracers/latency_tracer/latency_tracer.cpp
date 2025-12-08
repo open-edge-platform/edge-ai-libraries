@@ -602,11 +602,6 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
             BranchStats &branch = (*stats_map)[branch_key];
             branch.cal_log_pipeline_latency(ts, meta->init_ts, lt->interval);
         }
-
-        // Also log for backward compatibility with single sink tracking
-        if (lt->sink_element == sink) {
-            cal_log_pipeline_latency(lt, ts, meta);
-        }
     }
 }
 
