@@ -17,10 +17,14 @@ Options:
     --log-level LEVEL                   Configure the logging detail level
 ```
 
-Increasing the search duration will increase the chances of discovering more performant pipelines. Default: 300 seconds
-Increasing the sample duration will improve the stability of the search, but less pipelines will potentially be explored. Default: 10 seconds
-Available log levels are: CRITICAL, FATAL, ERROR, WARN, INFO, DEBUG. Default: INFO
+- Increasing the **search duration** will increase the chances of discovering more performant pipelines.  
+  -> Default: `300` seconds  
+- Increasing the **sample duration** will improve the stability of the search.  
+  -> Default: `10` seconds  
+- Available **log levels** are: CRITICAL, FATAL, ERROR, WARN, INFO, DEBUG.  
+  -> Default: `INFO`  
 
+>Note: Search duration and sample duration both affect the amount of pipelines that will be explored during the search.
 ## Example
 ```
  python3 . -- urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin ! gvadetect model=/home/optimizer/models/public/yolo11s/INT8/yolo11s.xml ! queue ! gvawatermark ! vah264enc ! h264parse ! mp4mux ! fakesink
