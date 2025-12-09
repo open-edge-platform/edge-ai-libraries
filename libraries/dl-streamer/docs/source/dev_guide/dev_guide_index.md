@@ -90,5 +90,6 @@ converting_deepstream_to_dlstreamer
 how_to_contribute
 latency_tracer
 model_proc_file
+optimizer
 :::
 hide_directive-->
