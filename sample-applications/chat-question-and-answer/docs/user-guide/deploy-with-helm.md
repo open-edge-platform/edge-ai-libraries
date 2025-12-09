@@ -40,15 +40,17 @@ This will create a directory named `chat-question-and-answer` containing the cha
 cd chat-question-and-answer
 ```
 
-#### Step 3: Configure the `values.yaml` File
+#### Step 3: Configure the right `values*.yaml` file
 
-Choose the appropriate `values*.yaml` file based on the model server you want to use:
+Choose the appropriate `values*.yaml` file based on the model server you want to use and set the necessary environment variables:
 
 - **For OVMS**: Use `values_ovms.yaml`.
 - **For vLLM**: Use `values_vllm.yaml`.
 - **For TGI**: Use `values_tgi.yaml`.
 
-Edit only the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Note: If deploying from a cloned repo, the user can choose to edit only the `values.yaml` file which is symlinked to `values_ovms.yaml` as default option. When the chart is downloaded from registry, the symlink gets removed and the user should use the preferred `values*.yaml` file.
+
+Ensure you set the `huggingface.apiToken` and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -99,9 +101,9 @@ Navigate to the chart directory:
 cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart
 ```
 
-#### Step 3: Configure the `values.yaml` File
+#### Step 3: Configure the `values*.yaml` File
 
-Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
 
 #### Step 4: Build Helm Dependencies
@@ -120,7 +122,7 @@ Deploy the OVMS Helm chart:
 ```bash
 helm install chatqna . -f values_ovms.yaml -n <your-namespace>
 ```
-**Note:** When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
+**Note:** (1) If deploying from cloned repo, using `values.yaml` also works as it points to `values_ovms.yaml` file as default option. (2) When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
 
 Deploy the vLLM Helm chart:
 

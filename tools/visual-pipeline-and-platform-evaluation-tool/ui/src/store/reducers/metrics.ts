@@ -103,7 +103,7 @@ export const selectGpuMetric = (state: RootState) =>
   state.metrics.metrics.find(
     (m) =>
       m.name === "gpu_engine_usage" &&
-      ["render", "ccs"].includes(m.tags?.engine ?? "") &&
+      ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
       m.tags?.gpu_id === "0" &&
       (m.fields.usage as number) > 0,
   )?.fields?.usage as number | undefined;
@@ -112,7 +112,7 @@ export const selectGpu1Metric = (state: RootState) =>
   state.metrics.metrics.find(
     (m) =>
       m.name === "gpu_engine_usage" &&
-      ["render", "ccs"].includes(m.tags?.engine ?? "") &&
+      ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
       m.tags?.gpu_id === "1" &&
       (m.fields.usage as number) > 0,
   )?.fields?.usage as number | undefined;

@@ -25,10 +25,10 @@ export HF_HOME="$PWD/.hf_cache"
 mkdir -p "$HF_HOME"
 
 # Install requirements for model export
-pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/requirements.txt
+pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
 
 
-curl https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py -o export_model.py
+curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
 mkdir -p "$VOLUME_OVMS/models"
 python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path $VOLUME_OVMS/models/config.json --model_repository_path "$VOLUME_OVMS/models" --target_device $TARGET_DEVICE
 

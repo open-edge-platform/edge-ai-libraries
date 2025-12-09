@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # Distributed under the OSI-approved MIT License.  See accompanying
 # file LICENSE or https://github.com/Crascit/DownloadProject for details.
 #

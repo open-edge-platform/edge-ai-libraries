@@ -146,7 +146,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         logger.info("Checking for export_model.py script...")
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py"
+        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
       
         if not os.path.exists("export_model.py"):
             logger.info(f"Downloading export_model.py script...")

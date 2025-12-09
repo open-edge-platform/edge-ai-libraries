@@ -98,9 +98,9 @@ To manage the installed models again, run the following command:
 make install-models-force
 ```
 
-## Troubleshooting
+## Known issues, limitations and troubleshooting
 
-- Refer to [Troubleshooting Common Issues](./support.md#troubleshooting-common-issues).
+- Refer to [Known issues, limitations and troubleshooting](known-issues.md).
 
 ## Supporting Resources
 
