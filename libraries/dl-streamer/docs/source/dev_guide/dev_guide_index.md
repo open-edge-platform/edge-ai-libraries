@@ -67,6 +67,7 @@
   - [Overview](./model_proc_file.md#model-proc-overview)
   - [Pre-processing description (`input_preproc`)](./model_proc_file.md#pre-processing-description)
   - [Post-processing description (`output_postproc`)](./model_proc_file.md#post-processing-description-output_postproc)
+- [Pipeline Optimizer](./optimizer.md)
 
 <!--hide_directive
 :::{toctree}
