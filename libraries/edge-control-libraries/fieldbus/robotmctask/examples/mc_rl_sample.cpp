@@ -224,7 +224,7 @@ static void cyclic_left_arm_workload(void* parent, void* input, void* output)
         }
         else
         {
-            if(ectask->is_trajalldone())
+            if(!virtual_servo && ectask->is_trajalldone())
             {
                 traj_cmd->start = false;
             }
@@ -256,7 +256,7 @@ static void cyclic_right_arm_workload(void* parent, void* input, void* output)
         }
         else
         {
-            if(ectask->is_trajalldone())
+            if(!virtual_servo && ectask->is_trajalldone())
             {
                 traj_cmd->start = false;
             }
