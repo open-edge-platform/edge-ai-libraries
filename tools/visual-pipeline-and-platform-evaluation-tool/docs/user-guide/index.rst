@@ -64,5 +64,5 @@ Learn More
    how-to-use-video-generator
    api-reference
    disclaimers
-   support
+   known-issues
    GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool>

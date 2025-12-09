@@ -16,5 +16,8 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building the microservice from source code.
 
+- **Testing**
+  - [Running Unit Tests](docs/user-guide/running-tests.md): Comprehensive guide for running the test suite.
+
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.

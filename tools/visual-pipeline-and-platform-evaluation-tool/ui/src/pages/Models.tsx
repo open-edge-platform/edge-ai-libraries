@@ -1,4 +1,3 @@
-import { useGetModelsQuery } from "@/api/api.generated.ts";
 import {
   Table,
   TableBody,
@@ -8,15 +7,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
+import { useAppSelector } from "@/store/hooks";
+import { selectModels } from "@/store/reducers/models";
 
 const Models = () => {
-  const { data: models, isSuccess } = useGetModelsQuery();
+  const models = useAppSelector(selectModels);
 
-  if (isSuccess && models.length > 0) {
+  if (models.length > 0) {
     return (
       <div className="h-full overflow-auto">
         <div className="container mx-auto py-10">
-          <h1 className="text-3xl font-bold mb-6">Models</h1>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold">Models</h1>
+            <p className="text-muted-foreground mt-2">
+              Ready-to-use models available in the platform
+            </p>
+          </div>
           <Table>
             <TableCaption>A list of loaded models.</TableCaption>
             <TableHeader>

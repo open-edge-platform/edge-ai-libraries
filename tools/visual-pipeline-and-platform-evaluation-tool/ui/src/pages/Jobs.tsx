@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import { PipelineName } from "@/components/shared/PipelineName";
 
 const Jobs = () => {
   const location = useLocation();
@@ -97,11 +98,12 @@ const Jobs = () => {
                   No performance jobs found
                 </p>
               ) : (
-                <div className="border rounded-md">
+                <div className="border">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Job ID</TableHead>
+                        <TableHead>Input Streams</TableHead>
                         <TableHead>State</TableHead>
                         <TableHead>Start Time</TableHead>
                         <TableHead>Elapsed Time</TableHead>
@@ -122,8 +124,20 @@ const Jobs = () => {
                             </Link>
                           </TableCell>
                           <TableCell>
+                            <div className="flex flex-col">
+                              {job.streams_per_pipeline?.map((pipeline) => (
+                                <div key={pipeline.id} className="text-sm">
+                                  <PipelineName pipelineId={pipeline.id} />
+                                  <span className="text-muted-foreground ml-1">
+                                    ({pipeline.streams})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              className={`px-2 py-1 text-xs font-medium ${
                                 job.state === "COMPLETED"
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"
@@ -170,7 +184,7 @@ const Jobs = () => {
               ) : !densityJobs || densityJobs.length === 0 ? (
                 <p className="text-muted-foreground">No density jobs found</p>
               ) : (
-                <div className="border rounded-md">
+                <div className="border">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -180,7 +194,7 @@ const Jobs = () => {
                         <TableHead>Elapsed Time</TableHead>
                         <TableHead>Total FPS</TableHead>
                         <TableHead>Per Stream FPS</TableHead>
-                        <TableHead>Total Streams</TableHead>
+                        <TableHead>Stream Distribution</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -196,7 +210,7 @@ const Jobs = () => {
                           </TableCell>
                           <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              className={`px-2 py-1 text-xs font-medium ${
                                 job.state === "COMPLETED"
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"
@@ -225,7 +239,18 @@ const Jobs = () => {
                               ? job.per_stream_fps.toFixed(2)
                               : "-"}
                           </TableCell>
-                          <TableCell>{job.total_streams ?? "-"}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              {job.streams_per_pipeline?.map((pipeline) => (
+                                <div key={pipeline.id} className="text-sm">
+                                  <PipelineName pipelineId={pipeline.id} />
+                                  <span className="text-muted-foreground ml-1">
+                                    ({pipeline.streams})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -245,7 +270,7 @@ const Jobs = () => {
                   No optimization jobs found
                 </p>
               ) : (
-                <div className="border rounded-md">
+                <div className="border">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -269,13 +294,13 @@ const Jobs = () => {
                             </Link>
                           </TableCell>
                           <TableCell>
-                            <span className="px-2 py-1 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs font-medium">
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs font-medium">
                               {job.type ?? "-"}
                             </span>
                           </TableCell>
                           <TableCell>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              className={`px-2 py-1 text-xs font-medium ${
                                 job.state === "COMPLETED"
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"

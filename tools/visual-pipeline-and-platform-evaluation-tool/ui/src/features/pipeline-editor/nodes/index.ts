@@ -24,6 +24,11 @@ import Decodebin3Node from "./Decodebin3Node.tsx";
 import QueueNode, { QueueNodeWidth } from "./QueueNode.tsx";
 import GVAClassifyNode from "./GVAClassifyNode.tsx";
 import VaapiDecodebinNode from "./VaapiDecodebinNode.tsx";
+import TeeNode, { TeeNodeWidth } from "./TeeNode.tsx";
+import SplitmuxsinkNode, {
+  SplitmuxsinkNodeWidth,
+} from "./SplitmuxsinkNode.tsx";
+import VideoScaleNode from "./VideoScaleNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -48,6 +53,9 @@ export const nodeTypes = {
   queue: QueueNode,
   gvaclassify: GVAClassifyNode,
   vaapidecodebin: VaapiDecodebinNode,
+  tee: TeeNode,
+  splitmuxsink: SplitmuxsinkNode,
+  videoscale: VideoScaleNode,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -56,6 +64,8 @@ export const nodeWidths: Record<string, number> = {
   gvametaconvert: GVAMetaConvertNodeWidth,
   gvametapublish: GVAMetaPublishNodeWidth,
   queue: QueueNodeWidth,
+  tee: TeeNodeWidth,
+  splitmuxsink: SplitmuxsinkNodeWidth,
 };
 
 export const defaultNodeWidth = 220;

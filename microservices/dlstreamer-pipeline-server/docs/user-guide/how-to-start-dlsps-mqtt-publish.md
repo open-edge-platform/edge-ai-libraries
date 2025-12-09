@@ -58,7 +58,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
 Output can be viewed on MQTT subscriber as shown below.
 
 ```sh
-docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h <SYSTEM_IP_ADDRESS>
+docker run --network=docker_app_network -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h mqtt-broker
 ```
 
 For more details on MQTT you can refer this [document](./advanced-guide/detailed_usage/publisher/mqtt_publish.md)
