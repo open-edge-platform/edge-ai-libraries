@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+# ==============================================================================
 # Copyright (C) 2025 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
+
 """
 DL Streamer Open/Close Valve Sample.
 
