@@ -40,6 +40,7 @@ gvaclassify
 gvainference
 gvatrack
 gvaaudiodetect
+gvaaudiotranscribe
 gvagenai
 gvaattachroi
 gvafpscounter
