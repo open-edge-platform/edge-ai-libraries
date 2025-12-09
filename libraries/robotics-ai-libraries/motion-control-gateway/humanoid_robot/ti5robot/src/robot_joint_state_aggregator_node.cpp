@@ -133,10 +133,10 @@ void RobotJointStateAggregatorNode::timerCallback(void)
 	"base_imu_joint"
     };
     joint_state_msg.position = {
-        mLeftArmJointAngles[0],
-        mLeftArmJointAngles[1]*(-1),
-        mRightArmJointAngles[0],
-        mRightArmJointAngles[1]*(-1),
+        0.0,
+        mLeftArmJointAngles[3],
+        0.0,
+        mRightArmJointAngles[3],
         mLegJointAngles[2],
         mLegJointAngles[1],
         mLegJointAngles[0],
@@ -152,11 +152,11 @@ void RobotJointStateAggregatorNode::timerCallback(void)
         0.0,
         0.0,
         0.0,
+        mLeftArmJointAngles[1],
         0.0,
+        mRightArmJointAngles[1],
         0.0,
-        0.0,
-        0.0,
-				0.0
+        0.0
     };
     joint_state_msg.header.stamp = this->now();
     mRobotJointStatePub->publish(joint_state_msg);
