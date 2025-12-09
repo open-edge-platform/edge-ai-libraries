@@ -119,6 +119,8 @@ videoconvert ! autovideosink sync=true
 
 #### Valve Stream (Controlled)
 
+
+
 ###### <u>Valve Control Element</u>
 
 ```
@@ -128,6 +130,8 @@ valve name=control_valve drop=false !
 - States:
     - ```drop=false```  Video flows through
     - ```drop=true``` Video blocked
+
+You can learn more about the valve element and its properties in the [GStreamer documentation](https://gstreamer.freedesktop.org/documentation/coreelements/valve.html?gi-language=python).
 </br>
 
 #### Processing Chain

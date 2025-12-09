@@ -3,6 +3,13 @@
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
+"""
+DL Streamer Open/Close Valve Sample.
+
+This module demonstrates dual GStreamer pipeline control with a valve element
+to dynamically route video streams based on object detection results.
+"""
+
 import sys
 import time
 #from contextlib import contextmanager
@@ -115,16 +122,14 @@ class DualStreamController:
             if not self.pipeline:
                 print("Error: Could not create pipeline")
                 return False
-            else:
-                print("Pipeline created")
+            print("Pipeline created")
 
             # Get valve element from pipeline
             self.valve = self.pipeline.get_by_name("control_valve")
             if not self.valve:
                 print("Error: Could not find control_valve element")
                 return False
-            else:
-                print("Found control_valve element")    
+            print("Found control_valve element")
 
             # Get pre_view_classify element from pipeline
             # Below we add a probe to the sink pad of pre_view_classify to monitor detected objects
@@ -132,22 +137,20 @@ class DualStreamController:
             if not self.pre_view_classify:
                 print("Error: Could not find pre_view_classify element")
                 return False
-            else:
-                print("Found pre_view_classify element")
+            print("Found pre_view_classify element")
 
             # Get sink pad of pre_view_classify
             pre_view_classify_pad = self.pre_view_classify.get_static_pad("sink")
             if not pre_view_classify_pad:
                 print("Unable to get sink pad of gvaclassify")
                 return False
-            else:
-                print("Got sink pad of pre_view_classify")
+            print("Got sink pad of pre_view_classify")
 
             # and add probe/callback
             pre_view_classify_pad.add_probe(Gst.PadProbeType.BUFFER,
                                             self.object_detector_callback, 0)
             print("All elements found and pipeline created successfully")
-        except Exception as e:
+        except GLib.Error as e:
             print(f"Error creating pipeline: {e}")
             return False
         return True
@@ -234,7 +237,7 @@ def display_header():
     print("\n# ====================================== #")
     print("#  Copyright (C) 2025 Intel Corporation  #")
     print("#                                        #")
-    print("#     SPDX-License-Identifier: MIT       #")    
+    print("#     SPDX-License-Identifier: MIT       #")
     print("# ====================================== #")
     print("#  DL Streamer Open/Close Valve Sample   #")
     print("# ====================================== #\n")
@@ -271,21 +274,21 @@ def main():
             if msg:
                 if msg.type == Gst.MessageType.ERROR:
                     err, debug_info = msg.parse_error()
-                    # print(f"Error received from element {msg.src.get_name()}: {err.message}")
                     print(f"Error received from element {msg.src.get_name()}")
                     print(f"Debug info: {debug_info}")
-                    terminate = True                
+                    terminate = True
                 if msg.type == Gst.MessageType.EOS:
-                    print(f"Pipeline complete.")
+                    print("Pipeline complete.")
                     terminate = True
     except KeyboardInterrupt as e:
         print(f"Interrupted by user. Stopping pipeline...[{e}]")
         terminate = True
-    except Exception as e:
+    except GLib.Error as e:
         print(f"Exception occurred: {e}")
 
     # Stop pipeline
     controller.pipeline.set_state(Gst.State.NULL)
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
