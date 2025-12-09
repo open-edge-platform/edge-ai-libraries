@@ -1,0 +1,25 @@
+# Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Aligned with https://github.com/ament/ament_lint/blob/jazzy/ament_clang_format/ament_clang_format/configuration/.clang-format
+---
+Language: Cpp
+BasedOnStyle: Google
+
+AccessModifierOffset: -2
+AlignAfterOpenBracket: AlwaysBreak
+BraceWrapping:
+  AfterClass: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterEnum: true
+BreakBeforeBraces: Custom
+ColumnLimit: 100
+ConstructorInitializerIndentWidth: 0
+ContinuationIndentWidth: 2
+DerivePointerAlignment: false
+PointerAlignment: Middle
+ReflowComments: false
+...

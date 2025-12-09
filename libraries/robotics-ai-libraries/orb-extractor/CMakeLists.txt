@@ -1,5 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -11,26 +13,74 @@ project(orblze CXX)
 set(APP "gpu_orb_ocvfree")
 set(APP_CV "gpu_orb")
 
+string(APPEND CMAKE_CXX_FLAGS " -fsycl")
+
+if(WIN32)
+set(CMAKE_GENERATOR_TOOLSET "Intel(R) oneAPI DPC++ Compiler 2024")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 /EHa")
+else()
+set(CMAKE_CXX_COMPILER icpx)
+string(APPEND CMAKE_CXX_FLAGS " -fPIC")
+
+# Simple Intel LLVM/SYCL compatibility: Remove -fcf-protection flags
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER MATCHES ".*icpx.*")
+    message(STATUS "Intel LLVM compiler detected - filtering incompatible flags")
+    
+    # Simple function to remove -fcf-protection flags
+    macro(remove_fcf_protection_from_var var_name)
+        if(${var_name})
+            string(REGEX REPLACE "-fcf-protection[^ ]*" "" ${var_name} "${${var_name}}")
+            string(STRIP "${${var_name}}" ${var_name})
+        endif()
+    endmacro()
+    
+    # Apply to all relevant CMAKE variables
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_DEBUG)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_RELEASE)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_MINSIZEREL)
+    
+    # Clean environment variables if they exist
+    if(DEFINED ENV{CXXFLAGS})
+        set(ENV{CXXFLAGS} "")
+        message(STATUS "Cleared CXXFLAGS environment variable")
+    endif()
+    if(DEFINED ENV{CPPFLAGS})
+        set(ENV{CPPFLAGS} "")
+        message(STATUS "Cleared CPPFLAGS environment variable") 
+    endif()
+endif()
+endif()
+
 option(BUILD_ZEBIN_INSTALL_DIR "ZE Binary GENX ouput path")
 set(ORBLZE_KERNEL_PATH_STRING ${BUILD_ZEBIN_INSTALL_DIR})
 if (NOT BUILD_ZEBIN_INSTALL_DIR)
   set (ORBLZE_KERNEL_PATH_STRING "/usr/lib/x86_64-linux-gnu")
 endif()
-set (ORBLZE_VERSION_MAJOR 2023)
-set (ORBLZE_VERSION_MINOR 1)
+set (ORBLZE_VERSION_MAJOR 2025)
+set (ORBLZE_VERSION_MINOR 12)
 set (ORBLZE_VERSION_PATCH 1)
 set (ORBLZE_VERSION_STRING "${ORBLZE_VERSION_MAJOR}.${ORBLZE_VERSION_MINOR}.${ORBLZE_VERSION_PATCH}")
 
 message(${CMAKE_CURRENT_LIST_DIR})
 
-file(GLOB_RECURSE KERNEL_SRC "src/*_genx.cpp")
 file(GLOB_RECURSE HOST_SRC "src/*.cpp" "src/gpu/*.cpp")
 
-foreach(kernel ${KERNEL_SRC})
-    list(REMOVE_ITEM HOST_SRC "${kernel}")
-endforeach()
-
 add_compile_options(-Wpedantic -Werror)
+
+# Handle Intel LLVM compiler specific warnings for SYCL compilation
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER MATCHES ".*icpx.*")
+    add_compile_options(-Wno-option-ignored)
+    message(STATUS "Added -Wno-option-ignored for Intel LLVM/SYCL compatibility")
+endif()
+
+# Handle ROS Jazzy compatibility
+if(DEFINED ENV{ROS_DISTRO})
+  if($ENV{ROS_DISTRO} STREQUAL "jazzy")
+    message(STATUS "Detected ROS Jazzy - applying SYCL compatibility fixes")
+  endif()
+endif()
 
 #add_definitions("-Wall -Wextra")
 
@@ -39,9 +89,6 @@ include_directories (
    ${RUNTIME_INC}
 )
 
-find_program(OCLOC ocloc  REQUIRED)
-find_program(CMC cmc REQUIRED)
-
 if(DEFINED ENV{LD_LIBRARY_PATH})
   string(COMPARE EQUAL "$ENV{LD_LIBRARY_PATH}" "" RESULT)
   if (NOT RESULT)
@@ -49,122 +96,27 @@ if(DEFINED ENV{LD_LIBRARY_PATH})
   endif()
 endif()
 
-find_library(L0_LIB_PATH
-  NAMES ze_loader
-  PATHS ${SEARCH_LIB_PATH})
-if(NOT L0_LIB_PATH)
-  message(FATAL_ERROR
-    "Level Zero loader is not found. "
-    "You may need to install oneAPI Level Zero loader to fix this issue.")
-else()
-  message(STATUS
-    "Level Zero loader is found at ${L0_LIB_PATH}")
-endif()
 
 if(CMAKE_INCLUDE_PATH)
   set(CMAKE_REQUIRED_INCLUDES ${CMAKE_INCLUDE_PATH})
 endif()
 
-include(CheckIncludeFileCXX)
-check_include_file_cxx(level_zero/ze_api.h LO_CORE_INC_FOUND)
-check_include_file_cxx(level_zero/zet_api.h LO_TOOLS_INC_FOUND)
-check_include_file_cxx(level_zero/zes_api.h LO_SYSMAN_INC_FOUND)
-check_include_file_cxx(level_zero/layers/zel_tracing_api.h LO_LAYERS_INC_FOUND)
-if ((NOT LO_CORE_INC_FOUND) OR (NOT LO_TOOLS_INC_FOUND) OR (NOT LO_LAYERS_INC_FOUND) OR (NOT LO_SYSMAN_INC_FOUND))
-  message(STATUS "Level Zero headers are not found, will be downloaded automatically")
-endif()
 set(CMAKE_REQUIRED_INCLUDES)
 
 # OpenCV
 find_package(OpenCV 4.2 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-option(BUILD_TARGET_PLATFORM "ZE Binary GENX Target platform")
-if (NOT BUILD_TARGET_PLATFORM)
-  set(GPU gen12lp)
-else()
-  set(GPU "${BUILD_TARGET_PLATFORM}")
+add_subdirectory ("${CMAKE_SOURCE_DIR}/src/sycl_utils")
+
+# Re-apply Intel LLVM flag filtering after dependencies (in case they added flags)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER MATCHES ".*icpx.*")
+    message(STATUS "Re-applying Intel LLVM flag filtering after dependencies")
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_DEBUG)
+    remove_fcf_protection_from_var(CMAKE_CXX_FLAGS_RELEASE)
+    string(APPEND CMAKE_CXX_FLAGS " -Wno-option-ignored")
 endif()
-
-option(BIN "generate kernel Intermediate file" OFF)
-
-option(TARGET_PLATFORM_LIST "Spirv GENX Target platform list")
-if (NOT TARGET_PLATFORM_LIST)
-    set(MARCHLIST "gen9;gen11lp;gen12lp;mtl;dg2")
-else()
-    string(REPLACE "," ";" MARCHLIST ${TARGET_PLATFORM_LIST})
-endif()
-
-foreach(kernel ${KERNEL_SRC})
-  
-  get_filename_component(kernelfilename ${kernel} NAME_WE)
-        
-  foreach(genx ${MARCHLIST})
-
-    # SPIRV need to match ocloc acronyms
-    if (genx STREQUAL gen9)
-      set(oclocacronym gen9)
-    elseif (genx STREQUAL gen11lp)
-      set(oclocacronym gen11)
-    elseif (genx STREQUAL gen12lp)
-      set(oclocacronym gen12lp)
-    elseif (genx STREQUAL dg2)
-      set(oclocacronym xehpg)
-    elseif (genx STREQUAL mtl)
-      set(oclocacronym xelpg)
-    else()
-      set(oclocacronym genXe)
-    endif()
-
-    list(APPEND KERNEL_SPV "${CMAKE_CURRENT_BINARY_DIR}/${kernelfilename}_${oclocacronym}.spv")
-
-    if(oclocacronym STREQUAL genXe)
-
-      add_custom_command(
-	OUTPUT ${kernelfilename}_${oclocacronym}.spv
-	COMMAND ${CMC} -emit-spirv -binary-format ze -march=gen12lp -o ${kernelfilename}_${oclocacronym}.spv --  ${kernel}
-	DEPENDS ${kernel}
-	COMMENT "Generate ${kernel} .spv"
-	)
-      
-      message(STATUS "Fat ${kernelfilename} level-zero binary for ALL intel GPU ")
-      list(APPEND KERNEL_BIN "${CMAKE_CURRENT_BINARY_DIR}/${kernelfilename}.bin")
-
-      add_custom_command(
-        OUTPUT ${kernelfilename}.bin
-        COMMAND ${OCLOC} compile -spirv_input -file ${kernelfilename}_${oclocacronym}.spv -output ${kernelfilename}.bin -force_stos_opt -device :xe -output_no_suffix
-        DEPENDS  ${kernelfilename}_${oclocacronym}.spv
-        COMMENT "Generate ${kernel} level-zero binary"
-	)
-
-    else()
-    
-      add_custom_command(
-	OUTPUT ${kernelfilename}_${oclocacronym}.spv
-	COMMAND ${CMC} -emit-spirv -binary-format ze -march=${genx} -o ${kernelfilename}_${oclocacronym}.spv --  ${kernel}
-	DEPENDS ${kernel}
-	COMMENT "Generate ${kernel} .spv"
-	)
-
-      if (genx STREQUAL ${GPU})
-
-	message(STATUS "Individual ${kernelfilename} level-zero binary for: ${GPU}")
-	list(APPEND KERNEL_BIN "${CMAKE_CURRENT_BINARY_DIR}/${kernelfilename}.bin")
-
-	add_custom_command(
-          OUTPUT ${kernelfilename}.bin
-          COMMAND ${OCLOC} compile -spirv_input -file ${kernelfilename}_${oclocacronym}.spv -output ${kernelfilename}.bin -force_stos_opt -device ${oclocacronym} -output_no_suffix
-          DEPENDS  ${kernelfilename}_${oclocacronym}.spv
-          COMMENT "Generate ${kernel} level-zero binary"
-	  )
-
-      endif()
-
-    endif()
-
-  endforeach()
-  
-endforeach()
 
 set(config_h ${CMAKE_SOURCE_DIR}/include/config.h)
 configure_file(
@@ -176,29 +128,31 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG_LOG=1)
 endif()
 
-add_library(${APP} SHARED ${HOST_SRC} ${KERNEL_BIN} ${KERNEL_SPV}  )
-add_library(${APP_CV} SHARED ${HOST_SRC} ${KERNEL_BIN} )
+add_library(${APP} SHARED ${HOST_SRC})
+add_library(${APP_CV} SHARED ${HOST_SRC})
 
 target_compile_definitions(${APP} PUBLIC -DOPENCV_FREE)
 
+# Add -Wno-option-ignored for Intel LLVM builds to suppress warnings
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER MATCHES ".*icpx.*")
+    target_compile_options(${APP} PRIVATE -Wno-option-ignored)
+    target_compile_options(${APP_CV} PRIVATE -Wno-option-ignored)
+endif()
+
 message("Install path ${CMAKE_INSTALL_LIBDIR}")
 
-install(TARGETS ${APP} ${APP_CV}
+
+install(TARGETS ${APP} ${APP_CV} SyclUtils
   EXPORT orblzeTargets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} )
 
-install(FILES ${KERNEL_BIN} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h*" )
 
-if(MSVC)
-	target_include_directories(${APP} PRIVATE $ENV{CSDK_DIR}\\runtime\\level_zero\\include $ENV{SYCL_BUNDLE_ROOT}\\compiler\\include)
-endif()
-
-target_link_libraries(${APP} ${CMAKE_DL_LIBS} ${L0_LIB_PATH})
+target_link_libraries(${APP} ${CMAKE_DL_LIBS} SyclUtils)
 target_link_libraries(${APP} -lpthread -lstdc++fs)
+#target_link_libraries(${APP} ${OpenCV_LIBS})
 
-target_link_libraries(${APP_CV} ${CMAKE_DL_LIBS} ${L0_LIB_PATH})
+target_link_libraries(${APP_CV} ${CMAKE_DL_LIBS} SyclUtils)
 target_link_libraries(${APP_CV} -lpthread -lstdc++fs)
 target_link_libraries(${APP_CV} ${OpenCV_LIBS})
 
@@ -256,7 +210,7 @@ install(
   )
 
 # Configure 'Targets.cmake' for a build tree
-export(TARGETS ${APP}
+export(TARGETS ${APP} ${APP_CV} SyclUtils
   FILE ${PROJECT_BINARY_DIR}/orblzeTargets.cmake
   )
 
@@ -279,3 +233,5 @@ install(
   FILES ${config_version_file}
   DESTINATION ${INSTALL_CMAKE_DIR} COMPONENT Development
   )
+
+

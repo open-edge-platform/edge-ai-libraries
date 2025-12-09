@@ -1,0 +1,23 @@
+ros-humble-orb-extractor (2.3-1) UNRELEASED; urgency=low
+
+  * Refactoring of the code and general optimizations
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Thu, 09 Oct 2025 00:00:00 +0000
+
+ros-humble-orb-extractor (2.2.0-1) UNRELEASED; urgency=low
+
+  * Add MTL support
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Mon, 26 Feb 2024 00:00:42 +0000
+
+ros-humble-orb-extractor (2.0.1-1) UNRELEASED; urgency=low
+
+  * Add license package dependency
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Mon, 26 Feb 2024 00:00:00 +0000
+
+ros-humble-orb-extractor (2.0-1) UNRELEASED; urgency=low
+
+  * Initial release
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Thu, 28 Sep 2023 00:00:00 +0000

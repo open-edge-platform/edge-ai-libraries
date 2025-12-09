@@ -1,11 +1,17 @@
-# ORB Extarctor library
-### In this tutorial we will learn how to use ORB Extratctor library API for getting keypoints and descriptors of image.
-```
+<!--
+Copyright (C) 2025 Intel Corporation
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# ORB Extractor library
+In this tutorial we will learn how to use ORB Extractor library API for getting keypoints and descriptors of image.
+```text
 ORB Library provide mono and stereo support API
 ```
-# The code - mono
-create file sample.cpp with following code: 
-```
+## The code - mono
+create file sample.cpp with following code:
+```cpp
 #include "orb_extractor.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
@@ -37,10 +43,10 @@ int main()
     cv::waitKey(0);
 }
 ```
-# Mono code explanation
+### Mono code explanation
 
-Configuration for getting keypoints and descriptors: 
-```
+Configuration for getting keypoints and descriptors:
+```cpp
   constexpr uint32_t max_num_keypts_ = 2000;
   constexpr int num_levels_ = 8;
   constexpr int ini_fast_thr_ = 20;
@@ -48,7 +54,7 @@ Configuration for getting keypoints and descriptors:
   constexpr float scale_factor_ = 1.2f;
 ```
 Initialize the input and output parameters:
-```
+```cpp
   cv::Mat cv_image = cv::imread("../../images/market.jpg", cv::IMREAD_GRAYSCALE);
   std::vector<std::vector<cv::KeyPoint>> all_keypts; 
   all_keypts.resize(1);
@@ -59,32 +65,33 @@ Initialize the input and output parameters:
   std::vector<std::vector<float>> mask_rect;
 ```
 Create orb_extract object:
-```
+```cpp
 auto extractor = std::make_shared<orb_extractor>(max_num_keypts_, scale_factor_, num_levels_, ini_fast_thr_, min_fast_thr_, mask_rect)
 ```
 Set gpu kernel path:
-In this path have to provide orb extratctor gpu kerenl libraries.
+In this path have to provide orb extractor gpu kernel libraries.
 
 To build this gpu kernel libraries please follow the README.md.
 
 After build this gpu kernels provide this gpu kernel path to "set(gpu_kernel_path()" function.
-```
+```cpp
 extractor->set_gpu_kernel_path("../../build");
 ```
 Call orb extract mono API:
-```
+```cpp
 extractor->extract(in_image_array, in_image_mask_array, keypts, descriptor_array);
 ```
 Draw the keypoint on the image:
-```
+```cpp
  cv::Mat out (cv_image.rows, cv_image.cols, CV_8U);;
  cv::drawKeypoints(cv_image, keypts, out, cv::Scalar(255,0,0));
  cv::imshow("result", out);
  cv::waitKey(0);
-```    
-# The code - stereo:
-create file sample.cpp with following code
 ```
+
+## The code - stereo
+create file sample.cpp with following code
+```cpp
 int main()
 {
     std::vector<cv::Mat> stereo_images;
@@ -134,26 +141,26 @@ int main()
     cv::waitKey(0);
 }
 ```
-# Stereo code explanation 
+### Stereo code explanation
 
 call stereo orb extractor API:
-```
+```cpp
 extract(in_image_array, in_image_mask_array, keypts, descriptor_array);
-
+```
 in Stereo API all input and output parameter will be same as mono.
 only Image Mat vector, keypoints vector and Mat descriptor vector need to resize 2.
-```
 
-# Compiling and running the program
+
+### Compiling and running the program
 
 outside orb library folder make sample folder:
-```
+```bash
 make sample
 cd sample
 ```
 
 Add the following lines to your CMakeLists.txt file:
-```
+```cmake
 cmake_minimum_required(VERSION 3.4)
 
 set(NAME feature_extract)
@@ -182,16 +189,15 @@ set_property(TARGET ${NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
 ```
 
 Build the code:
-```
+```bash
 cd sample 
 cmake ../
 make -j 
 ```
 After you have made the executable, you can run it. Simply do:
 
-```
-$ ./extract_feature
+```bash
+./extract_feature
 ```
 
 After executing this will see keypoints blue color dots on the image
-

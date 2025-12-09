@@ -6,7 +6,7 @@ import psycopg
 import ipaddress
 import socket
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
@@ -17,6 +17,7 @@ from .logger import logger
 from .config import Settings
 from .db_config import pool_execution
 from .utils import get_separators, parse_html
+import idna
 
 config = Settings()
 
@@ -51,59 +52,155 @@ def is_public_ip(ip: str) -> bool:
     Args:
         ip (str): The IP address to check.
     Returns:
-        bool: True if the IP address is public (global), False if it is private, reserved, or invalid.
+        bool: True if the IP address is public (global), False if it is private, loopback,
+              link-local, reserved, multicast, unspecified, or invalid.
     """
 
     try:
         ip_obj = ipaddress.ip_address(ip)
-        return ip_obj.is_global  # True if public, False if private/reserved
+
+        return (
+            ip_obj.is_global
+            and not ip_obj.is_private
+            and not ip_obj.is_loopback
+            and not ip_obj.is_link_local
+            and not ip_obj.is_reserved
+            and not ip_obj.is_multicast
+            and not ip_obj.is_unspecified
+        )
 
     except ValueError:
-        return False  # Invalid IPs are treated as non-public
+        return False
 
-
-def validate_url(url: str) -> bool:
+def construct_pinned_url(parsed_url, resolved_ip):
     """
-    Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks.
+    Constructs a pinned URL using the resolved IP address and the original parsed URL components.
+
+    Args:
+        parsed_url (ParseResult): The parsed URL object.
+        resolved_ip (str): The resolved IP address to use in the netloc.
+
+    Returns:
+        str: The reconstructed URL with the resolved IP as the netloc.
+    """
+    # Build netloc with resolved IP and keep original port
+    port = parsed_url.port
+    if port:
+        netloc = f"{resolved_ip}:{port}"
+    else:
+        netloc = resolved_ip
+
+    # Reconstruct the URL with resolved IP as netloc (for connection), preserving scheme, path, query, etc.
+    return urlunparse((
+        parsed_url.scheme,
+        netloc,
+        parsed_url.path,
+        parsed_url.params,
+        parsed_url.query,
+        parsed_url.fragment
+    ))
+
+def validate_url(url: str) -> Optional[str]:
+    """
+    Validates a given URL based on scheme, canonical hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks and encoding tricks.
 
     Args:
         url (str): The URL to validate.
+
     Returns:
-        bool: True if the URL is valid and meets all criteria, False otherwise.
+        Optional[str]: The validated and pinned URL, or None if invalid.
     """
-
     try:
+        # Remove leading/trailing whitespace and control chars from the URL
+        url_cleaned = url.strip().replace('\r', '').replace('\n', '')
 
-        parsed_url = urlparse(url)
+        # Parse the cleaned URL
+        parsed_url = urlparse(url_cleaned)
         if parsed_url.scheme not in ["http", "https"]:
-            return False
+            return None
 
         hostname = parsed_url.hostname
         if not hostname:
-            return False
+            return None 
+
+        # Normalize the hostname: lower-case, strip trailing dot, and apply IDNA encoding
+        normalized_hostname = hostname.lower().rstrip('.').strip()
+        try:
+            normalized_hostname = idna.encode(normalized_hostname).decode("utf-8")
+        except idna.IDNAError:
+            logger.error(f"Invalid IDNA encoding for hostname: {hostname}")
+            return None
+
+        # Check against the allowed hosts domains
+        allowed_domains = [d.lower().rstrip('.') for d in config.ALLOWED_DOMAINS] if config.ALLOWED_DOMAINS else []
+        if not allowed_domains:
+            logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
+            return None
+
+        # Only accept exact matches or explicit subdomain matches
+        is_allowed = False
+        for allowed in allowed_domains:
+            if normalized_hostname == allowed or normalized_hostname.endswith('.' + allowed):
+                is_allowed = True
+                break
+        if not is_allowed:
+            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
+            return None
 
         # Resolve the hostname to get its IP address
         try:
-            resolved_ip = socket.gethostbyname(hostname)
-
+            resolved_ip = socket.gethostbyname(normalized_hostname)
         except socket.gaierror:
-            return False
+            return None
 
         # Ensure the resolved IP is public
         if not is_public_ip(resolved_ip):
-            return False
+            return None
 
-        # Check against the allowed hosts domains
-        if config.ALLOWED_DOMAINS:
-            if hostname not in config.ALLOWED_DOMAINS:
-                return False
-
-        return True
+        # Reconstruct the URL with resolved IP as netloc (for connection), preserving scheme, path, query, etc.
+        validated_pinned_url = construct_pinned_url(parsed_url, resolved_ip)
+        return validated_pinned_url
 
     except Exception as e:
         logger.error(f"URL validation failed: {e}")
-        return False
+        return None
 
+def safe_fetch_url(validated_pinned_url: str, headers: dict, hostname: str):
+    """
+    Securely fetches a URL while mitigating SSRF vulnerabilities.
+
+    This function uses the validated URL for the request and the provided hostname
+    to preserve the Host header for proper TLS and routing. Redirects are disabled
+    to prevent redirect-based SSRF attacks.
+
+    Args:
+        validated_url (str): The validated and pinned URL.
+        headers (dict): A dictionary of HTTP headers to include in the request.
+        hostname (str): The original hostname to use in the Host header.
+
+    Returns:
+        Response: The HTTP response object from the `requests` library.
+
+    Raises:
+        ValueError: If the URL is invalid or DNS resolution fails.
+        requests.RequestException: For any issues during the HTTP request.
+    """
+
+    # Preserve Host header for TLS / correct routing
+    headers = {
+        **headers,
+        "Host": hostname
+    }
+
+    # Send the request to the validated URL to prevent SSRF
+    response = requests.get(
+        validated_pinned_url,
+        headers=headers,
+        timeout=5,
+        allow_redirects=False  # prevent redirect SSRF
+    )
+
+    return response
 
 def ingest_url_to_pgvector(url_list: List[str]) -> None:
     """
@@ -127,18 +224,18 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
     try:
         invalid_urls = 0
         for url in url_list:
-            if not validate_url(url):
+            # Extract hostname before validating the URL
+            hostname = urlparse(url).hostname
+
+            validated_pinned_url = validate_url(url)  # Validate and pin the URL
+            if not validated_pinned_url:
                 logger.info(f"Invalid URL skipped: {url}")
                 invalid_urls += 1
                 continue
 
             try:
-                # Use a custom HTTP adapter to enforce IP-based restrictions
-                with requests.Session() as session:
-                    adapter = requests.adapters.HTTPAdapter()
-                    session.mount("http://", adapter)
-                    session.mount("https://", adapter)
-                    response = session.get(url, headers=headers, timeout=5, allow_redirects=True)
+                # Use the safe_fetch_url function to securely fetch the URL
+                response = safe_fetch_url(validated_pinned_url, headers, hostname)
 
                 if response.status_code != HTTPStatus.OK:
                     logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
@@ -149,11 +246,9 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
 
         if invalid_urls > 0:
             raise Exception(
-                f"{invalid_urls} / {len(url_list)} URL(s) are invalid.",
-                response.status_code
+                f"{invalid_urls} / {len(url_list)} URL(s) are invalid.Last failed status code: {response.status_code}"
             )
 
-    # If the domain name is wrong, SSLError will be thrown
     except requests.exceptions.SSLError as e:
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN, detail=f"SSL Error: {str(e)}"
@@ -161,7 +256,7 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
 
     except Exception as e:
         raise HTTPException(
-            status_code=e.args[1], detail=e.args[0]
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=f"Error during URL ingestion: {e}"
         )
 
     try:
