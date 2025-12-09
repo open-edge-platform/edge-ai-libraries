@@ -12,11 +12,10 @@ to dynamically route video streams based on object detection results.
 
 import sys
 import time
-#from contextlib import contextmanager
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstAnalytics', '1.0')
-from gi.repository import Gst, GLib, GstAnalytics
+from gi.repository import Gst, GLib, GstAnalytics # pylint: disable=no-name-in-module disable=wrong-import-position
 
 
 class DualStreamController:
@@ -155,7 +154,7 @@ class DualStreamController:
             return False
         return True
 
-    def object_detector_callback(self, pad, info, u_data):
+    def object_detector_callback(self, pad, info, u_data): # pylint: disable=unused-argument
         """
         Callback function for object detection probe on GStreamer pad.
 
@@ -179,14 +178,14 @@ class DualStreamController:
         rmeta = GstAnalytics.buffer_get_analytics_relation_meta(buffer)
         if not rmeta:
             return Gst.PadProbeReturn.OK
-        else:
-            for mtd in rmeta:
-                if type(mtd) == GstAnalytics.ODMtd:
-                    object_type = GLib.quark_to_string(mtd.get_obj_type())
-                    if object_type=="truck":
-                        self.open_valve()
-                    else:
-                        self.close_valve()
+
+        for mtd in rmeta:
+            if type(mtd) == GstAnalytics.ODMtd: # pylint: disable=unidiomatic-typecheck
+                object_type = GLib.quark_to_string(mtd.get_obj_type())
+                if object_type=="truck":
+                    self.open_valve()
+                else:
+                    self.close_valve()
         return Gst.PadProbeReturn.OK
 
 
@@ -273,7 +272,7 @@ def main():
                                          Gst.MessageType.EOS | Gst.MessageType.ERROR)
             if msg:
                 if msg.type == Gst.MessageType.ERROR:
-                    err, debug_info = msg.parse_error()
+                    debug_info = msg.parse_error()
                     print(f"Error received from element {msg.src.get_name()}")
                     print(f"Debug info: {debug_info}")
                     terminate = True
