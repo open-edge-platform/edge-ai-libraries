@@ -1,12 +1,13 @@
 # Overview
-DLSOptimizer is a tool for helping users discover more optimal versions of the pipelines they run on DL Streamer. It will explore different modifications to your pipeline that are known to increase performance and measure it. As a result, you can expect to receive a pipeline that's better suited to your setup.
+DLS Optimizer is a tool for helping users discover more optimal versions of the pipelines they run on DL Streamer. It will explore different modifications to your pipeline that are known to increase performance and measure them. As a result, you can expect to receive a pipeline that is better suited to your setup.
 
 # Limitations
-Currently the DLSOptimizer focuses mainly on DL Streamers elements, specifically the `gvadetect` and `gvaclassify` elements. The produced pipeline could still have potential for further optimization by transforming other elements.
+Currently the DLS Optimizer focuses mainly on DL Streamer elements, specifically the `gvadetect` and `gvaclassify`. The produced pipeline could still have potential for further optimization by transforming other elements.
 
-Multi-stream pipelines are also currently not supported.
+Multi-stream pipelines, aka ones utilizing the `tee` element are also currently not supported.
 
 # Using the optimizer as a tool
+> Note: This example assumes your working directory is the optimizer directory `/opt/intel/dlstreamer/scripts/optimizer`
 ```
 python3 . [OPT] -- PIPELINE
 
@@ -16,7 +17,9 @@ Options:
     --log-level LEVEL                   Configure the logging detail level
 ```
 
-Increasing the search duration will increase the chances of discovering more performant pipelines. Increasing the sample duration will improve the stability of the search, but less pipelines will potentially be explored. 
+Increasing the search duration will increase the chances of discovering more performant pipelines. Default: 300 seconds
+Increasing the sample duration will improve the stability of the search, but less pipelines will potentially be explored. Default: 10 seconds
+Available log levels are: CRITICAL, FATAL, ERROR, WARN, INFO, DEBUG. Default: INFO
 
 ## Example
 ```
@@ -50,15 +53,20 @@ The easiest way of importing the optimizer into your scripts is to include it in
 
 Targets which are exported in order to facilitate usage inside of scripts:
 
- - `preprocess_pipeline(pipeline) -> processed_pipeline` - Perform quick search and replace for known combinations of elements with more performant alternatives.
-   - `pipeline`: String - A string containing a valid DL Streamer pipeline.
-   - `processed_pipeline`: String - A string containing the pipelines with all relevant substitutions.
- - `get_optimized_pipeline(pipeline, search_duration, sample_duration) -> (optimized_pipeline, fps)` - Perform the optimization process on a pipeline.
-   - `pipeline`: String - A string containing a valid DL Streamer pipeline.
-   - `search_duration`: Int - The duration of searching for optimized pipelines in seconds, default `300`.
-   - `sample_duration`: Int - The duration of sampling each candidate pipeline in seconds, default `10`.
-   - `optimized_pipeline`: String - The best performing pipeline that has been found during the search.
-   - `fps`: Float - The measured fps of the best perfmorming pipeline.
+### `preprocess_pipeline(pipeline) -> processed_pipeline` 
+>`pipeline` - A string containing a valid DL Streamer pipeline.  
+>`processed_pipeline` - A string containing the pipeline with all relevant substitutions.
+
+Perform quick search and replace for known combinations of elements with more performant alternatives.
+
+### `get_optimized_pipeline(pipeline, search_duration, sample_duration) -> (optimized_pipeline, fps)`
+>`pipeline` - A string containing a valid DL Streamer pipeline.  
+>`search_duration` - The duration of searching for optimized pipelines in seconds, default `300`.  
+>`sample_duration` - The duration of sampling each candidate pipeline in seconds, default `10`.  
+>`optimized_pipeline` - A string containing the best performing pipeline that has been found during the search.  
+>`fps` - The measured fps of the best perfmorming pipeline.
+
+Runs a series of optimization steps on the pipeline searching for a better performing versions.
 
 ## Example
 ```python
