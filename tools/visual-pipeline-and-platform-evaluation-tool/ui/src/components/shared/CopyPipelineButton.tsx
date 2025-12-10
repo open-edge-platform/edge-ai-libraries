@@ -36,6 +36,7 @@ const CopyPipelineButton = ({
   const selectedPipeline = pipelines[selectedTag];
 
   const [name, setName] = useState(`Copy of ${baseName} [${tags[0] || ""}]`);
+  const [nameError, setNameError] = useState(false);
   const [description, setDescription] = useState(pipelineDescription);
   const [isNameManuallyEdited, setIsNameManuallyEdited] = useState(false);
 
@@ -92,9 +93,15 @@ const CopyPipelineButton = ({
       const errorMessage = isApiError(error)
         ? error.data.message
         : "Unknown error";
-      toast.error("Failed to copy pipeline", {
-        description: errorMessage,
-      });
+
+      if (errorMessage.startsWith("Invalid version")) {
+        setNameError(true);
+      } else {
+        toast.error("Failed to copy pipeline", {
+          description: errorMessage,
+        });
+      }
+
       console.error("Failed to copy pipeline:", error);
     }
   };
@@ -149,6 +156,9 @@ const CopyPipelineButton = ({
               placeholder="Enter pipeline name..."
               className="w-full px-3 py-2 border"
             />
+            {nameError && (
+              <span className="text-destructive">This name already exists</span>
+            )}
           </div>
 
           <div>

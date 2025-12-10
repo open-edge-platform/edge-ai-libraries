@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router";
 import {
-  useGetPerformanceStatusesQuery,
   useGetDensityStatusesQuery,
   useGetOptimizationStatusesQuery,
+  useGetPerformanceStatusesQuery,
 } from "@/api/api.generated";
 import {
   Table,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { PipelineName } from "@/components/shared/PipelineName";
+import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
 
 const Jobs = () => {
   const location = useLocation();
@@ -42,13 +43,6 @@ const Jobs = () => {
     { id: "density", label: "Density", path: "/jobs/density" },
     { id: "optimize", label: "Optimize", path: "/jobs/optimize" },
   ];
-
-  const formatElapsedTime = (milliseconds: number) => {
-    const seconds = milliseconds / 1000;
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}m ${secs}s`;
-  };
 
   const formatTimestamp = (timestamp: number) => {
     return format(new Date(timestamp), "MMM d, yyyy HH:mm:ss");
@@ -154,7 +148,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null
@@ -227,7 +221,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null
@@ -317,7 +311,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null
