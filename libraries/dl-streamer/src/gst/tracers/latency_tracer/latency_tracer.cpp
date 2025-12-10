@@ -148,7 +148,7 @@ struct BranchKeyHash {
         std::size_t h3 = std::hash<GstElement*>{}(std::get<2>(k));  // pipeline
         
         // Combine hashes using boost::hash_combine pattern
-        // 0x9e3779b9 is the golden ratio constant used for hash mixing
+        // 0x9e3779b9 is the golden ratio conjugate (φ⁻¹ * 2³²) used for hash mixing
         h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
         h1 ^= h3 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
         return h1;
@@ -511,7 +511,7 @@ struct ElementStats {
 };
 
 // Check if element is in any pipeline (not restricted to lt->pipeline)
-// Note: 'lt' parameter retained for GStreamer callback signature compatibility
+// Note: Parameter retained for GStreamer callback signature compatibility but no longer used for pipeline-specific checks
 static bool is_in_pipeline(LatencyTracer *lt, GstElement *elem) {
     UNUSED(lt);  // No longer need to check specific pipeline
     
@@ -768,8 +768,8 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
             
             // Only track if element is in a pipeline (pipeline should not be null)
             if (!pipeline) {
-                GST_WARNING_OBJECT(lt, "Sink element %s is not in any pipeline, skipping branch tracking",
-                                   GST_ELEMENT_NAME(sink));
+                GST_DEBUG_OBJECT(lt, "Sink element %s is not in any pipeline, skipping branch tracking",
+                                 GST_ELEMENT_NAME(sink));
                 return;
             }
             
@@ -876,8 +876,8 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
 // GStreamer tracer hook for element creation
 // Note: Parameters 'lt' and 'ts' retained for GStreamer tracer hook signature compatibility
 static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
-    UNUSED(ts);
-    UNUSED(lt);
+    UNUSED(ts);  // Not used for pipeline registration
+    UNUSED(lt);  // No longer tracking single pipeline instance
     
     // Track all pipelines - no single pipeline restriction
     if (GST_IS_PIPELINE(elem)) {
