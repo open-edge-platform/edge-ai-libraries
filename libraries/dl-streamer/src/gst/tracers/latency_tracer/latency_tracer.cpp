@@ -148,6 +148,7 @@ struct BranchKeyHash {
         std::size_t h3 = std::hash<GstElement*>{}(std::get<2>(k));  // pipeline
         
         // Combine hashes using boost::hash_combine pattern
+        // 0x9e3779b9 is the golden ratio constant used for hash mixing
         h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
         h1 ^= h3 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
         return h1;
@@ -762,6 +763,13 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
         if (source && sink) {
             // Find which pipeline this sink belongs to
             GstElement *pipeline = find_pipeline_for_element(sink);
+            
+            // Only track if element is in a pipeline (pipeline should not be null)
+            if (!pipeline) {
+                GST_WARNING_OBJECT(lt, "Sink element %s is not in any pipeline, skipping branch tracking",
+                                   GST_ELEMENT_NAME(sink));
+                return;
+            }
             
             BranchKey branch_key = create_branch_key(source, sink, pipeline);
             auto *stats_map = get_branch_stats_map(lt);
