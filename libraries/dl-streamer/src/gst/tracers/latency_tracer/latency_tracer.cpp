@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 using namespace std;
 
@@ -135,19 +136,35 @@ struct BranchStats {
 
 // Pointer-based branch key for fast lookups (optimization: ~50% faster than string-based keys)
 // Using pointer comparison is much faster than string comparison
-using BranchKey = pair<GstElement *, GstElement *>;
+// Include pipeline pointer to separate stats per pipeline
+using BranchKey = tuple<GstElement *, GstElement *, GstElement *>; // <source, sink, pipeline>
+
+// Hash function for BranchKey tuple
+struct BranchKeyHash {
+    std::size_t operator()(const BranchKey& k) const {
+        // Hash all three pointers: source, sink, pipeline
+        std::size_t h1 = std::hash<GstElement*>{}(std::get<0>(k));  // source
+        std::size_t h2 = std::hash<GstElement*>{}(std::get<1>(k));  // sink
+        std::size_t h3 = std::hash<GstElement*>{}(std::get<2>(k));  // pipeline
+        
+        // Combine hashes using boost::hash_combine pattern
+        h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+        h1 ^= h3 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+        return h1;
+    }
+};
 
 // Helper function to create a branch key using pointers (optimized)
-static inline BranchKey create_branch_key(GstElement *source, GstElement *sink) {
-    return make_pair(source, sink);
+static inline BranchKey create_branch_key(GstElement *source, GstElement *sink, GstElement *pipeline) {
+    return std::make_tuple(source, sink, pipeline);
 }
 
 // Type-safe accessors for C++ objects stored in C struct
-static map<BranchKey, BranchStats> *get_branch_stats_map(LatencyTracer *lt) {
+static unordered_map<BranchKey, BranchStats, BranchKeyHash> *get_branch_stats_map(LatencyTracer *lt) {
     if (!lt->branch_stats) {
-        lt->branch_stats = new map<BranchKey, BranchStats>();
+        lt->branch_stats = new unordered_map<BranchKey, BranchStats, BranchKeyHash>();
     }
-    return static_cast<map<BranchKey, BranchStats> *>(lt->branch_stats);
+    return static_cast<unordered_map<BranchKey, BranchStats, BranchKeyHash> *>(lt->branch_stats);
 }
 
 static vector<GstElement *> *get_sources_list(LatencyTracer *lt) {
@@ -262,7 +279,7 @@ static void latency_tracer_finalize(GObject *object) {
 
     // Clean up C++ objects
     if (lt->branch_stats) {
-        delete static_cast<map<BranchKey, BranchStats> *>(lt->branch_stats);
+        delete static_cast<unordered_map<BranchKey, BranchStats, BranchKeyHash> *>(lt->branch_stats);
         lt->branch_stats = nullptr;
     }
     if (lt->sources_list) {
@@ -492,11 +509,39 @@ struct ElementStats {
     }
 };
 
-static bool is_parent_pipeline(LatencyTracer *lt, GstElement *elem) {
-    GstElement *parent_elm = GST_ELEMENT_PARENT(elem);
-    if (parent_elm != lt->pipeline)
+static bool is_in_pipeline(LatencyTracer *lt, GstElement *elem) {
+    UNUSED(lt);  // No longer need to check specific pipeline
+    
+    if (!elem)
         return false;
-    return true;
+    
+    // Walk up the element hierarchy to find if there's a pipeline ancestor
+    GstObject *parent = GST_OBJECT_CAST(elem);
+    while (parent) {
+        if (GST_IS_PIPELINE(parent)) {
+            return true;  // Found a pipeline ancestor
+        }
+        parent = GST_OBJECT_PARENT(parent);
+    }
+    
+    return false;  // Not in any pipeline
+}
+
+// Helper function to find which pipeline an element belongs to
+static GstElement *find_pipeline_for_element(GstElement *elem) {
+    if (!elem)
+        return nullptr;
+    
+    // Walk up to find the top-level pipeline
+    GstObject *parent = GST_OBJECT_CAST(elem);
+    while (parent) {
+        if (GST_IS_PIPELINE(parent)) {
+            return GST_ELEMENT_CAST(parent);
+        }
+        parent = GST_OBJECT_PARENT(parent);
+    }
+    
+    return nullptr;
 }
 
 // Helper function to determine if an element is a source
@@ -683,7 +728,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
     }
 
     GstElement *elem = get_real_pad_parent(pad);
-    if (!is_parent_pipeline(lt, elem))
+    if (!is_in_pipeline(lt, elem))
         return;
     LatencyTracerMeta *meta = LATENCY_TRACER_META_GET(buffer);
     if (!meta) {
@@ -715,7 +760,10 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
         GstElement *source = find_upstream_source(lt, sink);
 
         if (source && sink) {
-            BranchKey branch_key = create_branch_key(source, sink);
+            // Find which pipeline this sink belongs to
+            GstElement *pipeline = find_pipeline_for_element(sink);
+            
+            BranchKey branch_key = create_branch_key(source, sink, pipeline);
             auto *stats_map = get_branch_stats_map(lt);
 
             // OPTIMIZATION: try_emplace constructs in-place (no copy), single map access
@@ -739,7 +787,7 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
 
 static void do_pull_range_post(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBuffer *buffer) {
     GstElement *elem = get_real_pad_parent(pad);
-    if (!is_parent_pipeline(lt, elem))
+    if (!is_in_pipeline(lt, elem))
         return;
     LatencyTracerMeta *meta = nullptr;
     add_latency_meta(lt, meta, ts, buffer, elem);
@@ -760,7 +808,10 @@ static void do_push_buffer_list_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, 
 static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstElement *elem, GstStateChange change,
                                          GstStateChangeReturn result) {
     UNUSED(result);
-    if (GST_STATE_TRANSITION_NEXT(change) == GST_STATE_PLAYING && elem == lt->pipeline) {
+    // Track EVERY pipeline that transitions to PLAYING (not just lt->pipeline)
+    if (GST_STATE_TRANSITION_NEXT(change) == GST_STATE_PLAYING && GST_IS_PIPELINE(elem)) {
+        GST_INFO_OBJECT(lt, "Discovering elements in pipeline: %s", GST_ELEMENT_NAME(elem));
+        
         auto *sources = get_sources_list(lt);
         auto *sinks = get_sinks_list(lt);
         auto *type_cache = get_element_type_cache(lt);
@@ -814,17 +865,17 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
 }
 static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
     UNUSED(ts);
+    UNUSED(lt);
+    
+    // Track all pipelines - no single pipeline restriction
     if (GST_IS_PIPELINE(elem)) {
-        if (!lt->pipeline)
-            lt->pipeline = elem;
-        else
-            GST_WARNING_OBJECT(lt, "pipeline %s already exists, multiple pipelines may not give right result %s",
-                               GST_ELEMENT_NAME(lt->pipeline), GST_ELEMENT_NAME(elem));
+        GST_INFO("Latency tracer will track pipeline: %s", GST_ELEMENT_NAME(elem));
     }
 }
 
 static void latency_tracer_init(LatencyTracer *lt) {
     GST_OBJECT_LOCK(lt);
+    // lt->pipeline is kept for binary compatibility but not used for single-pipeline tracking
     lt->pipeline = nullptr;
     lt->flags = static_cast<LatencyTracerFlags>(LATENCY_TRACER_FLAG_ELEMENT | LATENCY_TRACER_FLAG_PIPELINE);
     lt->interval = 1000;
