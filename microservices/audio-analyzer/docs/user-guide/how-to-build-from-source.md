@@ -24,7 +24,7 @@ Following options are provided to build the microservice.
 - [Build and run application with required dependencies using Docker Script](#build-and-run-using-docker-script).
 - [Build and run on host using Setup Script](#setup-and-run-on-host-using-setup-script).
 
-## Build and Run using Docker Script
+## Build and run in container using Docker script
 
 1. Clone the repository:
     ```bash
@@ -86,6 +86,8 @@ Following options are provided to build the microservice.
     ./setup_docker.sh
     ```
 
+4. If above step is successful, it will print the complete URL of API endpoint along with URL of Swagger API docs. Please refer the API docs to learn how to send request to Audio-Analyzer when running with Minio.
+
 ### Docker Setup Options
 
 The `setup_docker.sh` script when run without any parameters builds and runs the production docker images. It additionally supports the following options:
@@ -117,7 +119,8 @@ The production environment uses:
 - Optimized container without development dependencies
 - No source code mounting (code is copied at build time)
 
-## Setup and run on host using Setup Script
+
+## Build and run on host using Setup Script
 
 1. Clone the repository:
     ```bash
