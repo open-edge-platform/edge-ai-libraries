@@ -25,7 +25,7 @@ Two key blocks have been introduced to support the core architecture:
     - **EtherCAT Integration:** Creates motion function blocks to operate EtherCAT slaves using ENI configurations
     - **Network Topology Support:** Handles slave configurations and network topology definitions
     - **Flexible Memory Management:** Supports custom shared memory callbacks for data restructuring between real-time and non-real-time domains
-    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks, facilitating seamless AI model integration into motion control workflows, and supports running inference in NPU device within real-time constraints.
+    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks, facilitating seamless AI model integration into motion control workflows, and supports running inference on NPU device within real-time constraints.
 
 * **libinference** is a shared library offering advanced inference capabilities with:
     - **Modern C++ Interface:** New C++ classes for streamlined inference implementation
