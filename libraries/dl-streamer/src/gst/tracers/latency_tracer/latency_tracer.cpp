@@ -510,6 +510,8 @@ struct ElementStats {
     }
 };
 
+// Check if element is in any pipeline (not restricted to lt->pipeline)
+// Note: 'lt' parameter retained for GStreamer callback signature compatibility
 static bool is_in_pipeline(LatencyTracer *lt, GstElement *elem) {
     UNUSED(lt);  // No longer need to check specific pipeline
     
@@ -871,6 +873,8 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
         gst_tracing_register_hook(tracer, "pad-pull-range-post", G_CALLBACK(do_pull_range_post));
     }
 }
+// GStreamer tracer hook for element creation
+// Note: Parameters 'lt' and 'ts' retained for GStreamer tracer hook signature compatibility
 static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
     UNUSED(ts);
     UNUSED(lt);
@@ -883,7 +887,10 @@ static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
 
 static void latency_tracer_init(LatencyTracer *lt) {
     GST_OBJECT_LOCK(lt);
-    // lt->pipeline is kept for binary compatibility but not used for single-pipeline tracking
+    // lt->pipeline field is kept for binary compatibility (ABI stability):
+    // - Existing compiled code may access this field
+    // - Struct layout must remain unchanged for shared library compatibility
+    // - Field is initialized but no longer used for single-pipeline tracking
     lt->pipeline = nullptr;
     lt->flags = static_cast<LatencyTracerFlags>(LATENCY_TRACER_FLAG_ELEMENT | LATENCY_TRACER_FLAG_PIPELINE);
     lt->interval = 1000;
