@@ -38,6 +38,7 @@ enum class ElementType {
 
 // Structure to track statistics per source-sink branch
 struct BranchStats {
+    string pipeline_name;
     string source_name;
     string sink_name;
     gdouble total_latency;
@@ -63,6 +64,7 @@ struct BranchStats {
         interval_frame_count = 0;
         interval_init_time = 0;
         first_frame_init_ts = 0;
+        pipeline_name = "";
     }
 
     void reset_interval(GstClockTime now) {
@@ -102,12 +104,12 @@ struct BranchStats {
         } // Lock released here
 
         // Log outside the lock to minimize lock duration
-        GST_TRACE("[Latency Tracer] Source: %s -> Sink: %s - Frame: %u, Latency: %.2f ms, Avg: %.2f ms, Min: %.2f "
+        GST_TRACE("[Latency Tracer] Pipeline: %s, Source: %s -> Sink: %s - Frame: %u, Latency: %.2f ms, Avg: %.2f ms, Min: %.2f "
                   "ms, Max: %.2f ms, Pipeline Latency: %.2f ms, FPS: %.2f",
-                  source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, local_min, local_max,
+                  pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, local_min, local_max,
                   pipeline_latency, fps);
 
-        gst_tracer_record_log(tr_pipeline, source_name.c_str(), sink_name.c_str(), frame_latency, avg, local_min,
+        gst_tracer_record_log(tr_pipeline, pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), frame_latency, avg, local_min,
                               local_max, pipeline_latency, fps, local_count);
         cal_log_pipeline_interval(ts, frame_latency, interval);
     }
@@ -124,10 +126,10 @@ struct BranchStats {
             gdouble pipeline_latency = ms / interval_frame_count;
             gdouble fps = ms_to_s / pipeline_latency;
             gdouble interval_avg = interval_total / interval_frame_count;
-            GST_TRACE("[Latency Tracer Interval] Source: %s -> Sink: %s - Interval: %.2f ms, Avg: %.2f ms, Min: %.2f "
+            GST_TRACE("[Latency Tracer Interval] Pipeline: %s, Source: %s -> Sink: %s - Interval: %.2f ms, Avg: %.2f ms, Min: %.2f "
                       "ms, Max: %.2f ms",
-                      source_name.c_str(), sink_name.c_str(), ms, interval_avg, interval_min, interval_max);
-            gst_tracer_record_log(tr_pipeline_interval, source_name.c_str(), sink_name.c_str(), ms, interval_avg,
+                      pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), ms, interval_avg, interval_min, interval_max);
+            gst_tracer_record_log(tr_pipeline_interval, pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), ms, interval_avg,
                                   interval_min, interval_max, pipeline_latency, fps);
             reset_interval(ts);
         }
@@ -308,7 +310,11 @@ static void latency_tracer_class_init(LatencyTracerClass *klass) {
     gobject_class->constructed = latency_tracer_constructed;
     gobject_class->finalize = latency_tracer_finalize;
     tr_pipeline = gst_tracer_record_new(
-        "latency_tracer_pipeline.class", "source_name", GST_TYPE_STRUCTURE,
+        "latency_tracer_pipeline.class", 
+        "pipeline_name", GST_TYPE_STRUCTURE,
+        gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
+                          "Pipeline name", NULL),
+        "source_name", GST_TYPE_STRUCTURE,
         gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
                           "Source element name", NULL),
         "sink_name", GST_TYPE_STRUCTURE,
@@ -338,7 +344,11 @@ static void latency_tracer_class_init(LatencyTracerClass *klass) {
         NULL);
 
     tr_pipeline_interval = gst_tracer_record_new(
-        "latency_tracer_pipeline_interval.class", "source_name", GST_TYPE_STRUCTURE,
+        "latency_tracer_pipeline_interval.class",
+        "pipeline_name", GST_TYPE_STRUCTURE,
+        gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
+                          "Pipeline name", NULL),
+        "source_name", GST_TYPE_STRUCTURE,
         gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
                           "Source element name", NULL),
         "sink_name", GST_TYPE_STRUCTURE,
@@ -782,12 +792,13 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
 
             // Initialize only if this is a newly inserted branch
             if (result.second) {
+                branch.pipeline_name = GST_ELEMENT_NAME(pipeline);
                 branch.source_name = GST_ELEMENT_NAME(source);
                 branch.sink_name = GST_ELEMENT_NAME(sink);
                 branch.first_frame_init_ts = meta->init_ts;
                 branch.reset_interval(ts);
-                GST_INFO_OBJECT(lt, "Tracking new branch: %s -> %s", branch.source_name.c_str(),
-                                branch.sink_name.c_str());
+                GST_INFO_OBJECT(lt, "Tracking new branch: %s, %s -> %s", 
+                    branch.pipeline_name.c_str(), branch.source_name.c_str(), branch.sink_name.c_str());
             }
 
             branch.cal_log_pipeline_latency(ts, meta->init_ts, lt->interval);
