@@ -6,7 +6,6 @@
 
 #include "latency_tracer.h"
 #include "latency_tracer_meta.h"
-#include <map>
 #include <mutex>
 #include <string>
 #include <tuple>
@@ -185,19 +184,19 @@ static vector<GstElement *> *get_sinks_list(LatencyTracer *lt) {
 }
 
 // Element type cache accessor (optimization: ~70% reduction in type checking overhead)
-static map<GstElement *, ElementType> *get_element_type_cache(LatencyTracer *lt) {
+static unordered_map<GstElement *, ElementType> *get_element_type_cache(LatencyTracer *lt) {
     if (!lt->element_type_cache) {
-        lt->element_type_cache = new map<GstElement *, ElementType>();
+        lt->element_type_cache = new unordered_map<GstElement *, ElementType>();
     }
-    return static_cast<map<GstElement *, ElementType> *>(lt->element_type_cache);
+    return static_cast<unordered_map<GstElement *, ElementType> *>(lt->element_type_cache);
 }
 
 // Topology cache accessor (optimization: ~80% reduction in topology traversal)
-static map<GstElement *, GstElement *> *get_topology_cache(LatencyTracer *lt) {
+static unordered_map<GstElement *, GstElement *> *get_topology_cache(LatencyTracer *lt) {
     if (!lt->topology_cache) {
-        lt->topology_cache = new map<GstElement *, GstElement *>();
+        lt->topology_cache = new unordered_map<GstElement *, GstElement *>();
     }
-    return static_cast<map<GstElement *, GstElement *> *>(lt->topology_cache);
+    return static_cast<unordered_map<GstElement *, GstElement *> *>(lt->topology_cache);
 }
 
 static gboolean is_source_element(GstElement *element);
@@ -294,11 +293,11 @@ static void latency_tracer_finalize(GObject *object) {
         lt->sinks_list = nullptr;
     }
     if (lt->element_type_cache) {
-        delete static_cast<map<GstElement *, ElementType> *>(lt->element_type_cache);
+        delete static_cast<unordered_map<GstElement *, ElementType> *>(lt->element_type_cache);
         lt->element_type_cache = nullptr;
     }
     if (lt->topology_cache) {
-        delete static_cast<map<GstElement *, GstElement *> *>(lt->topology_cache);
+        delete static_cast<unordered_map<GstElement *, GstElement *> *>(lt->topology_cache);
         lt->topology_cache = nullptr;
     }
 
