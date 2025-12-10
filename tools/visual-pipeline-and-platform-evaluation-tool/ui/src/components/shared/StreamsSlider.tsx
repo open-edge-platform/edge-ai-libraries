@@ -41,6 +41,7 @@ export const StreamsSlider = ({
         min={min}
         max={max}
         className="w-[4rem] px-2 py-1 text-sm font-medium text-center border"
+        disabled={true}
       />
     </div>
   );

@@ -19,6 +19,7 @@ import {
 import { Plus, X } from "lucide-react";
 import { ParticipationSlider } from "@/components/shared/ParticipationSlider";
 import DeviceSelect from "@/components/shared/DeviceSelect";
+import SaveOutputWarning from "@/components/shared/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -43,7 +44,7 @@ const DensityTests = () => {
     streams_per_pipeline: PipelinePerformanceSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
-  const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
 
@@ -328,12 +329,7 @@ const DensityTests = () => {
                 />
               </div>
             )}
-            {videoOutputEnabled && (
-              <div className="text-muted-foreground">
-                Note: Select the device that is used in other blocks in your
-                pipeline.
-              </div>
-            )}
+            {videoOutputEnabled && <SaveOutputWarning />}
           </div>
 
           <button
@@ -349,7 +345,7 @@ const DensityTests = () => {
           </button>
 
           {jobId && jobStatus && (
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
               <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
                 Test Status: {jobStatus.state}
               </p>
@@ -368,7 +364,7 @@ const DensityTests = () => {
           )}
 
           {errorMessage && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+            <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
               <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
                 Test Failed
               </p>
@@ -379,7 +375,7 @@ const DensityTests = () => {
           )}
 
           {testResult && (
-            <div className="mb-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+            <div className="my-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
               <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
                 Test Completed Successfully
               </p>

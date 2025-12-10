@@ -41,6 +41,7 @@ export const ParticipationSlider = ({
         min={min}
         max={max}
         className="w-[4rem] px-2 py-1 text-sm font-medium text-center border"
+        disabled={true}
       />
       <span className="text-sm text-gray-600">%</span>
     </div>

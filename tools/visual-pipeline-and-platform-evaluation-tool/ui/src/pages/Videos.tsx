@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
+import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
 
 const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
@@ -27,8 +28,8 @@ const Videos = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[25%]">File name</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Frames</TableHead>
+                <TableHead>Resolution</TableHead>
+                <TableHead>Number of frames</TableHead>
                 <TableHead>Codec</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead></TableHead>
@@ -45,7 +46,9 @@ const Videos = () => {
                   </TableCell>
                   <TableCell>{video.frame_count}</TableCell>
                   <TableCell>{video.codec}</TableCell>
-                  <TableCell>{video.duration}</TableCell>
+                  <TableCell>
+                    {formatElapsedTimeSeconds(video.duration)}
+                  </TableCell>
                   <TableCell>
                     <video
                       src={`/assets/videos/input/${video.filename}`}
