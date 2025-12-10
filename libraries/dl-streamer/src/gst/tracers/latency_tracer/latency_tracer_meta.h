@@ -28,7 +28,6 @@ struct _LatencyTracerMeta {
     GstMeta meta; /**< parent GstMeta */
     GstClockTime init_ts;
     GstClockTime last_pad_push_ts;
-    GstElement *source_element; /**< DEPRECATED: No longer used. Kept for backward compatibility. Source tracking now uses topology analysis. */
 };
 
 /**

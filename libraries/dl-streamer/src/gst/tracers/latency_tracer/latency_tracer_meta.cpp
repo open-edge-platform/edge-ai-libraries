@@ -21,7 +21,6 @@ gboolean latency_tracer_meta_init(GstMeta *meta, gpointer params, GstBuffer *buf
     LatencyTracerMeta *tracer_meta = (LatencyTracerMeta *)meta;
     tracer_meta->init_ts = 0;
     tracer_meta->last_pad_push_ts = 0;
-    tracer_meta->source_element = NULL;
     return TRUE;
 }
 
@@ -36,7 +35,6 @@ gboolean latency_tracer_meta_transform(GstBuffer *dest_buf, GstMeta *src_meta, G
     LatencyTracerMeta *src = (LatencyTracerMeta *)src_meta;
     dst->init_ts = src->init_ts;
     dst->last_pad_push_ts = src->last_pad_push_ts;
-    dst->source_element = src->source_element;
     return TRUE;
 }
 
