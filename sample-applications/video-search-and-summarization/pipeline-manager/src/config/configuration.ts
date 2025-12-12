@@ -75,11 +75,11 @@ export default () => ({
       concurrent: process.env.LLM_CONCURRENT,
       modelsAPI: process.env.LLM_MODEL_API ?? 'v1/models',
       defaults: {
-        temperature: 0.1,
+        temperature: null,
         topP: null,
         presencePenalty: null,
         maxCompletionTokens: process.env.SUMMARIZATION_MAX_COMPLETION_TOKENS,
-        frequencyPenalty: 1.0,
+        frequencyPenalty: null,
         doSample: false,
         seed: 42,
       },

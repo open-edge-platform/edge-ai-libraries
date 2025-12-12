@@ -191,11 +191,12 @@ export class VlmService {
           },
         ];
       } else {
-        // Multi-image requests are modeled as repeated image_url entries to keep parity with OpenAI's API.
-        content = imageUri.map((url) => ({
-          type: 'image_url',
-          image_url: { url },
-        }));
+        content = [
+          {
+            type: 'video',
+            video: imageUri.map((url) => url),
+          },
+        ];
       }
 
       const messages: any[] = [
