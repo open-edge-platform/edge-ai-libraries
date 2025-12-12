@@ -137,6 +137,7 @@ class ModelNames:
 
     QWEN = "qwen2"
     PHI = "phi-3.5-vision"
+    SMOLVLM = "smolvlm"
 
 
 settings = Settings()

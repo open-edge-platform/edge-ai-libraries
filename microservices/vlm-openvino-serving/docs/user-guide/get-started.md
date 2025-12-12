@@ -398,6 +398,23 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
   }'
 ```
 
+### View Recent Telemetry Entries
+
+The microservice exposes `/v1/telemetry` to inspect the most recent (up to 100) inference requests. Each entry contains high-level request parameters, media counts, usage metrics, and perf telemetry captured from the model backend.
+
+> **Note:** Telemetry metrics are available for all models that execute inference through the `openvino_genai` pipeline. The only exception today is `HuggingFaceTB/SmolVLM2-2.2B-Instruct`, which relies on `OVModelForVisualCausalLM` from `optimum-intel` and therefore does not emit `openvino_genai` PerfMetrics.
+
+```bash
+curl --location 'http://localhost:9764/v1/telemetry'
+```
+
+The response follows the `TelemetryListResponse` schema:
+
+- `count`: number of items returned (newest first)
+- `items[]`: individual telemetry records with `id`, `timestamp`, `status`, `request.parameters`, `request.media`, `usage`, and `telemetry`
+
+Use this endpoint to verify request history across multiple workers or to collect quick performance snapshots without accessing container logs.
+
 ### Test GET Device
 
 To get the list of available devices

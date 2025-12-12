@@ -7,7 +7,7 @@ import random
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import aiohttp
 import numpy as np
@@ -39,6 +39,67 @@ if settings.no_proxy_env:
     proxies["no_proxy"] = settings.no_proxy_env
 
 logger.debug(f"proxies: {proxies}")
+
+_MODEL_CONFIG_CACHE: Optional[Dict[str, Any]] = None
+
+
+def get_best_video_backend() -> str:
+    """Return preferred backend supported by HF video loader (decord/pyav/torchcodec)."""
+
+    preferred_order = ["decord", "pyav", "torchcodec", "torchvision", "opencv"]
+
+    def _is_torchcodec_available() -> bool:
+        try:
+            import torchcodec  # type: ignore # noqa: F401
+
+            return True
+        except Exception:
+            return False
+
+    try:
+        from transformers.utils import (
+            is_av_available,
+            is_cv2_available,
+            is_decord_available,
+            is_torchvision_available,
+        )
+
+        availability_checks = {
+            "decord": is_decord_available(),
+            "pyav": is_av_available(),
+            "torchcodec": _is_torchcodec_available(),
+            "torchvision": is_torchvision_available(),
+            "opencv": is_cv2_available(),
+        }
+
+        logger.debug(f"Video backend availability: {availability_checks}")
+        for backend in preferred_order:
+            if availability_checks.get(backend):
+                logger.info(f"Selected video backend: {backend}")
+                return backend
+    except ImportError as exc:
+        logger.warning(
+            "Video backend detection failed (%s); defaulting to OpenCV",
+            exc,
+        )
+
+    logger.warning("No video backends detected, falling back to OpenCV")
+    return "opencv"
+
+
+def model_supports_video(
+    model_name: Optional[str], config_path: Path = Path("src/config/model_config.yaml")
+) -> bool:
+    """Return True if the provided model name advertises native video support."""
+
+    if not model_name:
+        return False
+
+    normalized = model_name.lower()
+    for pattern in get_video_supported_patterns(config_path):
+        if pattern and pattern in normalized:
+            return True
+    return False
 
 
 def convert_model(
@@ -257,6 +318,17 @@ def is_model_ready(model_dir: Path) -> bool:
     return bool(ov_files)
 
 
+def _load_model_config_data(config_path: Path) -> Dict[str, Any]:
+    """Load and cache the entire model_config.yaml content."""
+
+    global _MODEL_CONFIG_CACHE
+    if _MODEL_CONFIG_CACHE is None:
+        resolved_path = Path(config_path)
+        with open(resolved_path, "r") as config_file:
+            _MODEL_CONFIG_CACHE = yaml.safe_load(config_file) or {}
+    return _MODEL_CONFIG_CACHE or {}
+
+
 def load_model_config(
     model_name: str, config_path: Path = Path("src/config/model_config.yaml")
 ) -> Dict:
@@ -274,8 +346,7 @@ def load_model_config(
         RuntimeError: If an error occurs while loading or parsing the configuration.
     """
     try:
-        with open(config_path, "r") as config_file:
-            configs = yaml.safe_load(config_file)
+        configs = _load_model_config_data(config_path)
         config = configs.get(model_name.lower(), {})
         logger.info(f"Loaded configuration for model '{model_name}': {config}")
         return config
@@ -288,6 +359,31 @@ def load_model_config(
     except Exception as e:
         logger.error(f"Error loading model configuration: {e}")
         raise RuntimeError(f"Error loading model configuration: {e}")
+
+
+def get_video_supported_patterns(
+    config_path: Path = Path("src/config/model_config.yaml"),
+) -> List[str]:
+    """Return normalized video-capable model patterns from configuration."""
+
+    try:
+        configs = _load_model_config_data(config_path)
+    except FileNotFoundError:
+        logger.warning("model_config.yaml not found; no video-capable models configured.")
+        return []
+    except yaml.YAMLError as exc:
+        logger.warning(f"Error parsing model_config.yaml ({exc}); no video-capable models configured.")
+        return []
+    except Exception as exc:
+        logger.warning(f"Failed to load video patterns from config: {exc}")
+        return []
+    patterns = configs.get("video_supported_models", []) or []
+    normalized: List[str] = []
+    for pattern in patterns:
+        if not pattern:
+            continue
+        normalized.append(str(pattern).lower())
+    return normalized
 
 
 def setup_seed(seed: int):
@@ -317,9 +413,13 @@ def validate_video_inputs(content, model_name):
     Returns:
         str: An error message if validation fails, otherwise None.
     """
+    if not isinstance(content, MessageContentVideoUrl):
+        return None
+
+    model_lower = (model_name or "").lower()
     if (
-        isinstance(content, MessageContentVideoUrl)
-        and ModelNames.QWEN not in model_name.lower()
+        ModelNames.QWEN not in model_lower
+        and ModelNames.SMOLVLM not in model_lower
     ):
         return ErrorMessages.UNSUPPORTED_VIDEO_URL_INPUT
     return None
@@ -451,6 +551,39 @@ def convert_qwen_video_inputs(
         video_uint8 = np.clip(video_np, 0, 255).astype(np.uint8)
         ov_videos.append(ov.Tensor(video_uint8))
     return ov_videos
+
+
+async def convert_frame_urls_to_video_tensors(
+    video_frame_groups: Optional[Sequence[Sequence[str]]],
+) -> List[ov.Tensor]:
+    """Download frame URLs for each video clip and convert them into tensors.
+
+    Args:
+        video_frame_groups (Sequence[Sequence[str]] | None): Each inner sequence
+            represents one logical video composed of multiple frame URLs or
+            base64-encoded images.
+
+    Returns:
+        list[ov.Tensor]: A list of stacked frame tensors ready for VLMPipeline.
+
+    Raises:
+        RuntimeError: Propagates load or decoding failures from ``load_images``.
+    """
+
+    if not video_frame_groups:
+        return []
+
+    video_tensors: List[ov.Tensor] = []
+    for frame_urls in video_frame_groups:
+        if not frame_urls:
+            continue
+        images, _ = await load_images(list(frame_urls))
+        frame_arrays = [np.array(image.convert("RGB")) for image in images]
+        if not frame_arrays:
+            continue
+        stacked = np.stack(frame_arrays, axis=0).astype(np.uint8)
+        video_tensors.append(ov.Tensor(stacked))
+    return video_tensors
 
 
 def extract_qwen_video_frames(

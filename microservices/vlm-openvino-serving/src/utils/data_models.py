@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -188,6 +188,33 @@ class TelemetryMetrics(BaseModel):
     tpot_std_ms: Optional[float] = None  # Std-dev for TPOT (ms/token).
     throughput_tps: Optional[float] = None  # Mean throughput in tokens per second.
     throughput_std_tps: Optional[float] = None  # Std-dev for throughput (tokens/s).
+
+
+class TelemetryRequestMetadata(BaseModel):
+    """Metadata describing the original request parameters (without sensitive payloads)."""
+
+    message_count: int
+    media: Dict[str, int]
+    parameters: Dict[str, Any]
+
+
+class TelemetryRecord(BaseModel):
+    """Single telemetry entry exposed via /telemetry endpoint."""
+
+    id: str
+    timestamp: str
+    status: str
+    request: TelemetryRequestMetadata
+    usage: Optional[ChatUsageStats] = None
+    telemetry: Optional[TelemetryMetrics] = None
+    error: Optional[str] = None
+
+
+class TelemetryListResponse(BaseModel):
+    """Envelope for telemetry history API."""
+
+    count: int
+    items: List[TelemetryRecord]
 
 
 class ChatCompletionChoice(BaseModel):
