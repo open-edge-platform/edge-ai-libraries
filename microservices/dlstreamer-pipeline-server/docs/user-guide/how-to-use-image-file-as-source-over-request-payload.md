@@ -43,7 +43,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
     "destination": {
         "metadata": {
             "type": "file",
-            "path": "/tmp/results1.jsonl",
+            "path": "/tmp/results.jsonl",
             "format": "json-lines"
         }
     },
