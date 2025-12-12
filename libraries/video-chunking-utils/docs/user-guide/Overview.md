@@ -1,18 +1,24 @@
 # A Python Module for Video Chunking Utils
 
 ## Introduction
+
 This is a Python module designed for video chunking. It allows users to split video files into smaller, manageable segments. The module is designed to be easily installable via pip and can be used in various applications such as video processing, analysis, and content delivery.
 
 ## Installation
+
 To install the module, simply run the following command in your terminal:
+
 ```bash
 cd ./video-chunking-utils
 pip install .
 ```
-> Note: If you are using a virtual environment, you can install the module within the environment to avoid conflicts with other packages.
+
+> Note: If you are using a virtual environment, you can install the module
+> within the environment to avoid conflicts with other packages.
 
 ## Usage
-Once installed, you can use the module in your Python scripts. 
+
+Once installed, you can use the module in your Python scripts.
 
 ### Method: Uniform Chunking
 
@@ -53,29 +59,38 @@ print(f"Total {len(micro_chunks_list)} chunks are generated.")
 ```
 
 ### ChunkMeta Data Structure
+
 The `MicroChunkMeta` serves as a class for video chunks return type, providing metadata for each chunk. It defines several attributes that describe the properties of a video chunk.
 
 ```python
 from video_chunking.data import MicroChunkMeta
 ```
+
 **Attributes:**
+
 - **desc:** str
-A description of the chunk (e.g., a brief summary or purpose of the chunk).
+
+  A description of the chunk (e.g., a brief summary or purpose of the chunk).
 
 - **fps:** float
-The frames per second (FPS) of the video in the chunk.
+
+  The frames per second (FPS) of the video in the chunk.
 
 - **id:** int
-A unique identifier for the chunk.
+
+  A unique identifier for the chunk.
 
 - **level:** int
-The hierarchy level of the chunk (e.g., 0 for micro, 1 for macro, 2 for root).
+
+  The hierarchy level of the chunk (e.g., 0 for micro, 1 for macro, 2 for root).
 
 - **time_st:** float
-The start time of the chunk in seconds.
+
+  The start time of the chunk in seconds.
 
 - **time_end:** float
-The end time of the chunk in seconds.
+
+  The end time of the chunk in seconds.
 
 ## Other Resources
 

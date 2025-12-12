@@ -1,64 +1,55 @@
-
 # Build from Source
 
-Build the Visual Pipeline and Platform Evaluation Tool from the source to customize, debug, or extend its
-functionality. In this guide, you will:
+Build the Visual Pipeline and Platform Evaluation Tool from source to customize, debug, or extend its
+functionality. In this guide, the following tasks are covered:
 
-- Set up your development environment.
-- Compile the source code and resolve dependencies.
-- Generate a runnable build for local testing or deployment.
+- Setting up the development environment.
+- Compiling the source code and resolving dependencies.
+- Generating a runnable build for local testing or deployment.
 
-This guide is ideal for developers who want to work directly with the source code.
+This guide is intended for developers working directly with the source code.
 
 ## Prerequisites
 
-Before you begin, ensure the following:
+Before starting, ensure the following:
 
-- **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
-- **Dependencies Installed**:
-  - **Git tool**: [Install Git tool](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-- **Permissions**: Confirm you have permissions to install software and modify environment configurations.
+- **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
+- **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
+- **Dependencies installed**:
+  - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+  - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
 
-This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are
-new to these concepts, see:
+For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
+script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in:
+
+- [Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-1.2.0/libraries/dl-streamer/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
+
+This guide assumes basic familiarity with Git commands and terminal usage. For more information, see:
 
 - [Git Documentation](https://git-scm.com/doc)
 
 ## Steps to Build
 
-1. **Clone the Repository**:
-   - Run:
+1. **Clone the repository**:
 
-     ```bash
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-     cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
-     ```
+   ```bash
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
+   ```
 
-2. **Build and Start the Tool**:
-   - Run the following command:
+2. **Build and start the application**:
 
-     ```bash
-     make build run
-     ```
+   ```bash
+   make build run
+   ```
 
 ## Validation
 
-1. **Verify Build Success**:
-   - Check the logs. Look for confirmation messages indicating that the microservice has started successfully.
-2. **Access the Microservice**:
-   - Open a browser and go to:
+1. **Verify build success**:
+   - Logs should be checked for confirmation messages indicating that the microservice has started successfully.
+2. **Access the application API documentation**:
+   - Open a browser and navigate to `http://localhost:7860/docs` to access the Swagger UI.
 
-     ```text
-     http://localhost:7860/?__theme=light
-     ```
+## Known issues, limitations and troubleshooting
 
-   - Expected result: The microservice's UI loads successfully.
-
-## Troubleshooting
-
-1. **Environment Configuration Issues**:
-   - Verify environment variables:
-
-     ```bash
-     echo $VARIABLE_NAME
-     ```
+- Refer to [Known issues, limitations and troubleshooting](known-issues.md).

@@ -25,6 +25,7 @@ global:
   gpu:
     vlminferenceEnabled: false
     multimodalembeddingmsEnabled: false
+    vdmsdataprepEnabled: false
     ovmsEnabled: false
 
     key:
@@ -88,7 +89,7 @@ videoSummaryManager:
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 80    # Port on which service listens for incoming connection, if exposed externally
+    port: 80 # Port on which service listens for incoming connection, if exposed externally
   minioProtocol: "http:"
   minioBucket: "video-search-summary"
   env:
@@ -129,7 +130,7 @@ videoingestion:
   claimSize: "2Gi"
   # odModelName defines the name of Object Detection Model
   odModelName: ""
-  # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
+  # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
   odModelType: ""
   service:
     type: ClusterIP
@@ -158,11 +159,11 @@ nginx:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: kubernetes.io/ready
-            operator: In
-            values:
-            - "true"
+          - matchExpressions:
+              - key: kubernetes.io/ready
+                operator: In
+                values:
+                  - "true"
 
 postgresql:
   name: postgresql
@@ -172,7 +173,6 @@ postgresql:
     type: ClusterIP
     port: 5432
 
-
 # Placeholder for multimodal-embedding-ms subchart
 multimodalembeddingms:
   enabled: false
@@ -180,6 +180,9 @@ multimodalembeddingms:
   service:
     type: ClusterIP
     port: 8000
+  modelPvc:
+    enabled: true
+    size: "10Gi"
 
 # Placeholder for vdms-dataprep subchart
 vdmsdataprep:
@@ -188,6 +191,9 @@ vdmsdataprep:
   service:
     type: ClusterIP
     port: 8000
+  modelPvc:
+    enabled: true
+    size: "10Gi"
 
 # Placeholder for vdms-vectordb subchart
 vdmsvectordb:

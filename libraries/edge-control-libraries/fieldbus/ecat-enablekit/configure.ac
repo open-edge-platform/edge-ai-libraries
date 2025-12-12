@@ -211,6 +211,7 @@ AC_CONFIG_FILES([
     esiconfig/device/Makefile
     examples/Makefile
     examples/ecatmotor/Makefile
+    examples/ecat_dualmaster/Makefile
     examples/soemotor/Makefile
     examples/ecatdio/Makefile
     examples/multiaxis/Makefile

@@ -12,3 +12,4 @@ workspace
 !poetry.lock
 .env
 .coverage
+**/outputs

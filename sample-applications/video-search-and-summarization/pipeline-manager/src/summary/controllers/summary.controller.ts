@@ -101,7 +101,7 @@ export class SummaryController {
     if (reqBody.sampling.multiFrame) {
       if (reqBody.sampling.multiFrame > +systemConfig.multiFrame) {
         throw new BadRequestException(
-          `Current system multi frame is ${systemConfig.multiFrame}`,
+          `Current Maximum Supported Batch Size is ${systemConfig.multiFrame}.`,
         );
       }
 

@@ -1,0 +1,9 @@
+{
+  "schemaFile": "../../../docs/user-guide/_assets/vippet.json",
+  "apiFile": "./apiSlice.ts",
+  "apiImport": "apiSlice",
+  "outputFile": "./api.generated.ts",
+  "exportName": "api",
+  "hooks": { "queries": true, "lazyQueries": true, "mutations": true },
+  "tag": true
+}
