@@ -24,3 +24,6 @@ empty_model_dir
 mock_model_dir
 .coverage
 htmlcov
+
+# Python package build artifacts
+*.egg-info/

@@ -244,13 +244,3 @@ jobs:
       run: |
         rm -rf edge-ai-libraries-repo .virtualenvs
         rm -rf $HOME/.virtualenvs
-
-    # - name: Schedule reboot
-    #   if: always()
-    #   run: |
-    #     echo "Scheduling reboot in 15 seconds..."
-    #     if [[ -x /usr/local/bin/reboot_runner.sh ]]; then
-    #       sudo /usr/local/bin/reboot_runner.sh 15
-    #     else
-    #       echo "WARNING: /usr/local/bin/reboot_runner.sh not found or not executable. Skipping reboot." >&2
-    #     fi

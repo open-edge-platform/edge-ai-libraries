@@ -264,6 +264,7 @@ bool IsModelProcSupportedForVaapi(const std::vector<ModelInputProcessorInfo::Ptr
         // In these cases we need to switch to opencv preproc
         // VAAPI converts color to RGBP by default (?)
         if (input_desc && ((input_desc->getTargetColorSpace() != PreProcColorSpace::BGR &&
+                            input_desc->getTargetColorSpace() != PreProcColorSpace::RGB &&
                             input_desc->doNeedColorSpaceConversion(static_cast<int>(format)))))
             return false;
     }
@@ -325,11 +326,7 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
         }
         break;
     case DMA_BUF_CAPS_FEATURE:
-#ifdef ENABLE_VPUX
-        result = ImagePreprocessorType::IE;
-#else
         result = ImagePreprocessorType::VAAPI_SYSTEM;
-#endif
         break;
     case D3D11_MEMORY_CAPS_FEATURE:
         result = ImagePreprocessorType::D3D11;
@@ -555,11 +552,7 @@ MemoryType GetMemoryType(CapsFeature caps_feature) {
     case CapsFeature::SYSTEM_MEMORY_CAPS_FEATURE:
         return MemoryType::SYSTEM;
     case CapsFeature::DMA_BUF_CAPS_FEATURE:
-#ifdef ENABLE_VPUX
-        return MemoryType::SYSTEM;
-#else
         return MemoryType::DMA_BUFFER;
-#endif
     case CapsFeature::VA_SURFACE_CAPS_FEATURE:
     case CapsFeature::VA_MEMORY_CAPS_FEATURE:
         return MemoryType::VAAPI;

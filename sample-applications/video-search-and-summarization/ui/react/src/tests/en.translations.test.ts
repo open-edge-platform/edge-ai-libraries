@@ -174,8 +174,8 @@ describe('English translations test suite', () => {
       expect(enTranslations.OnlyStreamableMp4).toBe('Only mp4 videos are accepted');
     });
 
-    it('should have HelpText translation', () => {
-      expect(enTranslations.HelpText).toBe('Mp4 videos need to be streamble to be processed. ffmpeg can be used to make mp4 streamable using following command');
+    it('should have StreamableHelpText translation', () => {
+      expect(enTranslations.StreamableHelpText).toBe('Mp4 videos need to be streamble to be processed. ffmpeg can be used to make mp4 streamable using following command');
     });
 
     it('should have fileNotFound translation', () => {

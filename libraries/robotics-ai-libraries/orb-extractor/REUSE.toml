@@ -1,0 +1,29 @@
+# Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
+version = 1
+
+[[annotations]]
+path = [
+    "**/debian/**",
+    "**/*.jpg"
+]
+SPDX-FileCopyrightText = "2025 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+    "tests/DownloadProject.CMakeLists.cmake.in",
+    "tests/DownloadProject.cmake",
+]
+SPDX-FileCopyrightText = "2015 Crascit"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+    "src/orb_extractor.cpp",
+    "src/orb_point_pairs.h",
+]
+SPDX-FileCopyrightText = "2009, Willow Garage Inc., all rights reserved."
+SPDX-License-Identifier = "BSD-3-Clause"

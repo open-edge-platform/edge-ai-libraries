@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from threading import Lock
 
@@ -34,6 +35,7 @@ class GstInspector:
         return cls._instance
 
     def _initialize(self):
+        self.logger = logging.getLogger("GstInspector")
         self.elements = self._get_gst_elements()
 
     def _get_gst_elements(self):
@@ -58,8 +60,8 @@ class GstInspector:
 
             return sorted(elements)
 
-        except subprocess.CalledProcessError as e:
-            print(f"Error running gst-inspect-1.0: {e}")
+        except Exception as e:
+            self.logger.error(f"Error running gst-inspect-1.0: {e}")
             return []
 
     def get_elements(self):

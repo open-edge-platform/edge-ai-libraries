@@ -188,22 +188,31 @@ The Video Summarization application offers multiple modes and deployment options
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
 
-## ▶️ Run the Application
+## ℹ️ Using Edge Microvisor Toolkit 
 
-<a name="running-app"></a>
+If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit** — an Azure Linux-based build pipeline for Intel® platforms — follow the below listed guidelines. The guidelines vary based on the flavor of EMT used and the user is encouraged to refer to detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node). A few specific dependencies are called out below.
 
-> **ℹ️ Note for Edge Microvisor Toolkit Users**
->
-> If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit** — an Azure Linux-based build pipeline for Intel® platforms — you must install the following package:
->
+Install the `mesa-libGL` package. Installing `mesa-libGL` provides the OpenGL library which is needed by the `Audio Analyzer service`. Depending on `EMT-D` or `EMT-S`, the steps vary.
+
+For `EMT-D`, the following steps should work.
 > ```bash
 > sudo dnf install mesa-libGL
 > # If you are using TDNF, you can use the following command to install:
 > sudo tdnf search mesa-libGL
 > sudo tdnf install mesa-libGL
 > ```
->
-> Installing `mesa-libGL` provides the OpenGL library which is needed by the `Audio Analyzer service`.
+
+For `EMT-S`, 
+> ```bash
+> sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
+> export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/ 
+> ```
+
+Additional tools and packages that should be installed includes `git` and `wget`. The instructions for the same is available in the detailed `EMT-S` and `EMT-D` documentations. The instructions work for any other required packages too.
+
+## ▶️ Run the Application
+
+<a name="running-app"></a>
 
 Follow these steps to run the application:
 

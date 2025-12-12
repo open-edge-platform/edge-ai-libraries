@@ -1,3 +1,0 @@
-.. toctree::
-   Overview
-   release-notes

@@ -50,10 +50,6 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
             {{- toYaml .Values.startupProbe | nindent 12 }}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "multimodal-embedding-ms.fullname" . }}-config
@@ -63,7 +59,7 @@ spec:
               {{ .Values.global.gpu.key}}: 1
             limits:
               {{ .Values.global.gpu.key}}: 1
-      {{- else }}
+      {{- else if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- end }}
@@ -73,17 +69,18 @@ spec:
             - name: volume-data
               mountPath: /home/appuser/.cache/huggingface
               subPath: huggingface
+      {{- if .Values.modelPvc.enabled }}
+            - name: models-data
+              mountPath: /app/ov_models
+              subPath: ovmodels
+      {{- else }}
             - name: volume-data
               mountPath: /app/ov_models
               subPath: ovmodels
+      {{- end }}
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
-      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
-            - name: workspace
-              mountPath: /opt/data
-              subPath: ovmodels
-      {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -95,6 +92,22 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ include "multimodal-embedding-ms.fullname" . }}-gpu-pvc
+      {{- end }}
+      {{- if .Values.modelPvc.enabled }}
+        - name: models-data
+          {{- if .Values.modelPvc.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.modelPvc.existingClaim }}
+          {{- else if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ include "multimodal-embedding-ms.fullname" . }}-models-pvc
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       {{- end }}
         - name: volume-data
           {{- if .Values.global.usePvc }}

@@ -1,0 +1,15 @@
+robot_rl:
+    model_path: config/
+    model_file: stand.onnx
+    inference_device: CPU
+    model_config: robot_rlconfig.yaml
+ec_task:
+    leftarm:
+        cpu_affinity: 11
+        eni_file: config/EtherCAT_arm_ENI.xml
+    rightarm:
+        cpu_affinity: 12
+        eni_file: config/EtherCAT_arm_ENI.xml
+    leg:
+        cpu_affinity: 13
+        eni_file: config/EtherCAT_Leg_ENI.xml

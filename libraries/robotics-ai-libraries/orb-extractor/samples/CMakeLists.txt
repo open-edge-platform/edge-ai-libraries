@@ -1,12 +1,11 @@
-# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 cmake_minimum_required(VERSION 3.4)
 
 set(NAME feature_extract)
 project (${NAME})
-
-#set(OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../bin")
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)

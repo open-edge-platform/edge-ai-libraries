@@ -1,0 +1,9 @@
+# Override Compose file for GPU mode.
+services:
+  vippet:
+    profiles: [gpu]
+    # Adds GPU required groups and devices.
+    group_add:
+      - ${RENDER_GROUP_ID}
+    devices:
+      - "/dev/dri:/dev/dri"

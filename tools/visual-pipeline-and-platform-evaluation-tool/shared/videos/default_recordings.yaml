@@ -1,0 +1,4 @@
+- url: "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4"
+  filename: people.mp4
+- url: "https://github.com/open-edge-platform/edge-ai-resources/raw/6d452bf87bb1707630f747774d2d15caa1a6f7aa/videos/ParkingVideo.mp4"
+  filename: license-plate-detection.mp4

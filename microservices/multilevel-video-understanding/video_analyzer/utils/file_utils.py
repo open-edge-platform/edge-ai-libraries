@@ -7,7 +7,10 @@ import os
 from urllib.parse import urlparse
 import requests
 import tempfile
+import pathlib
+from fastapi import HTTPException, status
 from decord import VideoReader, cpu
+from video_analyzer.schemas.summarization import ErrorResponse
 
 from video_analyzer.utils.logger import logger
 
@@ -79,3 +82,65 @@ def robust_video_reader(url, ctx=cpu(0), width=-1, height=-1, num_threads=0, ver
     os.unlink(temp_path)
     
     return vr
+
+def validate_video_path(raw: str) -> str:
+    """
+    Validate video path format:
+    - local path (relative/absolute)
+    - file://
+    - http:// / https:// (only syntax check, no network request)
+    """
+    if not raw or not isinstance(raw, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_message="Invalid video path",
+                details="Empty video path"
+            ).model_dump()
+        )
+    parsed = urlparse(raw)
+    scheme = parsed.scheme.lower()
+
+    if scheme in ("", "file"):
+        local_path = parsed.path if scheme == "file" else raw
+        local_path = os.path.abspath(os.path.expanduser(local_path))
+        if not os.path.isfile(local_path):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_message="Local file not found",
+                    details=f"{local_path}"
+                ).model_dump()
+            )
+        return local_path
+
+    if scheme in ("http", "https"):
+        # Simple syntax / extension check
+        ext = pathlib.Path(parsed.path).suffix.lower()
+        video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".flv", ".mpeg", ".mpg"}
+        if not parsed.netloc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_message="Invalid URL",
+                    details="Missing host part"
+                ).model_dump()
+            )
+        if ext and ext not in video_exts:
+            # Allow missing extension (stream endpoints), reject wrong extension
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error_message="Unsupported video extension",
+                    details=f"{ext}"
+                ).model_dump()
+            )
+        return raw
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=ErrorResponse(
+            error_message="Unsupported URI scheme",
+            details=f"{scheme}"
+        ).model_dump()
+    )

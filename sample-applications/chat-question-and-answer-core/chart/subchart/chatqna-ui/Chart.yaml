@@ -2,4 +2,3 @@ apiVersion: v2
 name: chatqna-ui
 description: A Helm chart for deploying chatqna-core UI
 version: 0.1.1
-appVersion: "1.0"

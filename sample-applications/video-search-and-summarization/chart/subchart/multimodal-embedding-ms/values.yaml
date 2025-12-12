@@ -1,41 +1,39 @@
-
 global:
-    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-    volumeHostPath: ""
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: ""
 
-    # usePvc should be set to true to use a PVC for persisting models, cache and other files.
-    usePvc: false
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
 
-    # keepPvc should be set to true to retain the PVC after uninstalling the chart.
-    keepPvc: false
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
 
-    # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
-    sharedPvcName: ""
+  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  sharedPvcName: ""
 
-    # Common release tags to be used for several dependencies
-    commonTag: ""
+  # Common release tags to be used for several dependencies
+  commonTag: ""
 
-    proxy:
+  proxy:
     # setup proxy settings
-        no_proxy: ""
-        http_proxy: ""
-        https_proxy: ""
-
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
 
 replicaCount: 1
 
 image:
-    cpu:
-        repository: intel/multimodal-embedding-serving
-    gpu:
-        repository: intel/multimodal-embedding-serving
-    pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.3.1"
+  cpu:
+    repository: intel/multimodal-embedding-serving
+  gpu:
+    repository: intel/multimodal-embedding-serving
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "1.3.1"
 
 imagePullSecrets: []
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 
 podAnnotations: {}
 podLabels: {}
@@ -43,8 +41,8 @@ podLabels: {}
 podSecurityContext: {}
 securityContext:
   capabilities:
-      drop:
-          - ALL
+    drop:
+      - ALL
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
   runAsNonRoot: false
@@ -53,13 +51,21 @@ securityContext:
     type: RuntimeDefault
 
 containerPort: 8000 # Port on which container application listens internally
-containerPortName: mm-embed-port  # Optional name to refer containerPort
+containerPortName: mm-embed-port # Optional name to refer containerPort
 service:
   type: ClusterIP
-  port: 8000   # Port on which service listens for incoming connection, if exposed externally
-  portName: http  # Service port name. Useful when service exposes multiple ports.
+  port: 8000 # Port on which service listens for incoming connection, if exposed externally
+  portName: http # Service port name. Useful when service exposes multiple ports.
 
 resources: {}
+
+modelPvc:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: "10Gi"
 
 livenessProbe:
   httpGet:

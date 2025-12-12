@@ -2,36 +2,43 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from ultralytics import YOLO
-import openvino, sys, shutil, os
+import openvino, shutil, os
 import argparse
 
 def convert_model(model_name, model_type, output_dir):
-    weights = model_name + '.pt'
-    model = YOLO(weights)
+    pt_weights_file = model_name + '.pt'
+    model = YOLO(pt_weights_file)
     model.info()
+
+    fp16_output_dir = os.path.join(output_dir, "FP16")
+    fp32_output_dir = os.path.join(output_dir, "FP32")
+
+    os.makedirs(fp16_output_dir, exist_ok=True)
+    os.makedirs(fp32_output_dir, exist_ok=True)
 
     converted_path = model.export(format='openvino')
     converted_model = converted_path + '/' + model_name + '.xml'
 
     core = openvino.Core()
-
     ov_model = core.read_model(model=converted_model)
+    
     if model_type in ["YOLOv8-SEG", "yolo_v11_seg"]:
         ov_model.output(0).set_names({"boxes"})
         ov_model.output(1).set_names({"masks"})
     ov_model.set_rt_info(model_type, ['model_info', 'model_type'])
 
-    # Create output directories if they don't exist
-    os.makedirs(os.path.join(output_dir, 'FP32'), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, 'FP16'), exist_ok=True)
-
     # Save models in FP32 and FP16 formats
-    openvino.save_model(ov_model, os.path.join(output_dir, 'FP32', model_name + '.xml'), compress_to_fp16=False)
-    openvino.save_model(ov_model, os.path.join(output_dir, 'FP16', model_name + '.xml'), compress_to_fp16=True)
+    openvino.save_model(ov_model, os.path.join(fp32_output_dir, model_name + '.xml'), compress_to_fp16=False)
+    openvino.save_model(ov_model, os.path.join(fp16_output_dir, model_name + '.xml'), compress_to_fp16=True)
 
     # Clean up temporary files
-    shutil.rmtree(converted_path)
-    os.remove(f"{model_name}.pt")
+    try:
+        if os.path.exists(converted_path):
+            shutil.rmtree(converted_path)
+        if os.path.exists(pt_weights_file):
+            os.remove(pt_weights_file)
+    except Exception as e:
+        print(f"Warning: Failed to clean up temporary files: {e}")
     
     print(f"Model converted successfully and saved to {output_dir}")
 
@@ -41,7 +48,7 @@ def main():
                         help="Name of the model (without extension, e.g., 'yolov8l-worldv2')")
     parser.add_argument("--model-type", type=str, default='yolo_v8', 
                         help="Type of model (e.g., 'yolo_v8', 'YOLOv8-SEG')")
-    parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld', 
+    parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld/v2', 
                         help="Directory to save the converted models")
     
     args = parser.parse_args()

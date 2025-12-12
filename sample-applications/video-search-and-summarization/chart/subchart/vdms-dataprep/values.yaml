@@ -13,14 +13,14 @@ global:
   # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
   sharedPvcName: ""
 
-  # Common release tags to be used for several dependencies 
+  # Common release tags to be used for several dependencies
   commonTag: ""
 
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
-  
+
   proxy:
-  # setup proxy settings
+    # setup proxy settings
     no_proxy: ""
     http_proxy: ""
     https_proxy: ""
@@ -52,23 +52,31 @@ podSecurityContext:
 securityContext:
   capabilities:
     drop:
-    - ALL
+      - ALL
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
   runAsNonRoot: true
   runAsUser: 1000
   runAsGroup: 1000
   seccompProfile:
-    type: RuntimeDefault    
+    type: RuntimeDefault
 
-containerPort: 8000   # Port on which container application listens internally
-containerPortName: dataprep-port    # Optional name to refer containerPort
+containerPort: 8000 # Port on which container application listens internally
+containerPortName: dataprep-port # Optional name to refer containerPort
 service:
   type: ClusterIP
-  port: 8000    # Port on which service listens for incoming connection, if exposed externally
-  portName: http    # Service port name. Useful when service exposes multiple ports.
+  port: 8000 # Port on which service listens for incoming connection, if exposed externally
+  portName: http # Service port name. Useful when service exposes multiple ports.
 
 resources: {}
+
+modelPvc:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: "10Gi"
 
 livenessProbe:
   httpGet:
@@ -130,7 +138,6 @@ frameProcessing:
   detectionConfidence: 0.85
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
-
 
 minioServer:
   name: minio-server

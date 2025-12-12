@@ -29,7 +29,6 @@ global:
     RABBITMQ_DEFAULT_USER: ""
     RABBITMQ_DEFAULT_PASS: ""
 
-
     # Update these values for telemetry if required. Leave empty if telemetry is not used.
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
@@ -48,17 +47,18 @@ global:
   gpu:
     vlminferenceEnabled:
     multimodalembeddingmsEnabled:
+    vdmsdataprepEnabled:
     ovmsEnabled:
 
-    # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled or ovmsEnabled is set to true
+    # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled,
+    # vdmsdataprepEnabled or ovmsEnabled is set to true
     # Update as per the cluster node label key for GPU assigned by the device plugin
     key:
     # Set value to `GPU` to deploy on GPU
     device:
 
-
 videoingestion:
   # odModelName defines the name of Object Detection Model
   odModelName: ""
-  # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
+  # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
   odModelType: ""

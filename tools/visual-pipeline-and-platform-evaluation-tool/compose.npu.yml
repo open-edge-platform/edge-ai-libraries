@@ -1,0 +1,10 @@
+# Override Compose file for NPU mode.
+services:
+  vippet:
+    profiles: [npu]
+    # Adds NPU and GPU required groups and devices.
+    group_add:
+      - ${RENDER_GROUP_ID}
+    devices:
+      - "/dev/dri:/dev/dri"
+      - "/dev/accel:/dev/accel"
