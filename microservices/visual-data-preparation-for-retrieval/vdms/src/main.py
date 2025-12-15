@@ -27,6 +27,7 @@ from src.endpoints import (
     list_videos_router,
     process_document_router,
     process_minio_video_router,
+    telemetry_router,
     upload_and_process_video_router,
 )
 
@@ -200,6 +201,9 @@ app.include_router(process_document_router)
 # Video processing endpoints
 app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
+
+# Telemetry endpoints
+app.include_router(telemetry_router)
 
 # Video management endpoints
 app.include_router(list_videos_router)

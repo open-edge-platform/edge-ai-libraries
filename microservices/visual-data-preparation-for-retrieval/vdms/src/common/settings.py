@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
 
+    # Telemetry persistence settings
+    TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
+    TELEMETRY_MAX_RECORDS: int = 100
+
     # Allow environment override for bucket name (useful for different deployments)
     # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME
     @property

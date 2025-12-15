@@ -25,6 +25,7 @@ Usage:
 
 import io
 import pathlib
+import time
 from typing import List, Optional, Tuple
 
 import cv2
@@ -120,7 +121,7 @@ def process_video_with_frame_extraction(
     detection_confidence: float = None,
     temp_dir: Optional[str] = None,
     detector=None
-) -> Tuple[List[FrameInfo], str]:
+) -> Tuple[List[FrameInfo], str, dict]:
     """
     Extract frames from video using frame interval approach.
     This is the core function for the new frame-based processing strategy.
@@ -134,7 +135,7 @@ def process_video_with_frame_extraction(
         detector: Optional YOLOXDetector instance for object detection
         
     Returns:
-        Tuple of (frame_info_list, manifest_path)
+        Tuple of (frame_info_list, manifest_path, metrics)
         
     Raises:
         Exception: If video processing fails
@@ -173,6 +174,7 @@ def process_video_with_frame_extraction(
         # Extract all frames first for batch processing optimization
         extracted_frames = []
         frame_metadata = []
+        extraction_start = time.perf_counter()
         
         logger.info(f"Extracting {len(frame_indices)} frames for processing...")
         for i, frame_idx in enumerate(frame_indices):
@@ -234,11 +236,14 @@ def process_video_with_frame_extraction(
             })
         
         logger.info(f"Successfully extracted {len(extracted_frames)} frames")
+        frame_extraction_seconds = time.perf_counter() - extraction_start
+        detection_seconds = 0.0
         
         # Process object detection in optimized batches
         if enable_object_detection and detector is not None:
             detection_batch_size = 32  # Configurable batch size for object detection
             logger.info(f"Processing object detection in batches of {detection_batch_size}")
+            detection_timer = time.perf_counter()
             
             # Process frames in batches for optimal performance
             for batch_start in range(0, len(extracted_frames), detection_batch_size):
@@ -312,6 +317,7 @@ def process_video_with_frame_extraction(
                             frame_type="full_frame"
                         )
                         frame_info_list.append(frame_info)
+            detection_seconds = time.perf_counter() - detection_timer
         else:
             # No object detection - add all as full frames
             logger.info("Object detection disabled - processing all frames as full frames")
@@ -329,7 +335,13 @@ def process_video_with_frame_extraction(
         manifest_path = create_frames_manifest(frame_info_list, temp_dir)
         
         logger.info(f"Frame extraction complete: {len(frame_info_list)} frames extracted")
-        return frame_info_list, manifest_path
+        metrics = {
+            'frame_extraction_seconds': frame_extraction_seconds,
+            'detection_seconds': detection_seconds,
+            'frames_extracted': len(frame_metadata),
+            'items_after_detection': len(frame_info_list),
+        }
+        return frame_info_list, manifest_path, metrics
         
     except Exception as e:
         logger.error(f"Error in frame extraction: {e}")
@@ -340,7 +352,7 @@ def process_video_with_enhanced_detection(
     video_path: pathlib.Path,
     frame_interval: int = None,
     object_detection_config = None
-) -> List[FrameInfo]:
+) -> Tuple[List[FrameInfo], str, dict]:
     """
     Enhanced video processing with frame-based extraction and optional object detection.
     
@@ -350,7 +362,7 @@ def process_video_with_enhanced_detection(
         object_detection_config: Configuration for object detection
         
     Returns:
-        List of FrameInfo objects containing frame metadata
+        Tuple[List[FrameInfo], str, dict]: frames, manifest path, and timing metrics
         
     Raises:
         Exception: If video processing fails
@@ -399,7 +411,7 @@ def process_video_with_enhanced_detection(
             logger.info("Object detection is disabled - proceeding with frame-only extraction")
         
         # Process video with frame extraction and optional object detection
-        frame_info_list, manifest_path = process_video_with_frame_extraction(
+        frame_info_list, manifest_path, metrics = process_video_with_frame_extraction(
             video_path=str(video_path),
             frame_interval=frame_interval,
             enable_object_detection=enable_object_detection,
@@ -409,7 +421,7 @@ def process_video_with_enhanced_detection(
         
         logger.info(f"Enhanced video processing complete: {len(frame_info_list)} items extracted")
         
-        return frame_info_list, manifest_path
+        return frame_info_list, manifest_path, metrics
         
     except Exception as e:
         logger.error(f"Enhanced video processing failed: {e}")
