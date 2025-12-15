@@ -18,9 +18,9 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 
 ### Prerequisites
 
-1. Access to the web interface of the Edge Orchestrator with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard/index.html>) to the Edge Orchestrator.
+1. Access to the web interface of the Edge Orchestrator with one or more [Edge Nodes Onboarded](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/set_up_edge_infra/edge_node_onboard/index.html) to the Edge Orchestrator.
 
-1. Clusters with a [privilege template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/advanced_functionality/set_up_a_cluster_template.html>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/clusters/create_clusters.html#create-cluster>).
+1. Clusters with a [privilege template](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/advanced_functionality/set_up_a_cluster_template.html) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/set_up_edge_infra/clusters/create_clusters.html#create-cluster).
 
 ### Making the Deployment Package Available
 
@@ -31,19 +31,19 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
     # Alternatively, Clone a specific release branch
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-    
+
     cd edge-ai-libraries/sample-applications/chat-question-and-answer
     ```
 
     The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries`. In case of forked repos, please ensure the right url is used when cloning the repo.
 
-1. From the web browser, open the URL of the Edge Orchestrator and import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html#import-deployment-package>).
+1. From the web browser, open the URL of the Edge Orchestrator and import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/import_deployment.html#import-deployment-package).
 
 1. Once the deployment package has been imported into the Edge Orchestrator, you can see it in the list of Web UI as shown here.
 
     **![ChatQnA Image](./images/chatqna-emf.png)**
 
-See [Deployment Packages](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deploy_packages.html#view-deployment-packages>) for more information on deployment packages.
+See [Deployment Packages](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/deploy_packages.html#view-deployment-packages) for more information on deployment packages.
 
 ### Deploy the Application onto the Edge Nodes
 
@@ -71,7 +71,7 @@ To set up a deployment:
 
 After a few minutes, the deployment will start and will take about 5 minutes to complete.
 
-In the Edge Orchestrator Web UI, you can track the application installation through the [View Deployment Details](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deployment_details.html#view-deployment-details>) view.
+In the Edge Orchestrator Web UI, you can track the application installation through the [View Deployment Details](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/deployment_details.html#view-deployment-details) view.
 
 The **ChatQ&A** Sample Application is fully deployed when the applications become green and the status is shown as _Running_.
 
@@ -79,10 +79,10 @@ You can view the deployment status on the Deployments page.
 
 > Note: If the deployment fails for any reason, the deployment status will display the “Error” or “Down” status.
 
-For more information on setting up a deployment, see [Set up a Deployment](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/setup_deploy.html#set-up-a-deployment>).
+For more information on setting up a deployment, see [Set up a Deployment](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/setup_deploy.html#set-up-a-deployment).
 
 ### Access the **ChatQ&A** AI-Suite
 
-1. Download the kubeconfig of the cluster of the Edge Node on which the Application has been deployed. Refer [Kubeconfig Download](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/clusters/accessing_clusters.html>).
+1. Download the kubeconfig of the cluster of the Edge Node on which the Application has been deployed. Refer [Kubeconfig Download](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/set_up_edge_infra/clusters/accessing_clusters.html).
 
-2. Follow the steps described in the **ChatQ&A** [Documentation](<deploy-with-helm.md#step-6-verify-the-deployment>) to proceed to using the application.
+2. Follow the steps described in the **ChatQ&A** [Documentation](deploy-with-helm.md#step-6-verify-the-deployment) to proceed to using the application.
