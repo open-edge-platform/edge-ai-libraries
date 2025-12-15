@@ -73,7 +73,7 @@ COPY . .
 RUN chmod +x /app/scripts/compress_model.sh
 
 RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-model && \
-    chown -R appuser:appuser /home/appuser/.cache /app/ov-model
+    chown -R appuser:appuser /home/appuser/.cache /app/ov-model /opt
 
 USER appuser
 

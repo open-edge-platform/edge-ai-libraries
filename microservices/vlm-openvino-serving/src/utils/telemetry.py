@@ -66,7 +66,7 @@ def build_usage_and_telemetry(
 
     prompt_tokens = _safe_call(perf_metrics.get_num_input_tokens)
     completion_tokens = _safe_call(perf_metrics.get_num_generated_tokens)
-    total_tokens = None
+    total_tokens = 0
     if prompt_tokens is not None or completion_tokens is not None:
         total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
 

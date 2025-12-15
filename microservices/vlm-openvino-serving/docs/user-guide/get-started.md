@@ -58,6 +58,7 @@ export VLM_ACCESS_LOG_FILE="/dev/null"
 - **VLM_LOG_LEVEL**: Control logging verbosity (`debug`, `info`, `warning`, `error`)
 - **VLM_MAX_COMPLETION_TOKENS**: Limit response length
 - **HUGGINGFACE_TOKEN**: Required for gated models
+- **VLM_TELEMETRY_PATH / VLM_TELEMETRY_MAX_RECORDS**: Configure where `/v1/telemetry` data is stored and how many records are retained
 
 For detailed information about each variable, configuration examples, and advanced setups, refer to the [Environment Variables Guide](./environment-variables.md).
 
@@ -410,6 +411,8 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
 ### View Recent Telemetry Entries
 
 The microservice exposes `/v1/telemetry` to inspect the most recent (up to 100) inference requests. Each entry contains high-level request parameters, media counts, usage metrics, and perf telemetry captured from the model backend.
+
+> **Tip:** Use `VLM_TELEMETRY_PATH` to move the JSONL file to a different mount (for persistent storage or easier scraping) and `VLM_TELEMETRY_MAX_RECORDS` to adjust how many records are kept.
 
 > **Note:** Telemetry metrics are available for all models that execute inference through the `openvino_genai` pipeline. The only exception today is `HuggingFaceTB/SmolVLM2-2.2B-Instruct`, which relies on `OVModelForVisualCausalLM` from `optimum-intel` and therefore does not emit `openvino_genai` PerfMetrics.
 

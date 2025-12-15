@@ -8,8 +8,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-_DEFAULT_PATH = Path("/tmp/vlm_telemetry.jsonl")
-_MAX_RECORDS = 100
+from src.utils.common import settings
+
+_DEFAULT_PATH = Path(settings.VLM_TELEMETRY_PATH)
+_MAX_RECORDS = settings.VLM_TELEMETRY_MAX_RECORDS
 
 
 class TelemetryStore:

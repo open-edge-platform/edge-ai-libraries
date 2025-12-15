@@ -27,6 +27,8 @@ services:
       VLM_LOG_LEVEL: ${VLM_LOG_LEVEL:-info}
       OPENVINO_LOG_LEVEL: ${VLM_OPENVINO_LOG_LEVEL:-1}
       VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
+      VLM_TELEMETRY_PATH: ${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
+      VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS:-100}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri

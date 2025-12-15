@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
@@ -55,6 +56,14 @@ class Settings(BaseSettings):
         default=None,
         json_schema_extra={"env": "OV_CONFIG"},
     )
+    VLM_TELEMETRY_PATH: Path = Field(
+        default=Path("/opt/vlm_telemetry.jsonl"),
+        json_schema_extra={"env": "VLM_TELEMETRY_PATH"},
+    )
+    VLM_TELEMETRY_MAX_RECORDS: int = Field(
+        default=100,
+        json_schema_extra={"env": "VLM_TELEMETRY_MAX_RECORDS"},
+    )
 
     @field_validator("VLM_LOG_LEVEL", mode="before")
     @classmethod
@@ -91,6 +100,25 @@ class Settings(BaseSettings):
                 f"Invalid OV_CONFIG JSON format: {v}. Using default configuration."
             )
             return None
+
+    @field_validator("VLM_TELEMETRY_MAX_RECORDS", mode="before")
+    @classmethod
+    def validate_telemetry_max_records(cls, v: Any) -> int:
+        if v in (None, ""):
+            return 100
+        try:
+            value = int(v)
+        except (ValueError, TypeError):
+            _temp_logger.warning(
+                f"Invalid VLM_TELEMETRY_MAX_RECORDS '{v}'. Using default 100."
+            )
+            return 100
+        if value <= 0:
+            _temp_logger.warning(
+                f"VLM_TELEMETRY_MAX_RECORDS must be positive; received {value}. Using default 100."
+            )
+            return 100
+        return value
 
     def get_ov_config_dict(self) -> Dict[str, Any]:
         """
