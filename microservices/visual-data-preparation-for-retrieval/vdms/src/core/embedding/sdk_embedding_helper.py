@@ -1219,35 +1219,6 @@ def _process_video_from_memory_simple_pipeline(
         }
         
         logger.info("Simple pipeline processing completed successfully")
-        logger.info(
-            "Frame flow summary: extracted=%d -> after_detection=%d -> stored=%d",
-            len(frames),
-            post_detection_items,
-            len(stored_ids),
-        )
-
-        def _format_stage(label: str, stats: Dict[str, float]) -> str:
-            avg_time = stats.get('avg_s', 0.0)
-            max_time = stats.get('max_s', 0.0)
-            pct = stats.get('avg_pct_of_batch', 0.0)
-            return f"{label}(avg={avg_time:.3f}s, max={max_time:.3f}s, ~{pct:.1f}% of batch)"
-
-        logger.info(
-            "Stage timing snapshot: extraction=%.3fs | %s | %s | %s | parallel_batch_time_after_extraction=%.3fs | total_time=%.3fs",
-            frame_extraction_time,
-            _format_stage("detection", detection_stats),
-            _format_stage("embedding", embedding_stats),
-            _format_stage("storage", storage_stats),
-            parallel_stage_time,
-            method_time,
-        )
-        if batch_stats.get('count'):
-            logger.info(
-                "Batch timing snapshot: avg=%.3fs, max=%.3fs across %d batches",
-                batch_stats.get('avg_s', 0.0),
-                batch_stats.get('max_s', 0.0),
-                batch_stats.get('count', 0),
-            )
         
         return result
         

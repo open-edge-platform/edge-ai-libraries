@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from src.common import logger, settings
 from src.core.embedding.simple_client import SimpleVDMSClient
 from src.core.telemetry.recorder import record_video_telemetry
+from src.common.schema import TelemetryRecord
 from src.core.utils.metadata_utils import store_enhanced_video_metadata
 
 # Import SDK-based embedding helper for optimized processing
@@ -57,6 +58,52 @@ def _prepare_video_metadata_payload(
         "video_duration_seconds": video_duration_seconds,
         "processing_mode": processing_mode,
     }
+
+
+def _log_telemetry_record(record: TelemetryRecord | None) -> None:
+    """Emit a structured log that mirrors the stored telemetry entry."""
+    if record is None:
+        return
+
+    try:
+        counts = record.counts
+        throughput = record.throughput
+        stage_summary = ", ".join(
+            f"{stage.name}={stage.seconds:.3f}s ({stage.percent_of_total:.1f}%)"
+            for stage in record.stages
+        )
+        if not stage_summary:
+            stage_summary = "no stage timings"
+
+        if record.batches:
+            total_batches = len(record.batches)
+            total_seconds = sum(batch.total_seconds for batch in record.batches)
+            avg_batch = total_seconds / total_batches if total_batches else 0.0
+            max_batch = max(batch.total_seconds for batch in record.batches)
+            batch_summary = f"{total_batches} batches (avg {avg_batch:.3f}s, max {max_batch:.3f}s)"
+        else:
+            batch_summary = "no batch telemetry"
+
+        logger.info(
+            "Telemetry captured [request_id=%s, source=%s, mode=%s, video=%s]: "
+            "frames=%d -> items=%d -> embeddings=%d | wall=%.3fs | throughput: %.2f eps "
+            "(embedding stage %.2f eps, frames %.2f fps) | stages: %s | batches: %s",
+            record.request_id or "<unknown>",
+            record.source or "<unknown>",
+            record.processing_mode,
+            record.video.video_id if record.video else "<unknown>",
+            counts.frames_extracted,
+            counts.items_after_detection,
+            counts.embeddings_stored,
+            record.timestamps.wall_time_seconds,
+            throughput.embeddings_per_second,
+            throughput.embedding_stage_embeddings_per_second,
+            throughput.frames_per_second,
+            stage_summary,
+            batch_summary,
+        )
+    except Exception as exc:  # pragma: no cover - logging should not fail pipeline
+        logger.debug("Unable to summarize telemetry record %s: %s", record.request_id, exc)
 
 
 def _record_sdk_pipeline(
@@ -115,12 +162,13 @@ def _record_sdk_pipeline(
         }
 
         context["completed_at"] = time.time()
-        record_video_telemetry(
+        record = record_video_telemetry(
             context=context,
             video_metadata=video_metadata,
             pipeline_stats=pipeline_stats,
             config=config,
         )
+        _log_telemetry_record(record)
     except Exception as exc:
         logger.warning("Unable to record SDK telemetry: %s", exc)
 
@@ -191,12 +239,13 @@ def _record_api_pipeline(
         }
 
         context["completed_at"] = time.time()
-        record_video_telemetry(
+        record = record_video_telemetry(
             context=context,
             video_metadata=video_metadata,
             pipeline_stats=pipeline_stats,
             config=config,
         )
+        _log_telemetry_record(record)
     except Exception as exc:
         logger.warning("Unable to record API telemetry: %s", exc)
 

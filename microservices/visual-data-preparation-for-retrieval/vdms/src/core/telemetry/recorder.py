@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from src.common import logger
 from src.common.schema import (
@@ -103,8 +103,8 @@ def record_video_telemetry(
 	video_metadata: Dict[str, Any],
 	pipeline_stats: Dict[str, Any],
 	config: Dict[str, Any],
-) -> None:
-	"""Build and persist a telemetry entry."""
+) -> Optional[TelemetryRecord]:
+	"""Build, persist, and return a telemetry entry."""
 
 	try:
 		total_wall = float(pipeline_stats.get("total_wall_seconds", 0.0))
@@ -193,8 +193,10 @@ def record_video_telemetry(
 		)
 
 		telemetry_store.append(record.model_dump())
+		return record
 	except Exception as exc:  # pragma: no cover - telemetry must not break pipeline
 		logger.warning("Failed to record telemetry: %s", exc)
+		return None
 
 
 __all__ = ["record_video_telemetry"]
