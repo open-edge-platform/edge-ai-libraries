@@ -87,7 +87,7 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
         logger.info(
             "Telemetry captured [request_id=%s, source=%s, mode=%s, video=%s]: "
             "frames=%d -> items=%d -> embeddings=%d | wall=%.3fs | throughput: %.2f eps "
-            "(embedding stage %.2f eps, frames %.2f fps) | stages: %s | batches: %s",
+            "(embedding stage %.2f eps, wall %.2f eps, frames %.2f fps) | stages: %s | batches: %s",
             record.request_id or "<unknown>",
             record.source or "<unknown>",
             record.processing_mode,
@@ -98,6 +98,7 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
             record.timestamps.wall_time_seconds,
             throughput.embeddings_per_second,
             throughput.embedding_stage_embeddings_per_second,
+            throughput.wall_time_embeddings_per_second,
             throughput.frames_per_second,
             stage_summary,
             batch_summary,

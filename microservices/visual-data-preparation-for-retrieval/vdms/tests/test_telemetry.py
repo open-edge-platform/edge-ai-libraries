@@ -55,6 +55,7 @@ def test_get_telemetry_endpoint_returns_data(mocker, test_client):
 		],
 		"throughput": {
 			"embeddings_per_second": 25.0,
+			"wall_time_embeddings_per_second": 25.0,
 			"embedding_stage_embeddings_per_second": 50.0,
 			"frames_per_second": 40.0,
 		},

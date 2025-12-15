@@ -74,6 +74,7 @@ Sample response:
             ],
             "throughput": {
                 "embeddings_per_second": 960.7483555108118,
+                "wall_time_embeddings_per_second": 70.9559383300526,
                 "embedding_stage_embeddings_per_second": 39.86682168117158,
                 "frames_per_second": 63.19713696475425
             },
@@ -142,6 +143,7 @@ Stage timing objects follow the schema `{name, seconds, percent_of_total}` and a
 | --- | --- | --- |
 | `embeddings_per_second` | Effective throughput for the entire request. Accounts for overlapping stages. | `embeddings_stored / effective_embedding_seconds`, where `effective_embedding_seconds = wall_time_seconds * (embedding_stage_percent / 100)`. Falls back to `wall_time_seconds` if the embedding stage percent is `0`. |
 | `embedding_stage_embeddings_per_second` | Raw throughput during the embedding stage only. Useful for spotting model-level slowdowns. | `embeddings_stored / embedding_seconds_total`. |
+| `wall_time_embeddings_per_second` | Wall-clock throughput that ignores stage overlap. | `embeddings_stored / wall_time_seconds`. |
 | `frames_per_second` | Frame extraction throughput. | `frames_extracted / frame_extraction_seconds` (or `/ wall_time_seconds` if extraction time is unknown). |
 
 ### Batch breakdown

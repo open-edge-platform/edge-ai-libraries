@@ -145,6 +145,7 @@ def record_video_telemetry(
 			embedding_stage_embeddings_per_second=_safe_div(
 				embeddings_stored, embedding_seconds
 			),
+			wall_time_embeddings_per_second=_safe_div(embeddings_stored, total_wall),
 			frames_per_second=_safe_div(
 				frame_count,
 				extraction_seconds if extraction_seconds > 0 else total_wall,

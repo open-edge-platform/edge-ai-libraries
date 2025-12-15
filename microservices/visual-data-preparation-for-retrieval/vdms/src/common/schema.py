@@ -197,6 +197,7 @@ class TelemetryThroughput(BaseModel):
 
     embeddings_per_second: float = Field(ge=0.0)
     embedding_stage_embeddings_per_second: float = Field(ge=0.0)
+    wall_time_embeddings_per_second: float = Field(ge=0.0)
     frames_per_second: float = Field(ge=0.0)
 
 
