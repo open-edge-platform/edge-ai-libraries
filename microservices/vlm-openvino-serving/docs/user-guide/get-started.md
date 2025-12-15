@@ -414,10 +414,12 @@ The microservice exposes `/v1/telemetry` to inspect the most recent (up to 100) 
 
 > **Tip:** Use `VLM_TELEMETRY_PATH` to move the JSONL file to a different mount (for persistent storage or easier scraping) and `VLM_TELEMETRY_MAX_RECORDS` to adjust how many records are kept.
 
+> **Default:** The endpoint returns up to 100 entries when no `limit` value is provided.
+
 > **Note:** Telemetry metrics are available for all models that execute inference through the `openvino_genai` pipeline. The only exception today is `HuggingFaceTB/SmolVLM2-2.2B-Instruct`, which relies on `OVModelForVisualCausalLM` from `optimum-intel` and therefore does not emit `openvino_genai` PerfMetrics.
 
 ```bash
-curl --location 'http://localhost:9764/v1/telemetry'
+curl --location 'http://localhost:9764/v1/telemetry?limit=5'
 ```
 
 The response follows the `TelemetryListResponse` schema:

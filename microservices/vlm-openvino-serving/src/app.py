@@ -17,7 +17,7 @@ from typing import Callable, List, Optional, Union
 from datetime import datetime
 
 import openvino_genai as ov_genai
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi_utils.tasks import repeat_every
@@ -1271,7 +1271,14 @@ async def chat_completions(request: ChatRequest):
 
 
 @app.get("/v1/telemetry", response_model=TelemetryListResponse)
-async def list_telemetry():
+async def list_telemetry(
+    limit: Optional[int] = Query(
+        default=None,
+        gt=0,
+        le=settings.VLM_TELEMETRY_MAX_RECORDS,
+        description="Maximum number of newest telemetry items to return.",
+    )
+):
     """Return the most recent telemetry entries (newest first)."""
 
     try:
@@ -1279,6 +1286,9 @@ async def list_telemetry():
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.error("Failed to read telemetry store: %s", exc)
         raise HTTPException(status_code=500, detail="Unable to read telemetry history")
+
+    if limit is not None:
+        entries = entries[-limit:]
 
     records = [TelemetryRecordModel(**entry) for entry in reversed(entries)]
     return TelemetryListResponse(count=len(records), items=records)
