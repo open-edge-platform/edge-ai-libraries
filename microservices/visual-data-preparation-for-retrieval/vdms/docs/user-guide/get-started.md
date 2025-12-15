@@ -195,60 +195,6 @@ The telemetry endpoint captures per-request wall-clock timings, stage durations,
 curl --location 'http://localhost:6016/telemetry?limit=5'
 ```
 
-Sample response:
-
-```json
-{
-   "count": 1,
-   "items": [
-      {
-         "request_id": "57565783-35fe-49d7-a570-e03e9954bfd5",
-         "source": "/videos/minio",
-         "processing_mode": "sdk",
-         "timestamps": {
-            "requested_at": "2025-12-15T04:48:44.446112Z",
-            "completed_at": "2025-12-15T04:49:13.659717Z",
-            "wall_time_seconds": 28.357240915298462
-         },
-         "video": {
-            "bucket_name": "video-summary",
-            "video_id": "ffc84650-d6a4-46a7-8937-9a292f82b1b7",
-            "filename": "sample.mp4",
-            "frame_interval": 20,
-            "fps": 30.0,
-            "total_frames": 17973,
-            "video_duration_seconds": 599.1,
-            "processing_mode": "sdk"
-         },
-         "config": {
-            "embedding_mode": "sdk",
-            "object_detection_enabled": true,
-            "detection_confidence": 0.85,
-            "sdk_parallel_workers": 60,
-            "sdk_batch_size": 32
-         },
-         "counts": {
-            "frames_extracted": 899,
-            "items_after_detection": 2370,
-            "embeddings_stored": 2370
-         },
-         "stages": [
-            {
-               "name": "extraction",
-               "seconds": 15.526421785354614,
-               "percent_of_total": 54.75293534985012
-            }
-         ],
-         "throughput": {
-            "embeddings_per_second": 652.3004532674363,
-            "embedding_stage_embeddings_per_second": 29.266140887563445,
-            "frames_per_second": 57.90129963157299
-         }
-      }
-   ]
-}
-```
-
 See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete breakdown of every field and how each value is calculated.
 
 ## Validate Services

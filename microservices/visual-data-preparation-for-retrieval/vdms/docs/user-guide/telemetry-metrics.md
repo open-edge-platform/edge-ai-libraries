@@ -10,12 +10,90 @@ This note explains what the `/telemetry` endpoint returns, how each metric is co
   - `source` – optional filter that matches the request path that produced the entry (for example `/videos/upload`).
 - **Response shape:**
 
-  ```json
-  {
+Sample response:
+
+```json
+{
     "count": 1,
-    "items": [TelemetryRecord]
-  }
-  ```
+    "items": [
+        {
+            "request_id": "a2e00af4-3d62-4d3b-b9e2-5a08743b21b7",
+            "source": "/videos/minio",
+            "processing_mode": "sdk",
+            "timestamps": {
+                "requested_at": "2025-12-15T05:18:19.320075Z",
+                "completed_at": "2025-12-15T05:18:53.187766Z",
+                "wall_time_seconds": 33.42496871948242
+            },
+            "video": {
+                "bucket_name": "video-summary",
+                "video_id": "a0ee04eb-5dc2-450b-a4b7-16a230a1c282",
+                "filename": "sample.mp4",
+                "frame_interval": 20,
+                "fps": 30.0,
+                "total_frames": 17973,
+                "video_duration_seconds": 599.1,
+                "tags": [],
+                "video_url": "http://vdms-dataprep:8000/v1/dataprep/videos/download?video_id=a0ee04eb-5dc2-450b-a4b7-16a230a1c282&bucket_name=video-summary",
+                "video_rel_url": "/v1/dataprep/videos/download?video_id=a0ee04eb-5dc2-450b-a4b7-16a230a1c282&bucket_name=video-summary",
+                "processing_mode": "sdk"
+            },
+            "config": {
+                "embedding_mode": "sdk",
+                "object_detection_enabled": true,
+                "detection_confidence": 0.85,
+                "sdk_parallel_workers": 60,
+                "sdk_batch_size": 32
+            },
+            "counts": {
+                "frames_extracted": 899,
+                "items_after_detection": 2370,
+                "embeddings_stored": 2370
+            },
+            "stages": [
+                {
+                    "name": "extraction",
+                    "seconds": 14.225327968597412,
+                    "percent_of_total": 42.55898663057204
+                },
+                {
+                    "name": "detection",
+                    "seconds": 388.91471695899963,
+                    "percent_of_total": 48.282008923343355
+                },
+                {
+                    "name": "embedding",
+                    "seconds": 59.44792938232422,
+                    "percent_of_total": 7.380192447729496
+                },
+                {
+                    "name": "storage",
+                    "seconds": 14.32844614982605,
+                    "percent_of_total": 1.7788119983550996
+                }
+            ],
+            "throughput": {
+                "embeddings_per_second": 960.7483555108118,
+                "embedding_stage_embeddings_per_second": 39.86682168117158,
+                "frames_per_second": 63.19713696475425
+            },
+            "batches": [
+               {
+                    "batch_index": 29,
+                    "input_frames": 3,
+                    "items_after_detection": 7,
+                    "detection_seconds": 0.8262088298797607,
+                    "embedding_seconds": 0.25011181831359863,
+                    "storage_seconds": 0.06559395790100098,
+                    "total_seconds": 1.1423156261444092,
+                    "embeddings_stored": 7
+                },
+                <other batch details omitted for brevity>
+            ]
+        }
+    ]
+}
+```
 
 Each `TelemetryRecord` is stored in JSONL under `data/telemetry/telemetry.jsonl` (or the configured path) and is served verbatim after lightweight normalization so that older float timestamps are converted to UTC ISO-8601 strings.
 
