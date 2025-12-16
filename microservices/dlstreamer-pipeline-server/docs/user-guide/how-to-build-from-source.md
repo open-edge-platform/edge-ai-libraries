@@ -50,18 +50,19 @@ Note: Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microse
 
     The docker image of DL Streamer Pipeline Server is now built (based on the .env changes done above) and available for you to run.
 
----
-
 2. Run the below command to start the container
+
     ```sh
     docker compose up
     ```
+
 ---
 ### Run default sample
+
 Refer [here](./get-started.md#run-default-sample) to run default sample upon bringing up DL Streamer Pipeline Server container.
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](./Overview.md)
--   For more details on advanced configuration, usage of features refer to [Detailed Usage](./advanced-guide/Overview.md)
--   For more tutorials please refer `How-to` section
+- Understand the components, services, architecture, and data flow, in the [Overview](./Overview.md)
+- For more details on advanced configuration, usage of features refer to [Detailed Usage](./advanced-guide/Overview.md)
+- For more tutorials please refer `How-to` section

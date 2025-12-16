@@ -78,14 +78,20 @@ export MINIO_SECRET_KEY=<your-minio-password>
 ## Models Selection
 Refer to [supported models](./Overview.md#models-supported) for the list of models that can be used for transcription. You can specify which models to enable through the `ENABLED_WHISPER_MODELS` environment variable.
 
-# Quick Start
+## Quick Start
 
-User has following different options to start and use the application :
+User has following different options to setup/build and use the application.
 
-- [Build the image and run using Docker script](./how-to-build-from-source.md#build-and-run-using-docker-script). Docker script helps build images for application and any required dependency and deploy the application. Default storage backend used here is `minio` but can be updated to use `local` storage backend.
-- [Use pre-built image for standalone setup](#standalone-setup-in-docker-container). Standalone setup has no external dependency. Default and recommended storage backend: `local`.
-- [Build and setup on host using setup script](./how-to-build-from-source.md#setup-and-run-on-host-using-setup-script). Only storage backend available: `local`
-- [Build and setup on host manually](#manual-host-setup-using-poetry). Default storage backend used is `local` but can be configured to use `minio` storage backend.
+### Recommended Setup
+- [Use pre-built image for standalone setup](#standalone-setup-in-docker-container). Standalone setup has no external dependency. Storage backend used: `local`.
+- [Build and run on host using setup script](./how-to-build-from-source.md#build-and-run-on-host-using-setup-script). Storage backend used: `local`
+
+### Advanced Setup
+
+> __**NOTE :**__ Audio-Analyzer microservice can also be run with Minio as its storage backend. However, this is not a recommended setup and is only meant for advanced users. This setup requires familiarity with using Minio and using non-documented API requests.
+
+- [Build and run in container using Docker script](./how-to-build-from-source.md#build-and-run-in-container-using-docker-script). Docker script helps build images for application and deploy the application with any optional dependency. Default storage backend used here is `minio` but can be updated to use `local` storage backend. If `minio` storage backend is used, then the script also brings up Minio server container along with application container. 
+- [Build and run on host manually](#build-and-run-on-host-manually). Default storage backend used is `local` but can be configured to use `minio` storage backend.
 
 
 ## Standalone Setup in Docker Container
@@ -93,13 +99,13 @@ User has following different options to start and use the application :
 1. Set the registry and tag for the public image to be pulled.
 
     ```bash
-    export REGISTRY=intel/
-    export TAG=latest
+    export PUB_REGISTRY=intel/
+    export PUB_TAG=latest
     ```
 2. Pull public image for Audio Analyzer Microservice:
 
     ```bash
-    docker pull ${REGISTRY}audio-analyzer:${TAG:-latest}
+    docker pull ${PUB_REGISTRY}audio-analyzer:${PUB_TAG:-latest}
     ```
 3. Set the required environment variables:
 
@@ -124,7 +130,7 @@ User has following different options to start and use the application :
 
     ```bash
     # Run Audio Analyzer application container exposed on a randomly assigned port
-    docker run --rm -d -P -v $AUDIO_ANALYZER_DIR:/data -e http_proxy -e https_proxy -e ENABLED_WHISPER_MODELS -e DEFAULT_WHISPER_MODEL --name audioanalyzer intel/audio-analyzer:latest
+    docker run --rm -d -P -v $AUDIO_ANALYZER_DIR:/data -e http_proxy -e https_proxy -e ENABLED_WHISPER_MODELS -e DEFAULT_WHISPER_MODEL --name audioanalyzer ${PUB_REGISTRY}audio-analyzer:${PUB_TAG:-latest}
     ```
 
 7. Access the Audio-Analyzer API in a web browser on the URL given by this command:
@@ -135,23 +141,23 @@ User has following different options to start and use the application :
     echo http://${host}:${port}/docs
     ```
 
-## API Usage
+### API Usage
 
 Below are examples of how to use the API on command line with `curl`.
 
-### Health Check
+#### Health Check
 
   ```bash
   curl "http://localhost:$port/api/v1/health"
   ```
 
-### Get Available Models
+#### Get Available Models
 
   ```bash
   curl "http://localhost:$port/api/v1/models"
   ```
 
-### Filesystem Storage Examples
+#### Filesystem Storage Examples
 
 #### Upload a Video File for Transcription
 
@@ -172,7 +178,7 @@ Once the transcription process is completed, the transcript files will be availa
   ls $AUDIO_ANALYZER_DIR/transcript
   ```
 
-## Transcription Performance and Optimization on CPU
+### Transcription Performance and Optimization on CPU
 
 The service uses **pywhispercpp** with the following optimizations for CPU transcription:
 
@@ -181,7 +187,7 @@ The service uses **pywhispercpp** with the following optimizations for CPU trans
 - **Greedy Decoding**: Faster inference by using greedy decoding instead of beam search
 - **OpenVINO IR Models**: Can download and use OpenVINO IR models for even faster CPU inference
 
-# Manual Host Setup using Poetry
+## Build and run on host manually
 
 > **__NOTE :__** This is an advanced setup and is recommended for development/contribution only. As an alternative method to setup on host, please see : [setting up on host using setup script](./how-to-build-from-source.md#setup-and-run-on-host-using-setup-script). When setting up on host, the default storage backend would be local filesystem. Please make sure `STORAGE_BACKEND` is not overridden to **minio**, unless you want to explicitly use the Minio backend.
 
@@ -238,7 +244,7 @@ The service uses **pywhispercpp** with the following optimizations for CPU trans
     STORAGE_BACKEND=minio DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
     ```
 
-## Running Tests
+### Running tests for host setup
 
 We can run unit tests and generate coverage by running following command in the application's directory (microservices/audio-analyzer) in the cloned repo:
 
@@ -255,7 +261,7 @@ poetry run coverage run -m pytest ./tests
 poetry run coverage report -m
 ```
 
-## API Documentation
+### API Documentation
 
 When running the service, you can access the Swagger UI documentation at:
 
@@ -263,7 +269,7 @@ When running the service, you can access the Swagger UI documentation at:
 http://localhost:8000/docs
 ```
 
-## Advanced Setup Options
+## More Advanced Setup Options
 
 ### Manually Running a Local MinIO Server
 

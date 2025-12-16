@@ -3,7 +3,7 @@
 # This script automatically detects the available device (NPU, GPU, or CPU)
 # and writes COMPOSE_PROFILES, RENDER_GROUP_ID, and DOCKER_TAG to the .env file.
 
-VERSION=2025.2-rc3
+VERSION=2025.2.0
 COMPOSE_PROFILES=""
 RENDER_GROUP_ID=""
 

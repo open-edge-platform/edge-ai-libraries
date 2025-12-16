@@ -82,6 +82,9 @@ class GStreamerPipeline(Pipeline):
         self.start_time = None
         self.stop_time = None
         self._avg_fps = 0
+        self._frame_fps = 0
+        self._last_frame_count = 0
+        self._last_frame_time = 0
         self._gst_launch_string = None
         self.latency_times = dict()
         self.sum_pipeline_latency = 0
@@ -179,7 +182,6 @@ class GStreamerPipeline(Pipeline):
             self._app_destinations.append(webrtc_app_destination)
 
     def _delete_pipeline(self, new_state):
-        self._cal_avg_fps()
         self.state = new_state
         self.stop_time = time.time()
         self._logger.debug("Setting Pipeline {id}"
@@ -276,7 +278,8 @@ class GStreamerPipeline(Pipeline):
         status_obj = {
             "id": self.identifier,
             "state": self.state,
-            "avg_fps": self.get_avg_fps(),
+            "avg_fps": self._avg_fps,
+            "frame_fps": self._frame_fps,
             "start_time": self.start_time,
             "elapsed_time": elapsed_time,
             "message": message
@@ -288,12 +291,7 @@ class GStreamerPipeline(Pipeline):
         return status_obj
 
     def get_avg_fps(self):
-        self._cal_avg_fps()
         return self._avg_fps
-
-    def _cal_avg_fps(self):
-        if not self.state.stopped() and self.start_time is not None:
-            self._avg_fps = self.frame_count / (time.time() - self.start_time)
 
     def _get_element_property(self, element, key):
         if isinstance(element, str):
@@ -617,7 +615,7 @@ class GStreamerPipeline(Pipeline):
                     self.config["prepare-pads"](self.pipeline)
 
                 self.pipeline.set_state(Gst.State.PLAYING)
-                self.start_time = time.time()
+                self._save_start_time()
             except Exception as error:
                 self._logger.error("Error on Pipeline {id}: {err}".format(
                     id=self.identifier, err=error))
@@ -766,6 +764,25 @@ class GStreamerPipeline(Pipeline):
             self.count_pipeline_latency += 1
         return Gst.PadProbeReturn.OK
 
+    def _save_start_time(self):
+        self.start_time = time.time()
+        self._last_frame_time = self.start_time
+        self._last_frame_count = 0
+        self.frame_count = 0
+
+    def _increment_frame_count(self):
+        self.frame_count += 1
+
+        current_time = time.time()
+        if current_time > self.start_time:
+          self._avg_fps = self.frame_count / (current_time - self.start_time)
+
+        delta_time = current_time - self._last_frame_time
+        if delta_time >= 1:
+          self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
+          self._last_frame_count = self.frame_count
+          self._last_frame_time = current_time
+        
     def on_sample_app_destination(self, sink):
         self._logger.debug("Received Sample from Pipeline {id}".format(
             id=self.identifier))
@@ -779,13 +796,13 @@ class GStreamerPipeline(Pipeline):
                 id=self.identifier, err=error))
             return Gst.FlowReturn.ERROR
 
-        self.frame_count += 1
+        self._increment_frame_count()
         return Gst.FlowReturn.OK
 
     def on_sample(self, sink):
         _ = sink.emit("pull-sample")
 
-        self.frame_count += 1
+        self._increment_frame_count()
         return Gst.FlowReturn.OK
 
     def bus_call(self, unused_bus, message, unused_data=None):
@@ -823,7 +840,7 @@ class GStreamerPipeline(Pipeline):
                         self._logger.info(
                             "Setting Pipeline {id} State to RUNNING".format(id=self.identifier))
                         self.state = Pipeline.State.RUNNING
-                        self.start_time = time.time()
+                        self._save_start_time()
         else:
             if self._bus_messages:
                 structure = Gst.Message.get_structure(message)
@@ -927,7 +944,7 @@ class GStreamerPipeline(Pipeline):
 
                 # Set to playing state
                 self.pipeline.set_state(Gst.State.PLAYING)
-                self.start_time = time.time()  # Reset start time for FPS calculations
+                self._save_start_time()
 
             # Reconnection successful
             self.state = Pipeline.State.RUNNING

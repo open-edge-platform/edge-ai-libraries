@@ -58,7 +58,7 @@
     "sass": "^1.79.4",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^6.3.5",
+    "vite": "^6.4.1",
     "vitest": "^3.2.4"
   }
 }
