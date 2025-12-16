@@ -30,7 +30,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
   Supports publishing metadata to file, MQTT/Kafka message brokers and frame along with metadata to MQTT message broker. We also support publishing metadata and frame over OPCUA. The frames can also be saved on S3 compliant storage.
 
 - **DL Streamer Pipeline Server Model Update**</br>
-  Supports integration with Model Registry service [Model Registry](https://docs.openedgeplatform.intel.com/edge-ai-libraries/model-registry/main/user-guide/Overview.html) for model download, deployment and management.
+  Supports integration with Model Registry service [Model Registry](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
 
 - **Open Telemetry**</br>
   Supports gathering metrics over Open Telemetry for seamless visualization and analysis.
