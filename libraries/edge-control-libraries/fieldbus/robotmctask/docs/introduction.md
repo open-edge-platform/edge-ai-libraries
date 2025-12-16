@@ -15,9 +15,7 @@
 
 The architecture is as following:
 
-<p>
-    <img src="images/arch.png" alt="Robot Motion Control Architecture" title="Robot Motion Control Architecture">
-</p>
+![Robot Motion Control Architecture](images/arch.png)
 
 Two key blocks have been introduced to support the core architecture:
 
@@ -38,10 +36,7 @@ Two key blocks have been introduced to support the core architecture:
 
 The following diagram illustrates a typical fieldbus topology for humanoid robot applications: 
 
-<p>
-    <img src="images/Humanoid_Robot_Topology.png" alt="Humanoid Robot Network Topology" title="Humanoid Robot Network Topology">
-</p>
-
+![Humanoid Robot Network Topology](images/Humanoid_Robot_Topology.png)
 
 
 ## Getting Started
@@ -51,13 +46,13 @@ The software runs on standard PCs or servers. Since it is primarily developed in
 
 ### Running 
 
-Please check [README](./../README.md) file for details.
+Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
 ### Examples
 
 One example using Robot Motion Control Task is provided.
 
-* [mc_rl_sample](./../examples/mc_rl_sample.cpp):
+* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
 A comprehensive demonstration showcasing:
 
     - **Multi-Topology Configuration:** Robot task setup with multiple topologies using different ENI files
@@ -69,4 +64,4 @@ A comprehensive demonstration showcasing:
 
 ## License
 
-The source code is licensed under Apache License . See [LICENSE](./../LICENSE) file for details. 
+The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details. 
