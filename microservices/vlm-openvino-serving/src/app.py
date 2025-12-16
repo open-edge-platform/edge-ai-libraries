@@ -13,8 +13,8 @@ from multiprocessing import Manager
 from pathlib import Path
 from queue import Queue
 from threading import Thread
-from typing import Callable, List, Optional, Union
-from datetime import datetime
+from typing import Any, Callable, List, Optional, Union
+from datetime import datetime, timezone
 
 import openvino_genai as ov_genai
 from fastapi import FastAPI, HTTPException, Query
@@ -260,8 +260,12 @@ async def queue_status():
     )
 
 
+
 model_ready = False
-pipe, processor, model_dir, model_config = None, None, None, None
+pipe: Optional[Any] = None
+processor: Any = None
+model_dir = None
+model_config = None
 
 
 def cleanup_pipeline_state():
@@ -556,9 +560,14 @@ async def chat_completions(request: ChatRequest):
             if telemetry_recorded:
                 return
             try:
+                timestamp = (
+                    datetime.now(timezone.utc)
+                    .isoformat(timespec="milliseconds")
+                    .replace("+00:00", "Z")
+                )
                 record = TelemetryRecordModel(
                     id=telemetry_request_id,
-                    timestamp=f"{datetime.utcnow().isoformat(timespec='milliseconds')}Z",
+                    timestamp=timestamp,
                     status=status,
                     request=build_request_metadata(),
                     usage=usage,

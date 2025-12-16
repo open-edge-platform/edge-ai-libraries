@@ -5,12 +5,12 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Any, Dict
 
 # Load environment variables from .env file if it exists
@@ -27,15 +27,23 @@ class Settings(BaseSettings):
     Represents the application settings loaded from environment variables.
     """
 
-    APP_NAME: str = "vlm-ov-serving"
-    APP_DISPLAY_NAME: str = "vlm-ov-serving"
+    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=True)
+
+    APP_NAME: str = "vlm-openvino-serving"
+    APP_DISPLAY_NAME: str = "vlm-openvino-serving"
     APP_DESC: str = (
         "Fastapi server wrapping Openvino runtime to serve /chat/completion endpoint to consume text and image and serve inference with LLM/VLM models"
     )
 
-    http_proxy: str = Field(default=None, json_schema_extra={"env": "http_proxy"})
-    https_proxy: str = Field(default=None, json_schema_extra={"env": "https_proxy"})
-    no_proxy_env: str = Field(default=None, json_schema_extra={"env": "no_proxy_env"})
+    http_proxy: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "http_proxy"}
+    )
+    https_proxy: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "https_proxy"}
+    )
+    no_proxy_env: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "no_proxy_env"}
+    )
     VLM_MODEL_NAME: str = Field(
         default=None,
         json_schema_extra={"env": "VLM_MODEL_NAME"},
@@ -189,7 +197,7 @@ class GunicornStyleFormatter(logging.Formatter):
 
     def format(self, record):
         # Get current time in UTC with timezone info
-        utc_time = datetime.utcnow()
+        utc_time = datetime.now(timezone.utc)
         timestamp = utc_time.strftime("[%Y-%m-%d %H:%M:%S +0000]")
 
         # Get process ID
@@ -208,6 +216,7 @@ logging.basicConfig(
     level=get_log_level(),
     format="%(message)s",  # We'll handle formatting in our custom formatter
     handlers=[logging.StreamHandler()],
+    force=True,
 )
 
 # Apply custom formatter to all handlers

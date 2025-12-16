@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from typing import Optional, Tuple
 
 import openvino_genai as ov_genai
@@ -25,7 +27,18 @@ def _safe_call(getter, default=None):
         The getter output if successful, otherwise ``default``.
     """
     try:
-        return getter()
+        result = getter()
+        # Some pipelines expose async-aware metrics or temporarily omit values; treat anything
+        # unusual as best-effort and avoid surfacing warnings/exceptions to API consumers.
+        if inspect.isawaitable(result):
+            if asyncio.iscoroutine(result):
+                result.close()
+            logger.debug(
+                "Perf metric getter %s produced awaitable; ignoring",
+                getattr(getter, "__name__", getter),
+            )
+            return default
+        return result
     except Exception as exc:  # pragma: no cover - defensive guard
         logger.debug("Failed to read perf metric via %s: %s", getattr(getter, "__name__", getter), exc)
         return default

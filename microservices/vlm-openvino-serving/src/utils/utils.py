@@ -40,7 +40,7 @@ if settings.no_proxy_env:
 
 logger.debug(f"proxies: {proxies}")
 
-_MODEL_CONFIG_CACHE: Optional[Dict[str, Any]] = None
+_MODEL_CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def get_best_video_backend() -> str:
@@ -318,15 +318,20 @@ def is_model_ready(model_dir: Path) -> bool:
     return bool(ov_files)
 
 
+def _resolve_config_cache_key(config_path: Path) -> str:
+    return str(Path(config_path).expanduser().resolve(strict=False))
+
+
 def _load_model_config_data(config_path: Path) -> Dict[str, Any]:
-    """Load and cache the entire model_config.yaml content."""
+    """Load and cache model configuration data for a given path."""
 
     global _MODEL_CONFIG_CACHE
-    if _MODEL_CONFIG_CACHE is None:
+    cache_key = _resolve_config_cache_key(config_path)
+    if cache_key not in _MODEL_CONFIG_CACHE:
         resolved_path = Path(config_path)
         with open(resolved_path, "r") as config_file:
-            _MODEL_CONFIG_CACHE = yaml.safe_load(config_file) or {}
-    return _MODEL_CONFIG_CACHE or {}
+            _MODEL_CONFIG_CACHE[cache_key] = yaml.safe_load(config_file) or {}
+    return _MODEL_CONFIG_CACHE[cache_key]
 
 
 def load_model_config(
