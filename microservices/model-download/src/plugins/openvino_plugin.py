@@ -109,7 +109,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             weight_format (str): The weight format for the exported model (e.g., "int4", "fp16").
             huggingface_token (str): The Hugging Face API token for authentication.
             model_type (str): The type of the model (e.g., "llm", "embeddings", "rerank").
-            target_device (str): Target hardware device for optimization (e.g., "CPU", "GPU").
+            target_device (str): Target hardware device for optimization (e.g., "CPU", "GPU", "NPU").
             model_directory (str): Directory to save the converted model.
             cache_size (int, optional): Cache size for model optimization.
 
