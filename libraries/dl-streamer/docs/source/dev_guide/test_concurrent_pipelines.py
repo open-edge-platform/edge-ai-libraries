@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# ==============================================================================
+# Copyright (C) 2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
 """
 Test script for concurrent pipeline support in latency tracer.
 
