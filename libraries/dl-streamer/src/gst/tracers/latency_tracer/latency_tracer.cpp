@@ -103,13 +103,14 @@ struct BranchStats {
         } // Lock released here
 
         // Log outside the lock to minimize lock duration
-        GST_TRACE("[Latency Tracer] Pipeline: %s, Source: %s -> Sink: %s - Frame: %u, Latency: %.2f ms, Avg: %.2f ms, Min: %.2f "
+        GST_TRACE("[Latency Tracer] Pipeline: %s, Source: %s -> Sink: %s - Frame: %u, Latency: %.2f ms, Avg: %.2f ms, "
+                  "Min: %.2f "
                   "ms, Max: %.2f ms, Pipeline Latency: %.2f ms, FPS: %.2f",
-                  pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, local_min, local_max,
-                  pipeline_latency, fps);
+                  pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), local_count, frame_latency, avg, 
+                  local_min, local_max, pipeline_latency, fps);
 
-        gst_tracer_record_log(tr_pipeline, pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), frame_latency, avg, local_min,
-                              local_max, pipeline_latency, fps, local_count);
+        gst_tracer_record_log(tr_pipeline, pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), frame_latency, 
+                              avg, local_min, local_max, pipeline_latency, fps, local_count);
         cal_log_pipeline_interval(ts, frame_latency, interval);
     }
 
@@ -125,9 +126,11 @@ struct BranchStats {
             gdouble pipeline_latency = ms / interval_frame_count;
             gdouble fps = ms_to_s / pipeline_latency;
             gdouble interval_avg = interval_total / interval_frame_count;
-            GST_TRACE("[Latency Tracer Interval] Pipeline: %s, Source: %s -> Sink: %s - Interval: %.2f ms, Avg: %.2f ms, Min: %.2f "
+            GST_TRACE("[Latency Tracer Interval] Pipeline: %s, Source: %s -> Sink: %s - Interval: %.2f ms, Avg: %.2f "
+                      "ms, Min: %.2f "
                       "ms, Max: %.2f ms",
-                      pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), ms, interval_avg, interval_min, interval_max);
+                      pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), ms, interval_avg, interval_min, 
+                      interval_max);
             gst_tracer_record_log(tr_pipeline_interval, pipeline_name.c_str(), source_name.c_str(), sink_name.c_str(), ms, interval_avg,
                                   interval_min, interval_max, pipeline_latency, fps);
             reset_interval(ts);
@@ -142,11 +145,11 @@ using BranchKey = tuple<GstElement *, GstElement *, GstElement *>; // <source, s
 
 // Hash function for BranchKey tuple
 struct BranchKeyHash {
-    std::size_t operator()(const BranchKey& k) const {
+    std::size_t operator()(const BranchKey & k) const {
         // Hash all three pointers: source, sink, pipeline
-        std::size_t h1 = std::hash<GstElement*>{}(std::get<0>(k));  // source
-        std::size_t h2 = std::hash<GstElement*>{}(std::get<1>(k));  // sink
-        std::size_t h3 = std::hash<GstElement*>{}(std::get<2>(k));  // pipeline
+        std::size_t h1 = std::hash<GstElement *>{}(std::get<0>(k)); // source
+        std::size_t h2 = std::hash<GstElement *>{}(std::get<1>(k)); // sink
+        std::size_t h3 = std::hash<GstElement *>{}(std::get<2>(k)); // pipeline
         
         // Combine hashes using boost::hash_combine pattern
         // 0x9e3779b9 is the golden ratio conjugate (φ⁻¹ * 2³²) used for hash mixing
@@ -309,10 +312,9 @@ static void latency_tracer_class_init(LatencyTracerClass *klass) {
     gobject_class->constructed = latency_tracer_constructed;
     gobject_class->finalize = latency_tracer_finalize;
     tr_pipeline = gst_tracer_record_new(
-        "latency_tracer_pipeline.class", 
-        "pipeline_name", GST_TYPE_STRUCTURE,
-        gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
-                          "Pipeline name", NULL),
+        "latency_tracer_pipeline.class", "pipeline_name", GST_TYPE_STRUCTURE,
+        gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING, "Pipeline name", 
+                          NULL),
         "source_name", GST_TYPE_STRUCTURE,
         gst_structure_new("value", "type", G_TYPE_GTYPE, G_TYPE_STRING, "description", G_TYPE_STRING,
                           "Source element name", NULL),
@@ -520,30 +522,31 @@ struct ElementStats {
 };
 
 // Check if element is in any pipeline (not restricted to lt->pipeline)
-// Note: Parameter retained for GStreamer callback signature compatibility but no longer used for pipeline-specific checks
+// Note: Parameter retained for GStreamer callback signature compatibility but no longer used for pipeline-specific
+// checks
 static bool is_in_pipeline(LatencyTracer *lt, GstElement *elem) {
-    UNUSED(lt);  // No longer need to check specific pipeline
-    
+    UNUSED(lt); // No longer need to check specific pipeline
+
     if (!elem)
         return false;
-    
+
     // Walk up the element hierarchy to find if there's a pipeline ancestor
     GstObject *parent = GST_OBJECT_CAST(elem);
     while (parent) {
         if (GST_IS_PIPELINE(parent)) {
-            return true;  // Found a pipeline ancestor
+            return true; // Found a pipeline ancestor
         }
         parent = GST_OBJECT_PARENT(parent);
     }
-    
-    return false;  // Not in any pipeline
+
+    return false; // Not in any pipeline
 }
 
 // Helper function to find which pipeline an element belongs to
 static GstElement *find_pipeline_for_element(GstElement *elem) {
     if (!elem)
         return nullptr;
-    
+
     // Walk up to find the top-level pipeline
     GstObject *parent = GST_OBJECT_CAST(elem);
     while (parent) {
@@ -552,7 +555,7 @@ static GstElement *find_pipeline_for_element(GstElement *elem) {
         }
         parent = GST_OBJECT_PARENT(parent);
     }
-    
+
     return nullptr;
 }
 
@@ -796,8 +799,8 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
                 branch.sink_name = GST_ELEMENT_NAME(sink);
                 branch.first_frame_init_ts = meta->init_ts;
                 branch.reset_interval(ts);
-                GST_INFO_OBJECT(lt, "Tracking new branch: %s, %s -> %s", 
-                    branch.pipeline_name.c_str(), branch.source_name.c_str(), branch.sink_name.c_str());
+                GST_INFO_OBJECT(lt, "Tracking new branch: %s, %s -> %s", branch.pipeline_name.c_str(), 
+                                branch.source_name.c_str(), branch.sink_name.c_str());
             }
 
             branch.cal_log_pipeline_latency(ts, meta->init_ts, lt->interval);
@@ -831,7 +834,7 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
     // Track EVERY pipeline that transitions to PLAYING (not just lt->pipeline)
     if (GST_STATE_TRANSITION_NEXT(change) == GST_STATE_PLAYING && GST_IS_PIPELINE(elem)) {
         GST_INFO_OBJECT(lt, "Discovering elements in pipeline: %s", GST_ELEMENT_NAME(elem));
-        
+
         auto *sources = get_sources_list(lt);
         auto *sinks = get_sinks_list(lt);
         auto *type_cache = get_element_type_cache(lt);
@@ -886,8 +889,8 @@ static void on_element_change_state_post(LatencyTracer *lt, guint64 ts, GstEleme
 // GStreamer tracer hook for element creation
 // Note: Parameters 'lt' and 'ts' retained for GStreamer tracer hook signature compatibility
 static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
-    UNUSED(ts);  // Not used for pipeline registration
-    UNUSED(lt);  // No longer tracking single pipeline instance
+    UNUSED(ts); // Not used for pipeline registration
+    UNUSED(lt); // No longer tracking single pipeline instance
     
     // Track all pipelines - no single pipeline restriction
     if (GST_IS_PIPELINE(elem)) {
