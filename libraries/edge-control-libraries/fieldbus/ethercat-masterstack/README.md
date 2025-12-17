@@ -13,13 +13,13 @@ Based on the native, Intel® made the following optimizations:
 * Support user-mode runtime
 * Support multiple master
 
-For User-space EtherCAT Master Stack, please visit [Userspace EtherCAT Master Stack](docs/igh_userspace.md) for details.
+For User-space EtherCAT Master Stack, please visit [Userspace EtherCAT Master Stack](./docs/igh_userspace.md) for details.
 
 ## Architecture Overview
 
 The architecture is as following:
 
-!["EtherCAT Master Stack Architecture"](docs/images/igh_arch.png)
+!["EtherCAT Master Stack Architecture"](./docs/images/igh_arch.png)
 
 
 Three key blocks have been introduced to support the core architecture:
@@ -84,7 +84,7 @@ which Following with below commands to build EtherCAT Master Stack:
    make modules all
 ```
 
-**Note:** If you need DKMS to compile ``master`` and ``device`` modules, please refer to [How to build EtherCAT with DKMS](docs/igh_dkms.md)
+**Note:** If you need DKMS to compile ``master`` and ``device`` modules, please refer to [How to build EtherCAT with DKMS](./docs/igh_dkms.md)
 
 ### Installing The Software
 
@@ -101,16 +101,16 @@ The below commands have to entered as root, which will install the EtherCAT head
 A mandatory ``ethercat`` file installed in ``/etc/sysconfig/``. The ``ethercat`` file contains the configuration variables needed to operate one or more masters. 
 Do the following to configure it:
 
-![Ethernet SysConfig](docs/images/ethercat_sysconfig.png)
+![Ethernet SysConfig](./docs/images/ethercat_sysconfig.png)
 
 * Set **REBIND_NICS**. Use ``lspci`` to query net devices. One of the devices might be specified as an EtherCAT network interface.
 
-![lspci](docs/images/lspci.png)
+![lspci](./docs/images/lspci.png)
 
 * Fill the MAC address for **MASTER0_DEVICE**.
 Get the MAC address of the Network Interface Controllers (NICs) selected for EtherCAT.
 
-![ifconfig](docs/images/ifconfig.png)
+![ifconfig](./docs/images/ifconfig.png)
 
 **Note:** EtherCAT Master Stack supports dual master configuration. To configure a secondary master, fill the MAC address for **MASTER1_DEVICE** and add PCI address in **REBIND_NICS**.
 
