@@ -244,6 +244,8 @@ static gboolean is_sink_element_cached(LatencyTracer *lt, GstElement *elem) {
 }
 
 static void latency_tracer_constructed(GObject *object) {
+    if (object == nullptr)
+        return;
     LatencyTracer *lt = LATENCY_TRACER(object);
     gchar *params, *tmp;
     GstStructure *params_struct = NULL;
@@ -308,6 +310,8 @@ static void latency_tracer_finalize(GObject *object) {
 }
 
 static void latency_tracer_class_init(LatencyTracerClass *klass) {
+    if (klass == nullptr)
+        return;
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
     gobject_class->constructed = latency_tracer_constructed;
     gobject_class->finalize = latency_tracer_finalize;
@@ -809,6 +813,8 @@ static void do_push_buffer_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
 }
 
 static void do_pull_range_post(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBuffer *buffer) {
+    if (lt == nullptr || pad == nullptr || buffer == nullptr)
+        return;
     GstElement *elem = get_real_pad_parent(pad);
     if (!is_in_pipeline(lt, elem))
         return;
@@ -817,6 +823,8 @@ static void do_pull_range_post(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBu
 }
 
 static void do_push_buffer_list_pre(LatencyTracer *lt, guint64 ts, GstPad *pad, GstBufferList *list) {
+    if (lt == nullptr || pad == nullptr || list == nullptr)
+        return;
     BufferListArgs args{lt, ts, pad};
     gst_buffer_list_foreach(
         list,
@@ -899,6 +907,8 @@ static void on_element_new(LatencyTracer *lt, guint64 ts, GstElement *elem) {
 }
 
 static void latency_tracer_init(LatencyTracer *lt) {
+    if (lt == nullptr)
+        return;
     GST_OBJECT_LOCK(lt);
     // lt->pipeline field is kept for binary compatibility (ABI stability):
     // - Existing compiled code may access this field
@@ -920,6 +930,8 @@ static void latency_tracer_init(LatencyTracer *lt) {
 }
 
 static gboolean plugin_init(GstPlugin *plugin) {
+    if (plugin == nullptr)
+        return false;
     if (!gst_tracer_register(plugin, "latency_tracer", latency_tracer_get_type()))
         return false;
     latency_tracer_meta_get_info();
