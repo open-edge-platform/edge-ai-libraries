@@ -35,6 +35,9 @@ export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
 export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
 export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+# Optional hard cap for SDK parallel workers (auto when unset)
+export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
+export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
 
 # Embedding microservice configuration -------------------------------
 export EMBEDDING_SERVER_PORT=${EMBEDDING_SERVER_PORT:-9777}

@@ -116,7 +116,7 @@ def get_pipeline_config():
     
     config = {
         'pipeline_count': max_workers,
-        'batch_size': 32,  # Optimal batch size for embedding generation
+        'batch_size': max(1, settings.EMBEDDING_BATCH_SIZE),
         'enable_pipelines': enable_pipelines,
         'use_openvino': use_openvino
     }

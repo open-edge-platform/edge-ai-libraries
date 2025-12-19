@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
     # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
     SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
+    MAX_PARALLEL_WORKERS: int | None = Field(
+        default=None,
+        description="Hard cap for SDK parallel worker threads; auto-calculated when unset",
+    )
+    EMBEDDING_BATCH_SIZE: int = Field(
+        default=32,
+        ge=1,
+        description="Items per embedding batch for SDK mode",
+    )
     DEVICE: str = Field(
         default="CPU",
         validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),

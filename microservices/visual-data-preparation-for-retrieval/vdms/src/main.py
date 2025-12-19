@@ -10,7 +10,9 @@ data preparation microservice.
 """
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +35,38 @@ from src.endpoints import (
 
 # Dump loaded settings, if in debug mode
 logger.debug(f"Settings loaded: {settings.model_dump()}")
+
+_SENSITIVE_KEYS = ("PASSWORD", "SECRET", "TOKEN", "ACCESS_KEY")
+
+
+def _mask_settings_for_log(raw_settings: dict[str, Any]) -> dict[str, Any]:
+    """Mask sensitive values before logging settings."""
+
+    masked: dict[str, Any] = {}
+    for key, value in raw_settings.items():
+        key_upper = key.upper()
+        if isinstance(value, dict):
+            masked[key] = _mask_settings_for_log(value)
+            continue
+
+        if value is not None and any(token in key_upper for token in _SENSITIVE_KEYS):
+            masked[key] = "***"
+        else:
+            masked[key] = value
+    return masked
+
+
+def _log_runtime_settings() -> None:
+    """Log sanitized settings for observability."""
+
+    try:
+        raw_settings = settings.model_dump()
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error("Unable to serialize settings for logging: %s", exc)
+        return
+
+    masked = _mask_settings_for_log(raw_settings)
+    logger.info("Resolved settings: %s", json.dumps(masked, indent=2, default=str))
 
 
 async def _run_startup_preloads() -> None:
@@ -107,6 +141,7 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager to handle startup and shutdown operations."""
 
     logger.info("Starting VDMS-Dataprep Service . . .")
+    _log_runtime_settings()
 
     await _run_startup_preloads()
 
