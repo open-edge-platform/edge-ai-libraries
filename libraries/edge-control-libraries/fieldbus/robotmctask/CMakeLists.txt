@@ -32,8 +32,3 @@ include_directories(
 
 add_subdirectory(mc)
 add_subdirectory(examples)
-
-INSTALL(FILES
-    find_libshm.cmake
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
