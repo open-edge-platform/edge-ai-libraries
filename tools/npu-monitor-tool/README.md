@@ -33,7 +33,7 @@ The tool supports the following Intel CPU generations with integrated NPU:
 - Intel NPU with `intel_vpu` driver loaded
 - Python 3
 - Root or appropriate permissions to access sysfs interfaces
-- PMT (Platform Monitoring Technology) support enabled
+- PMT (Platform Monitoring Technology) support enabled. (spec: https://www.intel.com/content/www/us/en/content-details/710389/intel-platform-monitoring-technology-intel-pmt-technical-specification.html)
 
 ## How to Use
 
