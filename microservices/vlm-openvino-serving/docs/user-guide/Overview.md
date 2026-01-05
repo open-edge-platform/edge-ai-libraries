@@ -14,6 +14,7 @@ The microservice is a simple model serving to be able to do inference using VLM 
 | microsoft/Phi-3.5-vision-instruct   | Yes                  | Yes                 | No            | CPU, GPU(both single frame and multi-frame)                        |
 | Qwen/Qwen2.5-VL-7B-Instruct         | Yes                  | Yes                 | Yes           | CPU, GPU(single frame only)     |
 | Qwen/Qwen2.5-VL-3B-Instruct         | Yes                  | Yes                 | Yes           | CPU, GPU(single frame only)     |
+| HuggingFaceTB/SmolVLM2-2.2B-Instruct| Yes                  | Yes                 | Yes           | CPU, GPU                        |
 
 ## Supporting Resources
 
