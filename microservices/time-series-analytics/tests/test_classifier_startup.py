@@ -80,7 +80,7 @@ def test_install_udf_package_runs_pip(monkeypatch, kapacitor_classifier):
     def fake_run(cmd, check=False, **kwargs):
         called.append(cmd)
         class Dummy:
-            pass
+            returncode = 0
         return Dummy()
     monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr(os.path, "isfile", lambda p: True)
@@ -190,7 +190,6 @@ def test_classifier_startup(monkeypatch):
     monkeypatch.setenv("SECURE_MODE", "false")
     monkeypatch.setenv("KAPACITOR_INFLUXDB_0_URLS_0", "http://localhost:8086")
     monkeypatch.setenv("KAPACITOR_URL", "http://localhost:9092")
-    monkeypatch.setattr(cs, "MRHandler", lambda config, logger: type("MRHandler", (), {"fetch_from_model_registry": False, "config": config, "unique_id": None})())
     monkeypatch.setattr(cs, "delete_old_subscription", lambda secure_mode: None)
     monkeypatch.setattr(cs.shutil, "copy", lambda src, dst: None)
     class DummyTomlKit:

@@ -117,7 +117,6 @@ private:
             left_arm_task_ = WaitTrajectoryDone;
             left_arm_traj_done_flag_ = false;
             sendLeftJointCmdsToRT(left_arm_traj_msg_);
-            RCLCPP_INFO(LOGGER, "Left arm trajectory start.");
         }
 
         // If trajectory is done, publish "done" message to MoveIt pipeline
@@ -127,7 +126,6 @@ private:
             action_msgs.data = true;
             left_arm_task_ = WaitTrajectory;
             //action_publisher_->publish(action_msgs);
-            RCLCPP_INFO(LOGGER, "Left Arm Trajectory done.");
         }
 
         // Send the trajectory to RT domain
@@ -136,7 +134,6 @@ private:
             right_arm_task_ = WaitTrajectoryDone;
             right_arm_traj_done_flag_ = false;
             sendRightJointCmdsToRT(right_arm_traj_msg_);
-            RCLCPP_INFO(LOGGER, "Right arm trajectory start.");
         }
 
         // If trajectory is done, publish "done" message to MoveIt pipeline
@@ -146,7 +143,6 @@ private:
             action_msgs.data = true;
             right_arm_task_ = WaitTrajectory;
             //action_publisher_->publish(action_msgs);
-            RCLCPP_INFO(LOGGER, "Right Arm Trajectory done.");
         }
 
         // Receive joint state message from RT domain
@@ -160,7 +156,6 @@ private:
 
     void LeftArmtrajectoryCB(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
     {
-        RCLCPP_INFO(LOGGER, "Left arm Got trajectory msgs.");
         if (msg->joint_names.size() != arm_joint_names.size())
         {
             RCLCPP_INFO(LOGGER, " size:%ld | %ld ", msg->joint_names.size(), arm_joint_names.size());
@@ -168,14 +163,12 @@ private:
             return;
         }
 
-        //RCLCPP_INFO(LOGGER, "left msg: %f, %f, %f, %f ", msg->points[0].positions[0], msg->points[0].positions[1],  msg->points[0].positions[2], msg->points[0].positions[3]);
         left_arm_traj_msg_ = msg;
         left_arm_task_ = StartTrajectory;
     }
 
     void RightArmtrajectoryCB(const trajectory_msgs::msg::JointTrajectory::SharedPtr msg)
     {
-        RCLCPP_INFO(LOGGER, "Right arm Got trajectory msgs.");
         if (msg->joint_names.size() != arm_joint_names.size())
         {
             RCLCPP_INFO(LOGGER, " size:%ld | %ld ", msg->joint_names.size(), arm_joint_names.size());
@@ -183,7 +176,6 @@ private:
             return;
         }
 
-        //RCLCPP_INFO(LOGGER, "right msg: %f, %f, %f, %f ", msg->points[0].positions[0], msg->points[0].positions[1], msg->points[0].positions[2], msg->points[0].positions[3]);
         right_arm_traj_msg_ = msg;
         right_arm_task_ = StartTrajectory;
     }
@@ -200,8 +192,6 @@ private:
                 left_arm_traj_cmd.points[i].positions[j] = msg->points[i].positions[j];
                 left_arm_traj_cmd.points[i].velocities[j] = msg->points[i].velocities[j];
                 left_arm_traj_cmd.points[i].accelerations[j] = msg->points[i].accelerations[j];
-                // left_arm_traj_cmd.points[i].effort[j] = msg->points[i].effort[j];
-                //RCLCPP_INFO(LOGGER, "%s:%i  %f \n", __FUNCTION__, j, left_arm_traj_cmd.points[i].positions[j]);
             }
         }
 
@@ -209,9 +199,7 @@ private:
         memcpy(left_arm_r_buf, &left_arm_traj_cmd, sizeof(left_arm_traj_cmd));
         if (!shm_blkbuf_full(left_arm_handle_r))
         {
-            //RCLCPP_ERROR(LOGGER, "debug.");
             int ret = shm_blkbuf_write(left_arm_handle_r, left_arm_r_buf, sizeof(left_arm_r_buf));
-            //RCLCPP_DEBUG(LOGGER, "%s: sent %d bytes\n", __FUNCTION__, ret);
         }
     }
 
@@ -228,8 +216,6 @@ private:
                 right_arm_traj_cmd.points[i].positions[j] = msg->points[i].positions[j];
                 right_arm_traj_cmd.points[i].velocities[j] = msg->points[i].velocities[j];
                 right_arm_traj_cmd.points[i].accelerations[j] = msg->points[i].accelerations[j];
-                // right_arm_traj_cmd.points[i].effort[j] = msg->points[i].effort[j];
-                //RCLCPP_INFO(LOGGER, "%s:%i  %f \n", __FUNCTION__, j, right_arm_traj_cmd.points[i].positions[j]);
             }
         }
 
@@ -237,9 +223,7 @@ private:
         memcpy(right_arm_r_buf, &right_arm_traj_cmd, sizeof(right_arm_traj_cmd));
         if (!shm_blkbuf_full(right_arm_handle_r))
         {
-            //RCLCPP_ERROR(LOGGER, "debug.");
             int ret = shm_blkbuf_write(right_arm_handle_r, right_arm_r_buf, sizeof(right_arm_r_buf));
-						//RCLCPP_DEBUG(LOGGER, "%s: sent %d bytes\n", __FUNCTION__, ret);
         }
     }
 
@@ -259,7 +243,6 @@ private:
                 for (size_t i = 0; i < JOINT_NUM; i++)
                 {
                     joint_state[i] = left_arm_j_state.joint_pos[i];
-                    //RCLCPP_DEBUG(LOGGER, "\t %ldth joint: %f\n", i, left_arm_j_state.joint_pos[i]);
                 }
 
                 left_arm_traj_done_tmp_ = left_arm_j_state.traj_done;
@@ -283,7 +266,6 @@ private:
                 for (size_t i = 0; i < JOINT_NUM; i++)
                 {
                     joint_state[i] = right_arm_j_state.joint_pos[i];
-                    //RCLCPP_DEBUG(LOGGER, "\t %ldth joint: %f\n", i, right_arm_j_state.joint_pos[i]);
                 }
 
                 right_arm_traj_done_tmp_ = right_arm_j_state.traj_done;
@@ -299,7 +281,6 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr right_arm_joint_state_publisher_;
     rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr left_arm_trajectory_subscriber_;
     rclcpp::Subscription<trajectory_msgs::msg::JointTrajectory>::SharedPtr right_arm_trajectory_subscriber_;
-    //rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr action_publisher_;
 
     rclcpp::TimerBase::SharedPtr timer_;
 

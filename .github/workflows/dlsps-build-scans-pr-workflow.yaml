@@ -6,7 +6,7 @@ on:
 permissions: {}
 env:
   dlstreamer-version: "2025.2.0"
-  DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dl-streamer"
+  DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dlstreamer"
 
 jobs:
   build-dls-pipeline-server-image:
@@ -31,7 +31,7 @@ jobs:
     - name: Init submodules
       run: |
         cd edge-ai-libraries-repo
-        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+        git submodule update --init --recursive libraries/dlstreamer
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0

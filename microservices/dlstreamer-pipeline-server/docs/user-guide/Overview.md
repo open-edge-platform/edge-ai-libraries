@@ -4,7 +4,7 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 
 ## Overview
 
-DL Streamer Pipeline Server microservice is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/index.md), providing video ingestion and deep learning inferencing functionalities.
+DL Streamer Pipeline Server microservice is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/index.md), providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 

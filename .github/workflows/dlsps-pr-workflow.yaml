@@ -5,29 +5,9 @@ on:
     branches:
       - 'main'
     paths:
-      - 'libraries/dl-streamer/*'
-      - 'libraries/dl-streamer/cmake/**'
-      - 'libraries/dl-streamer/docker/**'
-      - 'libraries/dl-streamer/include/**'
-      - 'libraries/dl-streamer/python/**'
-      - 'libraries/dl-streamer/samples/**'
-      - 'libraries/dl-streamer/scripts/**'
-      - 'libraries/dl-streamer/src/**'
-      - 'libraries/dl-streamer/tests/**'
-      - 'libraries/dl-streamer/thirdparty/**'
       - 'microservices/dlstreamer-pipeline-server/**'
   pull_request:
     paths:
-      - 'libraries/dl-streamer/*'
-      - 'libraries/dl-streamer/cmake/**'
-      - 'libraries/dl-streamer/docker/**'
-      - 'libraries/dl-streamer/include/**'
-      - 'libraries/dl-streamer/python/**'
-      - 'libraries/dl-streamer/samples/**'
-      - 'libraries/dl-streamer/scripts/**'
-      - 'libraries/dl-streamer/src/**'
-      - 'libraries/dl-streamer/tests/**'
-      - 'libraries/dl-streamer/thirdparty/**'
       - 'microservices/dlstreamer-pipeline-server/**'
   workflow_call:
   workflow_dispatch:

@@ -3,6 +3,8 @@ Visual Pipeline and Platform Evaluation Tool
 
 Assess Intel® hardware options, benchmark performance, and analyze key metrics to optimize hardware selection for AI workloads.
 
+.. image:: ./_assets/ViPPET-README.gif
+
 Overview
 ########
 
@@ -26,13 +28,6 @@ Key Features
 
 **Automated Video Generation**: Synthetic test videos can be generated to evaluate system performance under controlled conditions.
 
-How It Works
-############
-
-The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video processing pipelines to support hardware performance evaluation.
-
-.. image:: ./_assets/architecture.png
-   :alt: System Architecture Diagram
 
 ### **Workflow Overview**
 
@@ -61,6 +56,7 @@ Learn More
    get-started
    release-notes
    how-to-build-source
+   using-vippet
    how-to-use-video-generator
    api-reference
    disclaimers

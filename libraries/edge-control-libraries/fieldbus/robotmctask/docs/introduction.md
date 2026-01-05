@@ -15,9 +15,7 @@
 
 The architecture is as following:
 
-<p>
-    <img src="images/arch.png" alt="Robot Motion Control Architecture" title="Robot Motion Control Architecture">
-</p>
+![Robot Motion Control Architecture](images/arch.png)
 
 Two key blocks have been introduced to support the core architecture:
 
@@ -25,11 +23,11 @@ Two key blocks have been introduced to support the core architecture:
     - **EtherCAT Integration:** Creates motion function blocks to operate EtherCAT slaves using ENI configurations
     - **Network Topology Support:** Handles slave configurations and network topology definitions
     - **Flexible Memory Management:** Supports custom shared memory callbacks for data restructuring between real-time and non-real-time domains
-    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks
+    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks, facilitating seamless AI model integration into motion control workflows, and supports running inference on NPU device within real-time constraints.
 
 * **libinference** is a shared library offering advanced inference capabilities with:
     - **Modern C++ Interface:** New C++ classes for streamlined inference implementation
-    - **Reinforcement Learning Support：** Integrated RL classes optimized for robotic applications. To facilitate quick demonstrations of code functionality, provide a stable-standing ONNX model based on real robot. This model maintains whole-body balance by controlling the lower limbs while the upper body performs hand movements. Such a model enables humanoid robots to remain stable through reinforcement learning when the upper limbs are engaged in VLA tasks.
+    - **Reinforcement Learning Support:** Integrated RL classes optimized for robotic applications. To facilitate quick demonstrations of code functionality, provides a stable-standing ONNX model based on real robot, running inference on an NPU device. This model maintains whole-body balance by controlling the lower limbs while the upper body performs hand movements. Such a model enables humanoid robots to remain stable through reinforcement learning when the upper limbs are engaged in VLA tasks.
     - **Performance Analytics:** Built-in statistical collection for performance monitoring
     - **Intel OpenVINO integration:** Default inference engine with extensible architecture
     - **Extensible Design:** Bases classes enabling custom AI model development
@@ -38,10 +36,7 @@ Two key blocks have been introduced to support the core architecture:
 
 The following diagram illustrates a typical fieldbus topology for humanoid robot applications: 
 
-<p>
-    <img src="images/Humanoid_Robot_Topology.png" alt="Humanoid Robot Network Topology" title="Humanoid Robot Network Topology">
-</p>
-
+![Humanoid Robot Network Topology](images/Humanoid_Robot_Topology.png)
 
 
 ## Getting Started
@@ -51,13 +46,13 @@ The software runs on standard PCs or servers. Since it is primarily developed in
 
 ### Running 
 
-Please check [README](./../README.md) file for details.
+Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
 ### Examples
 
 One example using Robot Motion Control Task is provided.
 
-* [mc_rl_sample](./../examples/mc_rl_sample.cpp):
+* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
 A comprehensive demonstration showcasing:
 
     - **Multi-Topology Configuration:** Robot task setup with multiple topologies using different ENI files
@@ -67,6 +62,8 @@ A comprehensive demonstration showcasing:
     - **Dual Arm Integration:** Joint state publishing via shared memory for VLA(Vision-Language-Action) models or simulator integration
     - **Custom Motion Algorithms:** Leg control with registered callbacks for customized motion algorithms and inference pipelines
 
+![robot_rviz](images/robot_rviz.gif)
+
 ## License
 
-The source code is licensed under Apache License . See [LICENSE](./../LICENSE) file for details. 
+The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details. 

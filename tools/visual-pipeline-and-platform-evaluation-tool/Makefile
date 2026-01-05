@@ -41,16 +41,19 @@ mdlint: ## Lint MD files
 ruff: $(VENV_DIR) ## Run ruff linter
 	set +u; . ./$</bin/activate; set -u ;\
 	ruff --version ;\
-	ruff check ;\
-	ruff format --check
+	# Exclude shared/scripts/ to avoid formatting user created scripts ;\
+	ruff check --exclude shared/scripts/ ;\
+	ruff format --check --exclude shared/scripts/ 
 
 fix-linter: $(VENV_DIR) ## Fix linter issues using ruff
 	set +u; . ./$</bin/activate; set -u ;\
-	ruff check --fix
+	# Exclude shared/scripts/ to avoid formatting user created scripts ;\
+	ruff check --fix --exclude shared/scripts/ 
 
 format: $(VENV_DIR) ## Format code using ruff
 	set +u; . ./$</bin/activate; set -u ;\
-	ruff format
+	# Exclude shared/scripts/ to avoid formatting user created scripts ;\
+	ruff format --exclude shared/scripts/ 
 
 pyright: $(VENV_DIR) ## Run pyright type checker
 	set +u; . ./$</bin/activate; set -u ;\

@@ -1,10 +1,12 @@
 # Cross stream batching
 
-DL Streamer Pipeline Server supports grouping multiple frames in single batch during model processing. `batch-size` is an optional parameter to be used which specifies the number of input frames grouped together in a single batch.
+Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) supports grouping multiple
+frames in single batch during model processing. `batch-size` is an optional parameter to be used
+which specifies the number of input frames grouped together in a single batch.
 
-For multi stream pipelines using same pipeline configuration, it is recommended to create [shared inference element](./multistream-pipelines.md) by setting `model-instance-id` to a unique value along with `batch-size` for cross stream batching to occur across elements with same `model-instance-id`.
+For multi stream pipelines using same pipeline configuration, it is recommended to create a [shared inference element](./multistream-pipelines.md) by setting `model-instance-id` to a unique value along with `batch-size` for cross stream batching to occur across elements with same `model-instance-id`.
 
-Below is an example that demonstrates cross stream batching. 4 frames at a time.
+Below is an example that demonstrates cross stream batching, 4 frames at a time.
 
 ```sh
 "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection batch-size=4 model-instance-id=1 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
@@ -46,7 +48,7 @@ The following curl command can be used to start the pipeline -
 }'
 ```
 
-To verify the effect of `batch-size`, you can monitor the memory utilization of the Docker container using the `docker stats` command. As the `batch-size` increases, the memory utilization also increases due to the additional frames being processed in a single batch. Note that the exact statistics may vary based on the underlying hardware and system/pipeline configuration but the performance is expected to be similar to [DLStreamer](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/dev_guide/performance_guide.md#3-multi-stream-pipelines-with-single-ai-stage).
+To verify the effect of `batch-size`, you can monitor the memory utilization of the Docker container using the `docker stats` command. As the `batch-size` increases, the memory utilization also increases due to the additional frames being processed in a single batch. Note that the exact statistics may vary based on the underlying hardware and system/pipeline configuration but the performance is expected to be similar to [DL Streamer](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/dev_guide/performance_guide.md#3-multi-stream-pipelines-with-single-ai-stage).
 
 * docker stats with batch-size as 1, no of streams as 4
 ```sh

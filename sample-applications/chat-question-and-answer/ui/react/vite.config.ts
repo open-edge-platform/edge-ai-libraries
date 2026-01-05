@@ -3,13 +3,23 @@
 
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import path from 'path';
 
 // https://vitejs.dev/config/
+
+// Define the alias
+const srcPath = path.resolve(process.cwd(), 'src');
+
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': srcPath,
+    },
+  },
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "./src/styles/styles.scss";`,
+        additionalData: `@use "@/styles/styles.scss" as *;`,
       },
     },
   },

@@ -1,15 +1,15 @@
 import { NavLink, useLocation, useNavigate, useParams } from "react-router";
 import {
-  Home,
-  Film,
+  ArrowLeft,
   Cpu,
+  Film,
   Gauge,
   Grid3x3,
+  Home,
   ListTodo,
-  ArrowLeft,
 } from "lucide-react";
 import logo from "@/assets/digital-unboxed-energyblue-white.svg";
-import { PipelineName } from "./PipelineName";
+import { PipelineNameEdit } from "@/components/shared/PipelineNameEdit.tsx";
 
 const Navigation = () => {
   const location = useLocation();
@@ -42,7 +42,7 @@ const Navigation = () => {
           </button>
           <div className="h-7 w-px bg-gray-300 dark:bg-gray-700" />
           <span className="text-gray-900 dark:text-white font-medium text-lg">
-            <PipelineName pipelineId={pipelineId} />
+            <PipelineNameEdit pipelineId={pipelineId} />
           </span>
         </div>
       </nav>

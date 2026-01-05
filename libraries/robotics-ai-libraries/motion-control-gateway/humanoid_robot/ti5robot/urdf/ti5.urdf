@@ -1364,7 +1364,7 @@
   </link>
   <joint
     name="L_SHOULDER_R"
-    type="fixed">
+    type="revolute">
     <origin
       xyz="0.035 0.0765 0"
       rpy="0 0 0" />
@@ -1602,7 +1602,7 @@
   </link>
   <joint
     name="R_SHOULDER_R"
-    type="fixed">
+    type="revolute">
     <origin
       xyz="0.035 -0.0765 0"
       rpy="0 0 0" />

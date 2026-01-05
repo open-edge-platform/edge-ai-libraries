@@ -34,6 +34,7 @@ x-vippet: &vippet
     - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
     - ./shared/videos/:/videos
+    - ./shared/scripts/:/scripts
 
 services:
   vippet-ui:
