@@ -8,10 +8,19 @@ from pathlib import Path
 from utils import generate_unique_filename
 from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
+from resources import (
+    get_labels_manager,
+    get_scripts_manager,
+    get_public_model_proc_manager,
+)
 
 logger = logging.getLogger(__name__)
 models_manager = get_supported_models_manager()
 videos_manager = get_videos_manager()
+labels_manager = get_labels_manager()
+scripts_manager = get_scripts_manager()
+model_proc_manager = get_public_model_proc_manager()
+
 
 # Internal reserved key used to mark special node kinds inside Node.data.
 # We cannot extend the public Node schema with a new top-level field, so we
@@ -209,10 +218,12 @@ class Graph:
 
             node_id += 1
 
-        # Post-process models and video paths so stored graphs reference
-        # display names / filenames instead of absolute paths.
+        # Post-process models, video paths labels and module paths so stored
+        # graphs reference display names / filenames instead of absolute paths.
         _model_path_to_display_name(nodes)
         _input_video_path_to_display_name(nodes)
+        _labels_path_to_display_name(nodes)
+        _module_path_to_display_name(nodes)
 
         logger.debug(f"Nodes:\n{nodes}")
         logger.debug(f"Edges:\n{edges}")
@@ -250,6 +261,8 @@ class Graph:
         _validate_models_supported_on_devices(nodes)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
+        _labels_name_to_path(nodes)
+        _module_name_to_path(nodes)
 
         nodes_by_id = {node.id: node for node in nodes}
 
@@ -769,13 +782,18 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
                 logger.debug(
                     f"Converted model path to display name: {path} -> {model.display_name}"
                 )
+
+                # Also convert model-proc if present
+                model_proc_path = node.data.get("model-proc")
+                if model_proc_path is not None:
+                    node.data["model-proc"] = model_proc_manager.get_filename(
+                        model_proc_path
+                    )
                 break
         else:
             node.data["model"] = ""
+            node.data["model-proc"] = ""
             logger.debug(f"Model path not found in installed models: {path}")
-
-        # Remove model-proc to avoid leaking internal filesystem layout.
-        node.data.pop("model-proc", None)
 
 
 def _model_display_name_to_path(nodes: list[Node]) -> None:
@@ -791,27 +809,67 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
         if name is None:
             continue
 
+        # model handling
         model = models_manager.find_installed_model_by_display_name(name)
         if not model:
             raise ValueError(
-                f"Node {node.id}. {node.type}: can't map '{name}' to installed model"
+                f"Can't find model '{name}' for {node.type}. Choose an installed model or install it first."
             )
 
         node.data["model"] = model.model_path_full
 
-        if model.model_proc_full:
-            # Insert 'model-proc' immediately after 'model'
-            properties = {}
-            for key, value in node.data.items():
-                properties[key] = value
-                if key == "model":
-                    properties["model-proc"] = model.model_proc_full
+        # model-proc handling
+        configured_model_proc = node.data.get("model-proc")
+        default_model_proc = (
+            model_proc_manager.get_filename(model.model_proc)
+            if model.model_proc is not None
+            else None
+        )
 
-            node.data = properties
+        # If a model-proc was explicitly configured and is different from
+        # the default, use it. Otherwise, inject the default if available.
+        if (
+            configured_model_proc is not None
+            and configured_model_proc != default_model_proc
+        ):
+            # Use the user-specified model-proc
+            model_proc_path = model_proc_manager.get_path(configured_model_proc)
+            if model_proc_path is None:
+                raise ValueError(
+                    f"Model-proc file '{configured_model_proc}' not found for {node.type} element. "
+                    f"Please verify the file name is correct or leave it empty to use the default."
+                )
 
+            _insert_model_proc_after_model(node, model_proc_path)
+        else:
+            # Use the default model-proc if available
+            if model.model_proc_full:
+                _insert_model_proc_after_model(node, model.model_proc_full)
         logger.debug(
             f"Converted model display name to path: {name} -> {model.model_path_full}"
         )
+
+
+def _insert_model_proc_after_model(node: Node, model_proc_path: str) -> None:
+    """
+    Insert 'model-proc' property immediately after 'model' in node.data.
+
+    This preserves the order of properties by rebuilding the data dictionary.
+    """
+    properties: dict[str, str] = {}
+
+    # Rebuild the dict and re-inject model-proc right after model, dropping any
+    # existing model-proc so its position and value are refreshed.
+    for key, value in node.data.items():
+        if key == "model-proc":
+            continue
+        properties[key] = value
+        if key == "model":
+            properties["model-proc"] = model_proc_path
+
+    # Update in place to preserve any external references to node.data
+    node.data.clear()
+    node.data.update(properties)
 
 
 def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
@@ -830,6 +888,11 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
         device = node.data.get("device")
         if device is None:
             continue
+
+        if name == "":
+            raise ValueError(
+                f"Model name is required for {node.type}. Select a model to continue."
+            )
 
         if not models_manager.is_model_supported_on_device(name, device):
             raise ValueError(
@@ -888,3 +951,91 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")
+
+
+def _labels_path_to_display_name(nodes: list[Node]) -> None:
+    """
+    Convert absolute labels paths into filenames for gvadetect and gvaclassify nodes.
+
+    This ensures that stored graphs are independent of the specific
+    filesystem layout and instead reference logical labels filenames only.
+    """
+    for node in nodes:
+        if node.type not in ("gvadetect", "gvaclassify"):
+            continue
+        for key in ("labels", "labels-file"):
+            path = node.data.get(key)
+            if path is None:
+                continue
+
+            filename = labels_manager.get_filename(path)
+            node.data[key] = filename
+            logger.debug(f"Converted labels path to filename: {path} -> {filename}")
+
+
+def _labels_name_to_path(nodes: list[Node]) -> None:
+    """
+    Convert logical labels filenames back into absolute paths for gvadetect and gvaclassify nodes.
+
+    This is performed when creating a runnable pipeline description from a stored graph.
+    """
+    for node in nodes:
+        if node.type not in ("gvadetect", "gvaclassify"):
+            continue
+        for key in ("labels", "labels-file"):
+            name = node.data.get(key)
+            if name is None:
+                continue
+
+            if not (path := labels_manager.get_path(name)):
+                raise ValueError(
+                    f"Labels file '{name}' not found for {node.type} element. "
+                    f"Please ensure the labels file name is correct."
+                )
+
+            node.data[key] = path
+            logger.debug(f"Converted labels filename to path: {name} -> {path}")
+
+
+def _module_path_to_display_name(nodes: list[Node]) -> None:
+    """
+    Convert absolute python module paths into filenames for gvapython nodes.
+
+    This ensures that stored graphs are independent of the specific
+    filesystem layout and instead reference logical python module filenames only.
+    """
+    for node in nodes:
+        if node.type != "gvapython":
+            continue
+
+        path = node.data.get("module")
+        if path is None:
+            continue
+
+        filename = scripts_manager.get_filename(path)
+        node.data["module"] = filename
+        logger.debug(f"Converted module path to filename: {path} -> {filename}")
+
+
+def _module_name_to_path(nodes: list[Node]) -> None:
+    """
+    Convert logical scripts filenames back into absolute paths for gvapython nodes.
+
+    This is performed when creating a runnable pipeline description from a stored graph.
+    """
+    for node in nodes:
+        if node.type != "gvapython":
+            continue
+
+        name = node.data.get("module")
+        if name is None:
+            continue
+
+        if not (path := scripts_manager.get_path(name)):
+            raise ValueError(
+                f"Module file '{name}' not found for {node.type} element. "
+                f"Please verify the file name is correct and the file exists in the shared/scripts directory."
+            )
+
+        node.data["module"] = path
+        logger.debug(f"Converted module filename to path: {name} -> {path}")

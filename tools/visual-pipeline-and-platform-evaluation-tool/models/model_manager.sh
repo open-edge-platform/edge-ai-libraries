@@ -132,6 +132,20 @@ download_omz_models() {
                 cp "$proc_src" "$target_dir/human-pose-estimation-0001.json"
                 echo "Copied model_proc file for $model."
             fi
+        elif [ "$model" == "face-detection-retail-0004" ]; then
+            mv "$tmp_models_dir/intel/$model/"* "$target_dir"
+            local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/face-detection-retail-0004.json"
+            if [ -f "$proc_src" ]; then
+                cp "$proc_src" "$target_dir/face-detection-retail-0004.json"
+                echo "Copied model_proc file for $model."
+            fi
+        elif [ "$model" == "age-gender-recognition-retail-0013" ]; then
+            mv "$tmp_models_dir/intel/$model/"* "$target_dir"
+            local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/age-gender-recognition-retail-0013.json"
+            if [ -f "$proc_src" ]; then
+                cp "$proc_src" "$target_dir/age-gender-recognition-retail-0013.json"
+                echo "Copied model_proc file for $model."
+            fi
         elif [ "$model" == "mobilenet-v2-pytorch" ]; then
             mv "$tmp_models_dir/public/$model/"* "$target_dir"
             local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json"

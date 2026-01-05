@@ -36,7 +36,7 @@ README.md           @xwu2intel
 /sample-applications/video-search-and-summarization/          @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
 
 # tools
-/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac
+/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence
 
 
 
@@ -112,8 +112,8 @@ README.md           @xwu2intel
 /sample-applications/video-search-and-summarization/README.md   @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content: tools
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @grey-eminence @open-edge-platform/open-edge-platform-docs-write
 
 # frameworks
 /frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi

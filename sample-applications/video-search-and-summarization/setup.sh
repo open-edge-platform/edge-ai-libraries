@@ -124,6 +124,16 @@ export WORKERS=${WORKERS:-6}
 export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
 export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
 export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+export VLM_TELEMETRY_PATH=${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
+
+if [ -z "$VLM_TELEMETRY_MAX_RECORDS" ]; then
+    export VLM_TELEMETRY_MAX_RECORDS=100
+elif ! [[ "$VLM_TELEMETRY_MAX_RECORDS" =~ ^[0-9]+$ ]] || [ "$VLM_TELEMETRY_MAX_RECORDS" -le 0 ]; then
+    echo -e "[vlm-openvino-serving] ${YELLOW}Invalid VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS}. Using default 100.${NC}"
+    export VLM_TELEMETRY_MAX_RECORDS=100
+fi
+
+export VLM_TELEMETRY_MAX_RECORDS=$VLM_TELEMETRY_MAX_RECORDS
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)

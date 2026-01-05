@@ -4,7 +4,7 @@ It is a powerful, flexible solution for real-time analysis of time series data. 
 
 > **Note**:
 As this docker image is using ubuntu packages coming from Kapacitor base docker image, please note that the usage
-of this docker image is intended for demo purposes only and not intended for production use. To receive expanded 
+of this docker image is intended for demo purposes only and not intended for production use. To receive expanded
 security maintenance from Canonical on the Ubuntu base layer, you may follow the [how-to guide to enable Ubuntu Pro
 in a Dockerfile](https://documentation.ubuntu.com/pro-client/en/docs/howtoguides/enable_in_dockerfile/) which require the image to be rebuilt
 

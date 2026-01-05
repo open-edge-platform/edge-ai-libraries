@@ -17,6 +17,7 @@ type NodePropertyConfig = {
   options?: string[] | readonly string[];
   description?: string;
   required?: boolean;
+  params?: { [key: string]: string };
 };
 
 type NodeConfig = {
@@ -138,14 +139,19 @@ const NodeDataPanel = ({
                     className="w-full text-xs border border-gray-300 px-2 py-1"
                   >
                     <option value="">Select {propConfig?.label}</option>
-                    {models.map((model) => (
-                      <option
-                        key={model.name}
-                        value={model.display_name ?? model.name}
-                      >
-                        {model.display_name ?? model.name}
-                      </option>
-                    ))}
+                    {models
+                      .filter(
+                        (model) =>
+                          model.category === propConfig?.params?.filter,
+                      )
+                      .map((model) => (
+                        <option
+                          key={model.name}
+                          value={model.display_name ?? model.name}
+                        >
+                          {model.display_name ?? model.name}
+                        </option>
+                      ))}
                   </select>
                 ) : keyStr === "device" ? (
                   <DeviceSelect

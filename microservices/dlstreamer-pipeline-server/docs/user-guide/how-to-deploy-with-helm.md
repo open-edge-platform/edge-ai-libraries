@@ -134,7 +134,7 @@ In this get started guide, you learned how to start the DL Streamer Pipeline Ser
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](Overview.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
--   For more details on Deep Learning Streamer visit [this](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/index.md) page.
+-   For more details on Deep Learning Streamer (DL Streamer) visit [this](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/index.md) page.
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.

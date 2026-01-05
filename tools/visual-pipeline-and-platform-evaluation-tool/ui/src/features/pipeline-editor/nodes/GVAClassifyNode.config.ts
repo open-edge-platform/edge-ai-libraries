@@ -11,6 +11,9 @@ export const gvaClassifyConfig = {
       type: "select" as const,
       defaultValue: "",
       description: "Path to inference model network file",
+      params: {
+        filter: "classification",
+      },
     },
     {
       key: "device",

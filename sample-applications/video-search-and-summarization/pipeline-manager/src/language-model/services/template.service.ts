@@ -18,7 +18,7 @@ import {
 @Injectable()
 export class TemplateService {
   addAudioTranscripts(prompt: string, transcripts: string) {
-    return `${prompt}\n\nAudio transcripts for this chunk of video:\n${transcripts}\n\n`;
+    return `${prompt}\n\nAudio transcripts for this chunk of video. If you find relevant information here, consider it in the summary:\n${transcripts}\n\n`;
   }
 
   addDetectedObjects(prompt: string, objects: Set<string>) {
