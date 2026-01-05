@@ -43,6 +43,12 @@ class OpenVINOConverter(ModelDownloadPlugin):
         version = kwargs.get("version", "")
         target_device = config.get("device", kwargs.get("device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))
+
+        if target_device.upper() == "NPU":
+            logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
+            weight_format = "int4"
+            if output_dir.endswith("/fp16") or output_dir.endswith("/int8") or output_dir.endswith("/int4"):
+                output_dir = output_dir.rsplit("/", 1)[0] + "/int4"
         
         try:
             # Perform the conversion
