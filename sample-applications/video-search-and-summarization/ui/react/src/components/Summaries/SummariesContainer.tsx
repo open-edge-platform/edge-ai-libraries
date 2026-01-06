@@ -12,7 +12,9 @@ import { ClosedCaption } from '@carbon/icons-react';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { SummarySelector } from '../../redux/summary/summarySlice';
 import Markdown from 'react-markdown';
-import { processMD } from '../../utils/util';
+import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
+import { notify, NotificationSeverity } from '../Notification/notify.ts';
+import { videosSelector } from '../../redux/video/videoSlice';
 
 const SummaryWrapper = styled.section`
   @keyframes fadeInOut {
@@ -112,7 +114,8 @@ const StyledMessage = styled.div`
 
 export const SummariesContainer: FC = () => {
   const { frameSummaries, frames, frameSummaryStatusCount } = useAppSelector(VideoFrameSelector);
-  const { getSystemConfig } = useAppSelector(SummarySelector);
+  const { getSystemConfig, selectedSummary } = useAppSelector(SummarySelector);
+  const { videos } = useAppSelector(videosSelector);
 
   const [overlap, setOverlap] = useState<number>(0);
 
@@ -125,11 +128,102 @@ export const SummariesContainer: FC = () => {
   const [modalHeading, setModalHeading] = useState<string>('');
   const [modalBody, setModalBody] = useState<string>('');
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [currentFrameRange, setCurrentFrameRange] = useState<{ start: string; end: string } | null>(null);
 
-  const detailsClickHandler = (heading: string, text: string) => {
+  const detailsClickHandler = (heading: string, text: string, startFrame: string, endFrame: string) => {
     setModalHeading(heading);
     setModalBody(text);
+    setCurrentFrameRange({ start: startFrame, end: endFrame });
     setShowModal(true);
+  };
+
+  const handleDownloadFrameSummary = () => {
+    if (!currentFrameRange || !modalBody || !selectedSummary) return;
+    
+    try {
+      const now = new Date();
+      const timestamp = now.toLocaleString();
+      const dateStr = formatDateForFilename(now);
+      
+      // Get upload timestamp from videos list
+      const video = videos.find((v: { videoId: string }) => v.videoId === selectedSummary.videoId);
+      const uploadTimestamp = video?.createdAt ? new Date(video.createdAt).toLocaleString() : 'N/A';
+      
+      // Markdown format
+      let content = `# FRAME SUMMARY EXPORT\n\n`;
+      
+      content += `## METADATA\n\n`;
+      content += `| Property | Value |\n`;
+      content += `|----------|-------|\n`;
+      content += `| Video Title | ${selectedSummary.title} |\n`;
+      content += `| Video ID | ${selectedSummary.videoId} |\n`;
+      content += `| Run ID | ${selectedSummary.stateId} |\n`;
+      content += `| Frame Range | [${currentFrameRange.start}:${currentFrameRange.end}] |\n`;
+      content += `| Upload Timestamp | ${uploadTimestamp} |\n`;
+      content += `| Export Timestamp | ${timestamp} |\n`;
+      content += `| Total Chunks | ${selectedSummary.chunksCount} |\n`;
+      content += `| Total Frames | ${selectedSummary.framesCount} |\n`;
+      content += `\n`;
+      
+      content += `## PIPELINE CONFIGURATION\n\n`;
+      content += `| Setting | Value |\n`;
+      content += `|---------|-------|\n`;
+      content += `| Chunk Duration | ${selectedSummary.userInputs.chunkDuration}s |\n`;
+      content += `| Sampling Frame | ${selectedSummary.userInputs.samplingFrame} |\n`;
+      content += `| Frame Overlap | ${selectedSummary.systemConfig.frameOverlap} |\n`;
+      content += `| Multi-Frame Batch Size | ${selectedSummary.systemConfig.multiFrame} |\n`;
+      if (selectedSummary.systemConfig.evamPipeline) {
+        content += `| Chunking Pipeline | ${selectedSummary.systemConfig.evamPipeline} |\n`;
+      }
+      if (selectedSummary.systemConfig.audioModel) {
+        content += `| Audio Model | ${selectedSummary.systemConfig.audioModel} |\n`;
+      }
+      content += `\n`;
+      
+      content += `## INFERENCE MODELS\n\n`;
+      content += `| Model Type | Model | Device |\n`;
+      content += `|------------|-------|--------|\n`;
+      if (selectedSummary.inferenceConfig?.objectDetection) {
+        content += `| Object Detection | ${selectedSummary.inferenceConfig.objectDetection.model} | ${selectedSummary.inferenceConfig.objectDetection.device} |\n`;
+      }
+      if (selectedSummary.inferenceConfig?.imageInference) {
+        content += `| VLM | ${selectedSummary.inferenceConfig.imageInference.model} | ${selectedSummary.inferenceConfig.imageInference.device} |\n`;
+      }
+      if (selectedSummary.inferenceConfig?.textInference) {
+        content += `| LLM | ${selectedSummary.inferenceConfig.textInference.model} | ${selectedSummary.inferenceConfig.textInference.device} |\n`;
+      }
+      content += `\n`;
+      
+      content += `## PROCESSING STATUS\n\n`;
+      content += `| Status Type | Value |\n`;
+      content += `|-------------|-------|\n`;
+      content += `| Video Chunking | ${selectedSummary.chunkingStatus.toUpperCase()} |\n`;
+      content += `| Frame Summaries Complete | ${selectedSummary.frameSummaryStatus.complete} |\n`;
+      content += `| Frame Summaries Progress | ${selectedSummary.frameSummaryStatus.inProgress} |\n`;
+      content += `| Video Summary Status | ${selectedSummary.videoSummaryStatus.toUpperCase()} |\n`;
+      content += `\n`;
+      
+      content += `---\n\n`;
+      content += `## FRAME SUMMARY\n\n`;
+      content += processMD(modalBody);
+      content += `\n\n---\n\n`;
+      content += `*Generated by Video Search and Summarization*\n`;
+      
+      // VSS_<videoName>_<runId>_<yyyyMMdd_HHmm>.md
+      const videoName = sanitizeFilename(selectedSummary.title);
+      const runId = sanitizeFilename(selectedSummary.stateId);
+      const filename = `VSS_${videoName}_${runId}_frames_${currentFrameRange.start}_to_${currentFrameRange.end}_${dateStr}.md`;
+      
+      downloadTextFile(content, filename);
+      notify('Frame summary downloaded successfully', NotificationSeverity.SUCCESS, 3000);
+    } catch (error) {
+      console.error('Download error:', error);
+      notify(
+        'Download failed. Click the download button to retry.',
+        NotificationSeverity.ERROR,
+        5000
+      );
+    }
   };
 
   const { t } = useTranslation();
@@ -148,9 +242,11 @@ export const SummariesContainer: FC = () => {
           onRequestClose={(_) => {
             setShowModal(false);
           }}
-          passiveModal
           open={showModal}
           modalHeading={modalHeading}
+          primaryButtonText={t('downloadFrameSummary')}
+          secondaryButtonText={t('close')}
+          onRequestSubmit={handleDownloadFrameSummary}
         >
           <ModalBody>
             <StyledMessage>
@@ -194,6 +290,8 @@ export const SummariesContainer: FC = () => {
                       detailsClickHandler(
                         `${t('Frames')}: [${summary.startFrame} : ${summary.endFrame}] - ${t('Summary')}`,
                         summary.summary,
+                        summary.startFrame,
+                        summary.endFrame,
                       )
                     }
                   >

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { StateActionStatus, SystemConfigWithMeta, UIState } from '../../redux/summary/summary';
 import { AILabel, AILabelContent, IconButton, Tag } from '@carbon/react';
 
-import { Renew } from '@carbon/icons-react';
+import { Renew, Download } from '@carbon/icons-react';
 import axios from 'axios';
 import ChunksContainer from './ChunksContainer';
 import { socket } from '../../socket';
@@ -18,8 +18,9 @@ import Markdown from 'react-markdown';
 import { VideoChunkActions } from '../../redux/summary/videoChunkSlice';
 import { VideoFramesAction } from '../../redux/summary/videoFrameSlice';
 import SummariesContainer from './SummariesContainer';
-import { processMD } from '../../utils/util';
+import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
 import { videosSelector } from '../../redux/video/videoSlice';
+import { notify, NotificationSeverity } from '../Notification/notify.ts';
 
 export interface SummaryProps {}
 
@@ -41,6 +42,20 @@ const SummaryContainer = styled.div`
   width: 100%;
   border: 1px solid var(--color-gray-4);
   padding: 1rem 1rem;
+  
+  section {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    
+    h3 {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+  }
+  
   .summary-title {
     display: flex;
     flex-flow: row nowrap;
@@ -115,12 +130,42 @@ const StyledMessage = styled.div`
     white-space: break-spaces;
   }
 `;
+
+const DownloadButton = styled.button`
+  background-color: #defbe6;
+  color: #0e6027;
+  border: none;
+  border-radius: 0.9375rem;
+  padding: 0 0.5rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.28572;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 1.5rem;
+  min-height: 1.5rem;
+  max-height: 1.5rem;
+  
+  &:hover {
+    background-color: #b6f6c8;
+  }
+
+  svg {
+    width: 1rem;
+    height: 1rem;
+    fill: #0e6027;
+  }
+`;
 export const Summary: FC = () => {
   const { t } = useTranslation();
 
   const dispatch = useAppDispatch();
   const { selectedSummary, sidebarSummaries } = useAppSelector(SummarySelector);
-  const { getVideoUrl } = useAppSelector(videosSelector);
+  const { getVideoUrl, videos } = useAppSelector(videosSelector);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
 
@@ -197,6 +242,94 @@ export const Summary: FC = () => {
       }
     } catch (error) {
       console.log(error);
+    }
+  };
+
+  const handleDownloadFinalSummary = () => {
+    if (!selectedSummary) return;
+    
+    try {
+      const now = new Date();
+      const timestamp = now.toLocaleString();
+      const dateStr = formatDateForFilename(now);
+      
+      // Get upload timestamp from videos list
+      const video = videos.find((v: { videoId: string }) => v.videoId === selectedSummary.videoId);
+      const uploadTimestamp = video?.createdAt ? new Date(video.createdAt).toLocaleString() : 'N/A';
+      
+      // Markdown format with proper headers
+      let content = `# VIDEO SUMMARY EXPORT\n\n`;
+      
+      content += `## METADATA\n\n`;
+      content += `| Property | Value |\n`;
+      content += `|----------|-------|\n`;
+      content += `| Video Title | ${selectedSummary.title} |\n`;
+      content += `| Video ID | ${selectedSummary.videoId} |\n`;
+      content += `| Run ID | ${selectedSummary.stateId} |\n`;
+      content += `| Upload Timestamp | ${uploadTimestamp} |\n`;
+      content += `| Export Timestamp | ${timestamp} |\n`;
+      content += `| Total Chunks | ${selectedSummary.chunksCount} |\n`;
+      content += `| Total Frames | ${selectedSummary.framesCount} |\n`;
+      content += `\n`;
+      
+      content += `## PIPELINE CONFIGURATION\n\n`;
+      content += `| Setting | Value |\n`;
+      content += `|---------|-------|\n`;
+      content += `| Chunk Duration | ${selectedSummary.userInputs.chunkDuration}s |\n`;
+      content += `| Sampling Frame | ${selectedSummary.userInputs.samplingFrame} |\n`;
+      content += `| Frame Overlap | ${selectedSummary.systemConfig.frameOverlap} |\n`;
+      content += `| Multi-Frame Batch Size | ${selectedSummary.systemConfig.multiFrame} |\n`;
+      if (selectedSummary.systemConfig.evamPipeline) {
+        content += `| Chunking Pipeline | ${selectedSummary.systemConfig.evamPipeline} |\n`;
+      }
+      if (selectedSummary.systemConfig.audioModel) {
+        content += `| Audio Model | ${selectedSummary.systemConfig.audioModel} |\n`;
+      }
+      content += `\n`;
+      
+      content += `## INFERENCE MODELS\n\n`;
+      content += `| Model Type | Model | Device |\n`;
+      content += `|------------|-------|--------|\n`;
+      if (selectedSummary.inferenceConfig?.objectDetection) {
+        content += `| Object Detection | ${selectedSummary.inferenceConfig.objectDetection.model} | ${selectedSummary.inferenceConfig.objectDetection.device} |\n`;
+      }
+      if (selectedSummary.inferenceConfig?.imageInference) {
+        content += `| VLM | ${selectedSummary.inferenceConfig.imageInference.model} | ${selectedSummary.inferenceConfig.imageInference.device} |\n`;
+      }
+      if (selectedSummary.inferenceConfig?.textInference) {
+        content += `| LLM | ${selectedSummary.inferenceConfig.textInference.model} | ${selectedSummary.inferenceConfig.textInference.device} |\n`;
+      }
+      content += `\n`;
+      
+      content += `## PROCESSING STATUS\n\n`;
+      content += `| Status Type | Value |\n`;
+      content += `|-------------|-------|\n`;
+      content += `| Video Chunking | ${selectedSummary.chunkingStatus.toUpperCase()} |\n`;
+      content += `| Frame Summaries Complete | ${selectedSummary.frameSummaryStatus.complete} |\n`;
+      content += `| Frame Summaries Progress | ${selectedSummary.frameSummaryStatus.inProgress} |\n`;
+      content += `| Video Summary Status | ${selectedSummary.videoSummaryStatus.toUpperCase()} |\n`;
+      content += `\n`;
+      
+      content += `---\n\n`;
+      content += `## FINAL SUMMARY\n\n`;
+      content += processMD(selectedSummary.summary);
+      content += `\n\n---\n\n`;
+      content += `*Generated by Video Search and Summarization*\n`;
+      
+      // VSS_<videoName>_<runId>_<yyyyMMdd_HHmm>.md
+      const videoName = sanitizeFilename(selectedSummary.title);
+      const runId = sanitizeFilename(selectedSummary.stateId);
+      const filename = `VSS_${videoName}_${runId}_${dateStr}.md`;
+      
+      downloadTextFile(content, filename);
+      notify('Summary downloaded successfully', NotificationSeverity.SUCCESS, 3000);
+    } catch (error) {
+      console.error('Download error:', error);
+      notify(
+        'Download failed. Click the download button to retry.',
+        NotificationSeverity.ERROR,
+        5000
+      );
     }
   };
 
@@ -337,6 +470,14 @@ export const Summary: FC = () => {
             <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
               {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
             </Tag>
+            {summaryData.summary && summaryData.summary.trim() !== '' && (
+              <DownloadButton
+                onClick={handleDownloadFinalSummary}
+              >
+                <Download />
+                {t('downloadFinalSummary')}
+              </DownloadButton>
+            )}
           </section>
 
           <StyledMessage>

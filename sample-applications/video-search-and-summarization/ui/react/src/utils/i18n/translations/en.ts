@@ -98,6 +98,10 @@ export const enTranslations = {
   SummaryInProgress: '{{count}} summaries are using frames from this chunk',
   FramesOverlap: 'Frames Overlap',
   MultiFrame: 'Batch size',
+  downloadChunkSummary: 'Download Summary',
+  downloadFinalSummary: 'Download Summary',
+  downloadFrameSummary: 'Download Summary',
+  close: 'Close',
   AdvancedSettings: 'Advanced Settings',
   frameOverlapWarning:
     'Frames Overlap + Sample Frames per Chunk = {{frames}} should be less than or equal to maximum Frames batch size  {{maxFrames}}.',
