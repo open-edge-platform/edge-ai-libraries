@@ -25,7 +25,7 @@ def run_command(command):
         raise RuntimeError(f"Command failed: {command}\n{result.stderr}")
     return result
 
-## REST API Tests
+## REST API Tests common for Time Series Analytics Microservice
 
 # Get health check /health endpoint
 def health_check(port):
