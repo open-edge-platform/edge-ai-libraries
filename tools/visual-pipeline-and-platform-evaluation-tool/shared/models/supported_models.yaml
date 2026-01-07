@@ -13,7 +13,7 @@
   type: classification
   model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
   model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
-  unsupported_devices: "NPU"
+  unsupported_devices: ""
   precision: INT8
   default: true
 - name: mobilenet-v2-pytorch
@@ -121,7 +121,7 @@
   type: detection
   model_path: public/yolo11n/FP16/yolo11n.xml
   model_proc: ""
-  unsupported_devices: "NPU"
+  unsupported_devices: ""
   precision: FP16
   default: false
 - name: face-detection-retail-0004
@@ -141,4 +141,22 @@
   model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
   unsupported_devices: ""
   precision: FP16
+  default: false
+- name: horizontal-text-detection-0002
+  display_name: Horizontal Text Detection 0002 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/horizontal-text-detection-0002/FP16-INT8/horizontal-text-detection-0002.xml
+  model_proc: pipeline-zoo-models/horizontal-text-detection-0002/horizontal-text-detection-0002.json
+  unsupported_devices: ""
+  precision: INT8
+  default: false
+- name: text-recognition-0012-mod
+  display_name: Text Recognition 0012 (INT8)
+  source: pipeline-zoo-models
+  type: detection
+  model_path: pipeline-zoo-models/text-recognition-0012-mod/FP16-INT8/text-recognition-0012-mod.xml
+  model_proc: pipeline-zoo-models/text-recognition-0012-mod/text-recognition-0012-mod.json
+  unsupported_devices: ""
+  precision: INT8
   default: false
