@@ -7,14 +7,18 @@ import {
   Grid3x3,
   Home,
   ListTodo,
+  Moon,
+  Sun,
 } from "lucide-react";
 import logo from "@/assets/digital-unboxed-energyblue-white.svg";
 import { PipelineNameEdit } from "@/components/shared/PipelineNameEdit.tsx";
+import { useTheme } from "next-themes";
 
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
+  const { theme, setTheme } = useTheme();
 
   // Check if we're on the pipeline editor page
   const isPipelineEditorPage = location.pathname.startsWith("/pipelines/");
@@ -32,18 +36,31 @@ const Navigation = () => {
   if (isPipelineEditorPage && pipelineId) {
     return (
       <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-4 px-4 h-[60px]">
+        <div className="flex items-center justify-between px-4 h-[60px]">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-classic-blue dark:hover:text-energy-blue transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="text-sm font-medium">Back</span>
+            </button>
+            <div className="h-7 w-px bg-gray-300 dark:bg-gray-700" />
+            <span className="text-gray-900 dark:text-white font-medium text-lg">
+              <PipelineNameEdit pipelineId={pipelineId} />
+            </span>
+          </div>
           <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-classic-blue dark:hover:text-energy-blue transition-colors cursor-pointer"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Toggle theme"
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
+            {theme === "dark" ? (
+              <Sun className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+            ) : (
+              <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+            )}
           </button>
-          <div className="h-7 w-px bg-gray-300 dark:bg-gray-700" />
-          <span className="text-gray-900 dark:text-white font-medium text-lg">
-            <PipelineNameEdit pipelineId={pipelineId} />
-          </span>
         </div>
       </nav>
     );
@@ -51,28 +68,41 @@ const Navigation = () => {
 
   return (
     <nav className="bg-classic-blue dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      <div className="flex items-center gap-6 px-4 h-[60px]">
-        <img src={logo} alt="Intel" className="h-7" />
-        <span className="text-white font-medium text-lg pt-1.5">ViPPET</span>
-        <div className="flex items-center gap-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-2 px-4 pt-5 pb-3 text-md font-medium transition-colors ${
-                  isActive
-                    ? "text-energy-blue dark:text-energy-blue border-b-2 border-white dark:border-blue-400"
-                    : "text-white dark:text-gray-400 hover:text-energy-blue dark:hover:text-gray-100 border-b-2 border-transparent"
-                }`
-              }
-            >
-              <item.icon className="w-4 h-4" />
-              {item.label}
-            </NavLink>
-          ))}
+      <div className="flex items-center justify-between px-4 h-[60px]">
+        <div className="flex items-center gap-6">
+          <img src={logo} alt="Intel" className="h-7" />
+          <span className="text-white font-medium text-lg pt-1.5">ViPPET</span>
+          <div className="flex items-center gap-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-4 pt-5 pb-3 text-md font-medium transition-colors ${
+                    isActive
+                      ? "text-energy-blue dark:text-energy-blue border-b-2 border-white dark:border-blue-400"
+                      : "text-white dark:text-gray-400 hover:text-energy-blue dark:hover:text-gray-100 border-b-2 border-transparent"
+                  }`
+                }
+              >
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         </div>
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="p-2 rounded-lg"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? (
+            <Sun className="w-5 h-5 text-white hover:text-[#7e44e0]" />
+          ) : (
+            <Moon className="w-5 h-5 text-white hover:text-[#7e44e0]" />
+          )}
+        </button>
       </div>
     </nav>
   );
