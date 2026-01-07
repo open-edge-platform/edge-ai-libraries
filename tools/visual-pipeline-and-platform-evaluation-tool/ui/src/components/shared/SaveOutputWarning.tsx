@@ -1,6 +1,6 @@
 const SaveOutputWarning = () => {
   return (
-    <div className="text-muted-foreground border border-amber-400 my-2 p-2 bg-amber-200/50 w-1/2">
+    <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-1/2">
       <b>Note 1</b>: The current implementation does not automatically infer the
       best encoding device from the existing pipeline. Select the same device
       that is already used by other blocks in your pipeline. To learn more,

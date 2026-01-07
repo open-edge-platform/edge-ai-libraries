@@ -203,7 +203,7 @@ const PerformanceTests = () => {
           {pipelineSelections.map((selection) => (
             <div
               key={selection.pipelineId}
-              className={`flex items-center gap-3 p-2 border bg-white transition-all duration-300 ${
+              className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
                 selection.isRemoving
                   ? "opacity-0 -translate-y-2"
                   : selection.isNew
@@ -221,7 +221,7 @@ const PerformanceTests = () => {
                     onChange={(e) =>
                       handlePipelineChange(selection.pipelineId, e.target.value)
                     }
-                    className="w-full px-3 py-2 border text-sm cursor-pointer"
+                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-white dark:bg-background"
                   >
                     {pipelines
                       .filter(
@@ -268,7 +268,7 @@ const PerformanceTests = () => {
           <button
             onClick={handleAddPipeline}
             disabled={pipelineSelections.length >= pipelines.length}
-            className="w-fit px-4 py-2 bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
@@ -303,7 +303,7 @@ const PerformanceTests = () => {
               <DeviceSelect
                 value={encoderDevice}
                 onChange={setEncoderDevice}
-                className="w-fit px-3 py-2 border text-sm cursor-pointer"
+                className="w-fit px-3 py-2 border text-sm cursor-pointer bg-background"
               />
             </div>
           )}
@@ -313,7 +313,7 @@ const PerformanceTests = () => {
         <button
           onClick={handleRunTest}
           disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-          className="w-fit px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-fit px-4 py-2 bg-primary font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
         >
           {jobId
             ? "Running..."

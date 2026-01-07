@@ -204,9 +204,9 @@ const AddPipelineButton = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue dark:hover:text-blue-400">
+        <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue dark:hover:border-energy-blue hover:bg-blue-50 dark:hover:bg-energy-blue/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue  dark:hover:text-energy-blue">
           <Plus className="w-12 h-12" />
-          <span className="text-lg font-medium">Add New Pipeline</span>
+          <span className="text-lg font-medium ">Add New Pipeline</span>
         </button>
       </DialogTrigger>
       <DialogContent className="!max-w-6xl">

@@ -98,7 +98,7 @@ const Home = () => {
                         baseName={group.baseName}
                         description={group.description}
                       >
-                        <button className="text-white bg-classic-blue hover:bg-classic-blue-hover px-4 py-2 transition-colors">
+                        <button className="cursor-pointer font-medium text-white dark:text-[#242528] bg-classic-blue dark:bg-energy-blue hover:bg-classic-blue-hover dark:hover:bg-energy-blue-tint-1 px-4 py-2 transition-colors">
                           Copy pipeline
                         </button>
                       </CopyPipelineButton>
@@ -128,7 +128,7 @@ const Home = () => {
                     <CardFooter>
                       <Link
                         to={`/pipelines/${pipeline.id}`}
-                        className="text-white bg-classic-blue hover:bg-classic-blue-hover px-4 py-2 transition-colors"
+                        className="text-white dark:text-[#242528] font-medium bg-classic-blue dark:bg-energy-blue hover:bg-classic-blue-hover dark:hover:bg-energy-blue-tint-1 px-4 py-2 transition-colors"
                       >
                         Open in Builder
                       </Link>
@@ -139,7 +139,7 @@ const Home = () => {
             </div>
           </div>
         </div>
-        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9]">
+        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9] dark:bg-[#3c3e42]">
           <h1 className="font-medium text-2xl">Resource utilization</h1>
           <CpuUsageProgress />
           <GpuUsageProgress />
@@ -149,12 +149,12 @@ const Home = () => {
           <h1 className="font-medium text-2xl mt-4">Learning and support</h1>
 
           <div className="flex gap-3">
-            <BookOpen className="w-6 h-6 text-classic-blue shrink-0" />
+            <BookOpen className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
               href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">Getting Started</h3>
               <p className="text-sm text-muted-foreground">
@@ -164,12 +164,12 @@ const Home = () => {
           </div>
 
           <div className="flex gap-3">
-            <Sparkles className="w-6 h-6 text-classic-blue shrink-0" />
+            <Sparkles className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
               href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">What's new?</h3>
               <p className="text-sm text-muted-foreground">
@@ -179,12 +179,12 @@ const Home = () => {
           </div>
 
           <div className="flex gap-3">
-            <Code className="w-6 h-6 text-classic-blue shrink-0" />
+            <Code className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
               href="/api/v1/redoc"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">REST API</h3>
               <p className="text-sm text-muted-foreground">

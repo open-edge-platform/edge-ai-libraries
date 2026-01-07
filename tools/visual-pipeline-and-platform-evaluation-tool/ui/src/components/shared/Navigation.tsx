@@ -66,7 +66,7 @@ const Navigation = () => {
   }
 
   return (
-    <nav className="bg-classic-blue dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+    <nav className="bg-classic-blue dark:bg-[#313236] border-b border-gray-200 dark:border-gray-800">
       <div className="flex items-center justify-between px-4 h-[60px]">
         <div className="flex items-center gap-6">
           <img src={logo} alt="Intel" className="h-7" />
@@ -80,8 +80,8 @@ const Navigation = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-2 px-4 pt-5 pb-3 text-md font-medium transition-colors ${
                     isActive
-                      ? "text-energy-blue dark:text-energy-blue border-b-2 border-white dark:border-blue-400"
-                      : "text-white dark:text-gray-400 hover:text-energy-blue dark:hover:text-gray-100 border-b-2 border-transparent"
+                      ? "text-white border-b-2 border-white dark:border-blue-400 dark:hover:bg-[#242528] hover:bg-classic-blue-hover"
+                      : "text-white dark:text-[#ffffff] dark:hover:bg-[#242528] border-b-2 border-transparent hover:bg-classic-blue-hover"
                   }`
                 }
               >
@@ -96,9 +96,9 @@ const Navigation = () => {
           aria-label="Toggle theme"
         >
           {theme === "dark" ? (
-            <Sun className="w-5 h-5 text-white hover:text-[#7e44e0]" />
+            <Sun className="w-5 h-5 text-white hover:text-energy-blue" />
           ) : (
-            <Moon className="w-5 h-5 text-white hover:text-[#7e44e0]" />
+            <Moon className="w-5 h-5 text-white hover:text-cyan-300" />
           )}
         </button>
       </div>
