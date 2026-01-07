@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.vectorstores.vdms import VDMS
 
 from src.utils.common import logger, settings
+from src.utils.time_filters import build_vdms_time_filter
 from src.utils.directory_watcher import (
     get_initial_upload_status,
     get_last_updated,
@@ -68,6 +69,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
         video_metadata["fps"] = fps_value
 
         best_frame_info = video_result.get("best_frame_info") or {}
+        created_at_value = video_metadata.get("created_at") or video_metadata.get("upload_timestamp", "")
 
         metadata = {
             "video_id": video_result.get("video_id"),
@@ -83,6 +85,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
             "seek_timestamp": video_result.get("seek_timestamp"),
             "score_breakdown": video_result.get("score_breakdown"),
             "best_frame_info": best_frame_info,
+            "created_at": created_at_value,
             "aggregated": True,
             "video_metadata": video_metadata,
             "rank": rank,
@@ -136,6 +139,13 @@ async def query_endpoint(request: list[QueryRequest]):
             )
             logger.debug(f"Query tags: {query_request.tags}")
 
+            # Derive optional time range filter from the natural-language query
+            vdms_filter = build_vdms_time_filter(query_request.query)
+            if vdms_filter:
+                logger.info(f"Applying time filter to VDMS query: {vdms_filter}")
+            else:
+                logger.debug("No time filter derived from query text")
+
             # Get more initial results for aggregation (before filtering)
             initial_k = getattr(
                 settings, "AGGREGATION_INITIAL_K", 1000
@@ -147,6 +157,7 @@ async def query_endpoint(request: list[QueryRequest]):
                 query_request.query,
                 k=initial_k,
                 fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
+                filter=vdms_filter,
                 # normalize_distance=True
             )
             vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000

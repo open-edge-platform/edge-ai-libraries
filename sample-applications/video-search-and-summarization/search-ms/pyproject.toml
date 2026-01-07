@@ -16,6 +16,9 @@ langchain-core = "^1.1.0"
 langchain-vdms = "^0.2.0"
 watchdog = "6.0.0"
 requests = "^2.31.0"
+dateparser = "^1.2.2"
+tzlocal = "^5.3.1"
+word2number = "^1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

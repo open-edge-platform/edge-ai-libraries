@@ -569,6 +569,11 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
                     video_rel_url = frame_metadata.get("video_rel_url", "")
                     break
         
+        created_at = best_frame_meta.get("created_at")
+        if not created_at:
+            # VDMS can store datetime as an object with the actual value in _date
+            created_at = best_frame_meta.get("date_time", {}).get("_date", "")
+
         formatted_result = {
             "video_id": result["video_id"],
             "video_url": video_url,
@@ -590,6 +595,7 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
                 "duration": result["video_duration"],
                 "fps": best_frame_meta.get("fps", 30),
                 "tags": best_frame_meta.get("tags", "").split(",") if best_frame_meta.get("tags") else [],
+                "created_at": created_at,
                 "upload_timestamp": best_frame_meta.get("date_time", {}).get("_date", ""),
                 "bucket_name": best_frame_meta.get("bucket_name", "")
             },
