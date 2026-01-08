@@ -35,9 +35,9 @@ efficiency and comply with model constraints or GPU memory constraints.
 
 This framework operates in three stages:
 
-1. Detect scene-switch boundaries to segment the long video into chunks.
-2. Use VLM to generate captions for each of these short video clips.
-3. Use LLM hierarchically and recurrently aggregates the textual captions to a coherent global
+1. Detects scene-switch boundaries to segment the long video into chunks.
+2. Uses VLM to generate captions for each of these short video clips.
+3. Uses LLM hierarchically and recurrently aggregates the textual captions to a coherent global
 summary. A dedicated temporal enhancement component is employed at each level to strengthen
 the connections between units.
 
