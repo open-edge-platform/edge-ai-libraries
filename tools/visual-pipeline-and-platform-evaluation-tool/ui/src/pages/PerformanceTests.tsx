@@ -313,7 +313,7 @@ const PerformanceTests = () => {
         <button
           onClick={handleRunTest}
           disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-          className="w-fit px-4 py-2 bg-primary font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
+          className="w-fit px-4 py-2 bg-classic-blue font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
         >
           {jobId
             ? "Running..."

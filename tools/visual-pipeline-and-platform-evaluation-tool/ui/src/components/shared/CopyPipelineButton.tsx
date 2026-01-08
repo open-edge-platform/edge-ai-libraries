@@ -130,7 +130,7 @@ const CopyPipelineButton = ({
                     setName(`Copy of ${baseName} [${e.target.value}]`);
                   }
                 }}
-                className="w-full px-3 py-2 border"
+                className="w-full px-3 py-2 border bg-background"
               >
                 {tags.map((tag) => (
                   <option key={tag} value={tag}>
@@ -179,13 +179,13 @@ const CopyPipelineButton = ({
 
           <div className="flex justify-end gap-2">
             <button
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+              className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               onClick={() => setOpen(false)}
             >
               Cancel
             </button>
             <button
-              className="px-4 py-2 text-sm font-medium text-white bg-classic-blue hover:bg-classic-blue-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-fit px-4 py-2 bg-primary font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
               onClick={handleCopy}
               disabled={isLoading || !name.trim() || !selectedPipeline}
             >

@@ -35,7 +35,7 @@ const Navigation = () => {
 
   if (isPipelineEditorPage && pipelineId) {
     return (
-      <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+      <nav className="bg-white dark:bg-[#313236] border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between px-4 h-[60px]">
           <div className="flex items-center gap-4">
             <button
@@ -55,9 +55,9 @@ const Navigation = () => {
             aria-label="Toggle theme"
           >
             {theme === "dark" ? (
-              <Sun className="w-5 h-5 text-white hover:text-[#7e44e0]" />
+              <Sun className="w-5 h-5 text-white hover:text-energy-blue" />
             ) : (
-              <Moon className="w-5 h-5 hover:text-[#7e44e0] text-gray-700" />
+              <Moon className="w-5 h-5 hover:text-cyan-300 text-gray-700" />
             )}
           </button>
         </div>

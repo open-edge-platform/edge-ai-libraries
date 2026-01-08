@@ -47,9 +47,9 @@ const NodeDataPanel = ({
 
   if (!selectedNode) {
     return (
-      <div className="absolute bottom-8 right-4 w-80 bg-white border border-gray-300 shadow-lg p-4 z-10">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Node Data</h3>
-        <p className="text-xs text-gray-500">Select a node to view its data</p>
+      <div className="absolute bottom-8 right-4 w-80 bg-background border border-gray-300 shadow-lg p-4 z-10 dark:shadow-[2px_2px_8px_0_rgba(255,255,255,0.08)]">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Node Data</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-300">Select a node to view its data</p>
       </div>
     );
   }
@@ -94,17 +94,17 @@ const NodeDataPanel = ({
   const hasAdditionalParams = dataEntries.length > 0;
 
   return (
-    <div className="absolute bottom-4 right-4 w-80 bg-white border border-gray-300 shadow-lg p-4 z-10 max-h-96 overflow-y-auto">
+    <div className="absolute bottom-4 right-4 w-80 bg-background border border-gray-300 shadow-lg p-4 z-10 max-h-96 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Node Data</h3>
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Node Data</h3>
+        <span className="text-xs text-gray-500 bg-gray-100 dark:text-gray-300 dark:bg-gray-700 px-2 py-1">
           {selectedNode.type}
         </span>
       </div>
 
       {hasAdditionalParams ? (
         <div className="space-y-3">
-          <h4 className="text-xs font-medium text-gray-600 border-b pb-1">
+          <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 border-b pb-1">
             Additional Parameters:
           </h4>
           {dataEntries.map(([key, value]) => {
@@ -119,7 +119,7 @@ const NodeDataPanel = ({
 
             return (
               <div key={keyStr} className="border-l-2 border-blue-200 pl-3">
-                <label className="text-xs font-medium text-gray-600 block mb-1">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300 block mb-1">
                   {propConfig?.label ?? keyStr}:
                   {propConfig?.required && (
                     <span className="text-red-500 ml-1">*</span>
@@ -127,7 +127,7 @@ const NodeDataPanel = ({
                 </label>
 
                 {propConfig?.description && (
-                  <div className="text-xs text-gray-500 mb-1 italic">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 italic">
                     {propConfig.description}
                   </div>
                 )}
@@ -136,7 +136,7 @@ const NodeDataPanel = ({
                   <select
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full text-xs border border-gray-300 px-2 py-1"
+                    className="w-full dark:bg-background text-xs border border-gray-300 px-2 py-1"
                   >
                     <option value="">Select {propConfig?.label}</option>
                     {models
@@ -157,13 +157,13 @@ const NodeDataPanel = ({
                   <DeviceSelect
                     value={String(value ?? "")}
                     onChange={(val) => handleInputChange(keyStr, val)}
-                    className="w-full text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   />
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full text-xs border border-gray-300 px-2 py-1"
+                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
                     <option value="">Select {propConfig?.label}</option>
                     {propConfig?.options?.map((option) => (
