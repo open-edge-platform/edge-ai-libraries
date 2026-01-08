@@ -63,7 +63,7 @@ client. A comprehensive RESTful API is provided to access and control key featur
 ## Models supported
 
 The service automatically downloads and manages the required models based on configuration.
-Any openAI-compatibal model servings are supported.
+Any OpenAI-compatible model servings are supported.
 
 ### Validated Models
 
