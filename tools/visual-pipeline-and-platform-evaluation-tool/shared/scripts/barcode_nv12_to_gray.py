@@ -149,13 +149,7 @@ class BarcodeDetection:
                 or (self.frame_count % self.reclassify_interval != 0)):
             skip_frame_processing = True
 
-        try:
-            regions = list(frame.regions())
-        except RuntimeError:
-            # Upstream element produced an inconsistent ROI meta list on this buffer.
-            # Skip barcode processing for this frame to avoid failing the whole pipeline.
-            return True
-        
+        regions = list(frame.regions())
         do_zxing_flag = False
         for region in regions:
             region_rect = region.rect()

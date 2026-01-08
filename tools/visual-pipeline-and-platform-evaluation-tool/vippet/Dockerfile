@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary dependencies
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends python3.12-dev gstreamer1.0-plugins-ugly yq libzbar0 && \
+    apt-get install --yes --no-install-recommends python3.12-dev gstreamer1.0-plugins-ugly yq && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
