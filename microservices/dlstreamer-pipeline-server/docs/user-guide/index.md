@@ -44,7 +44,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Configuration handler**
 
-  Reads the contents of config file and accordingly constructs/starts pipelines. Dynamic
+  Reads the contents of a config file and accordingly constructs/starts pipelines. Dynamic
   configuration change is supported via REST API.
 
 - **GST UDF Loader**
