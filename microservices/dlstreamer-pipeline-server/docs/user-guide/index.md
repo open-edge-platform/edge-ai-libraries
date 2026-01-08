@@ -49,7 +49,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **GST UDF Loader**
 
-  DL Streamer Pipeline Server provides a [GStreamer plugin](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) - `udfloader` using which users can configure and load arbitrary UDFs. With
+  DL Streamer Pipeline Server provides a [GStreamer plugin](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) - `udfloader`, which can be used to configure and load arbitrary UDFs. With
   `udfloader`, DL Streamer Pipeline Server provides an easy way to bring user developed programs
   and run them as a part of GStreamer pipelines. A User Defined Function (UDF) is a chunk of
   user code that can transform video frames and/or manipulate metadata. For example, a UDF can
