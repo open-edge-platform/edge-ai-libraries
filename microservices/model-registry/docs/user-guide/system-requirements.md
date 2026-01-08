@@ -34,4 +34,3 @@ This page provides detailed hardware, software, and platform requirements to hel
 - [Overview](Overview.md)
 - [Get Started Guide](get-started.md)
 - [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
