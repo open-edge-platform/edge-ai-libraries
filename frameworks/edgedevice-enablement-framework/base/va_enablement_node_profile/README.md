@@ -16,6 +16,14 @@ Additional command line parameters are not required.
 "./va_enablement_node_profile.sh tfcc"
 "./va_enablement_node_profile.sh vpp"
 ```
+- Input parameter for vPRO platform Enablement
+```
+"./va_enablement_node_profile.sh vpro"
+```
+- Input parameter to configure the prerequisite tools for 'Magic-9' on the target edge node.
+```
+"./va_enablement_node_profile.sh magic9"
+```
 - Execute it with --help/-h for checking the availability of any additional use case support
 ```bash
 "./va_enablement_node_profile.sh -h"
