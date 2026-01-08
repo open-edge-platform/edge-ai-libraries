@@ -58,8 +58,8 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Publisher**
 
-  Supports publishing metadata to file, MQTT/Kafka message brokers and frame along with
-  metadata to MQTT message broker. We also support publishing metadata and frame over OPCUA.
+  Supports publishing metadata to a file, MQTT/Kafka message brokers and frame along with
+  metadata to a MQTT message broker. It also supports publishing metadata and frame over OPCUA.
   The frames can also be saved on S3 compliant storage.
 
 - **DL Streamer Pipeline Server Model Update**
