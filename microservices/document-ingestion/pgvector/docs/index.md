@@ -42,7 +42,7 @@ sample application where this microservice is used.
 ## Key Features
 
 1. The user manages the documents using REST APIs supported by the microservice. The APIs
-allows the user to upload, delete, and read the documents managed by the microservice.
+allow the user to upload, delete, and read the documents managed by the microservice.
 2. The microservice uses PGVector as the vectorDB. However, implementation is modular to
 support other vectorDBs.
 
