@@ -22,7 +22,7 @@ import { Modal, ModalBody, Tooltip } from '@carbon/react';
 import styled from 'styled-components';
 import Markdown from 'react-markdown';
 import { processMD, downloadTextFile, formatDateForFilename, sanitizeFilename } from '../../utils/util';
-import { ClosedCaption, Information } from '@carbon/icons-react';
+import { ClosedCaption, Information, Download } from '@carbon/icons-react';
 import { getStatusByPriority, StatusIndicator } from './StatusTag';
 import { notify, NotificationSeverity } from '../Notification/notify.ts';
 
@@ -41,6 +41,75 @@ const StyledMessage = styled.div`
   line-height: 1.8;
   code {
     white-space: break-spaces;
+  }
+`;
+
+const DownloadButton = styled.button`
+  background-color: #0066cc;
+  color: #ffffff;
+  border: 1px solid #0066cc;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin: 0;
+  font-size: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  &:hover {
+    background-color: #0052a3;
+    border-color: #0052a3;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  &:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.5rem);
+    transform: translateY(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    background-color: #003d7a;
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    fill: #ffffff;
+  }
+`;
+
+const StyledModal = styled(Modal)`
+  .cds--modal-header {
+    display: flex;
+    align-items: center;
+    padding-right: 3rem;
+  }
+  
+  .download-button-wrapper {
+    position: absolute;
+    right: 3rem;
+    top: 1rem;
+    z-index: 1;
   }
 `;
 export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
@@ -195,16 +264,22 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
   return (
     <>
       <div className='chunk'>
-        <Modal
+        <StyledModal
           onRequestClose={(_) => {
             setShowModal(false);
           }}
           open={showModal}
           modalHeading={modalHeading}
-          primaryButtonText={t('downloadChunkSummary')}
-          secondaryButtonText={t('close')}
-          onRequestSubmit={handleDownloadChunkSummary}
+          passiveModal
         >
+          <div className="download-button-wrapper">
+            <DownloadButton
+              onClick={handleDownloadChunkSummary}
+              data-tooltip={t('downloadChunkSummary')}
+            >
+              <Download />
+            </DownloadButton>
+          </div>
           <ModalBody>
             {modalBody.map((summ) => (
               <StyledMessage key={`${summ.frames[0]}-${summ.frames[summ.frames.length - 1]}`}>
@@ -218,7 +293,7 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
               </StyledMessage>
             ))}
           </ModalBody>
-        </Modal>
+        </StyledModal>
         <div className='chunk-header'>
           <span className='chunk-name'>
             {t('ChunkPrefix') + ' ' + uiChunkData?.chunkId}

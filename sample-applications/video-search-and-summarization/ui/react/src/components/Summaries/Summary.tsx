@@ -45,14 +45,22 @@ const SummaryContainer = styled.div`
   
   section {
     display: flex;
-    flex-flow: row wrap;
+    flex-flow: row nowrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
     margin-bottom: 1rem;
     
     h3 {
-      width: 100%;
-      margin-bottom: 0.5rem;
+      margin: 0;
+      line-height: 1.5rem;
+    }
+    
+    .left-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
     }
   }
   
@@ -132,32 +140,56 @@ const StyledMessage = styled.div`
 `;
 
 const DownloadButton = styled.button`
-  background-color: #defbe6;
-  color: #0e6027;
-  border: none;
-  border-radius: 0.9375rem;
-  padding: 0 0.5rem;
-  margin-left: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.28572;
+  background-color: #0066cc;
+  color: #ffffff;
+  border: 1px solid #0066cc;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin: 0;
+  font-size: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
   cursor: pointer;
-  white-space: nowrap;
-  height: 1.5rem;
-  min-height: 1.5rem;
-  max-height: 1.5rem;
+  width: 2rem;
+  height: 2rem;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   
   &:hover {
-    background-color: #b6f6c8;
+    background-color: #0052a3;
+    border-color: #0052a3;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  &:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.5rem);
+    transform: translateY(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    background-color: #003d7a;
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
   svg {
-    width: 1rem;
-    height: 1rem;
-    fill: #0e6027;
+    width: 1.125rem;
+    height: 1.125rem;
+    fill: #ffffff;
   }
 `;
 export const Summary: FC = () => {
@@ -466,16 +498,18 @@ export const Summary: FC = () => {
       <>
         <SummaryContainer>
           <section>
-            <h3>Summary</h3>
-            <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
-              {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
-            </Tag>
+            <div className="left-section">
+              <h3>Summary</h3>
+              <Tag size='md' type={statusClassName[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA] as any}>
+                {t(statusClassLabel[selectedSummary?.videoSummaryStatus ?? StateActionStatus.NA])}
+              </Tag>
+            </div>
             {summaryData.summary && summaryData.summary.trim() !== '' && (
               <DownloadButton
                 onClick={handleDownloadFinalSummary}
+                data-tooltip={t('downloadFinalSummary')}
               >
                 <Download />
-                {t('downloadFinalSummary')}
               </DownloadButton>
             )}
           </section>

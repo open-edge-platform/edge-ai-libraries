@@ -8,7 +8,7 @@ import { useHorizontalScroll } from '../../utils/horizontalScroller';
 import { useTranslation } from 'react-i18next';
 import { CountStatusEmp, statusClassName } from './StatusTag';
 import { IconButton, Modal, ModalBody } from '@carbon/react';
-import { ClosedCaption } from '@carbon/icons-react';
+import { ClosedCaption, Download } from '@carbon/icons-react';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { SummarySelector } from '../../redux/summary/summarySlice';
 import Markdown from 'react-markdown';
@@ -112,6 +112,75 @@ const StyledMessage = styled.div`
   }
 `;
 
+const DownloadButton = styled.button`
+  background-color: #0066cc;
+  color: #ffffff;
+  border: 1px solid #0066cc;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin: 0;
+  font-size: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  &:hover {
+    background-color: #0052a3;
+    border-color: #0052a3;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  &:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.5rem);
+    transform: translateY(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    background-color: #003d7a;
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    fill: #ffffff;
+  }
+`;
+
+const StyledModal = styled(Modal)`
+  .cds--modal-header {
+    display: flex;
+    align-items: center;
+    padding-right: 3rem;
+  }
+  
+  .download-button-wrapper {
+    position: absolute;
+    right: 3rem;
+    top: 1rem;
+    z-index: 1;
+  }
+`;
+
 export const SummariesContainer: FC = () => {
   const { frameSummaries, frames, frameSummaryStatusCount } = useAppSelector(VideoFrameSelector);
   const { getSystemConfig, selectedSummary } = useAppSelector(SummarySelector);
@@ -130,8 +199,8 @@ export const SummariesContainer: FC = () => {
   const [showModal, setShowModal] = useState<boolean>(false);
   const [currentFrameRange, setCurrentFrameRange] = useState<{ start: string; end: string } | null>(null);
 
-  const detailsClickHandler = (heading: string, text: string, startFrame: string, endFrame: string) => {
-    setModalHeading(heading);
+  const detailsClickHandler = (text: string, startFrame: string, endFrame: string) => {
+    setModalHeading(t('FrameSummaries'));
     setModalBody(text);
     setCurrentFrameRange({ start: startFrame, end: endFrame });
     setShowModal(true);
@@ -165,42 +234,16 @@ export const SummariesContainer: FC = () => {
       content += `| Total Frames | ${selectedSummary.framesCount} |\n`;
       content += `\n`;
       
-      content += `## PIPELINE CONFIGURATION\n\n`;
+      content += `## CONFIGURATION\n\n`;
       content += `| Setting | Value |\n`;
       content += `|---------|-------|\n`;
       content += `| Chunk Duration | ${selectedSummary.userInputs.chunkDuration}s |\n`;
       content += `| Sampling Frame | ${selectedSummary.userInputs.samplingFrame} |\n`;
       content += `| Frame Overlap | ${selectedSummary.systemConfig.frameOverlap} |\n`;
-      content += `| Multi-Frame Batch Size | ${selectedSummary.systemConfig.multiFrame} |\n`;
-      if (selectedSummary.systemConfig.evamPipeline) {
-        content += `| Chunking Pipeline | ${selectedSummary.systemConfig.evamPipeline} |\n`;
+      content += `| Multi-Frame Batch | ${selectedSummary.systemConfig.multiFrame} |\n`;
+      if (selectedSummary.inferenceConfig?.imageInference?.model) {
+        content += `| VLM Model | ${selectedSummary.inferenceConfig.imageInference.model} |\n`;
       }
-      if (selectedSummary.systemConfig.audioModel) {
-        content += `| Audio Model | ${selectedSummary.systemConfig.audioModel} |\n`;
-      }
-      content += `\n`;
-      
-      content += `## INFERENCE MODELS\n\n`;
-      content += `| Model Type | Model | Device |\n`;
-      content += `|------------|-------|--------|\n`;
-      if (selectedSummary.inferenceConfig?.objectDetection) {
-        content += `| Object Detection | ${selectedSummary.inferenceConfig.objectDetection.model} | ${selectedSummary.inferenceConfig.objectDetection.device} |\n`;
-      }
-      if (selectedSummary.inferenceConfig?.imageInference) {
-        content += `| VLM | ${selectedSummary.inferenceConfig.imageInference.model} | ${selectedSummary.inferenceConfig.imageInference.device} |\n`;
-      }
-      if (selectedSummary.inferenceConfig?.textInference) {
-        content += `| LLM | ${selectedSummary.inferenceConfig.textInference.model} | ${selectedSummary.inferenceConfig.textInference.device} |\n`;
-      }
-      content += `\n`;
-      
-      content += `## PROCESSING STATUS\n\n`;
-      content += `| Status Type | Value |\n`;
-      content += `|-------------|-------|\n`;
-      content += `| Video Chunking | ${selectedSummary.chunkingStatus.toUpperCase()} |\n`;
-      content += `| Frame Summaries Complete | ${selectedSummary.frameSummaryStatus.complete} |\n`;
-      content += `| Frame Summaries Progress | ${selectedSummary.frameSummaryStatus.inProgress} |\n`;
-      content += `| Video Summary Status | ${selectedSummary.videoSummaryStatus.toUpperCase()} |\n`;
       content += `\n`;
       
       content += `---\n\n`;
@@ -238,22 +281,33 @@ export const SummariesContainer: FC = () => {
           <CountStatusEmp label='' status={frameSummaryStatusCount} />
         </section>
 
-        <Modal
+        <StyledModal
           onRequestClose={(_) => {
             setShowModal(false);
           }}
           open={showModal}
           modalHeading={modalHeading}
-          primaryButtonText={t('downloadFrameSummary')}
-          secondaryButtonText={t('close')}
-          onRequestSubmit={handleDownloadFrameSummary}
+          passiveModal
         >
+          <div className="download-button-wrapper">
+            <DownloadButton
+              onClick={handleDownloadFrameSummary}
+              data-tooltip={t('downloadFrameSummary')}
+            >
+              <Download />
+            </DownloadButton>
+          </div>
           <ModalBody>
-            <StyledMessage>
-              <Markdown>{processMD(modalBody)}</Markdown>
-            </StyledMessage>
+            {currentFrameRange && (
+              <StyledMessage>
+                <h4>
+                  {t('Frames')}: [{currentFrameRange.start} : {currentFrameRange.end}]
+                </h4>
+                <Markdown>{processMD(modalBody)}</Markdown>
+              </StyledMessage>
+            )}
           </ModalBody>
-        </Modal>
+        </StyledModal>
 
         <div
           className='frames'
@@ -288,7 +342,6 @@ export const SummariesContainer: FC = () => {
                     kind='ghost'
                     onClick={() =>
                       detailsClickHandler(
-                        `${t('Frames')}: [${summary.startFrame} : ${summary.endFrame}] - ${t('Summary')}`,
                         summary.summary,
                         summary.startFrame,
                         summary.endFrame,
