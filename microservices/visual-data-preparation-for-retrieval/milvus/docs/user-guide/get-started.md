@@ -59,17 +59,17 @@ Note: supported media types: jpg, png, mp4
 1. Go to the deployment files
 
     ``` bash
-    cd deployment/docker-compose/
+    cd visual-data-preparation-for-retrieval/milvus/deployment/docker-compose/
     ```
 
-2.  Set up environment variables, note that you need to set an embedding model first
+2.  Set up environment variables, note that you need to set an embedding model first for multimodal-embedding-serving
 
     ``` bash
     export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
     source env.sh 
     ```
 
-    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](../../../../multimodal-embedding-serving/docs/user-guide/supported_models.md) for available options.
+    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
     
 3.  Deploy with docker compose
 
