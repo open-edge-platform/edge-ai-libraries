@@ -10,25 +10,20 @@ import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
 import AddPipelineButton from "@/components/shared/AddPipelineButton.tsx";
 import CopyPipelineButton from "@/components/shared/CopyPipelineButton.tsx";
-import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { BookOpen, Code, Sparkles, FlaskConical } from "lucide-react";
+import { BookOpen, Code, Sparkles } from "lucide-react";
 import pipeline0 from "@/assets/pipeline_0.png";
 import pipeline1 from "@/assets/pipeline_1.png";
 import pipeline2 from "@/assets/pipeline_2.png";
 import type { Pipeline } from "@/api/api.generated";
 import { selectHasNPU } from "@/store/reducers/devices.ts";
 import { NpuUsageProgress } from "@/features/metrics/NpuUsageProgress.tsx";
-import { simulateMultipleGPUs, clearTestData } from "@/lib/testUtils";
-
-// Set to true to enable test controls for GPU simulation
-const ENABLE_TEST_CONTROLS = false;
 
 const pipelineImages = [pipeline0, pipeline1, pipeline2];
 
 const Home = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const dispatch = useAppDispatch();
 
   const hasNpu = useAppSelector(selectHasNPU);
 
@@ -64,7 +59,7 @@ const Home = () => {
       pipelines: Record<string, Pipeline>;
       id: string;
       description: string;
-    }>,
+    }>
   );
 
   if (pipelines.length > 0) {
@@ -144,37 +139,6 @@ const Home = () => {
         </div>
         <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9] dark:bg-[#3c3e42]">
           <h1 className="font-medium text-2xl">Resource utilization</h1>
-          
-          {/* Test Controls - Development Only */}
-          {ENABLE_TEST_CONTROLS && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 space-y-2">
-              <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-                <FlaskConical className="h-4 w-4" />
-                <span className="text-xs font-semibold">Test Controls</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => simulateMultipleGPUs(dispatch, 3)}
-                  className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                >
-                  Simulate 3 GPUs
-                </button>
-                <button
-                  onClick={() => simulateMultipleGPUs(dispatch, 5)}
-                  className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                >
-                  Simulate 5 GPUs
-                </button>
-                <button
-                  onClick={() => clearTestData(dispatch)}
-                  className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                >
-                  Clear Test Data
-                </button>
-              </div>
-            </div>
-          )}
-
           <CpuUsageProgress />
           <GpuUsageProgress />
           {hasNpu && <NpuUsageProgress />}
@@ -235,5 +199,3 @@ const Home = () => {
 };
 
 export default Home;
-
-

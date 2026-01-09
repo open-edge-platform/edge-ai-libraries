@@ -2,14 +2,14 @@ import { useAppSelector } from "@/store/hooks.ts";
 import {
   selectCpuMetric,
   selectFpsMetric,
-  selectGPUMetric,
+  selectGpuMetric,
   selectAllGpuMetrics,
 } from "@/store/reducers/metrics.ts";
 
 export const useMetrics = () => {
   const fps = useAppSelector(selectFpsMetric);
   const cpu = useAppSelector(selectCpuMetric);
-  const gpu = useAppSelector(selectGPUMetric);
+  const gpu = useAppSelector(selectGpuMetric);
   const gpus = useAppSelector(selectAllGpuMetrics);
 
   return {
