@@ -19,6 +19,7 @@ export interface MetricsState {
   lastMessage: string;
   metrics: MetricData[];
   error: string | null;
+  testMode: boolean;
 }
 
 const initialState: MetricsState = {
@@ -27,6 +28,7 @@ const initialState: MetricsState = {
   lastMessage: "",
   metrics: [],
   error: null,
+  testMode: false,
 };
 
 export const metrics = createSlice({
@@ -53,6 +55,8 @@ export const metrics = createSlice({
       state.isConnecting = false;
     },
     messageReceived: (state, action: PayloadAction<string>) => {
+      if (state.testMode) return; // Don't update metrics if in test mode
+
       state.lastMessage = action.payload;
       try {
         const parsed = JSON.parse(action.payload) as MetricsMessage;
@@ -63,6 +67,16 @@ export const metrics = createSlice({
         console.error("Failed to parse metrics message:", error);
       }
     },
+    setTestMetrics: (state, action: PayloadAction<MetricData[]>) => {
+      state.metrics = action.payload;
+      state.isConnected = true;
+      state.testMode = true;
+    },
+    clearTestMode: (state) => {
+      state.testMode = false;
+      state.metrics = [];
+      state.isConnected = false;
+    },
   },
 });
 
@@ -72,6 +86,8 @@ export const {
   wsDisconnected,
   wsError,
   messageReceived,
+  setTestMetrics,
+  clearTestMode,
 } = metrics.actions;
 
 export const selectMetricsState = (state: RootState) => state.metrics;
@@ -105,16 +121,31 @@ export const selectGpuMetric = (state: RootState) =>
       m.name === "gpu_engine_usage" &&
       ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
       m.tags?.gpu_id === "0" &&
-      (m.fields.usage as number) > 0,
+      (m.fields.usage as number) > 0
   )?.fields?.usage as number | undefined;
 
-export const selectGpu1Metric = (state: RootState) =>
-  state.metrics.metrics.find(
+// Dynamic GPU metrics selector - returns array of GPU metrics with their IDs
+export const selectAllGpuMetrics = (state: RootState) => {
+  const gpuMetrics = state.metrics.metrics.filter(
     (m) =>
       m.name === "gpu_engine_usage" &&
       ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      m.tags?.gpu_id === "1" &&
-      (m.fields.usage as number) > 0,
-  )?.fields?.usage as number | undefined;
+      (m.fields.usage as number) > 0
+  );
+
+  // Group by gpu_id and return the first metric for each GPU
+  const gpuMap = new Map<string, { id: string; usage: number }>();
+  gpuMetrics.forEach((metric) => {
+    const gpuId = metric.tags?.gpu_id;
+    if (gpuId && !gpuMap.has(gpuId)) {
+      gpuMap.set(gpuId, {
+        id: gpuId,
+        usage: metric.fields.usage as number,
+      });
+    }
+  });
+
+  return Array.from(gpuMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+};
 
 export default metrics.reducer;
