@@ -11,7 +11,7 @@ import {
   Sun,
 } from "lucide-react";
 import logo from "@/assets/digital-unboxed-energyblue-white.svg";
-import { PipelineNameEdit } from "@/components/shared/PipelineNameEdit.tsx";
+import { PipelineNameEdit } from "@/features/pipelines/PipelineNameEdit.tsx";
 import { useTheme } from "next-themes";
 
 const Navigation = () => {
