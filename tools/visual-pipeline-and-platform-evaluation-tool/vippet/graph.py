@@ -370,7 +370,7 @@ class Graph:
 
     def get_recommended_encoder_device(self) -> str:
         """
-        Iterate backwards through nodes to find the first video/x-raw caps node
+        Iterate backwards through nodes to find the last video/x-raw caps node
         and return the recommended encoder device based on memory type.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
