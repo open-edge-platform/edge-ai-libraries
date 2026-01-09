@@ -110,7 +110,7 @@ export const enTranslations = {
   warning: 'warning',
   info: 'info',
 
-  FrameSummaries: 'Frame Summaries',
+  FrameSummaries: 'Video Timeline',
 
   ResetDefault: 'Reset to default',
   editPrompt: 'Edit prompt',
