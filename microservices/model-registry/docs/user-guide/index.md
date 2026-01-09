@@ -1,11 +1,20 @@
-Model Registry
-==============
+# Model Registry
+
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-registry">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-registry/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
 
 The Model Registry microservice provides a centralized repository that facilitates the
 management of AI models.
 
-Overview
-########
+## Overview
 
 The Model Registry plays a crucial role in the machine learning life cycle, providing a
 structured storage environment for models and their metadata. It stores each model's
@@ -23,7 +32,6 @@ it can be accessed by different applications, services, or developers enabling t
 store, and review models collectively. The model registry is an essential tool for
 developers deploying machine learning models, as it streamlines model management,
 fosters collaboration, and ultimately, aids in improving model deployments.
-
 
 **Key Benefits**
 
@@ -43,7 +51,7 @@ across different industries. Here are some examples:
   recommendations.
 - **Use Case 3**: Managing quality control models to ensure product consistency and safety.
 
-# How It Works
+## How It Works
 
 The Model Registry microservice works by serving as a centralized repository for models
 where, their versions, and metadata are stored. The software behind the microservice is
@@ -53,11 +61,9 @@ artifacts via a RESTful API.
 
 The software fulfills the promise described in the Overview via its various components.
 
-High-Level System View Diagram
-##############################
+### High-Level System View Diagram
 
-.. figure:: images/Model_Registry_HLA.png
-   :alt: Architecture Diagram
+![architecture diagram](images/Model_Registry_HLA.png)
 
    Figure 1: High-level system view demonstrating the microservice.
 
@@ -82,8 +88,7 @@ The Intel® Geti™ software is accessible via optional configurations within th
 registry. Once configured, the model registry is able to access the projects and models
 hosted within a remote Geti platform.
 
-Key Features
-############
+## Key Features
 
 - **Feature 1**: Provides a comprehensive set of REST API endpoints for operations such as
   registering, updating, retrieving, and deleting models.
@@ -94,21 +99,24 @@ Key Features
 - **Feature 4**: Offers optional configurations to integrate with the Intel® Geti™ software,
   enabling access to projects and models hosted on a remote Geti platform.
 
-Supporting Resources
-####################
+## Supporting Resources
 
-- :doc:`Get Started Guide <get-started>`
-- :doc:`API Reference <api-reference>`
-- :doc:`System Requirements <system-requirements>`
+- [Get Started Guide](./get-started)
+- [API Reference](./api-reference)
+- [System Requirements](./system-requirements)
 
-.. toctree::
-   :hidden:
+<!--hide_directive
+:::{toctree}
+:hidden:
 
-   overview-architecture
-   system-requirements
-   get-started
-   how-to-deploy-with-helm
-   how-to-interface-with-intel-geti-platform
-   api-reference
-   environment-variables
-   release-notes
+overview-architecture
+system-requirements
+get-started
+how-to-deploy-with-helm
+how-to-interface-with-intel-geti-platform
+api-reference
+environment-variables
+release-notes
+
+:::
+hide_directive-->
