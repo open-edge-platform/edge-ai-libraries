@@ -8,6 +8,7 @@ from pathlib import Path
 from utils import generate_unique_filename
 from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from resources import (
     get_labels_manager,
     get_scripts_manager,
@@ -366,6 +367,30 @@ class Graph:
                 input_filenames.append(filename)
 
         return input_filenames
+
+    def get_recommended_encoder_device(self) -> str:
+        """
+        Iterate backwards through nodes to find the first video/x-raw caps node
+        and return the recommended encoder device based on memory type.
+
+        Note: NPU variants are not considered because NPUs do not provide dedicated
+        memory accessible for GStreamer pipeline buffering; they operate exclusively
+        on system or shared memory.
+
+        Returns:
+            str: ENCODER_DEVICE_GPU if video/x-raw(memory:VAMemory) is detected,
+                 ENCODER_DEVICE_CPU for standard video/x-raw or when no video/x-raw
+                 caps node exists in the pipeline.
+        """
+        for node in reversed(self.nodes):
+            if node.type.startswith("video/x-raw"):
+                if "memory:VAMemory" in node.type:
+                    return ENCODER_DEVICE_GPU
+                else:
+                    return ENCODER_DEVICE_CPU
+
+        # Default to CPU encoder when no video/x-raw node exists
+        return ENCODER_DEVICE_CPU
 
 
 @dataclass

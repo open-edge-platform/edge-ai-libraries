@@ -1305,13 +1305,13 @@
           "tests"
         ],
         "summary": "Run Performance Test",
-        "description": "Start an asynchronous performance test job.\n\nOperation:\n    * Validate the performance test request.\n    * Create a PerformanceJob with RUNNING state.\n    * Spawn a background thread that runs the pipelines using\n      a GStreamer-based runner.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: PerformanceTestSpec\n        * pipeline_performance_specs \u2013 list of pipelines and number of\n          streams per pipeline.\n        * video_output \u2013 configuration for optional encoded video output\n          (enabled flag and encoder_device).\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created performance job.\n    400 Bad Request:\n        MessageResponse if the request is invalid at manager level, for\n        example:\n        * all stream counts are zero,\n        * pipeline ids do not exist (if validated up front in future).\n    500 Internal Server Error:\n        MessageResponse if an unexpected error occurs when creating the\n        job or starting the background thread.\n\nSuccess conditions:\n    * At least one stream is requested across all pipelines.\n    * TestsManager.test_performance() successfully enqueues the job.\n\nFailure conditions (high level):\n    * Validation or configuration error inside TestsManager \u2192 400.\n    * Any unhandled exception in job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"streams\": 8},\n            {\"id\": \"pipeline-b7c2e114\", \"streams\": 4}\n          ],\n          \"video_output\": {\n            \"enabled\": false,\n            \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job123\"\n        }\n\nError response example (400, invalid request):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one stream must be specified to run the pipeline.\"\n        }",
+        "description": "Start an asynchronous performance test job.\n\nOperation:\n    * Validate the performance test request.\n    * Create a PerformanceJob with RUNNING state.\n    * Spawn a background thread that runs the pipelines using\n      a GStreamer-based runner.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: PerformanceTestSpec\n        * pipeline_performance_specs \u2013 list of pipelines and number of\n          streams per pipeline.\n        * video_output \u2013 configuration for optional encoded video output\n          (enabled flag).\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created performance job.\n    400 Bad Request:\n        MessageResponse if the request is invalid at manager level, for\n        example:\n        * all stream counts are zero,\n        * pipeline ids do not exist (if validated up front in future).\n    500 Internal Server Error:\n        MessageResponse if an unexpected error occurs when creating the\n        job or starting the background thread.\n\nSuccess conditions:\n    * At least one stream is requested across all pipelines.\n    * TestsManager.test_performance() successfully enqueues the job.\n\nFailure conditions (high level):\n    * Validation or configuration error inside TestsManager \u2192 400.\n    * Any unhandled exception in job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"streams\": 8},\n            {\"id\": \"pipeline-b7c2e114\", \"streams\": 4}\n          ],\n          \"video_output\": {\n            \"enabled\": false\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job123\"\n        }\n\nError response example (400, invalid request):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one stream must be specified to run the pipeline.\"\n        }",
         "operationId": "run_performance_test",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PerformanceTestSpec-Input"
+                "$ref": "#/components/schemas/PerformanceTestSpec"
               }
             }
           },
@@ -1367,13 +1367,13 @@
           "tests"
         ],
         "summary": "Run Density Test",
-        "description": "Start an asynchronous density test job.\n\nOperation:\n    * Validate the density test request.\n    * Use requested fps_floor and per\u2011pipeline stream_rate ratios.\n    * Create a DensityJob with RUNNING state.\n    * Spawn a background thread that runs a Benchmark to determine the\n      maximum number of streams that still meets fps_floor.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: DensityTestSpec\n        * fps_floor \u2013 minimum acceptable FPS per stream.\n        * pipeline_density_specs \u2013 list of pipelines with stream_rate\n          percentages that must sum to 100.\n        * video_output \u2013 configuration for optional encoded video output.\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created density job.\n    400 Bad Request:\n        MessageResponse when:\n        * pipeline_density_specs.stream_rate values do not sum to 100,\n        * other validation errors raised by Benchmark or TestsManager.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when creating or starting\n        the job.\n\nSuccess conditions:\n    * stream_rate ratios sum to 100%.\n    * DensityTestSpec is valid and Benchmark.run() can be started in a\n      background thread.\n\nFailure conditions:\n    * Validation errors in Benchmark._calculate_streams_per_pipeline() or\n      TestsManager.test_density() \u2192 400.\n    * Any other unhandled exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"stream_rate\": 50},\n            {\"id\": \"pipeline-b7c2e114\", \"stream_rate\": 50}\n          ],\n          \"video_output\": {\n            \"enabled\": false,\n            \"encoder_device\": {\"device_name\": \"GPU\", \"gpu_id\": 0}\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job456\"\n        }\n\nError response example (400, bad ratios):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n        }",
+        "description": "Start an asynchronous density test job.\n\nOperation:\n    * Validate the density test request.\n    * Use requested fps_floor and per\u2011pipeline stream_rate ratios.\n    * Create a DensityJob with RUNNING state.\n    * Spawn a background thread that runs a Benchmark to determine the\n      maximum number of streams that still meets fps_floor.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: DensityTestSpec\n        * fps_floor \u2013 minimum acceptable FPS per stream.\n        * pipeline_density_specs \u2013 list of pipelines with stream_rate\n          percentages that must sum to 100.\n        * video_output \u2013 configuration for optional encoded video output.\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created density job.\n    400 Bad Request:\n        MessageResponse when:\n        * pipeline_density_specs.stream_rate values do not sum to 100,\n        * other validation errors raised by Benchmark or TestsManager.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when creating or starting\n        the job.\n\nSuccess conditions:\n    * stream_rate ratios sum to 100%.\n    * DensityTestSpec is valid and Benchmark.run() can be started in a\n      background thread.\n\nFailure conditions:\n    * Validation errors in Benchmark._calculate_streams_per_pipeline() or\n      TestsManager.test_density() \u2192 400.\n    * Any other unhandled exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"stream_rate\": 50},\n            {\"id\": \"pipeline-b7c2e114\", \"stream_rate\": 50}\n          ],\n          \"video_output\": {\n            \"enabled\": false\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job456\"\n        }\n\nError response example (400, bad ratios):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n        }",
         "operationId": "run_density_test",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DensityTestSpec-Input"
+                "$ref": "#/components/schemas/DensityTestSpec"
               }
             }
           },
@@ -1568,7 +1568,7 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/DensityTestSpec-Output"
+            "$ref": "#/components/schemas/DensityTestSpec"
           }
         },
         "type": "object",
@@ -1579,7 +1579,7 @@
         "title": "DensityJobSummary",
         "description": "Short summary for a density test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original DensityTestSpec used to start the job."
       },
-      "DensityTestSpec-Input": {
+      "DensityTestSpec": {
         "properties": {
           "fps_floor": {
             "type": "integer",
@@ -1614,79 +1614,11 @@
             "$ref": "#/components/schemas/VideoOutputConfig",
             "description": "Video output configuration.",
             "default": {
-              "enabled": false,
-              "encoder_device": {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
+              "enabled": false
             },
             "examples": [
               {
-                "enabled": false,
-                "encoder_device": {
-                  "device_name": "GPU",
-                  "gpu_id": 0
-                }
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "fps_floor",
-          "pipeline_density_specs"
-        ],
-        "title": "DensityTestSpec",
-        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    video_output: Optional configuration for storing encoded video outputs."
-      },
-      "DensityTestSpec-Output": {
-        "properties": {
-          "fps_floor": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Fps Floor",
-            "description": "Minimum acceptable FPS per stream.",
-            "examples": [
-              30
-            ]
-          },
-          "pipeline_density_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelineDensitySpec"
-            },
-            "type": "array",
-            "title": "Pipeline Density Specs",
-            "description": "List of pipelines with relative stream_rate percentages that must sum to 100.",
-            "examples": [
-              [
-                {
-                  "id": "pipeline-1",
-                  "stream_rate": 50
-                },
-                {
-                  "id": "pipeline-2",
-                  "stream_rate": 50
-                }
-              ]
-            ]
-          },
-          "video_output": {
-            "$ref": "#/components/schemas/VideoOutputConfig",
-            "description": "Video output configuration.",
-            "default": {
-              "enabled": false,
-              "encoder_device": {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
-            },
-            "examples": [
-              {
-                "enabled": false,
-                "encoder_device": {
-                  "device_name": "GPU",
-                  "gpu_id": 0
-                }
+                "enabled": false
               }
             ]
           }
@@ -1780,40 +1712,6 @@
         ],
         "title": "Edge",
         "description": "Directed connection between two nodes in a generic pipeline graph.\n\nAttributes:\n    id: Edge identifier, unique within a single graph.\n    source: ID of the source node.\n    target: ID of the target node."
-      },
-      "EncoderDeviceConfig": {
-        "properties": {
-          "device_name": {
-            "type": "string",
-            "title": "Device Name",
-            "description": "Name of the encoder device (e.g., 'GPU', 'CPU', 'NPU')",
-            "default": "GPU",
-            "examples": [
-              "GPU",
-              "CPU",
-              "NPU"
-            ]
-          },
-          "gpu_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gpu Id",
-            "description": "GPU device index (only applicable when device_name indicates a GPU)",
-            "examples": [
-              0,
-              1
-            ]
-          }
-        },
-        "type": "object",
-        "title": "EncoderDeviceConfig",
-        "description": "Encoder device configuration used in video output settings.\n\nAttributes:\n    device_name: Name of the encoder device (for example ``\"GPU\"``).\n    gpu_id: Optional GPU index when applicable.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"device_name\": \"GPU\",\n          \"gpu_id\": 0\n        }"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2190,7 +2088,7 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/PerformanceTestSpec-Output"
+            "$ref": "#/components/schemas/PerformanceTestSpec"
           }
         },
         "type": "object",
@@ -2201,7 +2099,7 @@
         "title": "PerformanceJobSummary",
         "description": "Short summary for a performance test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PerformanceTestSpec used to start the job."
       },
-      "PerformanceTestSpec-Input": {
+      "PerformanceTestSpec": {
         "properties": {
           "pipeline_performance_specs": {
             "items": {
@@ -2227,69 +2125,11 @@
             "$ref": "#/components/schemas/VideoOutputConfig",
             "description": "Video output configuration.",
             "default": {
-              "enabled": false,
-              "encoder_device": {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
+              "enabled": false
             },
             "examples": [
               {
-                "enabled": false,
-                "encoder_device": {
-                  "device_name": "GPU",
-                  "gpu_id": 0
-                }
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "pipeline_performance_specs"
-        ],
-        "title": "PerformanceTestSpec",
-        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    video_output: Optional configuration for storing encoded video outputs."
-      },
-      "PerformanceTestSpec-Output": {
-        "properties": {
-          "pipeline_performance_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelinePerformanceSpec"
-            },
-            "type": "array",
-            "title": "Pipeline Performance Specs",
-            "description": "List of pipelines with number of streams for each.",
-            "examples": [
-              [
-                {
-                  "id": "pipeline-1",
-                  "streams": 8
-                },
-                {
-                  "id": "pipeline-2",
-                  "streams": 8
-                }
-              ]
-            ]
-          },
-          "video_output": {
-            "$ref": "#/components/schemas/VideoOutputConfig",
-            "description": "Video output configuration.",
-            "default": {
-              "enabled": false,
-              "encoder_device": {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
-            },
-            "examples": [
-              {
-                "enabled": false,
-                "encoder_device": {
-                  "device_name": "GPU",
-                  "gpu_id": 0
-                }
+                "enabled": false
               }
             ]
           }
@@ -2955,25 +2795,11 @@
             "title": "Enabled",
             "description": "Flag to enable or disable video output generation.",
             "default": false
-          },
-          "encoder_device": {
-            "$ref": "#/components/schemas/EncoderDeviceConfig",
-            "description": "Encoder device configuration (only applicable when video output is enabled).",
-            "default": {
-              "device_name": "GPU",
-              "gpu_id": 0
-            },
-            "examples": [
-              {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
-            ]
           }
         },
         "type": "object",
         "title": "VideoOutputConfig",
-        "description": "Generic configuration of optional encoded video output.\n\nAttributes:\n    enabled: Flag to enable or disable video output generation.\n    encoder_device: EncoderDeviceConfig used when video output is enabled.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"enabled\": false,\n          \"encoder_device\": {\n            \"device_name\": \"GPU\",\n            \"gpu_id\": 0\n          }\n        }"
+        "description": "Generic configuration of optional encoded video output.\n\nAttributes:\n    enabled: Flag to enable or disable video output generation.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"enabled\": false\n        }"
       }
     }
   }

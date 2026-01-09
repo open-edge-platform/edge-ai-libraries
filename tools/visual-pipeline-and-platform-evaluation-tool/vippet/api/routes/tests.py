@@ -47,7 +47,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             * pipeline_performance_specs – list of pipelines and number of
               streams per pipeline.
             * video_output – configuration for optional encoded video output
-              (enabled flag and encoder_device).
+              (enabled flag).
 
     Returns:
         202 Accepted:
@@ -78,8 +78,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
                 {"id": "pipeline-b7c2e114", "streams": 4}
               ],
               "video_output": {
-                "enabled": false,
-                "encoder_device": {"device_name": "GPU", "gpu_id": 0}
+                "enabled": false
               }
             }
 
@@ -186,8 +185,7 @@ def run_density_test(body: schemas.DensityTestSpec):
                 {"id": "pipeline-b7c2e114", "stream_rate": 50}
               ],
               "video_output": {
-                "enabled": false,
-                "encoder_device": {"device_name": "GPU", "gpu_id": 0}
+                "enabled": false
               }
             }
 
