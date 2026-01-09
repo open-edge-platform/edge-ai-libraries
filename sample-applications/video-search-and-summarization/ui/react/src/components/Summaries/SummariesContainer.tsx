@@ -200,7 +200,7 @@ export const SummariesContainer: FC = () => {
   const [currentFrameRange, setCurrentFrameRange] = useState<{ start: string; end: string } | null>(null);
 
   const detailsClickHandler = (text: string, startFrame: string, endFrame: string) => {
-    setModalHeading('Summaries for chunks');
+    setModalHeading('Chunk Summary');
     setModalBody(text);
     setCurrentFrameRange({ start: startFrame, end: endFrame });
     setShowModal(true);
@@ -301,10 +301,7 @@ export const SummariesContainer: FC = () => {
             {currentFrameRange && (
               <StyledMessage>
                 <h4>
-                  {t('SummaryForframes', {
-                    start: currentFrameRange.start,
-                    end: currentFrameRange.end,
-                  })}
+                  {t('Frames')}: [{currentFrameRange.start} : {currentFrameRange.end}]
                 </h4>
                 <Markdown>{processMD(modalBody)}</Markdown>
               </StyledMessage>
