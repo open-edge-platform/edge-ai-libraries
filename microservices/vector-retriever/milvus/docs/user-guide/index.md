@@ -1,11 +1,9 @@
-Retriever Microservice
-======================
+# Retriever Microservice
 
 Retrieves embeddings based on vector similarity. Usually it is used along with a
 `dataprep` microservice.
 
-Overview
-########
+## Overview
 
 The Retrieval Microservice is designed to perform efficient, vector-based searches
  using a vector database such as Milvus. It provides a RESTful API for retrieving
@@ -14,21 +12,19 @@ The Retrieval Microservice is designed to perform efficient, vector-based search
 
 Key Features:
 
--   Text-Based Image/Video Retrieval:
+- Text-Based Image/Video Retrieval:
 
     Accepts text queries and retrieves the top-k most relevant results based on vector
     similarity. Supports optional filters to refine search results.
 
--   Integration with Milvus:
+- Integration with Milvus:
 
     Utilizes the Milvus vector database for efficient storage and retrieval of embeddings.
     Ensures high performance and scalability for large datasets.
 
-
 **Programming Language:** Python
 
-How It Works
-############
+## How It Works
 
 1. Query Processing:
 
@@ -41,23 +37,24 @@ How It Works
    The retrieved results include metadata, similarity scores, and unique identifiers.
    Results are returned in JSON format for easy integration with downstream applications.
 
-Workflow
-########
+## Workflow
 
 1. The embedding model generates text embeddings for input descriptions
    (e.g., "traffic jam").
 2. The search engine searches the vector database for the top-k most similar matches.
 3. Generate results with the matched vector ids and metadata.
 
+## Learn More
 
-Learn More
-##########
+- Begin with the [Get Started Guide](./get-started)
 
-- Begin with the :doc:`Get Started Guide <./get-started>`
+<!--hide_directive
+:::{toctree}
+:hidden:
 
-.. toctree::
-   :hidden:
+get-started
+api-reference
+release-notes
 
-   get-started
-   api-reference
-   release-notes
+:::
+hide_directive-->

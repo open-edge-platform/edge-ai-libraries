@@ -12,7 +12,7 @@ import AddPipelineButton from "@/components/shared/AddPipelineButton.tsx";
 import CopyPipelineButton from "@/components/shared/CopyPipelineButton.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { BookOpen, Sparkles, Code } from "lucide-react";
+import { BookOpen, Code, Sparkles } from "lucide-react";
 import pipeline0 from "@/assets/pipeline_0.png";
 import pipeline1 from "@/assets/pipeline_1.png";
 import pipeline2 from "@/assets/pipeline_2.png";
