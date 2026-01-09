@@ -1,4 +1,4 @@
-import { usePipelineName } from "@/hooks/usePipelines";
+import { usePipelineName } from "@/hooks/usePipelines.ts";
 
 interface PipelineNameProps {
   pipelineId: string;
