@@ -22,7 +22,7 @@ export const CpuUsageProgress = () => {
         <div className="flex items-center justify-between">
           <ProgressLabel>
             <span className="flex items-center gap-2">
-              <Cpu className="h-4 w-4" />
+              <Cpu className="h-4 w-4 shrink-0" />
               CPU: {deviceName?.full_device_name}
             </span>
           </ProgressLabel>
