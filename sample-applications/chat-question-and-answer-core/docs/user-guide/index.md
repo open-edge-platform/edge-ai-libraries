@@ -1,30 +1,31 @@
-Chat Question-and-Answer Core Sample Application
-================================================
+# Chat Question-and-Answer Core Sample Application
+
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer-core/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
 
 ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG) pipeline,
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
 Compared to the
-`Chat Question-and-Answer <https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/sample-applications/chat-question-and-answer>`__
+[Chat Question-and-Answer](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
 implementation, this implementation of Chat Question-and-Answer Core is optimized for
-memory footprint as it is built as a single monolithic application with the entire RAG
+memory footprint, as it is built as a single monolithic application with the entire RAG
 pipeline bundled in a single microservice. The microservice supports a bare metal
 deployment through docker compose installation to emphasize on the monolithic objective.
 
-.. image:: ./images/ChatQnA_Webpage.png
-   :alt: ChatQ&A web interface
+![Chat Q&A web interface](./images/ChatQnA_Webpage.png)
 
-Table of Contents
-#################
+## Overview and Architecture
 
-1. `Overview and Architecture <#overview-and-architecture>`__
-2. `How to Use the Application <#how-to-use-the-application>`__
-
-Overview and Architecture
-#########################
-
-Key Features
-++++++++++++
+### Key Features
 
 Key features include:
 
@@ -35,27 +36,25 @@ Key features include:
 - **Supports a wide range of open-source models**: Intel's suite of inference
   microservices provides flexibility to use the right GenAI models (LLM, for example)
   as required for target usage. The application supports various
-  `open-source models <https://huggingface.co/OpenVINO>`__, allowing developers to select
+  [open-source models](https://huggingface.co/OpenVINO), allowing developers to select
   the best models for their use cases.
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data
   privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and
-  monitoring capabilities using `OpenTelemetry <https://opentelemetry.io/>`__ &
-  `OpenLIT <https://github.com/openlit/openlit>`__, enabling developers to monitor the
+  monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) &
+  [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the
   application's performance and health in real-time.
 
-Technical Architecture
-++++++++++++++++++++++
+### Technical Architecture
 
 The Chat Question-and-Answer Core sample application is implemented as a LangChain
 based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker)
 executed in the context of a single OpenVINO® runtime. The approach is documented in
 the OpenVINO
-`documentation <https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino>`__.
-Readers are requested to refer to this documentation for the technical details.
+[documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino).
+Readers are advised to refer to this documentation for the technical details.
 
-How to Use the Application
-##########################
+## How to Use the Application
 
 The Chat Question-and-Answer Core sample application consists of two main parts:
 
@@ -64,7 +63,7 @@ The Chat Question-and-Answer Core sample application consists of two main parts:
    common document formats like pdf and doc. The ingestion process cleans and formats
    the input document, creates embeddings of the documents using embedding microservice,
    and stores them in the preferred vector database. CPU version of
-   `FAISS <https://faiss.ai/index.html>`__ is used as VectorDB.
+   [FAISS](https://faiss.ai/index.html) is used as VectorDB.
 
 2. **Generation [Q&A]**: This part allows the user to query the document database
    and generate responses. The LLM model, embedding model, and reranking model work
@@ -75,21 +74,24 @@ The Chat Question-and-Answer Core sample application consists of two main parts:
    similarity. The LLM generates a context-aware response from the final set of documents.
 
 Detailed Hardware and Software requirements are available
-:doc:`here <./system-requirements>`.
+[here](./system-requirements).
 
-Benchmark Results
-#################
+## Benchmark Results
 
 Detailed metrics and  analysis can be found in the benchmark report
-:doc:`here <./benchmarks>`.
+[here](./benchmarks).
 
-.. toctree::
-   :hidden:
+<!--hide_directive
+:::{toctree}
+:hidden:
 
-   system-requirements
-   get-started
-   build-from-source
-   deploy-with-helm
-   benchmarks
-   api-reference
-   release-notes
+system-requirements
+get-started
+build-from-source
+deploy-with-helm
+benchmarks
+api-reference
+release-notes
+
+:::
+hide_directive-->
