@@ -96,7 +96,7 @@ def test_test_timeseries_microservice_start():
     except Exception as e:
         pytest.fail(f"Failed to check Time Series Analytics Microservice initialization: {e}")
 
-## REST API Tests
+## REST API Tests 
 
 def test_health_check():
     # Get health check /health endpoint

@@ -46,7 +46,7 @@ efficiently.
 - Docker Engine version 20.10 or higher.
 - For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in:
-[Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-1.2.0/libraries/dl-streamer/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
+[Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
 
 ## Compatibility Notes
 

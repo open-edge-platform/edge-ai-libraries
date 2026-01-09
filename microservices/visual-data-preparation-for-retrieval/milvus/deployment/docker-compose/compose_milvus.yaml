@@ -124,7 +124,7 @@ services:
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
       - HF_ENDPOINT=${HF_ENDPOINT}
-      - DEVICE=${DEVICE}
+      - DEVICE=${DEVICE:-CPU}
       - HOST_DATA_PATH=${HOST_DATA_PATH}
       - MILVUS_HOST=${MILVUS_HOST}
       - MILVUS_PORT=${MILVUS_PORT}
