@@ -383,13 +383,16 @@ class Graph:
                  caps node exists in the pipeline.
         """
         for node in reversed(self.nodes):
-            if node.type.startswith("video/x-raw"):
-                if "memory:VAMemory" in node.type:
-                    return ENCODER_DEVICE_GPU
-                else:
-                    return ENCODER_DEVICE_CPU
+            if node.data.get(NODE_KIND_KEY) != NODE_KIND_CAPS:
+                continue
 
-        # Default to CPU encoder when no video/x-raw node exists
+            if not node.type.startswith("video/x-raw"):
+                continue
+
+            if "memory:VAMemory" in node.type:
+                return ENCODER_DEVICE_GPU
+            return ENCODER_DEVICE_CPU
+
         return ENCODER_DEVICE_CPU
 
 
