@@ -6,14 +6,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
 import {
   useCreatePipelineMutation,
   useToDescriptionMutation,
-} from "@/api/api.generated";
+} from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import type { Pipeline } from "@/api/api.generated";
-import { isApiError } from "@/lib/apiUtils";
+import type { Pipeline } from "@/api/api.generated.ts";
+import { isApiError } from "@/lib/apiUtils.ts";
 
 interface CopyPipelineButtonProps {
   pipelines: Record<string, Pipeline>;
