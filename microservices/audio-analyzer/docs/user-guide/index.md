@@ -63,7 +63,7 @@ to provide the microservice primarily comes from enhancing the accuracy of the v
 pipeline. Here are some examples:
 
 - **Use case 1**: Ego centric videos as captured in industry segments like Safety and Security,
-Body worn camera for example, benefits from additional modality of information that Audio
+from body worn cameras for example, benefit from additional modality of information that audio
 transcription provides.
 - **Use case 2**: Videos from class rooms are primarily analysed using their audio content.
 Audio Analyzer microservice helps provide transcription which can be used to chapterize a
@@ -72,7 +72,7 @@ class room session, for example.
 primarily analysed using the spoken word.
 - **Use case 4**: Video podcasts or interview recordings where the value is in the conversation,
 discussions, or interviews, and visuals are secondary.
-- **Use case 5**: Events, like Panel Discussions and Debates, where multiple speakers discuss
+- **Use case 5**: Events like Panel Discussions and Debates, where multiple speakers discuss
 or debate topics, the audio contains the key arguments and insights.
 
 ## How It Works

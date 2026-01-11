@@ -1,23 +1,25 @@
 # Get Started
 
-The **Audio Analyzer microservice** enables developers to create speech transcription from video files. This section provides step-by-step instructions to:
+The **Audio Analyzer microservice** enables developers to create speech transcription from
+video files. This section provides step-by-step instructions on how to:
 
 - Set up the microservice using a pre-built Docker image for quick deployment.
 - Run predefined tasks to explore its functionality.
 - Learn how to modify basic configurations to suit specific requirements.
 
-# Prerequisites
+## Prerequisites
 
 Before you begin, ensure the following:
 
 - **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
-- **Docker Installed**: Install Docker. Make sure the `docker` command can be run without `sudo`. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
+- **Docker Installed**: Install Docker. Make sure the `docker` command can be run without
+`sudo`. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
-# Configurations
+## Configurations
 
-## Environment Variables
+### Environment Variables
 
 The following environment variables can be configured:
 
@@ -38,7 +40,7 @@ The following environment variables can be configured:
 - `MINIO_ACCESS_KEY`: MinIO access key used as login username
 - `MINIO_SECRET_KEY`: MinIO secret key used as login password
 
-## Setup the Storage backends
+### Setup the Storage backends
 
 The service supports two storage backends for source video files and transcript output:
 
@@ -57,15 +59,15 @@ For Local filesystem storage:
 export STORAGE_BACKEND=local
 ```
 
-On the other hand, the host setup script `setup_host.sh` uses **local** filesystem as the only storage backend available. 
+On the other hand, the host setup script `setup_host.sh` uses **local** filesystem as the only storage backend available.
 
-## MinIO integration
+### MinIO integration
 The service supports MinIO object storage integration for:
 
 1. **Video Source**: Fetch videos from a MinIO bucket instead of direct uploads
 2. **Transcript Storage**: Store transcription outputs (SRT/TXT) in a MinIO bucket
 
-### MinIO Configuration
+#### MinIO Configuration
 
 To use MinIO integration, you need to configure the following environment variables:
 
@@ -75,24 +77,29 @@ export MINIO_ACCESS_KEY=<your-minio-username>
 export MINIO_SECRET_KEY=<your-minio-password>
 ```
 
-## Models Selection
-Refer to [supported models](./Overview.md#models-supported) for the list of models that can be used for transcription. You can specify which models to enable through the `ENABLED_WHISPER_MODELS` environment variable.
+### Model Selection
+
+Refer to [supported models](./index.md#available-whisper-models) for the list of models that
+can be used for transcription. You can specify which models to enable through the
+`ENABLED_WHISPER_MODELS` environment variable.
 
 ## Quick Start
 
 User has following different options to setup/build and use the application.
 
 ### Recommended Setup
-- [Use pre-built image for standalone setup](#standalone-setup-in-docker-container). Standalone setup has no external dependency. Storage backend used: `local`.
-- [Build and run on host using setup script](./how-to-build-from-source.md#build-and-run-on-host-using-setup-script). Storage backend used: `local`
+
+- [Use pre-built image for standalone setup](#standalone-setup-in-docker-container).
+Standalone setup has no external dependency. Storage backend used: `local`.
+- [Build and run on host using setup script](./how-to-build-from-source.md#build-and-run-on-host-using-setup-script).
+Storage backend used: `local`
 
 ### Advanced Setup
 
 > __**NOTE :**__ Audio-Analyzer microservice can also be run with Minio as its storage backend. However, this is not a recommended setup and is only meant for advanced users. This setup requires familiarity with using Minio and using non-documented API requests.
 
-- [Build and run in container using Docker script](./how-to-build-from-source.md#build-and-run-in-container-using-docker-script). Docker script helps build images for application and deploy the application with any optional dependency. Default storage backend used here is `minio` but can be updated to use `local` storage backend. If `minio` storage backend is used, then the script also brings up Minio server container along with application container. 
+- [Build and run in container using Docker script](./how-to-build-from-source.md#build-and-run-in-container-using-docker-script). Docker script helps build images for application and deploy the application with any optional dependency. Default storage backend used here is `minio` but can be updated to use `local` storage backend. If `minio` storage backend is used, then the script also brings up Minio server container along with application container.
 - [Build and run on host manually](#build-and-run-on-host-manually). Default storage backend used is `local` but can be configured to use `minio` storage backend.
-
 
 ## Standalone Setup in Docker Container
 
@@ -167,7 +174,7 @@ Below are examples of how to use the API on command line with `curl`.
     -F "file=@/path/to/your/video.mp4" \
     -F "include_timestamps=true" \
     -F "device=cpu" \
-    -F "model_name=small.en" 
+    -F "model_name=small.en"
   ```
 
 #### Get Transcripts from Local Filesystem
@@ -273,7 +280,8 @@ http://localhost:8000/docs
 
 ### Manually Running a Local MinIO Server
 
-If you're not using the bundled Docker Setup script `setup_docker.sh` and still want to use the application with Minio storage, you can manually run a local MinIO server using:
+If you're not using the bundled Docker Setup script `setup_docker.sh` and still want to use
+the application with Minio storage, you can manually run a local MinIO server using:
 
 ```bash
 docker run -d -p 9000:9000 -p 9001:9001 --name minio \
@@ -302,15 +310,11 @@ Use **MinIO** backend when (Default for setup using Docker script):
 - Building a clustered/distributed system
 - Need for better data organization and retention policies
 
-## Next Steps
-
-
 ## Troubleshooting
 
 1. **Docker Container Fails to Start**:
     - Run `docker logs {{container-name}}` to identify the issue.
     - Check if the required port is available.
-
 
 2. **Cannot Access the Microservice**:
     - Confirm the container is running:
@@ -320,6 +324,6 @@ Use **MinIO** backend when (Default for setup using Docker script):
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](index.md)
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)
