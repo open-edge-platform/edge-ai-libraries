@@ -5,10 +5,12 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 ## Architecture Overview
 
 ### High-Level Architecture Diagram
+
 ![Architecture Diagram](./images/dls-pipelineserver-simplified-arch.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ## Supporting Resources
-* [Get Started Guide](get-started.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+
+- [Get Started Guide](get-started.md)
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)

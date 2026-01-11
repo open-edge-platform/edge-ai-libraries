@@ -9,7 +9,7 @@
 - K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
   Refer to tutorials such as <https://adamtheautomator.com/install-kubernetes-ubuntu> and many other
   online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
-- For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
+- For helm installation, refer to the [helm website](https://helm.sh/docs/intro/install/)
 - Clone the Edge-AI-Libraries repository from open edge platform and change to the helm directory inside DL Streamer Pipeline Server project.
 
   ```sh
@@ -91,7 +91,7 @@ Open another terminal and send the following curl request
   }'
 ```
 
-The REST request will return a pipeline instance ID, which can be used as an identifier to query later the pipeline status or stop the pipeline instance. For example, a6d67224eacc11ec9f360242c0a86003.
+The REST request will return a pipeline instance ID, for example: `a6d67224eacc11ec9f360242c0a86003`, which can be used as an identifier to later query the pipeline status or stop the pipeline instance.
 
 - To view the metadata, open another terminal and run the following command,
   ```sh
@@ -132,7 +132,7 @@ In this get started guide, you learned how to start the DL Streamer Pipeline Ser
 
 -   For getting started with the deployment using docker, please go [here](get-started.md)
 -   Understand the components, services, architecture, and data flow, in
-    the [Overview](Overview.md).
+    the [overview](index.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
 -   For more details on Deep Learning Streamer (DL Streamer) visit [this](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/index.md) page.
 

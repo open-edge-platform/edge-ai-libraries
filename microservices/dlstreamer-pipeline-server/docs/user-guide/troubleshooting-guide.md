@@ -1,11 +1,13 @@
 # Troubleshooting
 
-
 ## Using REST API in Image Ingestor mode has low first inference latency
 
-This is an expected behavior observed only for the first inference. Subsequent inferences would be considerably faster.
-For inference on GPU, the first inference might be even slower. Latency for up to 15 seconds have been observed for image requests inference on GPU.
-When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for the first inference latency to avoid request time out.
+This is an expected behavior observed only for the first inference. Subsequent inferences
+would be considerably faster.
+For inference on GPU, the first inference might be even slower. Latencies for up to 15 seconds
+have been observed for image request inference on GPU.
+When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for
+the first inference latency to avoid request time out.
 Read [here](./advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md#post-pipelinesnameversioninstance_id) to learn more about the API.
 
 ---
@@ -18,7 +20,11 @@ Restart the DL Streamer pipeline server container with the pipeline that has thi
 
 ## Deploying with Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
+If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
+`vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
+appropriately in order to utilize the underlying GPU.
+
 ```sh
 gpu:
    enabled: true
@@ -51,7 +57,7 @@ Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in ca
 
 ## RTSP streaming fails if you are using udfloader
 
-If you are using udfloader<link> pipeline RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
+If you are using [udfloader pipeline](./how-to-run-udf-pipelines.md), RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
 If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add  `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
 ```sh
 # Sample pipeline

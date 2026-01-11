@@ -8,11 +8,11 @@ There are 2 ways to enable autostarting the pipeline. First way is to provide al
 
 Autostart for a pipeline can be enabled by setting the flag `auto_start` to `true`. This would start an instance of pipeline immediately as soon as DL Streamer Pipeline Server container is up.
 
-### Method 1 - Specifying all the information in the pipeline itself - 
+### Method 1 - Specifying all the information in the pipeline itself -
 
 Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the following
 
-- replace `"pipeline"` section with  
+- replace `"pipeline"` section with
 
     ```sh
     "pipeline": "multifilesrc location=/home/pipeline-server/resources/videos/warehouse.avi name=source  ! decodebin ! videoconvert ! gvadetect model=/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/tmp/results.jsonl name=destination ! appsink name=appsink",
@@ -24,7 +24,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 - After making changes to config.json, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned [above](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)) it.
 
     ```sh
-    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/    
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
     docker compose up
     ```
     We should see the metadata results in `/tmp/results.jsonl` file like the following snippet.
@@ -42,9 +42,9 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 
 ### Method 2 - Add REST payload under `"payload"` section of the pipeline config.
 
-- In case you have provided placeholders in you pipeline configuration, we can also plug in the REST payload in the pipeline configuration and make use of the `auto_start` feature to start DL Streamer Pipeline Server with this pipeline with the payload provided. 
+- In case you have provided placeholders in you pipeline configuration, we can also plug in the REST payload in the pipeline configuration and make use of the `auto_start` feature to start DL Streamer Pipeline Server with this pipeline with the payload provided.
 
-  The REST payload can be added inside a `payload` key section and the `autostart` key is then set `true`. 
+  The REST payload can be added inside a `payload` key section and the `autostart` key is then set `true`.
 
   Following is a sample config with payload provided and `auto_start` set to `true`
 
@@ -98,7 +98,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
     }
     ```
 
-- Ensure that the changes made to the config.json are reflected in the container by volume mounting (as described [here](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)).
+- Ensure that the changes made to the config.json are reflected in the container by volume mounting (as described [here](./how-to-change-dlstreamer-pipeline.md)).
 
 - Start DL Streamer Pipeline Server
 
@@ -106,4 +106,4 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
         cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
         docker compose up
     ```
-  The pipeline would start automatically as soon as DL Streamer Pipeline Server starts. 
+  The pipeline would start automatically as soon as DL Streamer Pipeline Server starts.

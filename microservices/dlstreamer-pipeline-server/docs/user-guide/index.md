@@ -77,7 +77,6 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 overview-architecture
 system-requirements
 get-started
-troubleshooting-guide
 how-to-change-dlstreamer-pipeline
 how-to-use-gpu-for-decode-and-inference
 how-to-use-cpu-for-decode-and-inference
@@ -98,6 +97,7 @@ how-to-build-from-source
 how-to-add-system-timestamps-to-metadata
 api-reference
 environment-variables
+troubleshooting-guide
 advanced-guide/Overview
 release_notes/Overview
 

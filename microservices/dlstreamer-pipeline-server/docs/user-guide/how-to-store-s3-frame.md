@@ -2,9 +2,9 @@
 
 ## Steps
 
-DL Streamer Pipeline Server supports storing frames from media source into an S3 compatible storage. It supports industry standard S3 APIs, thus making it compatible with any S3 storage of your choice. 
+DL Streamer Pipeline Server supports storing frames from media source into an S3 compatible storage. It supports industry standard S3 APIs, thus making it compatible with any S3 storage of your choice.
 
-First you must add server configuration details such as host, port, credentials, etc. as environment variables to DL Streamer Pipeline Server. 
+First you must add server configuration details such as host, port, credentials, etc. as environment variables to DL Streamer Pipeline Server.
 
 If you are launching the service along with DL Streamer Pipeline Server, you should add the S3 storage server service details to DL Streamer Pipeline Server's docker-compose.yml file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`. For this tutorial we will be following this approach.
 
@@ -164,7 +164,7 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
       # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json to config file that DL Streamer Pipeline Server container loads.
       - "../configs/sample_s3write/config.json:/home/pipeline-server/config.json"
     ```
-       
+
     **Note** Please note that there is no `gvawatermark` element in the pipeline string, which means unannotated frames will be being published to S3 storage. If you wish to publish annotated frames, consider adding it to your pipeline. In that case, the `"pipeline"` string may look like this.
 
     ```sh
@@ -178,16 +178,16 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
     docker compose up -d
     ```
 5. Create SeaweedFS bucket.
-    - DL Streamer Pipeline Server expects a bucket to be created before launching the pipeline. 
+    - DL Streamer Pipeline Server expects a bucket to be created before launching the pipeline.
     - Install the package `boto3` in your python environment if not installed.
-        
+
         It is recommended to create a virtual environment and install it there. You can run the following commands to add the necessary dependencies as well as create and activate the environment.
-            
+
         ```sh
         sudo apt update && \
         sudo apt install -y python3 python3-pip python3-venv
         ```
-        ```sh 
+        ```sh
         python3 -m venv venv && \
         source venv/bin/activate
         ```
@@ -244,14 +244,14 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
     }
     }'
     ```
-    
+
     The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
-    
+
     **Note**: DL Streamer pipeline server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. Also, as mentioned before DL Streamer pipeline server assumes that the user already has a S3 storage with buckets configured.
 7. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results`. Since we are using SeaweedFS storage for our demonstration, the frames are being written to the SeaweedFS server.
-    
+
     You can verify frames are stored by listing objects in the bucket:
-    
+
     ```python
     import boto3
     # SeaweedFS S3 API with IAM authentication
