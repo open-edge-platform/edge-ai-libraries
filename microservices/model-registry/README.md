@@ -1,13 +1,13 @@
 # Model Registry Microservice
 
-This repository provides a centralized solution for managing machine learning models throughout their lifecycle. 
+This repository provides a centralized solution for managing machine learning models throughout their lifecycle.
 
 Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
 
 ## Documentation
 
 - **Overview**
-  - [Overview](docs/user-guide/Overview.md): A high-level introduction to the model registry microservice.
+  - [Overview](docs/user-guide/index.md): A high-level introduction to the model registry microservice.
   - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture of the system.
 
 - **Getting Started**
@@ -29,5 +29,3 @@ Below, you'll find links to detailed documentation to help you get started, conf
 
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
-
-

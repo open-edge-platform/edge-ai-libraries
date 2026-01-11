@@ -101,9 +101,10 @@ hosted within a remote Geti platform.
 
 ## Supporting Resources
 
+- [Architecture](./overview-architecture.md)
+- [System Requirements](./system-requirements)
 - [Get Started Guide](./get-started)
 - [API Reference](./api-reference)
-- [System Requirements](./system-requirements)
 
 <!--hide_directive
 :::{toctree}
@@ -112,6 +113,7 @@ hosted within a remote Geti platform.
 overview-architecture
 system-requirements
 get-started
+how-to-build-from-source
 how-to-deploy-with-helm
 how-to-interface-with-intel-geti-platform
 api-reference
