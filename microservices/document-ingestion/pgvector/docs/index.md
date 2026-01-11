@@ -48,16 +48,18 @@ support other vectorDBs.
 
 ## Supporting Resources
 
-- [Get Started Guide](./get-started)
 - [System Requirements](./system-requirements)
+- [Get Started Guide](./get-started)
+- [How to customize](./how-to-customize.md)
+- [API reference](./dataprep-api.yml)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
+system-requirements
 get-started
 how-to-customize
-system-requirements
 
 :::
 hide_directive-->
