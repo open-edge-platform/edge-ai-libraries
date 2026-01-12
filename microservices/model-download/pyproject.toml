@@ -50,7 +50,7 @@ ultralytics = [
 
 openvino = [
     "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
-    "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git",
+    "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git@aed07975d817c124fd5d45375ac131d4a068b557",
     "openvino-tokenizers==2025.4.0.0",
     "openvino==2025.4.0",
     "accelerate==1.11.0",
@@ -58,7 +58,7 @@ openvino = [
     "numpy==2.2.6",
     "sentence-transformers",
     "sentencepiece==0.2.1",
-    "transformers==4.55.4",
+    "transformers<4.54",
     "einops==0.8.1",
     "torchvision",
     "torch==2.9.1+cpu",

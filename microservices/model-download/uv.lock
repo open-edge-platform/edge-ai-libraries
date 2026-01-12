@@ -757,7 +757,7 @@ requires-dist = [
     { name = "openvino", marker = "extra == 'dev'", specifier = "==2025.4.0" },
     { name = "openvino", marker = "extra == 'openvino'", specifier = "==2025.4.0" },
     { name = "openvino-tokenizers", marker = "extra == 'openvino'", specifier = "==2025.4.0.0" },
-    { name = "optimum-intel", marker = "extra == 'openvino'", git = "https://github.com/huggingface/optimum-intel.git" },
+    { name = "optimum-intel", marker = "extra == 'openvino'", git = "https://github.com/huggingface/optimum-intel.git?rev=aed07975d817c124fd5d45375ac131d4a068b557" },
     { name = "pillow", marker = "extra == 'openvino'", specifier = "==12.0.0" },
     { name = "pydantic", specifier = "==2.12.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0,<8.0.0" },
@@ -780,7 +780,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'huggingface'", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", marker = "extra == 'openvino'", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", marker = "extra == 'ultralytics'", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", marker = "extra == 'openvino'", specifier = "==4.55.4" },
+    { name = "transformers", marker = "extra == 'openvino'", specifier = "<4.54" },
     { name = "ultralytics", marker = "extra == 'dev'", specifier = "==8.2.3" },
     { name = "ultralytics", marker = "extra == 'ultralytics'", specifier = "==8.2.3" },
     { name = "uvicorn", specifier = "==0.38.0" },
@@ -1005,8 +1005,8 @@ wheels = [
 
 [[package]]
 name = "optimum-intel"
-version = "1.27.0.dev0+e8a0894"
-source = { git = "https://github.com/huggingface/optimum-intel.git#e8a0894feded179beff1263c79bf041f1c15527b" }
+version = "1.27.0.dev0+aed0797"
+source = { git = "https://github.com/huggingface/optimum-intel.git?rev=aed07975d817c124fd5d45375ac131d4a068b557#aed07975d817c124fd5d45375ac131d4a068b557" }
 dependencies = [
     { name = "optimum-onnx" },
     { name = "setuptools" },
@@ -1767,7 +1767,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "4.55.4"
+version = "4.53.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -1781,9 +1781,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/43/3cb831d5f28cc723516e5bb43a8c6042aca3038bb36b6bd6016b40dfd1e8/transformers-4.55.4.tar.gz", hash = "sha256:574a30559bc273c7a4585599ff28ab6b676e96dc56ffd2025ecfce2fd0ab915d", size = 9573015, upload-time = "2025-08-22T15:18:43.192Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/5c/49182918b58eaa0b4c954fd0e37c79fc299e5643e69d70089d0b0eb0cd9b/transformers-4.53.3.tar.gz", hash = "sha256:b2eda1a261de79b78b97f7888fe2005fc0c3fabf5dad33d52cc02983f9f675d8", size = 9197478, upload-time = "2025-07-22T07:30:51.51Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fa/0a/8791a6ee0529c45f669566969e99b75e2ab20eb0bfee8794ce295c18bdad/transformers-4.55.4-py3-none-any.whl", hash = "sha256:df28f3849665faba4af5106f0db4510323277c4bb595055340544f7e59d06458", size = 11269659, upload-time = "2025-08-22T15:18:40.025Z" },
+    { url = "https://files.pythonhosted.org/packages/41/b1/d7520cc5cb69c825599042eb3a7c986fa9baa8a8d2dea9acd78e152c81e2/transformers-4.53.3-py3-none-any.whl", hash = "sha256:5aba81c92095806b6baf12df35d756cf23b66c356975fb2a7fa9e536138d7c75", size = 10826382, upload-time = "2025-07-22T07:30:48.458Z" },
 ]
 
 [[package]]

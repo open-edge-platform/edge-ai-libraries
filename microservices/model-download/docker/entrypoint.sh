@@ -64,7 +64,7 @@ install_dependencies() {
         ultralytics)
             print_info "Downloading Ultralytics public models script from GitHub"
             mkdir -p /opt/scripts
-            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/samples/download_public_models.sh; then
+            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2025.2.0/samples/download_public_models.sh; then
                 chmod +x /opt/scripts/download_public_models.sh
                 print_success "Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
