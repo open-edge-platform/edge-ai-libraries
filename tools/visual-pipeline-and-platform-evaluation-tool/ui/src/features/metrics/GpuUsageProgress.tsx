@@ -15,10 +15,14 @@ export const GpuUsageProgress = () => {
   const gpuDevices = useAppSelector(selectGpuDevices);
 
   const deviceMap = new Map(
-    gpuDevices.map((device) => [
-      device.device_name.replace("GPU.", ""),
-      device,
-    ]),
+    gpuDevices.map((device) => {
+      // Handle both single card "GPU" and multiple cards "GPU.0", "GPU.1"
+      const id =
+        device.device_name === "GPU"
+          ? "0"
+          : device.device_name.replace("GPU.", "");
+      return [id, device];
+    })
   );
 
   return (
