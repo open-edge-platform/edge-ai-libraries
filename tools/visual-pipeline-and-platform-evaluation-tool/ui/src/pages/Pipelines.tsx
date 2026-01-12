@@ -32,8 +32,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAppSelector } from "@/store/hooks";
-import { selectDevices } from "@/store/reducers/devices";
 
 type UrlParams = {
   id: string;
@@ -41,7 +39,6 @@ type UrlParams = {
 
 const Pipelines = () => {
   const { id } = useParams<UrlParams>();
-  const devices = useAppSelector(selectDevices);
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -55,7 +52,6 @@ const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
-  const [encoderDevice] = useState<string>("CPU");
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null
   );

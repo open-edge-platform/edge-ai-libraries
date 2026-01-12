@@ -7,7 +7,6 @@ import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressInd
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { selectDevices } from "@/store/reducers/devices";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -27,7 +26,6 @@ interface PipelineSelection {
 
 const PerformanceTests = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const devices = useAppSelector(selectDevices);
   const [runPerformanceTest, { isLoading: isRunning }] =
     useRunPerformanceTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
@@ -43,7 +41,6 @@ const PerformanceTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: jobId! },
