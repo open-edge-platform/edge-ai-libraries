@@ -120,7 +120,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         export_type_map = {
             "llm": "text_generation",
             "embeddings": "embeddings",
-            "rerank": "rerank"
+            "rerank": "rerank",
+            "vlm": "vlm",
         }
 
         # Validate model_type
@@ -163,20 +164,29 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Ensure models directory exists
         os.makedirs(model_directory, exist_ok=True)
         
-        # Build command with Python from the virtual environment
-        command = [
-            "python3", "export_model.py", export_type,
-            "--source_model", model_name,
-            "--weight-format", weight_format,
-            "--config_file_path", f"{model_directory}/config.json",
-            "--model_repository_path", f"{model_directory}/",
-            "--target_device", target_device
-        ]
+        if model_type == "vlm":
+            command = [
+                "bash", "scripts/vlm_compress_model.sh", 
+                model_name, 
+                weight_format,
+                huggingface_token if huggingface_token is not None else "" ,
+                model_directory
+            ]
+        else:    
+            # Build command with Python from the virtual environment
+            command = [
+                "python3", "export_model.py", export_type,
+                "--source_model", model_name,
+                "--weight-format", weight_format,
+                "--config_file_path", f"{model_directory}/config.json",
+                "--model_repository_path", f"{model_directory}/",
+                "--target_device", target_device
+            ]
 
-        if version:
-            command += ["--version", version]
-        if export_type == "text_generation" and cache_size is not None:
-            command += ["--cache_size", f"{cache_size}"]
+            if version:
+                command += ["--version", version]
+            if export_type == "text_generation" and cache_size is not None:
+                command += ["--cache_size", f"{cache_size}"]
 
         logger.info(f"Executing command with virtual environment: {command}")
         try:
