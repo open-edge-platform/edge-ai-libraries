@@ -2193,24 +2193,7 @@ class TestToSimpleView(unittest.TestCase):
 
         for tc in parse_test_cases + unsorted_nodes_edges:
             with self.subTest(pipeline=tc.pipeline_description[:200] + "..."):
-                print(f"\n=== TESTING PIPELINE: {tc.pipeline_description[:200]}... ===")
-                print("Original pipeline_graph:")
-                print(f"  Nodes ({len(tc.pipeline_graph.nodes)}):")
-                for node in tc.pipeline_graph.nodes:
-                    print(f"    {node.id}: {node.type} {node.data}")
-                print(f"  Edges ({len(tc.pipeline_graph.edges)}):")
-                for edge in tc.pipeline_graph.edges:
-                    print(f"    {edge.id}: {edge.source} -> {edge.target}")
-
                 actual_simple = tc.pipeline_graph.to_simple_view()
-
-                print("Generated simple view:")
-                print(f"  Nodes ({len(actual_simple.nodes)}):")
-                for node in actual_simple.nodes:
-                    print(f"    {node.id}: {node.type} {node.data}")
-                print(f"  Edges ({len(actual_simple.edges)}):")
-                for edge in actual_simple.edges:
-                    print(f"    {edge.id}: {edge.source} -> {edge.target}")
 
                 # Check that the number of nodes matches expected
                 self.assertEqual(

@@ -438,11 +438,6 @@ class Graph:
         for edge in self.edges:
             edges_from[edge.source].append(edge.target)
 
-        # Build reverse adjacency map (for finding sources of hidden nodes)
-        edges_to: dict[str, list[str]] = defaultdict(list)
-        for edge in self.edges:
-            edges_to[edge.target].append(edge.source)
-
         # Create new graph with only visible nodes (preserving their IDs)
         # Sort nodes by their numeric IDs to ensure consistent ordering
         simple_nodes = [node for node in self.nodes if node.id in visible_node_ids]
