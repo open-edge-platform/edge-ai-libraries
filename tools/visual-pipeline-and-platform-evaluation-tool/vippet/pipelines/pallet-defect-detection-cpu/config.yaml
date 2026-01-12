@@ -1,0 +1,5 @@
+name: Pallet Defect Detection [CPU]
+version: 1
+definition: >
+  AI-powered pipeline for automatic pallet defect detection using computer vision, enabling efficient quality control in manufacturing.
+pipeline_description: "filesrc location=/videos/input/warehouse.avi ! decodebin3 ! videoconvert ! gvadetect model=/models/output/public/pallet_defect_detection/INT8/pallet_defect_detection.xml device=CPU pre-process-backend=opencv model-instance-id=inst-cpu ! queue ! gvawatermark ! gvametaconvert add-empty-results=true ! queue ! gvafpscounter starting-frame=100 ! fakesink"

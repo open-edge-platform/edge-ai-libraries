@@ -142,3 +142,12 @@
   unsupported_devices: ""
   precision: FP16
   default: false
+- name: pallet_defect_detection
+  display_name: Pallet Defect Detection (INT8)
+  source: public
+  type: detection
+  model_path: public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: INT8
+  default: false
