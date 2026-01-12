@@ -15,7 +15,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import PipelineEditor from "@/features/pipeline-editor/PipelineEditor.tsx";
 import FpsDisplay from "@/features/pipeline-editor/FpsDisplay.tsx";
 import { toast } from "sonner";
@@ -35,6 +35,11 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectDevices } from "@/store/reducers/devices";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 type UrlParams = {
   id: string;
@@ -71,6 +76,9 @@ const Pipelines = () => {
   const [pendingOptimizationEdges, setPendingOptimizationEdges] = useState<
     ReactFlowEdge[]
   >([]);
+  const [showDetailsPanel, setShowDetailsPanel] = useState(false);
+  const detailsPanelRef = useRef<HTMLDivElement>(null);
+  const isResizingRef = useRef(false);
 
   const { data, isSuccess } = useGetPipelineQuery(
     {
@@ -426,6 +434,7 @@ const Pipelines = () => {
 
       if (response && typeof response === "object" && "job_id" in response) {
         setPerformanceTestJobId(response.job_id as string);
+        setShowDetailsPanel(true);
       }
 
       toast.success("Pipeline run started", {
@@ -479,6 +488,66 @@ const Pipelines = () => {
     setEditorKey((prev) => prev + 1); // Force PipelineEditor to re-initialize
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!showDetailsPanel || isResizingRef.current) return;
+
+      const target = event.target as HTMLElement;
+
+      // Check if click is outside the details panel
+      if (
+        detailsPanelRef.current &&
+        !detailsPanelRef.current.contains(target)
+      ) {
+        // Also check if it's not the resize handle
+        const isResizeHandle =
+          target.closest("[data-resize-handle]") ||
+          target.closest("[data-resize-handle-active]") ||
+          target.closest('[role="separator"]') ||
+          target.getAttribute("data-resize-handle") !== null;
+
+        if (!isResizeHandle) {
+          setShowDetailsPanel(false);
+        }
+      }
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const isResizeHandle =
+        target.closest("[data-resize-handle]") ||
+        target.closest('[role="separator"]');
+      if (isResizeHandle) {
+        isResizingRef.current = true;
+      }
+    };
+
+    const handleMouseUp = () => {
+      // Reset resize flag after a delay to ensure resize operation is complete
+      if (isResizingRef.current) {
+        setTimeout(() => {
+          isResizingRef.current = false;
+        }, 200);
+      }
+    };
+
+    if (showDetailsPanel) {
+      // Use capture phase and a small delay to ensure proper event handling
+      const timeoutId = setTimeout(() => {
+        document.addEventListener("mousedown", handleMouseDown, true);
+        document.addEventListener("mouseup", handleMouseUp, true);
+        document.addEventListener("mousedown", handleClickOutside, true);
+      }, 100);
+
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener("mousedown", handleMouseDown, true);
+        document.removeEventListener("mouseup", handleMouseUp, true);
+        document.removeEventListener("mousedown", handleClickOutside, true);
+      };
+    }
+  }, [showDetailsPanel]);
+
   const handleOptimizePipeline = async () => {
     if (!id) return;
 
@@ -528,7 +597,7 @@ const Pipelines = () => {
   };
 
   if (isSuccess && data) {
-    return (
+    const editorContent = (
       <div className="w-full h-full relative">
         <PipelineEditor
           key={editorKey}
@@ -644,6 +713,55 @@ const Pipelines = () => {
           )}
         </div>
       </div>
+    );
+
+    if (!showDetailsPanel) {
+      return editorContent;
+    }
+
+    return (
+      <ResizablePanelGroup orientation="horizontal" className="w-full h-full">
+        <ResizablePanel defaultSize={70} minSize={30}>
+          {editorContent}
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel defaultSize={30} minSize={20}>
+          <div
+            ref={detailsPanelRef}
+            className="w-full h-full bg-background p-4 overflow-auto"
+          >
+            <h2 className="text-lg font-semibold mb-4">Pipeline Details</h2>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Name
+                </h3>
+                <p className="text-sm">{data.name}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Nodes
+                </h3>
+                <p className="text-sm">{currentNodes.length}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Edges
+                </h3>
+                <p className="text-sm">{currentEdges.length}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Status
+                </h3>
+                <p className="text-sm">Running performance test...</p>
+              </div>
+            </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     );
   }
 

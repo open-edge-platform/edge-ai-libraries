@@ -111,7 +111,7 @@ const PipelineEditorContent = ({
         const nodesWithPositions = createGraphLayout(
           transformedNodes,
           edges,
-          LayoutDirection.LeftToRight,
+          LayoutDirection.TopToBottom,
         );
 
         setNodes(nodesWithPositions);

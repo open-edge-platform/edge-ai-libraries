@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 export const TeeNodeWidth = 180;
 
@@ -20,17 +21,17 @@ const TeeNode = () => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-sky-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("tee") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-sky-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("tee") }}
     />
   </div>
 );

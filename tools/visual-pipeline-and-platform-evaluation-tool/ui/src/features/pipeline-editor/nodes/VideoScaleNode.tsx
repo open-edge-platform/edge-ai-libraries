@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VideoScaleNode = () => (
   <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-amber-400 min-w-40">
@@ -18,17 +19,17 @@ const VideoScaleNode = () => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-amber-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("videoscale") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-amber-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("videoscale") }}
     />
   </div>
 );
