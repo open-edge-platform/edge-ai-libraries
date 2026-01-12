@@ -370,7 +370,7 @@ class Graph:
 
     def get_recommended_encoder_device(self) -> str:
         """
-        Iterate backwards through nodes to find the last video/x-raw caps node
+        Iterate backwards through nodes to find the last video/x-raw node
         and return the recommended encoder device based on memory type.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
@@ -380,15 +380,11 @@ class Graph:
         Returns:
             str: ENCODER_DEVICE_GPU if video/x-raw(memory:VAMemory) is detected,
                  ENCODER_DEVICE_CPU for standard video/x-raw or when no video/x-raw
-                 caps node exists in the pipeline.
+                 node exists in the pipeline.
         """
         for node in reversed(self.nodes):
-            if node.data.get(NODE_KIND_KEY) != NODE_KIND_CAPS:
-                continue
-
             if not node.type.startswith("video/x-raw"):
                 continue
-
             if "memory:VAMemory" in node.type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
