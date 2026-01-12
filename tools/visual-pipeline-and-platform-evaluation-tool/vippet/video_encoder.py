@@ -87,11 +87,24 @@ class VideoEncoder:
 
         Args:
             field_dict: Dictionary mapping device types to lists of (search, result) tuples
-            encoder_device: Target encoder device (ENCODER_DEVICE_CPU or ENCODER_DEVICE_GPU)
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
 
         Returns:
             Selected encoder element string with properties, or None if not found
+
+        Raises:
+            ValueError: If encoder_device is not a valid constant value
         """
+        # Validate encoder_device
+        valid_devices = {ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU}
+        if encoder_device not in valid_devices:
+            raise ValueError(
+                f"Invalid encoder_device: {encoder_device}. "
+                f"Must be one of: {', '.join(valid_devices)}"
+            )
+
         pairs = field_dict.get(encoder_device, [])
 
         if not pairs:
@@ -163,14 +176,17 @@ class VideoEncoder:
         Args:
             pipeline_id: Pipeline ID used to generate unique output filenames
             pipeline_str: GStreamer pipeline string containing fakesink(s)
-            encoder_device: Target encoder device (ENCODER_DEVICE_CPU or ENCODER_DEVICE_GPU)
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
 
         Returns:
             Tuple of (modified pipeline string, list of output paths)
 
         Raises:
-            ValueError: If codec is not supported or no suitable encoder is found
+            ValueError: If codec is not supported, encoder_device is invalid,
+                or no suitable encoder is found
         """
         # Detect codec from input video files (h264, h265, etc.)
         codec = self._detect_codec_from_input(input_video_filenames)
