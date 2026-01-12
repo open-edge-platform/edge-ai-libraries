@@ -1,7 +1,7 @@
-import { usePipelineName } from "@/hooks/usePipelines";
+import { usePipelineName } from "@/hooks/usePipelines.ts";
 import { Pencil, Save } from "lucide-react";
 import { useState } from "react";
-import { useUpdatePipelineMutation } from "@/api/api.generated";
+import { useUpdatePipelineMutation } from "@/api/api.generated.ts";
 
 interface PipelineNamePropsEdit {
   pipelineId: string;

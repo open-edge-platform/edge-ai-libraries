@@ -4,9 +4,9 @@ import {
   useGetDensityJobStatusQuery,
   useRunDensityTestMutation,
 } from "@/api/api.generated.ts";
-import { TestProgressIndicator } from "@/components/shared/TestProgressIndicator.tsx";
-import { PipelineStreamsSummary } from "@/components/shared/PipelineStreamsSummary.tsx";
-import { PipelineName } from "@/components/shared/PipelineName.tsx";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { selectDevices } from "@/store/reducers/devices";
@@ -17,9 +17,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
-import { ParticipationSlider } from "@/components/shared/ParticipationSlider";
+import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import DeviceSelect from "@/components/shared/DeviceSelect";
-import SaveOutputWarning from "@/components/shared/SaveOutputWarning.tsx";
+import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
   pipelineId: string;
