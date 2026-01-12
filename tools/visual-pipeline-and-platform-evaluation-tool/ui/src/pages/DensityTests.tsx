@@ -153,24 +153,10 @@ const DensityTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice
-      );
-
       const result = await runDensityTest({
-        densityTestSpecInput: {
+        densityTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({

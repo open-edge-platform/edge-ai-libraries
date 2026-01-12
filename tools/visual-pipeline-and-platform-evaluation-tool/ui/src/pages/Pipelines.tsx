@@ -395,24 +395,10 @@ const Pipelines = () => {
         },
       }).unwrap();
 
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice
-      );
-
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
+        performanceTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           pipeline_performance_specs: [
             {
