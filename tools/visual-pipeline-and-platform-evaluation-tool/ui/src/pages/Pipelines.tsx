@@ -574,7 +574,7 @@ const Pipelines = () => {
             )}
 
             <button
-              className="bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors disabled:opacity-50 disabled:hover:bg-orange-600 flex items-center gap-2"
+              className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
               title="Optimize Pipeline"
               disabled={isOptimizing || !!performanceTestJobId}
               onClick={handleOptimizePipeline}
@@ -600,7 +600,7 @@ const Pipelines = () => {
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="bg-white p-2 flex items-center gap-2 cursor-pointer">
+                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={videoOutputEnabled}
                     onCheckedChange={(checked) =>
@@ -621,12 +621,12 @@ const Pipelines = () => {
               <DeviceSelect
                 value={encoderDevice}
                 onChange={setEncoderDevice}
-                className="bg-white p-2 text-sm font-medium cursor-pointer border-none outline-none"
+                className="bg-background p-2 text-sm font-medium cursor-pointer border-none outline-none"
               />
             )}
           </div>
           {videoOutputEnabled && (
-            <div className="text-muted-foreground border border-amber-400 my-2 p-2 bg-amber-200/50 w-[634px]">
+            <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-[634px]">
               <b>Note</b>: The current implementation does not automatically
               infer the best encoding device from the existing pipeline. Select
               the same device that is already used by other blocks in your
