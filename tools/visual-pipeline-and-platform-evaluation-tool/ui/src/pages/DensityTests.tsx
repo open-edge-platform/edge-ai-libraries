@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
@@ -46,14 +45,14 @@ const DensityTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
+  const [encoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetDensityJobStatusQuery(
     { jobId: jobId! },
     {
       skip: !jobId,
       pollingInterval: 1000,
-    },
+    }
   );
 
   useEffect(() => {
@@ -89,7 +88,7 @@ const DensityTests = () => {
   const handleAddPipeline = () => {
     const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
     const availablePipeline = pipelines.find(
-      (pipeline) => !usedPipelineIds.includes(pipeline.id),
+      (pipeline) => !usedPipelineIds.includes(pipeline.id)
     );
     if (availablePipeline) {
       setPipelineSelections((prev) => [
@@ -105,8 +104,8 @@ const DensityTests = () => {
           prev.map((sel) =>
             sel.pipelineId === availablePipeline.id
               ? { ...sel, isNew: false }
-              : sel,
-          ),
+              : sel
+          )
         );
       }, 300);
     }
@@ -116,12 +115,12 @@ const DensityTests = () => {
     if (pipelineSelections.length > 1) {
       setPipelineSelections((prev) =>
         prev.map((sel) =>
-          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel,
-        ),
+          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel
+        )
       );
       setTimeout(() => {
         setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId),
+          prev.filter((sel) => sel.pipelineId !== pipelineId)
         );
       }, 300);
     }
@@ -129,22 +128,22 @@ const DensityTests = () => {
 
   const handlePipelineChange = (
     oldPipelineId: string,
-    newPipelineId: string,
+    newPipelineId: string
   ) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
         sel.pipelineId === oldPipelineId
           ? { ...sel, pipelineId: newPipelineId }
-          : sel,
-      ),
+          : sel
+      )
     );
   };
 
   const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
-      ),
+        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel
+      )
     );
   };
 
@@ -155,7 +154,7 @@ const DensityTests = () => {
     setErrorMessage(null);
     try {
       const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
+        (d) => d.device_name === encoderDevice
       );
 
       const result = await runDensityTest({
@@ -234,8 +233,8 @@ const DensityTests = () => {
                         (pipeline) =>
                           pipeline.id === selection.pipelineId ||
                           !pipelineSelections.some(
-                            (sel) => sel.pipelineId === pipeline.id,
-                          ),
+                            (sel) => sel.pipelineId === pipeline.id
+                          )
                       )
                       .map((pipeline) => (
                         <option key={pipeline.id} value={pipeline.id}>
@@ -319,16 +318,6 @@ const DensityTests = () => {
                 </TooltipContent>
               </Tooltip>
             </div>
-            {videoOutputEnabled && (
-              <div>
-                <span>Select device for encoding: </span>
-                <DeviceSelect
-                  value={encoderDevice}
-                  onChange={setEncoderDevice}
-                  className="w-fit px-3 py-2 border text-sm cursor-pointer bg-background"
-                />
-              </div>
-            )}
             {videoOutputEnabled && <SaveOutputWarning />}
           </div>
 
@@ -439,7 +428,7 @@ const DensityTests = () => {
                               )}
                             </div>
                           );
-                        },
+                        }
                       )}
                     </div>
                   </div>

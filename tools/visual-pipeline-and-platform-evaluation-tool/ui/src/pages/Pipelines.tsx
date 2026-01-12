@@ -24,7 +24,6 @@ import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanc
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import { Zap } from "lucide-react";
 import { isApiError } from "@/lib/apiUtils";
 import {
@@ -56,13 +55,13 @@ const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
+  const [encoderDevice] = useState<string>("CPU");
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
-    null,
+    null
   );
   const [validationJobId, setValidationJobId] = useState<string | null>(null);
   const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
-    null,
+    null
   );
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [pendingOptimizationNodes, setPendingOptimizationNodes] = useState<
@@ -78,7 +77,7 @@ const Pipelines = () => {
     },
     {
       skip: !id,
-    },
+    }
   );
 
   const [runPerformanceTest, { isLoading: isRunning }] =
@@ -94,7 +93,7 @@ const Pipelines = () => {
     {
       skip: !performanceTestJobId,
       pollingInterval: 1000,
-    },
+    }
   );
 
   const { data: validationStatus, error: validationError } =
@@ -103,7 +102,7 @@ const Pipelines = () => {
       {
         skip: !validationJobId,
         pollingInterval: 1000,
-      },
+      }
     );
 
   const { data: optimizationStatus, error: optimizationError } =
@@ -112,7 +111,7 @@ const Pipelines = () => {
       {
         skip: !optimizationJobId,
         pollingInterval: 1000,
-      },
+      }
     );
 
   useEffect(() => {
@@ -288,7 +287,7 @@ const Pipelines = () => {
             type: node.type,
             data: node.data,
             position: { x: 250 * index, y: 100 }, // Basic horizontal layout
-          }),
+          })
         );
 
         const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
@@ -397,7 +396,7 @@ const Pipelines = () => {
       }).unwrap();
 
       const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
+        (d) => d.device_name === encoderDevice
       );
 
       const response = await runPerformanceTest({
@@ -470,7 +469,7 @@ const Pipelines = () => {
     nodes: ReactFlowNode[],
     edges: ReactFlowEdge[],
     viewport: Viewport,
-    shouldFitView: boolean,
+    shouldFitView: boolean
   ) => {
     setCurrentNodes(nodes);
     setCurrentEdges(edges);
@@ -617,31 +616,7 @@ const Pipelines = () => {
                 </p>
               </TooltipContent>
             </Tooltip>
-            {videoOutputEnabled && (
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="bg-background p-2 text-sm font-medium cursor-pointer border-none outline-none"
-              />
-            )}
           </div>
-          {videoOutputEnabled && (
-            <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-[634px]">
-              <b>Note</b>: The current implementation does not automatically
-              infer the best encoding device from the existing pipeline. Select
-              the same device that is already used by other blocks in your
-              pipeline. To learn more, refer to our documentation:{" "}
-              <a
-                href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-classic-blue transition-colors underline"
-              >
-                link
-              </a>
-              .
-            </div>
-          )}
         </div>
       </div>
     );

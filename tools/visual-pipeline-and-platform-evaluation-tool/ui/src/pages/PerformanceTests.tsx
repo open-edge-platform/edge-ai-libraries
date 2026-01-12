@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
@@ -44,14 +43,14 @@ const PerformanceTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
+  const [encoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: jobId! },
     {
       skip: !jobId,
       pollingInterval: 1000, // Poll every second
-    },
+    }
   );
 
   useEffect(() => {
@@ -86,7 +85,7 @@ const PerformanceTests = () => {
   const handleAddPipeline = () => {
     const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
     const availablePipeline = pipelines.find(
-      (pipeline) => !usedPipelineIds.includes(pipeline.id),
+      (pipeline) => !usedPipelineIds.includes(pipeline.id)
     );
     if (availablePipeline) {
       setPipelineSelections((prev) => [
@@ -102,8 +101,8 @@ const PerformanceTests = () => {
           prev.map((sel) =>
             sel.pipelineId === availablePipeline.id
               ? { ...sel, isNew: false }
-              : sel,
-          ),
+              : sel
+          )
         );
       }, 300);
     }
@@ -113,12 +112,12 @@ const PerformanceTests = () => {
     if (pipelineSelections.length > 1) {
       setPipelineSelections((prev) =>
         prev.map((sel) =>
-          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel,
-        ),
+          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel
+        )
       );
       setTimeout(() => {
         setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId),
+          prev.filter((sel) => sel.pipelineId !== pipelineId)
         );
       }, 300);
     }
@@ -126,22 +125,22 @@ const PerformanceTests = () => {
 
   const handlePipelineChange = (
     oldPipelineId: string,
-    newPipelineId: string,
+    newPipelineId: string
   ) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
         sel.pipelineId === oldPipelineId
           ? { ...sel, pipelineId: newPipelineId }
-          : sel,
-      ),
+          : sel
+      )
     );
   };
 
   const handleStreamsChange = (pipelineId: string, streams: number) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, streams } : sel,
-      ),
+        sel.pipelineId === pipelineId ? { ...sel, streams } : sel
+      )
     );
   };
 
@@ -150,7 +149,7 @@ const PerformanceTests = () => {
     setErrorMessage(null);
     try {
       const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
+        (d) => d.device_name === encoderDevice
       );
 
       const result = await runPerformanceTest({
@@ -228,8 +227,8 @@ const PerformanceTests = () => {
                         (pipeline) =>
                           pipeline.id === selection.pipelineId ||
                           !pipelineSelections.some(
-                            (sel) => sel.pipelineId === pipeline.id,
-                          ),
+                            (sel) => sel.pipelineId === pipeline.id
+                          )
                       )
                       .map((pipeline) => (
                         <option key={pipeline.id} value={pipeline.id}>
@@ -297,16 +296,6 @@ const PerformanceTests = () => {
               </TooltipContent>
             </Tooltip>
           </div>
-          {videoOutputEnabled && (
-            <div>
-              <span>Select device for encoding: </span>
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="w-fit px-3 py-2 border text-sm cursor-pointer bg-background"
-              />
-            </div>
-          )}
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
@@ -406,7 +395,7 @@ const PerformanceTests = () => {
                             )}
                           </div>
                         );
-                      },
+                      }
                     )}
                   </div>
                 </div>
