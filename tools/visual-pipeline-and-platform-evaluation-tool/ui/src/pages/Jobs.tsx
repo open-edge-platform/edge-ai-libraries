@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
-import { PipelineName } from "@/components/shared/PipelineName";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
 
 const Jobs = () => {

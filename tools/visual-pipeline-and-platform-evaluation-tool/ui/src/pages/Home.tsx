@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/card";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
-import AddPipelineButton from "@/components/shared/AddPipelineButton.tsx";
-import CopyPipelineButton from "@/components/shared/CopyPipelineButton.tsx";
+import AddPipelineButton from "@/features/pipelines/AddPipelineButton.tsx";
+import CopyPipelineButton from "@/features/pipelines/CopyPipelineButton.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { BookOpen, Code, Sparkles } from "lucide-react";

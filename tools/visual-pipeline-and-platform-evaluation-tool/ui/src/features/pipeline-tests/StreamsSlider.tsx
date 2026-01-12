@@ -1,4 +1,4 @@
-import { Slider } from "@/components/ui/slider";
+import { Slider } from "@/components/ui/slider.tsx";
 
 interface StreamsSliderProps {
   value: number;
@@ -41,7 +41,7 @@ export const StreamsSlider = ({
         min={min}
         max={max}
         className="w-[4rem] px-2 py-1 text-sm font-medium border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        style={{ textAlign: 'center' }}
+        style={{ textAlign: "center" }}
         disabled={true}
       />
     </div>

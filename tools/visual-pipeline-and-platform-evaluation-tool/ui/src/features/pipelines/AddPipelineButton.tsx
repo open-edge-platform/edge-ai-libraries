@@ -7,15 +7,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
 import {
   useCreatePipelineMutation,
   useToGraphMutation,
   useValidatePipelineMutation,
   useGetValidationJobStatusQuery,
-} from "@/api/api.generated";
+} from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { isApiError } from "@/lib/apiUtils.ts";
 
 const AddPipelineButton = () => {
   const navigate = useNavigate();

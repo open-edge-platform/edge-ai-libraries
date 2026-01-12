@@ -3,8 +3,8 @@ import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
 } from "@/api/api.generated";
-import { TestProgressIndicator } from "@/components/shared/TestProgressIndicator.tsx";
-import { PipelineName } from "@/components/shared/PipelineName.tsx";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { selectDevices } from "@/store/reducers/devices";
@@ -15,9 +15,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
-import { StreamsSlider } from "@/components/shared/StreamsSlider";
+import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import DeviceSelect from "@/components/shared/DeviceSelect";
-import SaveOutputWarning from "@/components/shared/SaveOutputWarning.tsx";
+import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
   pipelineId: string;
