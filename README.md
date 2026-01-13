@@ -20,7 +20,7 @@ and industrial use cases.
 These flagship components represent the most advanced, widely adopted, and
 impactful tools in the repository:
 
-- [Deep Learning Streamer](./libraries/dl-streamer/README.md)
+- [Deep Learning Streamer](https://github.com/open-edge-platform/dlstreamer/blob/main/README.md)
 
   Build efficient media analytics pipelines using streaming AI pipelines for
   audio/video media analytics using GStreamer for optimized media operations
@@ -98,7 +98,7 @@ real-time audio and video AI pipeline processing, transcription, and multimodal
 embedding generation, addressing common use cases like surveillance, content
 indexing, and audio analysis.
 
-- [Deep Learning Streamer](./libraries/dl-streamer)
+- [Deep Learning Streamer](https://github.com/open-edge-platform/dlstreamer)
   & [Deep Learning Streamer Pipeline Server](./microservices/dlstreamer-pipeline-server)
 
   Streaming AI pipeline builder with scalable server for media
