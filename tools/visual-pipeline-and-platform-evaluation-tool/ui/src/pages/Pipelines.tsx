@@ -16,11 +16,13 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { useEffect, useState, useRef } from "react";
-import PipelineEditor from "@/features/pipeline-editor/PipelineEditor.tsx";
-import FpsDisplay from "@/features/pipeline-editor/FpsDisplay.tsx";
+import PipelineEditor, {
+  type PipelineEditorHandle,
+} from "@/features/pipeline-editor/PipelineEditor.tsx";
+import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
+import TestPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
+import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import { toast } from "sonner";
-import RunPerformanceTestButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
-import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanceTestButton.tsx";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
@@ -77,8 +79,10 @@ const Pipelines = () => {
     ReactFlowEdge[]
   >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
+  const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
 
   const { data, isSuccess } = useGetPipelineQuery(
     {
@@ -89,8 +93,7 @@ const Pipelines = () => {
     },
   );
 
-  const [runPerformanceTest, { isLoading: isRunning }] =
-    useRunPerformanceTestMutation();
+  const [runPerformanceTest] = useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [updatePipeline] = useUpdatePipelineMutation();
@@ -141,6 +144,7 @@ const Pipelines = () => {
       }
 
       setPerformanceTestJobId(null);
+      // Keep panel open to show results
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
       toast.error("Pipeline run failed", {
         description: jobStatus.error_message || "Unknown error",
@@ -380,6 +384,36 @@ const Pipelines = () => {
     setCurrentViewport(viewport);
   };
 
+  const handleNodeSelect = (node: ReactFlowNode | null) => {
+    setSelectedNode(node);
+    // Keep panel open if performance test is running, otherwise follow node selection
+    if (!performanceTestJobId) {
+      setShowDetailsPanel(!!node);
+      // Clear completed video when selecting a node
+      if (node) {
+        setCompletedVideoPath(null);
+      }
+    }
+  };
+
+  const handleOpenTestPanel = () => {
+    setShowDetailsPanel(true);
+    setSelectedNode(null);
+  };
+
+  const handleNodeDataUpdate = (
+    nodeId: string,
+    updatedData: Record<string, unknown>,
+  ) => {
+    // Call the PipelineEditor's update method via ref
+    pipelineEditorRef.current?.updateNodeData(nodeId, updatedData);
+
+    // Update selected node with new data
+    if (selectedNode && selectedNode.id === nodeId) {
+      setSelectedNode({ ...selectedNode, data: updatedData });
+    }
+  };
+
   const handleRunPipeline = async () => {
     if (!id) return;
 
@@ -435,6 +469,7 @@ const Pipelines = () => {
       if (response && typeof response === "object" && "job_id" in response) {
         setPerformanceTestJobId(response.job_id as string);
         setShowDetailsPanel(true);
+        setSelectedNode(null); // Clear node selection when running test
       }
 
       toast.success("Pipeline run started", {
@@ -460,6 +495,7 @@ const Pipelines = () => {
       }).unwrap();
 
       setPerformanceTestJobId(null);
+      // Keep panel open to show results
 
       toast.success("Pipeline stopped", {
         description: new Date().toISOString(),
@@ -489,8 +525,10 @@ const Pipelines = () => {
   };
 
   useEffect(() => {
+    if (!showDetailsPanel) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (!showDetailsPanel || isResizingRef.current) return;
+      if (isResizingRef.current) return;
 
       const target = event.target as HTMLElement;
 
@@ -507,7 +545,11 @@ const Pipelines = () => {
           target.getAttribute("data-resize-handle") !== null;
 
         if (!isResizeHandle) {
-          setShowDetailsPanel(false);
+          // Don't close if performance test is running or showing results
+          if (!performanceTestJobId && !completedVideoPath) {
+            setShowDetailsPanel(false);
+            setSelectedNode(null);
+          }
         }
       }
     };
@@ -523,30 +565,24 @@ const Pipelines = () => {
     };
 
     const handleMouseUp = () => {
-      // Reset resize flag after a delay to ensure resize operation is complete
+      // Use requestAnimationFrame to defer the flag reset
       if (isResizingRef.current) {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           isResizingRef.current = false;
-        }, 200);
+        });
       }
     };
 
-    if (showDetailsPanel) {
-      // Use capture phase and a small delay to ensure proper event handling
-      const timeoutId = setTimeout(() => {
-        document.addEventListener("mousedown", handleMouseDown, true);
-        document.addEventListener("mouseup", handleMouseUp, true);
-        document.addEventListener("mousedown", handleClickOutside, true);
-      }, 100);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousedown", handleClickOutside);
 
-      return () => {
-        clearTimeout(timeoutId);
-        document.removeEventListener("mousedown", handleMouseDown, true);
-        document.removeEventListener("mouseup", handleMouseUp, true);
-        document.removeEventListener("mousedown", handleClickOutside, true);
-      };
-    }
-  }, [showDetailsPanel]);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
 
   const handleOptimizePipeline = async () => {
     if (!id) return;
@@ -600,11 +636,13 @@ const Pipelines = () => {
     const editorContent = (
       <div className="w-full h-full relative">
         <PipelineEditor
+          ref={pipelineEditorRef}
           key={editorKey}
           pipelineData={data}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onViewportChange={handleViewportChange}
+          onNodeSelect={handleNodeSelect}
           initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
           initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
           initialViewport={
@@ -613,34 +651,9 @@ const Pipelines = () => {
           shouldFitView={shouldFitView}
         />
 
-        <div className="absolute top-4 right-4 flex flex-col gap-2 items-center">
-          <FpsDisplay />
-          {completedVideoPath && (
-            <div className="bg-white p-2 shadow-lg">
-              <video
-                controls
-                className="w-64 h-auto"
-                src={`/assets${completedVideoPath}`}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
-          )}
-        </div>
-
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
-            {performanceTestJobId ? (
-              <StopPerformanceTestButton
-                isStopping={isStopping}
-                onStop={handleStopPipeline}
-              />
-            ) : (
-              <RunPerformanceTestButton
-                isRunning={isRunning}
-                onRun={handleRunPipeline}
-              />
-            )}
+            <TestPipelineButton onTest={handleOpenTestPanel} />
 
             <button
               className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
@@ -715,52 +728,39 @@ const Pipelines = () => {
       </div>
     );
 
-    if (!showDetailsPanel) {
-      return editorContent;
-    }
-
     return (
       <ResizablePanelGroup orientation="horizontal" className="w-full h-full">
-        <ResizablePanel defaultSize={70} minSize={30}>
+        <ResizablePanel defaultSize={showDetailsPanel ? 70 : 100} minSize={30}>
           {editorContent}
         </ResizablePanel>
 
-        <ResizableHandle withHandle />
+        {showDetailsPanel && (
+          <>
+            <ResizableHandle withHandle />
 
-        <ResizablePanel defaultSize={30} minSize={20}>
-          <div
-            ref={detailsPanelRef}
-            className="w-full h-full bg-background p-4 overflow-auto"
-          >
-            <h2 className="text-lg font-semibold mb-4">Pipeline Details</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  Name
-                </h3>
-                <p className="text-sm">{data.name}</p>
+            <ResizablePanel defaultSize={30} minSize={20}>
+              <div
+                ref={detailsPanelRef}
+                className="w-full h-full bg-background overflow-auto relative"
+              >
+                {showDetailsPanel && !selectedNode ? (
+                  <PerformanceTestPanel
+                    isRunning={!!performanceTestJobId}
+                    isStopping={isStopping}
+                    onRun={handleRunPipeline}
+                    onStop={handleStopPipeline}
+                    completedVideoPath={completedVideoPath}
+                  />
+                ) : (
+                  <NodeDataPanel
+                    selectedNode={selectedNode}
+                    onNodeDataUpdate={handleNodeDataUpdate}
+                  />
+                )}
               </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  Nodes
-                </h3>
-                <p className="text-sm">{currentNodes.length}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  Edges
-                </h3>
-                <p className="text-sm">{currentEdges.length}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  Status
-                </h3>
-                <p className="text-sm">Running performance test...</p>
-              </div>
-            </div>
-          </div>
-        </ResizablePanel>
+            </ResizablePanel>
+          </>
+        )}
       </ResizablePanelGroup>
     );
   }
