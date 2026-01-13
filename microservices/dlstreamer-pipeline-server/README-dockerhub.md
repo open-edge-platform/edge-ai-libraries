@@ -15,6 +15,8 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 ## Supported versions
 ---
 
+2025.2.0
+
 3.1.0
 
 3.0.0
