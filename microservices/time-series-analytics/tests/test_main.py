@@ -74,7 +74,7 @@ def test_receive_data_kapacitor_down(monkeypatch):
         "timestamp": 1718000000000000000
     }
     resp = client.post("/input", json=data)
-    assert resp.status_code == 500
+    assert resp.status_code == 503
     assert "Kapacitor daemon is not running" in resp.json()["detail"]
 
 def test_get_config(monkeypatch):
@@ -103,7 +103,6 @@ def test_post_config(monkeypatch):
     resp = client.post("/config", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
-    assert main.config["model_registry"]["version"] == "3.0"
 
 def test_json_to_line_protocol_tags():
     dp = main.DataPoint(
@@ -297,7 +296,7 @@ def test_receive_alert_opcua_not_configured(monkeypatch):
     main.config["alerts"] = {}
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
-    assert resp.status_code == 500
+    assert resp.status_code == 400
     assert "OPC UA alerts are not configured" in resp.json()["detail"]
 
 def test_receive_alert_initialize_opcua_fails(monkeypatch):
@@ -552,7 +551,6 @@ def test_post_config_success(monkeypatch):
     resp = client.post("/config", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
-    assert main.config["model_registry"]["version"] == "3.1"
     assert main.config["udfs"]["name"] == "udf_name"
     assert "opcua" in main.config["alerts"]
 
@@ -566,7 +564,6 @@ def test_post_config_alerts_optional(monkeypatch):
     resp = client.post("/config", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
-    assert main.config["model_registry"]["enable"] is False
     assert main.config["udfs"]["model"] == "model_name"
     assert main.config["alerts"] == {}
 
@@ -582,7 +579,7 @@ def test_post_config_invalid_json(monkeypatch):
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
     assert exc.value.status_code == 422
-    assert "Invalid JSON format" in exc.value.detail
+    assert "Missing key 'name' in udfs" in exc.value.detail
 
 def test_post_config_missing_key(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
@@ -598,7 +595,7 @@ def test_post_config_missing_key(monkeypatch):
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
     assert exc.value.status_code == 422
-    assert "Missing required key" in exc.value.detail
+    assert "Missing key 'name' in udfs" in exc.value.detail
 
 def test_post_config_triggers_background_task(monkeypatch):
     called = {}

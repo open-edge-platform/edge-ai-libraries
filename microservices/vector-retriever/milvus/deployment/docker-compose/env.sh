@@ -21,8 +21,6 @@ export MILVUS_PORT=19530
 # huggingface mirror 
 export HF_ENDPOINT=https://hf-mirror.com
 
-export DEVICE="GPU.1"
-
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
 export DEFAULT_NUM_FRAMES=64

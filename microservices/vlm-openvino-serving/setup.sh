@@ -40,6 +40,16 @@ export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 export VLM_SERVICE_PORT=${VLM_SERVICE_PORT:-9764}
 export VLM_SEED=${VLM_SEED:-42}
 export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
+export VLM_TELEMETRY_PATH=${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
+
+if [ -z "$VLM_TELEMETRY_MAX_RECORDS" ]; then
+    export VLM_TELEMETRY_MAX_RECORDS=100
+elif ! [[ "$VLM_TELEMETRY_MAX_RECORDS" =~ ^[0-9]+$ ]] || [ "$VLM_TELEMETRY_MAX_RECORDS" -le 0 ]; then
+    echo -e "\nInvalid VLM_TELEMETRY_MAX_RECORDS value: ${VLM_TELEMETRY_MAX_RECORDS}. Falling back to 100."
+    export VLM_TELEMETRY_MAX_RECORDS=100
+fi
+
+export VLM_TELEMETRY_MAX_RECORDS=$VLM_TELEMETRY_MAX_RECORDS
 
 # VLM_ACCESS_LOG_FILE: Controls where Gunicorn access logs go
 # - "-" for stdout (default)

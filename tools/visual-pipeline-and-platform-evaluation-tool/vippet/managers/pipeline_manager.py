@@ -299,11 +299,14 @@ class PipelineManager:
 
                 # Handle final video output if enabled
                 if video_config.enabled and stream_index == 0:
+                    # Get recommended encoder device from the graph
+                    encoder_device = graph.get_recommended_encoder_device()
+                    # Replace fakesink with actual video output element
                     unique_pipeline_str, generated_paths = (
                         self.video_encoder.replace_fakesink_with_video_output(
                             pipeline.id,
                             unique_pipeline_str,
-                            video_config.encoder_device,
+                            encoder_device,
                             input_video_filenames,
                         )
                     )

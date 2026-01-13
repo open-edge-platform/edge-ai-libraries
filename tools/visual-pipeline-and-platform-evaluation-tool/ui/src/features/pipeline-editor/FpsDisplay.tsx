@@ -12,7 +12,7 @@ const FpsDisplay = ({ className = "" }: FpsDisplayProps) => {
 
   return (
     <div
-      className={`bg-white text-black/80 p-2 shadow-lg text-sm ${className}`}
+      className={`bg-background dark:text-white/80 text-black/80 p-2 shadow-lg dark:shadow-[2px_2px_8px_0_rgba(255,255,255,0.08)] text-sm ${className}`}
     >
       <div className="flex flex-row gap-2 font-mono justify-center items-center">
         <span className={statusColor}>{statusIcon}</span>

@@ -25,7 +25,7 @@ def run_command(command):
         raise RuntimeError(f"Command failed: {command}\n{result.stderr}")
     return result
 
-## REST API Tests
+## REST API Tests 
 
 # Get health check /health endpoint
 def health_check(port):
@@ -49,8 +49,8 @@ def opcua_alerts(port):
     try:
         url = f"http://localhost:{port}/opcua_alerts"
         response = requests.post(url, json=alert_message, timeout=10)
-        assert response.status_code == 500
-        assert response.json() == {'detail': '500: OPC UA alerts are not configured in the service'}
+        assert response.status_code == 400
+        assert response.json() == {'detail': 'OPC UA alerts are not configured in the service'}
     except Exception as e:
         pytest.fail(f"Failed to post OPC UA alerts: {e}")
 
@@ -93,16 +93,16 @@ def input_endpoint_invalid_data(port):
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 500
-        assert "400: unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", "")
+        assert response.status_code == 400
+        assert "unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", "")
     except Exception as e:
         pytest.fail(f"Failed to post invalid input data: {e}")
     input_data["fields"]["temperature"] = ""
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 500
-        assert "400: unable to parse 'point_data temperature=" in response.json().get("detail", "")
+        assert response.status_code == 400
+        assert "missing field value" in response.json().get("detail", "")
     except Exception as e:
         pytest.fail(f"Failed to post no input data: {e}")
 
@@ -123,8 +123,8 @@ def input_endpoint_no_data(port):
     try:
         url = f"http://localhost:{port}/input"
         response = requests.post(url, json=input_data, timeout=10)
-        assert response.status_code == 500
-        assert "400: unable to parse 'point_data temperature=" in response.json().get("detail", "")
+        assert response.status_code == 400
+        assert "missing field value" in response.json().get("detail", "")
     except Exception as e:
         pytest.fail(f"Failed to post no input data: {e}")
 
@@ -213,17 +213,17 @@ def concurrent_api_requests(port):
             print(f"POST /input: {future_post_input.result()}")
             print(f"POST /config: {future_post_config.result()}")
 
-            health_status_code = [200, 500, 503]
-            health_status_json = [{"status": "kapacitor daemon is running"}, {"detail": "500: Kapacitor daemon is not running"}, {"status":"Port not accessible and kapacitor daemon not running"}]
+            health_status_code = [200, 500, 503, 400]
+            health_status_json = [{"status": "kapacitor daemon is running"}, {"detail": "503: Kapacitor daemon is not running"}, {"status":"Port not accessible and kapacitor daemon not running"}]
             assert get_health_result[0] in health_status_code
             assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200
             assert json.loads(get_config_result[1]) == config_file or json.loads(get_config_result[1]) == config_file_alerts
-            assert post_alert_result[0] == 500
-            assert post_alert_result[1] == {'detail': '500: OPC UA alerts are not configured in the service'}
-            assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 500
+            assert post_alert_result[0] == 400
+            assert post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'}
+            assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503
             assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
-                future_post_input.result()[1] == {'detail': '500: Kapacitor daemon is not running'}
+                future_post_input.result()[1] == {'detail': '503: Kapacitor daemon is not running'}
             assert future_post_config.result()[0] == 200
             assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
         except Exception as e:

@@ -528,62 +528,23 @@ class PipelineRequestOptimize(BaseModel):
     parameters: Optional[Dict[str, Any]]
 
 
-class EncoderDeviceConfig(BaseModel):
-    """
-    Encoder device configuration used in video output settings.
-
-    Attributes:
-        device_name: Name of the encoder device (for example ``"GPU"``).
-        gpu_id: Optional GPU index when applicable.
-
-    Example:
-        .. code-block:: json
-
-            {
-              "device_name": "GPU",
-              "gpu_id": 0
-            }
-    """
-
-    device_name: str = Field(
-        default="GPU",
-        description="Name of the encoder device (e.g., 'GPU', 'CPU', 'NPU')",
-        examples=["GPU", "CPU", "NPU"],
-    )
-    gpu_id: Optional[int] = Field(
-        default=None,
-        description="GPU device index (only applicable when device_name indicates a GPU)",
-        examples=[0, 1],
-    )
-
-
 class VideoOutputConfig(BaseModel):
     """
     Generic configuration of optional encoded video output.
 
     Attributes:
         enabled: Flag to enable or disable video output generation.
-        encoder_device: EncoderDeviceConfig used when video output is enabled.
 
     Example:
         .. code-block:: json
 
             {
-              "enabled": false,
-              "encoder_device": {
-                "device_name": "GPU",
-                "gpu_id": 0
-              }
+              "enabled": false
             }
     """
 
     enabled: bool = Field(
         default=False, description="Flag to enable or disable video output generation."
-    )
-    encoder_device: EncoderDeviceConfig = Field(
-        default=EncoderDeviceConfig(device_name="GPU", gpu_id=0),
-        description="Encoder device configuration (only applicable when video output is enabled).",
-        examples=[{"device_name": "GPU", "gpu_id": 0}],
     )
 
 
@@ -609,12 +570,9 @@ class PerformanceTestSpec(BaseModel):
     video_output: VideoOutputConfig = Field(
         default=VideoOutputConfig(
             enabled=False,
-            encoder_device=EncoderDeviceConfig(device_name="GPU", gpu_id=0),
         ),
         description="Video output configuration.",
-        examples=[
-            {"enabled": False, "encoder_device": {"device_name": "GPU", "gpu_id": 0}}
-        ],
+        examples=[{"enabled": False}],
     )
 
 
@@ -646,12 +604,9 @@ class DensityTestSpec(BaseModel):
     video_output: VideoOutputConfig = Field(
         default=VideoOutputConfig(
             enabled=False,
-            encoder_device=EncoderDeviceConfig(device_name="GPU", gpu_id=0),
         ),
         description="Video output configuration.",
-        examples=[
-            {"enabled": False, "encoder_device": {"device_name": "GPU", "gpu_id": 0}}
-        ],
+        examples=[{"enabled": False}],
     )
 
 

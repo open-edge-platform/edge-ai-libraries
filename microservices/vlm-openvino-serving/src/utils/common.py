@@ -5,11 +5,12 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Any, Dict
 
 # Load environment variables from .env file if it exists
@@ -26,15 +27,23 @@ class Settings(BaseSettings):
     Represents the application settings loaded from environment variables.
     """
 
-    APP_NAME: str = "vlm-ov-serving"
-    APP_DISPLAY_NAME: str = "vlm-ov-serving"
+    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=True)
+
+    APP_NAME: str = "vlm-openvino-serving"
+    APP_DISPLAY_NAME: str = "vlm-openvino-serving"
     APP_DESC: str = (
         "Fastapi server wrapping Openvino runtime to serve /chat/completion endpoint to consume text and image and serve inference with LLM/VLM models"
     )
 
-    http_proxy: str = Field(default=None, json_schema_extra={"env": "http_proxy"})
-    https_proxy: str = Field(default=None, json_schema_extra={"env": "https_proxy"})
-    no_proxy_env: str = Field(default=None, json_schema_extra={"env": "no_proxy_env"})
+    http_proxy: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "http_proxy"}
+    )
+    https_proxy: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "https_proxy"}
+    )
+    no_proxy_env: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "no_proxy_env"}
+    )
     VLM_MODEL_NAME: str = Field(
         default=None,
         json_schema_extra={"env": "VLM_MODEL_NAME"},
@@ -54,6 +63,14 @@ class Settings(BaseSettings):
     OV_CONFIG: Optional[str] = Field(
         default=None,
         json_schema_extra={"env": "OV_CONFIG"},
+    )
+    VLM_TELEMETRY_PATH: Path = Field(
+        default=Path("/opt/vlm_telemetry.jsonl"),
+        json_schema_extra={"env": "VLM_TELEMETRY_PATH"},
+    )
+    VLM_TELEMETRY_MAX_RECORDS: int = Field(
+        default=100,
+        json_schema_extra={"env": "VLM_TELEMETRY_MAX_RECORDS"},
     )
 
     @field_validator("VLM_LOG_LEVEL", mode="before")
@@ -91,6 +108,25 @@ class Settings(BaseSettings):
                 f"Invalid OV_CONFIG JSON format: {v}. Using default configuration."
             )
             return None
+
+    @field_validator("VLM_TELEMETRY_MAX_RECORDS", mode="before")
+    @classmethod
+    def validate_telemetry_max_records(cls, v: Any) -> int:
+        if v in (None, ""):
+            return 100
+        try:
+            value = int(v)
+        except (ValueError, TypeError):
+            _temp_logger.warning(
+                f"Invalid VLM_TELEMETRY_MAX_RECORDS '{v}'. Using default 100."
+            )
+            return 100
+        if value <= 0:
+            _temp_logger.warning(
+                f"VLM_TELEMETRY_MAX_RECORDS must be positive; received {value}. Using default 100."
+            )
+            return 100
+        return value
 
     def get_ov_config_dict(self) -> Dict[str, Any]:
         """
@@ -137,6 +173,7 @@ class ModelNames:
 
     QWEN = "qwen2"
     PHI = "phi-3.5-vision"
+    SMOLVLM = "smolvlm"
 
 
 settings = Settings()
@@ -160,7 +197,7 @@ class GunicornStyleFormatter(logging.Formatter):
 
     def format(self, record):
         # Get current time in UTC with timezone info
-        utc_time = datetime.utcnow()
+        utc_time = datetime.now(timezone.utc)
         timestamp = utc_time.strftime("[%Y-%m-%d %H:%M:%S +0000]")
 
         # Get process ID
@@ -179,6 +216,7 @@ logging.basicConfig(
     level=get_log_level(),
     format="%(message)s",  # We'll handle formatting in our custom formatter
     handlers=[logging.StreamHandler()],
+    force=True,
 )
 
 # Apply custom formatter to all handlers

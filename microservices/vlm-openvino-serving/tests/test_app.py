@@ -158,10 +158,10 @@ def test_safe_generate_calls_restart_server(mock_restart_server):
 
 
 @mock.patch(
-    "src.app.OVModelForVisualCausalLM.from_pretrained",
+    "src.app.ov_genai.VLMPipeline",
     side_effect=RuntimeError("Model loading error"),
 )
-def test_initialize_model_model_loading_error(mock_from_pretrained):
+def test_initialize_model_model_loading_error(mock_pipeline):
     from src.app import initialize_model
 
     # Mock settings to match the PHI model condition
@@ -260,13 +260,11 @@ def test_get_device_info_error(mock_get_device_property):
     "src.app.load_model_config",
     return_value={"min_pixels": "256", "max_pixels": "1024"},
 )
-@mock.patch(
-    "src.app.OVModelForVisualCausalLM.from_pretrained", return_value=mock.Mock()
-)
+@mock.patch("src.app.ov_genai.VLMPipeline", return_value=mock.Mock())
 @mock.patch("src.app.AutoProcessor.from_pretrained", return_value=mock.Mock())
 @mock.patch("src.app.is_model_ready", return_value=True)
 def test_initialize_model_qwen(
-    mock_is_model_ready, mock_processor, mock_model, mock_load_model_config
+    mock_is_model_ready, mock_processor, mock_pipeline, mock_load_model_config
 ):
     from src.app import initialize_model
 
@@ -274,25 +272,23 @@ def test_initialize_model_qwen(
         initialize_model()
 
         # Assert that the model and processor were initialized
-        mock_model.assert_called_once()
+        mock_pipeline.assert_called_once()
         mock_processor.assert_called_once()
         mock_is_model_ready.assert_called_once()
         mock_load_model_config.assert_called_once_with("qwen2.5-vl-7b-instruct")
 
 
-@mock.patch(
-    "src.app.OVModelForVisualCausalLM.from_pretrained", return_value=mock.Mock()
-)
+@mock.patch("src.app.ov_genai.VLMPipeline", return_value=mock.Mock())
 @mock.patch("src.app.AutoProcessor.from_pretrained", return_value=mock.Mock())
 @mock.patch("src.app.is_model_ready", return_value=True)
-def test_initialize_model_phi(mock_is_model_ready, mock_processor, mock_model):
+def test_initialize_model_phi(mock_is_model_ready, mock_processor, mock_pipeline):
     from src.app import initialize_model
 
     with mock.patch("src.app.settings.VLM_MODEL_NAME", "phi-3.5-vision"):
         initialize_model()
 
         # Assert that the model and processor were initialized
-        mock_model.assert_called_once()
+        mock_pipeline.assert_called_once()
         mock_processor.assert_called_once()
         mock_is_model_ready.assert_called_once()
 

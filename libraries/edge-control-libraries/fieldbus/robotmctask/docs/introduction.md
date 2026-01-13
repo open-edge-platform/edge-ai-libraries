@@ -23,11 +23,11 @@ Two key blocks have been introduced to support the core architecture:
     - **EtherCAT Integration:** Creates motion function blocks to operate EtherCAT slaves using ENI configurations
     - **Network Topology Support:** Handles slave configurations and network topology definitions
     - **Flexible Memory Management:** Supports custom shared memory callbacks for data restructuring between real-time and non-real-time domains
-    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks
+    - **AI Pipeline Integration:** Enables AI inference callback registration within real-time tasks, facilitating seamless AI model integration into motion control workflows, and supports running inference on NPU device within real-time constraints.
 
 * **libinference** is a shared library offering advanced inference capabilities with:
     - **Modern C++ Interface:** New C++ classes for streamlined inference implementation
-    - **Reinforcement Learning Support：** Integrated RL classes optimized for robotic applications. To facilitate quick demonstrations of code functionality, provide a stable-standing ONNX model based on real robot. This model maintains whole-body balance by controlling the lower limbs while the upper body performs hand movements. Such a model enables humanoid robots to remain stable through reinforcement learning when the upper limbs are engaged in VLA tasks.
+    - **Reinforcement Learning Support:** Integrated RL classes optimized for robotic applications. To facilitate quick demonstrations of code functionality, provides a stable-standing ONNX model based on real robot, running inference on an NPU device. This model maintains whole-body balance by controlling the lower limbs while the upper body performs hand movements. Such a model enables humanoid robots to remain stable through reinforcement learning when the upper limbs are engaged in VLA tasks.
     - **Performance Analytics:** Built-in statistical collection for performance monitoring
     - **Intel OpenVINO integration:** Default inference engine with extensible architecture
     - **Extensible Design:** Bases classes enabling custom AI model development
@@ -61,6 +61,8 @@ A comprehensive demonstration showcasing:
         - Leg control systems
     - **Dual Arm Integration:** Joint state publishing via shared memory for VLA(Vision-Language-Action) models or simulator integration
     - **Custom Motion Algorithms:** Leg control with registered callbacks for customized motion algorithms and inference pipelines
+
+![robot_rviz](images/robot_rviz.gif)
 
 ## License
 

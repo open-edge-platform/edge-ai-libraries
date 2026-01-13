@@ -322,4 +322,9 @@ RUN apt update && \
     
 RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
 
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "22.04" ]; then \
+        rm /opt/intel/dlstreamer/gstreamer/lib/libsqlite3.so* ; \
+    fi
+
 USER ${USER}
