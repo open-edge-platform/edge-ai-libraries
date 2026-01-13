@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useMetrics } from "@/features/metrics/useMetrics";
 
+export interface GpuMetrics {
+  compute?: number;
+  render?: number;
+  copy?: number;
+  video?: number;
+  videoEnhance?: number;
+  frequency?: number;
+  gpuPower?: number;
+  pkgPower?: number;
+}
+
 export interface MetricHistoryPoint {
   timestamp: number;
   fps?: number;
@@ -8,16 +19,10 @@ export interface MetricHistoryPoint {
   cpuUser?: number;
   cpuSystem?: number;
   cpuIdle?: number;
-  gpu?: number;
-  gpu1?: number;
-  gpu0Compute?: number;
-  gpu0Render?: number;
-  gpu0Video?: number;
-  gpu0VideoEnhance?: number;
-  gpu1Compute?: number;
-  gpu1Render?: number;
-  gpu1Video?: number;
-  gpu1VideoEnhance?: number;
+  cpuAvgFrequency?: number;
+  cpuTemp?: number;
+  memory?: number;
+  gpus: Record<string, GpuMetrics>;
 }
 
 const MAX_HISTORY_POINTS = 60; // Przechowuj ostatnie 60 punktów (np. 1 minuta przy 1 pomiar/s)
@@ -38,6 +43,21 @@ export const useMetricHistory = () => {
     lastUpdateRef.current = now;
 
     setHistory((prev) => {
+      const gpus: Record<string, GpuMetrics> = {};
+      metrics.availableGpuIds.forEach((gpuId) => {
+        const gpuMetric = metrics.gpuDetailedMetrics[gpuId];
+        gpus[gpuId] = {
+          compute: gpuMetric?.compute,
+          render: gpuMetric?.render,
+          copy: gpuMetric?.copy,
+          video: gpuMetric?.video,
+          videoEnhance: gpuMetric?.videoEnhance,
+          frequency: gpuMetric?.frequency,
+          gpuPower: gpuMetric?.gpuPower,
+          pkgPower: gpuMetric?.pkgPower,
+        };
+      });
+
       const newPoint: MetricHistoryPoint = {
         timestamp: now,
         fps: metrics.fps,
@@ -45,16 +65,10 @@ export const useMetricHistory = () => {
         cpuUser: metrics.cpuDetailed.user,
         cpuSystem: metrics.cpuDetailed.system,
         cpuIdle: metrics.cpuDetailed.idle,
-        gpu: metrics.gpu,
-        gpu1: metrics.gpu1,
-        gpu0Compute: metrics.gpu0Detailed.compute,
-        gpu0Render: metrics.gpu0Detailed.render,
-        gpu0Video: metrics.gpu0Detailed.video,
-        gpu0VideoEnhance: metrics.gpu0Detailed.videoEnhance,
-        gpu1Compute: metrics.gpu1Detailed.compute,
-        gpu1Render: metrics.gpu1Detailed.render,
-        gpu1Video: metrics.gpu1Detailed.video,
-        gpu1VideoEnhance: metrics.gpu1Detailed.videoEnhance,
+        cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
+        cpuTemp: metrics.cpuDetailed.temp,
+        memory: metrics.memory,
+        gpus,
       };
 
       const updated = [...prev, newPoint];
@@ -72,16 +86,11 @@ export const useMetricHistory = () => {
     metrics.cpuDetailed.user,
     metrics.cpuDetailed.system,
     metrics.cpuDetailed.idle,
-    metrics.gpu,
-    metrics.gpu1,
-    metrics.gpu0Detailed.compute,
-    metrics.gpu0Detailed.render,
-    metrics.gpu0Detailed.video,
-    metrics.gpu0Detailed.videoEnhance,
-    metrics.gpu1Detailed.compute,
-    metrics.gpu1Detailed.render,
-    metrics.gpu1Detailed.video,
-    metrics.gpu1Detailed.videoEnhance,
+    metrics.cpuDetailed.avgFrequency,
+    metrics.cpuDetailed.temp,
+    metrics.memory,
+    metrics.availableGpuIds,
+    metrics.gpuDetailedMetrics,
   ]);
 
   return history;

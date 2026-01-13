@@ -99,12 +99,25 @@ export const selectCpuMetric = (state: RootState) =>
     | number
     | undefined;
 
+export const selectMemoryMetric = (state: RootState) =>
+  state.metrics.metrics.find((m) => m.name === "mem")?.fields?.used_percent as
+    | number
+    | undefined;
+
 export const selectCpuMetrics = (state: RootState) => {
   const cpuMetric = state.metrics.metrics.find((m) => m.name === "cpu");
+  const cpuFrequencyMetric = state.metrics.metrics.find(
+    (m) => m.name === "cpu_frequency_avg",
+  );
+  const cpuTempMetric = state.metrics.metrics.find(
+    (m) => m.name === "temp" && m.tags?.sensor?.includes("coretemp_package_id"),
+  );
   return {
     user: (cpuMetric?.fields?.usage_user as number) ?? 0,
-    system: (cpuMetric?.fields?.usage_system as number) ?? 0,
     idle: (cpuMetric?.fields?.usage_idle as number) ?? 0,
+    avgFrequency:
+      ((cpuFrequencyMetric?.fields?.frequency as number) ?? 0) / 1000000, // Convert kHz to GHz
+    temp: cpuTempMetric?.fields?.temp as number | undefined,
   };
 };
 
@@ -113,27 +126,58 @@ export const selectGpuMetric = (state: RootState) =>
     (m) =>
       m.name === "gpu_engine_usage" &&
       ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      m.tags?.gpu_id === "0"
+      m.tags?.gpu_id === "0",
   )?.fields?.usage as number | undefined;
 
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
   const gpuMetrics = state.metrics.metrics.filter(
-    (m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id === gpuId
+    (m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id === gpuId,
   );
 
+  const gpuFrequencyMetric = state.metrics.metrics.find(
+    (m) => m.name === "gpu_frequency" && m.tags?.gpu_id === gpuId,
+  );
+
+  const gpuPowerMetrics = state.metrics.metrics.filter(
+    (m) => m.name === "gpu_power" && m.tags?.gpu_id === gpuId,
+  );
+
+  // Map short engine names to long names
+  const engineNameMap: Record<string, string> = {
+    rcs: "render",
+    bcs: "copy",
+    vcs: "video",
+    vecs: "video-enhance",
+    ccs: "compute",
+  };
+
+  const findEngineUsage = (engineNames: string[]) => {
+    const metric = gpuMetrics.find((m) => {
+      const engine = m.tags?.engine ?? "";
+      return (
+        engineNames.includes(engine) ||
+        engineNames.includes(engineNameMap[engine] ?? engine)
+      );
+    });
+    return metric ? (metric.fields?.usage as number | undefined) : undefined;
+  };
+
+  const findPowerValue = (powerType: string) => {
+    const metric = gpuPowerMetrics.find((m) => m.tags?.type === powerType);
+    return metric ? (metric.fields?.value as number | undefined) : undefined;
+  };
+
   return {
-    compute:
-      (gpuMetrics.find((m) => m.tags?.engine === "compute")?.fields
-        ?.usage as number) ?? 0,
-    render:
-      (gpuMetrics.find((m) => m.tags?.engine === "render")?.fields
-        ?.usage as number) ?? 0,
-    video:
-      (gpuMetrics.find((m) => m.tags?.engine === "video")?.fields
-        ?.usage as number) ?? 0,
-    videoEnhance:
-      (gpuMetrics.find((m) => m.tags?.engine === "video-enhance")?.fields
-        ?.usage as number) ?? 0,
+    compute: findEngineUsage(["compute", "ccs"]),
+    render: findEngineUsage(["render", "rcs"]),
+    copy: findEngineUsage(["copy", "bcs"]),
+    video: findEngineUsage(["video", "vcs"]),
+    videoEnhance: findEngineUsage(["video-enhance", "vecs"]),
+    frequency: gpuFrequencyMetric?.fields?.value
+      ? (gpuFrequencyMetric.fields.value as number) / 1000
+      : undefined,
+    gpuPower: findPowerValue("gpu_cur_power"),
+    pkgPower: findPowerValue("pkg_cur_power"),
   };
 };
 
@@ -143,7 +187,7 @@ export const selectGpu1Metric = (state: RootState) =>
       m.name === "gpu_engine_usage" &&
       ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
       m.tags?.gpu_id === "1" &&
-      (m.fields.usage as number) > 0
+      (m.fields.usage as number) > 0,
   )?.fields?.usage as number | undefined;
 
 export default metrics.reducer;
