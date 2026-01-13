@@ -53,11 +53,11 @@ const Pipelines = () => {
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
-    null
+    null,
   );
   const [validationJobId, setValidationJobId] = useState<string | null>(null);
   const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
-    null
+    null,
   );
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [pendingOptimizationNodes, setPendingOptimizationNodes] = useState<
@@ -73,7 +73,7 @@ const Pipelines = () => {
     },
     {
       skip: !id,
-    }
+    },
   );
 
   const [runPerformanceTest, { isLoading: isRunning }] =
@@ -89,7 +89,7 @@ const Pipelines = () => {
     {
       skip: !performanceTestJobId,
       pollingInterval: 1000,
-    }
+    },
   );
 
   const { data: validationStatus, error: validationError } =
@@ -98,7 +98,7 @@ const Pipelines = () => {
       {
         skip: !validationJobId,
         pollingInterval: 1000,
-      }
+      },
     );
 
   const { data: optimizationStatus, error: optimizationError } =
@@ -107,7 +107,7 @@ const Pipelines = () => {
       {
         skip: !optimizationJobId,
         pollingInterval: 1000,
-      }
+      },
     );
 
   useEffect(() => {
@@ -283,7 +283,7 @@ const Pipelines = () => {
             type: node.type,
             data: node.data,
             position: { x: 250 * index, y: 100 }, // Basic horizontal layout
-          })
+          }),
         );
 
         const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
@@ -451,7 +451,7 @@ const Pipelines = () => {
     nodes: ReactFlowNode[],
     edges: ReactFlowEdge[],
     viewport: Viewport,
-    shouldFitView: boolean
+    shouldFitView: boolean,
   ) => {
     setCurrentNodes(nodes);
     setCurrentEdges(edges);

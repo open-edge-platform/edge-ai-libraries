@@ -49,7 +49,7 @@ const DensityTests = () => {
     {
       skip: !jobId,
       pollingInterval: 1000,
-    }
+    },
   );
 
   useEffect(() => {
@@ -85,7 +85,7 @@ const DensityTests = () => {
   const handleAddPipeline = () => {
     const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
     const availablePipeline = pipelines.find(
-      (pipeline) => !usedPipelineIds.includes(pipeline.id)
+      (pipeline) => !usedPipelineIds.includes(pipeline.id),
     );
     if (availablePipeline) {
       setPipelineSelections((prev) => [
@@ -101,8 +101,8 @@ const DensityTests = () => {
           prev.map((sel) =>
             sel.pipelineId === availablePipeline.id
               ? { ...sel, isNew: false }
-              : sel
-          )
+              : sel,
+          ),
         );
       }, 300);
     }
@@ -112,12 +112,12 @@ const DensityTests = () => {
     if (pipelineSelections.length > 1) {
       setPipelineSelections((prev) =>
         prev.map((sel) =>
-          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel
-        )
+          sel.pipelineId === pipelineId ? { ...sel, isRemoving: true } : sel,
+        ),
       );
       setTimeout(() => {
         setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId)
+          prev.filter((sel) => sel.pipelineId !== pipelineId),
         );
       }, 300);
     }
@@ -125,22 +125,22 @@ const DensityTests = () => {
 
   const handlePipelineChange = (
     oldPipelineId: string,
-    newPipelineId: string
+    newPipelineId: string,
   ) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
         sel.pipelineId === oldPipelineId
           ? { ...sel, pipelineId: newPipelineId }
-          : sel
-      )
+          : sel,
+      ),
     );
   };
 
   const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
     setPipelineSelections((prev) =>
       prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel
-      )
+        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
+      ),
     );
   };
 
@@ -216,8 +216,8 @@ const DensityTests = () => {
                         (pipeline) =>
                           pipeline.id === selection.pipelineId ||
                           !pipelineSelections.some(
-                            (sel) => sel.pipelineId === pipeline.id
-                          )
+                            (sel) => sel.pipelineId === pipeline.id,
+                          ),
                       )
                       .map((pipeline) => (
                         <option key={pipeline.id} value={pipeline.id}>
@@ -411,7 +411,7 @@ const DensityTests = () => {
                               )}
                             </div>
                           );
-                        }
+                        },
                       )}
                     </div>
                   </div>
