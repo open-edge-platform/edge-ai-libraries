@@ -59,7 +59,7 @@ const Home = () => {
       pipelines: Record<string, Pipeline>;
       id: string;
       description: string;
-    }>
+    }>,
   );
 
   if (pipelines.length > 0) {

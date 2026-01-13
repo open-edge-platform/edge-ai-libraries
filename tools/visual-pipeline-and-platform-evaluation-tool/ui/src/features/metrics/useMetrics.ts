@@ -16,7 +16,7 @@ export const useMetrics = () => {
     fps: fps ?? 0,
     cpu: cpu ?? 0,
     gpu: gpu ?? 0,
-    gpus,
+    gpus: gpus ?? [],
     npu: 0,
   };
 };

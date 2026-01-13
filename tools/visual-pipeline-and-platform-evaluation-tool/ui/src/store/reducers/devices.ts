@@ -46,13 +46,13 @@ export const selectDeviceByFamily = (state: RootState, deviceFamily: string) =>
   selectDevices(state).find((device) => device.device_family === deviceFamily);
 
 export const selectHasNPU = createSelector([selectDevices], (devices) =>
-  devices.some((device) => device.device_family === "NPU")
+  devices.some((device) => device.device_family === "NPU"),
 );
 
 export const selectGpuDevices = createSelector([selectDevices], (devices) =>
   devices
     .filter((device) => device.device_family === "GPU")
-    .sort((a, b) => a.device_name.localeCompare(b.device_name))
+    .sort((d1, d2) => d1.device_name.localeCompare(d2.device_name)),
 );
 
 export default devicesSlice.reducer;
