@@ -1,4 +1,6 @@
+import copy
 import logging
+import os
 import re
 from collections import defaultdict
 from collections.abc import Iterator
@@ -21,6 +23,13 @@ labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
 model_proc_manager = get_public_model_proc_manager()
 
+# Configuration for Simple View: comma-separated regex patterns for visible elements.
+# All elements matching these patterns will be shown in Simple View.
+# All other elements (including caps nodes) will be hidden and their edges reconnected.
+SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
+    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink"
+)
+
 
 # Internal reserved key used to mark special node kinds inside Node.data.
 # We cannot extend the public Node schema with a new top-level field, so we
@@ -28,6 +37,23 @@ model_proc_manager = get_public_model_proc_manager()
 # in a special way.
 NODE_KIND_KEY = "__node_kind"
 NODE_KIND_CAPS = "caps"
+
+
+@dataclass
+class _Token:
+    """
+    Internal token representation used when parsing non-caps segments.
+
+    kind:
+        TYPE      – Element type token (for example "filesrc", "gvadetect").
+        PROPERTY  – Element property in 'key=value' form.
+        TEE_END   – Tee branch endpoint in the form 't.' where 't' is tee name.
+        SKIP      – Whitespace (filtered out before emitting tokens).
+        MISMATCH  – Any unrecognized character sequence (treated as an error).
+    """
+
+    kind: str | None
+    value: str
 
 
 @dataclass
@@ -255,9 +281,8 @@ class Graph:
         logger.debug(f"Nodes:\n{self.nodes}")
         logger.debug(f"Edges:\n{self.edges}")
 
-        # Work on a shallow copy of nodes so we do not mutate the original
-        # graph stored in the database.
-        nodes = self.nodes[:]
+        # Work on a deep copy of nodes to avoid mutating the original graph.
+        nodes = copy.deepcopy(self.nodes)
         _validate_models_supported_on_devices(nodes)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
@@ -367,22 +392,168 @@ class Graph:
 
         return input_filenames
 
+    def to_simple_view(self) -> "Graph":
+        """
+        Generate a simplified view of the pipeline graph by filtering out technical elements.
 
-@dataclass
-class _Token:
+        This function creates a new graph that shows only "meaningful" elements (sources,
+        inference, outputs) while hiding technical plumbing elements (queues, converters, etc.).
+
+        Algorithm:
+          1. Identify which nodes should be visible based on SIMPLE_VIEW_VISIBLE_ELEMENTS patterns
+          2. Build a mapping of edges to traverse through hidden nodes
+          3. Create new graph with only visible nodes
+          4. Reconnect edges: if A→hidden→hidden→B, create direct edge A→B
+          5. Handle tee branches: preserve branching structure even when tee itself is hidden
+
+        Important invariants:
+          * Visible node IDs are preserved from the original graph
+          * Edge IDs are regenerated sequentially in the new graph
+          * Caps nodes (marked with __node_kind="caps") are always hidden
+          * If all nodes in a path are hidden, the edge is dropped
+          * Tee branch structure is maintained when tee has visible downstream nodes
+
+        Returns:
+            Graph: A new simplified graph with only visible elements
+        """
+        logger.debug("Generating simple view from advanced graph")
+        logger.debug(f"Visible element patterns: {SIMPLE_VIEW_VISIBLE_ELEMENTS}")
+
+        # Parse the comma-separated patterns into a list
+        visible_patterns = [
+            pattern.strip() for pattern in SIMPLE_VIEW_VISIBLE_ELEMENTS.split(",")
+        ]
+
+        # Determine which nodes should be visible in simple view
+        visible_node_ids = set()
+        for node in self.nodes:
+            if _is_node_visible(node, visible_patterns):
+                visible_node_ids.add(node.id)
+                logger.debug(f"Node {node.id} ({node.type}) is visible in simple view")
+            else:
+                logger.debug(f"Node {node.id} ({node.type}) is hidden in simple view")
+
+        # Build adjacency map for traversing the graph
+        edges_from: dict[str, list[str]] = defaultdict(list)
+        for edge in self.edges:
+            edges_from[edge.source].append(edge.target)
+
+        # Create new graph with only visible nodes (preserving their IDs)
+        # Sort nodes by their numeric IDs to ensure consistent ordering
+        simple_nodes = [node for node in self.nodes if node.id in visible_node_ids]
+        simple_nodes.sort(key=lambda node: int(node.id))
+
+        # Generate new edges by traversing through hidden nodes
+        # Process visible nodes in sorted order by their numeric IDs to ensure consistent edge ordering
+        simple_edges: list[Edge] = []
+        edge_id = 0
+
+        # Sort visible node IDs numerically to process them in order
+        sorted_visible_node_ids = sorted(visible_node_ids, key=lambda x: int(x))
+
+        for visible_node_id in sorted_visible_node_ids:
+            # Find all visible downstream nodes by traversing through hidden nodes
+            visible_targets = _find_visible_targets(
+                visible_node_id, edges_from, visible_node_ids
+            )
+
+            # Sort target IDs to ensure consistent edge ordering
+            sorted_visible_targets = sorted(visible_targets, key=lambda x: int(x))
+
+            # Create direct edges from this visible node to all visible targets
+            for target_id in sorted_visible_targets:
+                simple_edges.append(
+                    Edge(id=str(edge_id), source=visible_node_id, target=target_id)
+                )
+                logger.debug(
+                    f"Created simple view edge: {visible_node_id} -> {target_id} (id={edge_id})"
+                )
+                edge_id += 1
+
+        logger.debug(
+            f"Simple view graph created with {len(simple_nodes)} nodes and {len(simple_edges)} edges"
+        )
+        return Graph(nodes=simple_nodes, edges=simple_edges)
+
+
+def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     """
-    Internal token representation used when parsing non-caps segments.
+    Determine if a node should be visible in Simple View based on pattern matching.
 
-    kind:
-        TYPE      – Element type token (for example "filesrc", "gvadetect").
-        PROPERTY  – Element property in 'key=value' form.
-        TEE_END   – Tee branch endpoint in the form 't.' where 't' is tee name.
-        SKIP      – Whitespace (filtered out before emitting tokens).
-        MISMATCH  – Any unrecognized character sequence (treated as an error).
+    A node is visible if its type matches any of the visible patterns.
+    Caps nodes (identified by __node_kind="caps" in data) are always hidden.
+
+    Args:
+        node: The node to check
+        visible_patterns: List of wildcard patterns (e.g., "*src", "gva*")
+
+    Returns:
+        bool: True if node should be visible, False if it should be hidden
     """
+    # Always hide caps nodes regardless of their type
+    if node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS:
+        return False
 
-    kind: str | None
-    value: str
+    # Check if node type matches any visible pattern
+    node_type = node.type
+    for pattern in visible_patterns:
+        # Convert wildcard pattern to regex
+        # * matches any sequence of characters
+        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
+        if re.match(regex_pattern, node_type):
+            return True
+
+    return False
+
+
+def _find_visible_targets(
+    source_id: str,
+    edges_from: dict[str, list[str]],
+    visible_node_ids: set[str],
+) -> set[str]:
+    """
+    Find all visible nodes reachable from source_id by traversing through hidden nodes.
+
+    This function performs a breadth-first search starting from source_id,
+    skipping over hidden nodes, and collecting all visible nodes encountered.
+
+    Algorithm:
+      1. Start from the immediate children of source_id
+      2. For each child:
+         - If visible, add to results
+         - If hidden, recursively explore its children
+      3. Use visited set to avoid infinite loops in case of cycles
+
+    Args:
+        source_id: Starting node ID
+        edges_from: Adjacency map (node_id -> list of target node IDs)
+        visible_node_ids: Set of node IDs that are visible in simple view
+
+    Returns:
+        set[str]: Set of visible node IDs reachable from source_id
+    """
+    visible_targets: set[str] = set()
+    visited: set[str] = set()
+
+    # Queue for breadth-first search: stores node IDs to explore
+    queue: list[str] = list(edges_from.get(source_id, []))
+
+    while queue:
+        current_id = queue.pop(0)
+
+        # Skip if already visited (avoid infinite loops)
+        if current_id in visited:
+            continue
+        visited.add(current_id)
+
+        if current_id in visible_node_ids:
+            # Found a visible node - add to results
+            visible_targets.add(current_id)
+        else:
+            # Hidden node - continue traversing through its children
+            queue.extend(edges_from.get(current_id, []))
+
+    return visible_targets
 
 
 def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:

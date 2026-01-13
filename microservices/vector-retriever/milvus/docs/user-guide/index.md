@@ -53,6 +53,7 @@ Key Features:
 :hidden:
 
 get-started
+system-requirements
 api-reference
 release-notes
 
