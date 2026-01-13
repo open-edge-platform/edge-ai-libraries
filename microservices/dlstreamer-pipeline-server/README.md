@@ -173,12 +173,12 @@ Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreame
 ## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
 
   ```sh
-    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
+    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:2025.2.0-sources .
   ```
 
   Run the following command to view the directory structure of source code for distributed GPL/LGPL/AGPL components:
   ```sh
-    docker run intel/dlstreamer-pipeline-server:3.1.0-sources
+    docker run intel/dlstreamer-pipeline-server:2025.2.0-sources
   ```
 ---
 
