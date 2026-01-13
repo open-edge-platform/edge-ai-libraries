@@ -2298,6 +2298,8 @@ class TestGetRecommendedEncoderDevice(unittest.TestCase):
         graph = Graph(nodes=[], edges=[])
 
         self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
+
+
 class TestToSimpleView(unittest.TestCase):
     """
     Test the to_simple_view method which generates simplified graphs
