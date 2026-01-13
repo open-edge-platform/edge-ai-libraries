@@ -29,6 +29,52 @@ export const processMD = (message: string): string => {
   return message;
 };
 
+/**
+ * Formats a date into yyyyMMdd_HHmm format
+ * @param date - The date to format
+ * @returns Formatted date string
+ */
+export const formatDateForFilename = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}${month}${day}_${hours}${minutes}`;
+};
+
+/**
+ * Sanitizes a string for use in filenames
+ * @param str - The string to sanitize
+ * @returns Sanitized string
+ */
+export const sanitizeFilename = (str: string): string => {
+  return str.replace(/[^a-z0-9_-]/gi, '_');
+};
+
+/**
+ * Downloads text content as a Markdown file
+ * @param content - The text content to download
+ * @param filename - The name of the file to download
+ * @throws Error if download fails
+ */
+export const downloadTextFile = (content: string, filename: string): void => {
+  try {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Download failed:', error);
+    throw new Error('Failed to download file. Please try again.');
+  }
+};
+
 // Decode \x hexadecimal encoding
 export const decodeEscapedBytes = (str: string): string => {
   const byteArray: number[] = str

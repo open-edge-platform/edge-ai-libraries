@@ -1,21 +1,21 @@
-import { Slider } from "@/components/ui/slider";
+import { Slider } from "@/components/ui/slider.tsx";
 
-interface ParticipationSliderProps {
+interface StreamsSliderProps {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
 }
 
-export const ParticipationSlider = ({
+export const StreamsSlider = ({
   value,
   onChange,
-  min = 0,
-  max = 100,
-}: ParticipationSliderProps) => {
+  min = 1,
+  max = 64,
+}: StreamsSliderProps) => {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-gray-600 min-w-[2ch] text-center">
+      <span className="text-sm text-muted-foreground min-w-[2ch] text-center">
         {min}
       </span>
       <Slider
@@ -26,7 +26,7 @@ export const ParticipationSlider = ({
         step={1}
         className="flex-1"
       />
-      <span className="text-sm text-gray-600 min-w-[3ch] text-center">
+      <span className="text-sm text-muted-foreground min-w-[3ch] text-center">
         {max}
       </span>
       <input
@@ -40,10 +40,10 @@ export const ParticipationSlider = ({
         }}
         min={min}
         max={max}
-        className="w-[4rem] px-2 py-1 text-sm font-medium text-center border"
+        className="w-[4rem] px-2 py-1 text-sm font-medium border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        style={{ textAlign: "center" }}
         disabled={true}
       />
-      <span className="text-sm text-gray-600">%</span>
     </div>
   );
 };
