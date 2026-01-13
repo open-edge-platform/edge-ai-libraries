@@ -39,10 +39,57 @@ async def startup_event():
     watcher_thread.start()
 
 
+class TimeRange(BaseModel):
+    start: str
+    end: str
+
+
 class QueryRequest(BaseModel):
     query_id: str
     query: str
     tags: Optional[list[str]] = None
+    time_filter: Optional[TimeRange] = None
+
+
+def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
+    """Convert explicit start/end into VDMS constraint dict."""
+    if not time_filter or not time_filter.start or not time_filter.end:
+        return None
+    return {property_name: [">=", time_filter.start, "<=", time_filter.end]}
+
+
+def _build_tag_filter(tags: Optional[list[str]]) -> Optional[dict]:
+    """Build VDMS tag filter; prefers contains semantics and supports OR across tags."""
+    if not tags:
+        return None
+    cleaned = [t for t in tags if t]
+    if not cleaned:
+        return None
+    if len(cleaned) == 1:
+        return {"tags": ["contains", cleaned[0]]}
+    return {"or": [{"tags": ["contains", tag]} for tag in cleaned]}
+
+
+def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
+    """Return (vdms_filter, effective_time_filter) combining explicit + parsed time and tag filters."""
+    explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
+    parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
+    effective_time_filter = explicit_time_filter or parsed_time_filter
+
+    tag_filter = _build_tag_filter(query_request.tags)
+
+    filters: list[dict] = []
+    if effective_time_filter:
+        filters.append(effective_time_filter)
+    if tag_filter:
+        filters.append(tag_filter)
+
+    if not filters:
+        return None, None
+    if len(filters) == 1:
+        return filters[0], effective_time_filter
+
+    return {"and": filters}, effective_time_filter
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -139,12 +186,14 @@ async def query_endpoint(request: list[QueryRequest]):
             )
             logger.debug(f"Query tags: {query_request.tags}")
 
-            # Derive optional time range filter from the natural-language query
-            vdms_filter = build_vdms_time_filter(query_request.query)
-            if vdms_filter:
-                logger.info(f"Applying time filter to VDMS query: {vdms_filter}")
+            # Build combined VDMS filter from explicit time_filter + tags, with fallback to NLP time parsing
+            vdms_filter, applied_time_filter = build_combined_vdms_filter(query_request)
+            if applied_time_filter:
+                logger.info(f"Applying time filter to VDMS query: {applied_time_filter}")
             else:
-                logger.debug("No time filter derived from query text")
+                logger.debug("No explicit or derived time filter applied")
+            if query_request.tags:
+                logger.info(f"Applying tag filter to VDMS query: {query_request.tags}")
 
             # Get more initial results for aggregation (before filtering)
             initial_k = getattr(
