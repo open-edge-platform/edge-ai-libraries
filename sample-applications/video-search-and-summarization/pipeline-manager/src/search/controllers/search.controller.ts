@@ -53,7 +53,7 @@ export class SearchController {
         tags = reqBody.tags.split(',').map((tag) => tag.trim());
       }
 
-      const query = await this.$search.newQuery(searchQuery, tags);
+      const query = await this.$search.newQuery(searchQuery, tags, reqBody.timeFilter);
       return query;
     } catch (error) {
       Logger.error('Error adding query', error);
@@ -62,17 +62,21 @@ export class SearchController {
   }
 
   @Post(':queryId/refetch')
-  async refetchQuery(@Param() params: { queryId: string }) {
-    const res = await this.$search.reRunQuery(params.queryId);
+  async refetchQuery(@Param() params: { queryId: string }, @Body() body?: { timeFilter?: SearchQueryDTO['timeFilter'] }) {
+    const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
     return res;
   }
 
   @Post('query')
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
+    const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const queryShim: SearchShimQuery = {
       query: reqBody.query,
       query_id: uuidV4(),
     };
+    if (normalized.range) {
+      queryShim.time_filter = normalized.range;
+    }
     const res = await lastValueFrom(this.$searchShim.search([queryShim]));
     return res.data;
   }

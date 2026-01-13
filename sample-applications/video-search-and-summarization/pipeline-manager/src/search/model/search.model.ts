@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 
+export type TimeFilterUnit = 'minutes' | 'hours' | 'days' | 'weeks';
+
+export interface TimeFilterSelection {
+  value?: number;
+  unit?: TimeFilterUnit;
+  start?: string;
+  end?: string;
+  source?: string;
+}
+
 export interface SearchQueryDTO {
   query: string;
   tags?: string;
+  timeFilter?: TimeFilterSelection | null;
 }
 
 export enum SearchQueryStatus {
@@ -17,6 +28,7 @@ export interface SearchShimQuery {
   query_id: string;
   query: string;
   tags?: string[];
+  time_filter?: { start: string; end: string };
 }
 
 export interface SearchResultRO {
@@ -68,6 +80,7 @@ export interface SearchQuery {
   results: SearchResult[];
   queryStatus: SearchQueryStatus;
   tags: string[];
+  timeFilter?: TimeFilterSelection | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
