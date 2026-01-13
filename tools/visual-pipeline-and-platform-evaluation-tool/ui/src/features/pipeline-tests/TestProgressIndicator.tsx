@@ -13,8 +13,10 @@ interface MetricCardProps {
 }
 
 const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-white rounded-lg shadow-md p-4 flex items-center space-x-3">
-    <div className="shrink-0 p-2 bg-blue-100 rounded-lg">{icon}</div>
+  <div className="bg-white shadow-md p-4 flex items-center space-x-3">
+    <div className="shrink-0 p-2 bg-classic-blue/5 dark:bg-blue-steel-shade-1">
+      {icon}
+    </div>
     <div>
       <h3 className="text-sm font-medium text-gray-900">{title}</h3>
       <p className="text-2xl font-bold text-gray-900">
@@ -34,11 +36,11 @@ export const TestProgressIndicator = ({
 }: TestProgressIndicatorProps) => {
   const { fps, cpu, gpu, gpu1 } = useMetrics();
   const history = useMetricHistory();
-  const [selectedGpu, setSelectedGpu] = useState<0 | 1>(0);
+  const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
-  const hasGpu1 = gpu1 > 0;
+  // MOCK
+  const availableGpus = [0, 1, 2];
 
-  // Dane dla wykresu FPS
   const fpsData = useMemo(
     () =>
       history.map((point) => ({
@@ -48,106 +50,106 @@ export const TestProgressIndicator = ({
     [history]
   );
 
-  // Dane dla wykresu CPU
   const cpuData = useMemo(
     () =>
       history.map((point) => ({
         timestamp: point.timestamp,
-        value: point.cpu ?? 0,
+        user: point.cpuUser ?? 0,
+        system: point.cpuSystem ?? 0,
       })),
     [history]
   );
 
-  // Dane dla wykresu GPU - może pokazywać wiele metryk
   const gpuData = useMemo(() => {
-    if (hasGpu1) {
-      // Jeśli mamy dwa GPU, pokaż wybrane albo oba
+    if (selectedGpu === 0) {
       return history.map((point) => ({
         timestamp: point.timestamp,
-        gpu0: point.gpu ?? 0,
-        gpu1: point.gpu1 ?? 0,
+        compute: point.gpu0Compute ?? 0,
+        render: point.gpu0Render ?? 0,
+        video: point.gpu0Video ?? 0,
       }));
     } else {
-      // Jeśli tylko jedno GPU
       return history.map((point) => ({
         timestamp: point.timestamp,
-        value: point.gpu ?? 0,
+        compute: point.gpu1Compute ?? 0,
+        render: point.gpu1Render ?? 0,
+        video: point.gpu1Video ?? 0,
       }));
     }
-  }, [history, hasGpu1]);
+  }, [history, selectedGpu]);
 
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-        {/* Kolumna FPS */}
         <div className="space-y-4">
           <MetricCard
             title="Frame Rate"
             value={fps}
             unit="fps"
-            icon={<Gauge className="h-6 w-6 text-blue-600" />}
+            icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
           />
           <MetricChart
             title="Frame Rate Over Time"
             data={fpsData}
             dataKeys={["value"]}
-            colors={["hsl(217, 91%, 60%)"]}
+            colors={["var(--color-magenta-chart)"]}
             unit=" fps"
             yAxisDomain={[0, Math.max(...fpsData.map((d) => d.value), 60)]}
           />
         </div>
 
-        {/* Kolumna CPU */}
         <div className="space-y-4">
           <MetricCard
             title="CPU Usage"
             value={cpu}
             unit="%"
-            icon={<Cpu className="h-6 w-6 text-green-600" />}
+            icon={<Cpu className="h-6 w-6 text-green-chart" />}
           />
           <MetricChart
             title="CPU Usage Over Time"
             data={cpuData}
-            dataKeys={["value"]}
-            colors={["hsl(142, 71%, 45%)"]}
+            dataKeys={["user", "system"]}
+            colors={["var(--color-green-chart)", "var(--color-red-chart)"]}
             unit="%"
             yAxisDomain={[0, 100]}
           />
         </div>
 
-        {/* Kolumna GPU */}
         <div className="space-y-4">
           <MetricCard
             title="GPU Usage"
-            value={selectedGpu === 0 ? gpu : gpu1}
+            value={selectedGpu === 0 ? gpu : (gpu1 ?? 0)}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-purple-600" />}
           />
-          <div>
-            <GpuSelector
-              hasGpu1={hasGpu1}
-              selectedGpu={selectedGpu}
-              onGpuChange={setSelectedGpu}
-            />
-            {hasGpu1 ? (
-              <MetricChart
-                title="GPU Usage Over Time"
-                data={gpuData}
-                dataKeys={["gpu0", "gpu1"]}
-                colors={["hsl(271, 81%, 56%)", "hsl(280, 65%, 60%)"]}
-                unit="%"
-                yAxisDomain={[0, 100]}
-              />
-            ) : (
-              <MetricChart
-                title="GPU Usage Over Time"
-                data={gpuData}
-                dataKeys={["value"]}
-                colors={["hsl(271, 81%, 56%)"]}
-                unit="%"
-                yAxisDomain={[0, 100]}
-              />
-            )}
+          <div className="bg-white shadow-md p-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              GPU {selectedGpu} Usage Over Time
+            </h3>
+            <div className="flex gap-4 items-stretch -mt-3">
+              <div className="flex">
+                <GpuSelector
+                  availableGpus={availableGpus}
+                  selectedGpu={selectedGpu}
+                  onGpuChange={setSelectedGpu}
+                />
+              </div>
+              <div className="flex-1">
+                <MetricChart
+                  title=""
+                  data={gpuData}
+                  dataKeys={["compute", "render", "video"]}
+                  colors={[
+                    "var(--color-purple-chart)",
+                    "var(--color-yellow-chart)",
+                    "var(--color-orange-chart)",
+                  ]}
+                  unit="%"
+                  yAxisDomain={[0, 100]}
+                  className="!shadow-none !p-0"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1,47 +1,33 @@
-import { useState } from "react";
-import { Gpu } from "lucide-react";
-
 interface GpuSelectorProps {
-  hasGpu1: boolean;
-  onGpuChange: (gpuId: 0 | 1) => void;
-  selectedGpu: 0 | 1;
+  availableGpus: number[];
+  onGpuChange: (gpuId: number) => void;
+  selectedGpu: number;
 }
 
 export const GpuSelector = ({
-  hasGpu1,
+  availableGpus,
   onGpuChange,
   selectedGpu,
 }: GpuSelectorProps) => {
-  if (!hasGpu1) {
+  if (availableGpus.length <= 1) {
     return null;
   }
 
   return (
-    <div className="flex items-center gap-2 mb-2">
-      <Gpu className="h-4 w-4 text-purple-600" />
-      <span className="text-sm font-medium text-gray-700">GPU:</span>
-      <div className="flex gap-1">
+    <div className="flex flex-col justify-evenly h-full min-h-[200px]">
+      {availableGpus.map((gpuId) => (
         <button
-          onClick={() => onGpuChange(0)}
-          className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-            selectedGpu === 0
-              ? "bg-purple-600 text-white"
-              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          key={gpuId}
+          onClick={() => onGpuChange(gpuId)}
+          className={`py-1 text-sm font-medium transition-all text-left ${
+            selectedGpu === gpuId
+              ? "text-gray-900"
+              : "text-gray-400 hover:text-gray-600"
           }`}
         >
-          GPU 0
+          GPU {gpuId}
         </button>
-        <button
-          onClick={() => onGpuChange(1)}
-          className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-            selectedGpu === 1
-              ? "bg-purple-600 text-white"
-              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-          }`}
-        >
-          GPU 1
-        </button>
-      </div>
+      ))}
     </div>
   );
 };

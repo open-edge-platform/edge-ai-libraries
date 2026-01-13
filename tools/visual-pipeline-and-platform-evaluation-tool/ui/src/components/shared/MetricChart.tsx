@@ -3,6 +3,8 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
@@ -56,7 +58,7 @@ export const MetricChart = ({
   }, [data]);
 
   return (
-    <div className={`bg-white rounded-lg shadow-md p-4 ${className}`}>
+    <div className={`bg-white shadow-md p-4 ${className}`}>
       <h3 className="text-sm font-medium text-gray-900 mb-3">{title}</h3>
       <ChartContainer config={chartConfig} className="h-[200px] w-full">
         <AreaChart data={formattedData}>
@@ -80,11 +82,14 @@ export const MetricChart = ({
           <ChartTooltip
             content={
               <ChartTooltipContent
-                labelFormatter={(value) => `Czas: ${value}`}
-                formatter={(value) => `${Number(value).toFixed(2)}${unit}`}
+                labelFormatter={(value) => `Time: ${value}`}
+                formatter={(value, name) =>
+                  `${name}: ${Number(value).toFixed(2)} ${unit}`
+                }
               />
             }
           />
+          <ChartLegend content={<ChartLegendContent />} />
           {dataKeys.map((key, index) => (
             <Area
               key={key}
