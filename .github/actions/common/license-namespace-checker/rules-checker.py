@@ -13,7 +13,7 @@ import itertools
 import datetime
 from functools import reduce
 
-COPYRIGHT_YEAR = "2025"
+COPYRIGHT_YEAR = "2026"
 
 def check_copyright_year(copyright_patterns):
     def check(content):
