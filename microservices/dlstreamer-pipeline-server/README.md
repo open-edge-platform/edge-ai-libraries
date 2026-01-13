@@ -18,7 +18,7 @@
 
 ## Overview
 
-Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/index.md), providing video ingestion and deep learning inferencing functionalities.
+Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/index.md), providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
@@ -173,12 +173,12 @@ Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreame
 ## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
 
   ```sh
-    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
+    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:2025.2.0-sources .
   ```
 
   Run the following command to view the directory structure of source code for distributed GPL/LGPL/AGPL components:
   ```sh
-    docker run intel/dlstreamer-pipeline-server:3.1.0-sources
+    docker run intel/dlstreamer-pipeline-server:2025.2.0-sources
   ```
 ---
 
