@@ -203,7 +203,7 @@ const PerformanceTests = () => {
                     onChange={(e) =>
                       handlePipelineChange(selection.pipelineId, e.target.value)
                     }
-                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-white dark:bg-background"
+                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-background"
                   >
                     {pipelines
                       .filter(
@@ -295,15 +295,15 @@ const PerformanceTests = () => {
         </button>
 
         {jobId && jobStatus && (
-          <div className="my-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500"></div>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                  <div className="h-2 w-2 bg-magenta-chart"></div>
+                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
                     Running performance test...
                   </span>
                 </div>
