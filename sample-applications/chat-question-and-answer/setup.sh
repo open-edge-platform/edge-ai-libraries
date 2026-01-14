@@ -90,7 +90,7 @@ export MODEL_DOWNLOAD_BASE_URL="http://${MODEL_DOWNLOAD_HOST}:${MODEL_DOWNLOAD_P
 export MODEL_DOWNLOAD_API_URL="${MODEL_DOWNLOAD_BASE_URL}models/download"
 
 # Setup no_proxy
-export no_proxy=${no_proxy},minio-server,data-store,vllm-service,text-generation,tei-embedding-service,ovms-service,reranker,openvino-embedding,model-download,10.223.24.113,pgvector_db
+export no_proxy=${no_proxy},minio-server,data-store,vllm-service,text-generation,tei-embedding-service,ovms-service,reranker,openvino-embedding,model-download,${MODEL_DOWNLOAD_HOST},pgvector_db
 
 # ReRanker Config
 export RERANKER_ENDPOINT=http://reranker/rerank
