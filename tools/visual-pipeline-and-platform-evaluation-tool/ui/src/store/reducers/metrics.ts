@@ -104,16 +104,14 @@ export const selectGpuMetric = (state: RootState) =>
     (m) =>
       m.name === "gpu_engine_usage" &&
       ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      m.tags?.gpu_id === "0" &&
-      (m.fields.usage as number) > 0,
+      m.tags?.gpu_id === "0",
   )?.fields?.usage as number | undefined;
 
 export const selectAllGpuMetrics = (state: RootState) => {
   const gpuMetrics = state.metrics.metrics.filter(
     (m) =>
       m.name === "gpu_engine_usage" &&
-      ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      (m.fields.usage as number) > 0,
+      ["compute", "render", "ccs"].includes(m.tags?.engine ?? ""),
   );
 
   // group by gpu_id and return the first metric for each GPU

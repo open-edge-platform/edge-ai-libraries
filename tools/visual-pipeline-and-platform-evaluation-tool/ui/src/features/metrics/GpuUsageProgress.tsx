@@ -22,7 +22,7 @@ export const GpuUsageProgress = () => {
           ? "0"
           : device.device_name.replace("GPU.", "");
       return [id, device];
-    })
+    }),
   );
 
   return (
