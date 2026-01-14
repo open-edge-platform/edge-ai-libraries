@@ -18,7 +18,7 @@ pipelines.
 ## Overview
 
 DL Streamer Pipeline Server microservice is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/)
-and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/tree/master),
+and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/tree/main),
 providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the

@@ -9,7 +9,6 @@ import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStream
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { selectDevices } from "@/store/reducers/devices";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -18,7 +17,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
@@ -30,7 +28,6 @@ interface PipelineSelection {
 
 const DensityTests = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const devices = useAppSelector(selectDevices);
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
@@ -46,7 +43,6 @@ const DensityTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetDensityJobStatusQuery(
     { jobId: jobId! },
@@ -154,24 +150,10 @@ const DensityTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
-      );
-
       const result = await runDensityTest({
-        densityTestSpecInput: {
+        densityTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -319,16 +301,6 @@ const DensityTests = () => {
                 </TooltipContent>
               </Tooltip>
             </div>
-            {videoOutputEnabled && (
-              <div>
-                <span>Select device for encoding: </span>
-                <DeviceSelect
-                  value={encoderDevice}
-                  onChange={setEncoderDevice}
-                  className="w-fit px-3 py-2 border text-sm cursor-pointer bg-background"
-                />
-              </div>
-            )}
             {videoOutputEnabled && <SaveOutputWarning />}
           </div>
 
