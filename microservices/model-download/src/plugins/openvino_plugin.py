@@ -37,7 +37,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("precision", "int4"))
+        weight_format = config.get("precision", kwargs.get("precision", "int8"))
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
@@ -47,6 +47,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         if target_device.upper() == "NPU":
             logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
             weight_format = "int4"
+            if model_type != "llm" and model_type != "vlm":
+                raise RuntimeError("NPU target device is only supported for 'llm' model types.")
             if output_dir.endswith("/fp16") or output_dir.endswith("/int8") or output_dir.endswith("/int4"):
                 output_dir = output_dir.rsplit("/", 1)[0] + "/int4"
         
@@ -239,7 +241,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         # Extract parameters to maintain consistent response structure
         config = kwargs.get("config", {})
-        weight_format = config.get("precision", kwargs.get("precision", "int4"))
+        weight_format = config.get("precision", kwargs.get("precision", "int8"))
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))

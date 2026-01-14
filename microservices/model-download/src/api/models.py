@@ -30,7 +30,7 @@ class ModelType(str, Enum):
     VISION = "vision"
 
 class Config(BaseModel):
-    precision: ModelPrecision = ModelPrecision.INT4
+    precision: ModelPrecision = ModelPrecision.INT8
     device: DeviceType = DeviceType.CPU
     cache_size: Optional[int] = Field(None, gt=0)
 
