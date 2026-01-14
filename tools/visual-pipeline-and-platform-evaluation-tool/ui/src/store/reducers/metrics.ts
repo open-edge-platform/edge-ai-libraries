@@ -1,18 +1,15 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "@/store";
-
 export interface MetricData {
   name: string;
   fields: Record<string, number | string>;
   tags?: Record<string, string>;
   timestamp?: string;
 }
-
 export interface MetricsMessage {
   metrics: MetricData[];
 }
-
 export interface MetricsState {
   isConnected: boolean;
   isConnecting: boolean;
@@ -20,7 +17,6 @@ export interface MetricsState {
   metrics: MetricData[];
   error: string | null;
 }
-
 const initialState: MetricsState = {
   isConnected: false,
   isConnecting: false,
@@ -28,7 +24,6 @@ const initialState: MetricsState = {
   metrics: [],
   error: null,
 };
-
 export const metrics = createSlice({
   name: "metrics",
   initialState,
@@ -65,7 +60,6 @@ export const metrics = createSlice({
     },
   },
 });
-
 export const {
   wsConnecting,
   wsConnected,
@@ -73,27 +67,19 @@ export const {
   wsError,
   messageReceived,
 } = metrics.actions;
-
 export const selectMetricsState = (state: RootState) => state.metrics;
-
 export const selectIsConnected = (state: RootState) =>
   state.metrics.isConnected;
-
 export const selectIsConnecting = (state: RootState) =>
   state.metrics.isConnecting;
-
 export const selectMetrics = (state: RootState) => state.metrics.metrics;
-
 export const selectLastMessage = (state: RootState) =>
   state.metrics.lastMessage;
-
 export const selectError = (state: RootState) => state.metrics.error;
-
 export const selectFpsMetric = (state: RootState) =>
   state.metrics.metrics.find((m) => m.name === "fps")?.fields?.value as
     | number
     | undefined;
-
 export const selectCpuMetric = (state: RootState) =>
   state.metrics.metrics.find((m) => m.name === "cpu")?.fields?.usage_user as
     | number
@@ -121,14 +107,6 @@ export const selectCpuMetrics = (state: RootState) => {
   };
 };
 
-export const selectGpuMetric = (state: RootState) =>
-  state.metrics.metrics.find(
-    (m) =>
-      m.name === "gpu_engine_usage" &&
-      ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      m.tags?.gpu_id === "0",
-  )?.fields?.usage as number | undefined;
-
 export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
   const gpuMetrics = state.metrics.metrics.filter(
     (m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id === gpuId,
@@ -142,7 +120,7 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     (m) => m.name === "gpu_power" && m.tags?.gpu_id === gpuId,
   );
 
-  // Map short engine names to long names
+  // map short engine names to long names
   const engineNameMap: Record<string, string> = {
     rcs: "render",
     bcs: "copy",
@@ -180,14 +158,5 @@ export const selectGpuMetrics = (state: RootState, gpuId: string = "0") => {
     pkgPower: findPowerValue("pkg_cur_power"),
   };
 };
-
-export const selectGpu1Metric = (state: RootState) =>
-  state.metrics.metrics.find(
-    (m) =>
-      m.name === "gpu_engine_usage" &&
-      ["compute", "render", "ccs"].includes(m.tags?.engine ?? "") &&
-      m.tags?.gpu_id === "1" &&
-      (m.fields.usage as number) > 0,
-  )?.fields?.usage as number | undefined;
 
 export default metrics.reducer;

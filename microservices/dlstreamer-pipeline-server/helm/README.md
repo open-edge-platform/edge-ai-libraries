@@ -11,7 +11,7 @@
         http_proxy: # example: http_proxy: http://proxy.example.com:891
         https_proxy: # example: http_proxy: http://proxy.example.com:891
     images:
-        dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+        dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2025.2.0-ubuntu22
     ```
 - Install the helm chart:
     `helm install dlsps . -n apps --create-namespace`

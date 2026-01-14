@@ -37,7 +37,7 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
      - GPU-enabled inferencing (Intel GPUs support):
 
        ```bash
-       docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
+       docker build -t chatqna:latest --build-arg USE_GPU=true -f docker/Dockerfile .
        ```
 
        This build the image using OpenVINO toolkit with additional GPU support for accelerated inferencing. It remains compatible with CPU-only systems, offering flexibility across different hardware setups.

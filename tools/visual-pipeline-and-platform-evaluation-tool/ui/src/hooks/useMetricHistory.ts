@@ -25,7 +25,7 @@ export interface MetricHistoryPoint {
   gpus: Record<string, GpuMetrics>;
 }
 
-const MAX_HISTORY_POINTS = 60; // Przechowuj ostatnie 60 punktów (np. 1 minuta przy 1 pomiar/s)
+const MAX_HISTORY_POINTS = 60; // save last 60 data points
 
 export const useMetricHistory = () => {
   const metrics = useMetrics();
@@ -35,7 +35,7 @@ export const useMetricHistory = () => {
   useEffect(() => {
     const now = Date.now();
 
-    // Aktualizuj tylko co sekundę, aby nie przeciążać wykresu
+    // update once per second
     if (now - lastUpdateRef.current < 1000) {
       return;
     }
@@ -63,7 +63,6 @@ export const useMetricHistory = () => {
         fps: metrics.fps,
         cpu: metrics.cpu,
         cpuUser: metrics.cpuDetailed.user,
-        cpuSystem: metrics.cpuDetailed.system,
         cpuIdle: metrics.cpuDetailed.idle,
         cpuAvgFrequency: metrics.cpuDetailed.avgFrequency,
         cpuTemp: metrics.cpuDetailed.temp,
@@ -73,7 +72,6 @@ export const useMetricHistory = () => {
 
       const updated = [...prev, newPoint];
 
-      // Ogranicz do MAX_HISTORY_POINTS najnowszych punktów
       if (updated.length > MAX_HISTORY_POINTS) {
         return updated.slice(updated.length - MAX_HISTORY_POINTS);
       }
@@ -84,7 +82,6 @@ export const useMetricHistory = () => {
     metrics.fps,
     metrics.cpu,
     metrics.cpuDetailed.user,
-    metrics.cpuDetailed.system,
     metrics.cpuDetailed.idle,
     metrics.cpuDetailed.avgFrequency,
     metrics.cpuDetailed.temp,

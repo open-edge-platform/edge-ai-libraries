@@ -17,16 +17,14 @@ import pipeline0 from "@/assets/pipeline_0.png";
 import pipeline1 from "@/assets/pipeline_1.png";
 import pipeline2 from "@/assets/pipeline_2.png";
 import type { Pipeline } from "@/api/api.generated";
-import { selectHasGPU1, selectHasNPU } from "@/store/reducers/devices.ts";
+import { selectHasNPU } from "@/store/reducers/devices.ts";
 import { NpuUsageProgress } from "@/features/metrics/NpuUsageProgress.tsx";
-import { Gpu1UsageProgress } from "@/features/metrics/Gpu1UsageProgress.tsx";
 
 const pipelineImages = [pipeline0, pipeline1, pipeline2];
 
 const Home = () => {
   const pipelines = useAppSelector(selectPipelines);
 
-  const hasGpu1 = useAppSelector(selectHasGPU1);
   const hasNpu = useAppSelector(selectHasNPU);
 
   const predefinedPipelines =
@@ -143,7 +141,6 @@ const Home = () => {
           <h1 className="font-medium text-2xl">Resource utilization</h1>
           <CpuUsageProgress />
           <GpuUsageProgress />
-          {hasGpu1 && <Gpu1UsageProgress />}
           {hasNpu && <NpuUsageProgress />}
 
           <h1 className="font-medium text-2xl mt-4">Learning and support</h1>

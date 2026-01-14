@@ -4,14 +4,12 @@ import sys
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
-from api.api_schemas import EncoderDeviceConfig
 from utils import generate_unique_filename
 from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 
-# Keys for device selection
-GPU_0 = "GPU_0"
-GPU_N = "GPU_N"
-OTHER = "OTHER"
+# Constants for encoder device types
+ENCODER_DEVICE_CPU = "CPU"
+ENCODER_DEVICE_GPU = "GPU"
 
 # Default codec for encoding
 DEFAULT_CODEC = "h264"
@@ -60,130 +58,69 @@ class VideoEncoder:
         # Define encoder configurations for different codecs
         self.encoder_configs = {
             "h264": {
-                GPU_0: [
+                ENCODER_DEVICE_GPU: [
                     ("vah264lpenc", "vah264lpenc"),
                     ("vah264enc", "vah264enc"),
                 ],
-                GPU_N: [
-                    (
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h264lpenc",
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h264lpenc",
-                    ),
-                    (
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h264enc",
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h264enc",
-                    ),
-                ],
-                OTHER: [
+                ENCODER_DEVICE_CPU: [
                     ("x264enc", "x264enc bitrate=16000 speed-preset=superfast"),
                 ],
             },
             "h265": {
-                GPU_0: [
+                ENCODER_DEVICE_GPU: [
                     ("vah265lpenc", "vah265lpenc"),
                     ("vah265enc", "vah265enc"),
                 ],
-                GPU_N: [
-                    (
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h265lpenc",
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h265lpenc",
-                    ),
-                    (
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h265enc",
-                        f"varenderD{VAAPI_SUFFIX_PLACEHOLDER}h265enc",
-                    ),
-                ],
-                OTHER: [
+                ENCODER_DEVICE_CPU: [
                     ("x265enc", "x265enc bitrate=16000 speed-preset=superfast"),
                 ],
             },
         }
 
-    def select_gpu(self, device: str | None) -> Tuple[int, Optional[str]]:
-        """
-        Parse device name and determine GPU ID and VAAPI suffix.
-
-        Args:
-            device: Device name (e.g., "GPU", "GPU.0", "GPU.1", "CPU")
-
-        Returns:
-            Tuple of (gpu_id, vaapi_suffix)
-            - gpu_id: 0 for first GPU, >0 for other GPUs, -1 for non-GPU
-            - vaapi_suffix: VAAPI device suffix for multi-GPU systems
-        """
-        gpu_id = -1
-        vaapi_suffix = None
-
-        # Determine gpu_id and vaapi_suffix
-        # If there is only one GPU, device name is just GPU
-        # If there is more than one GPU, device names are like GPU.0, GPU.1, ...
-        if device == "GPU":
-            gpu_id = 0
-        elif device is not None and device.startswith("GPU."):
-            try:
-                gpu_index = int(device.split(".")[1])
-                if gpu_index == 0:
-                    gpu_id = 0
-                elif gpu_index > 0:
-                    vaapi_suffix = str(128 + gpu_index)
-                    gpu_id = gpu_index
-            except (IndexError, ValueError):
-                self.logger.warning(f"Failed to parse GPU index from device: {device}")
-                gpu_id = -1
-        else:
-            gpu_id = -1
-
-        return gpu_id, vaapi_suffix
-
     def select_element(
         self,
         field_dict: Dict[str, List[Tuple[str, str]]],
-        encoder_device: EncoderDeviceConfig,
-        vaapi_suffix: Optional[str],
+        encoder_device: str,
     ) -> Optional[str]:
         """
         Select an appropriate encoder element from available GStreamer elements.
 
         Args:
             field_dict: Dictionary mapping device types to lists of (search, result) tuples
-            encoder_device: Encoder device configuration
-            vaapi_suffix: VAAPI device suffix for multi-GPU systems
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
 
         Returns:
             Selected encoder element string with properties, or None if not found
-        """
-        key = OTHER
-        if encoder_device.device_name.startswith("GPU"):
-            if encoder_device.gpu_id == 0:
-                key = GPU_0
-            elif encoder_device.gpu_id is not None and encoder_device.gpu_id > 0:
-                key = GPU_N
 
-        pairs = field_dict.get(key, [])
-        # Add OTHER pairs as fallback if key is not OTHER
-        if key != OTHER:
-            pairs = pairs + field_dict.get(OTHER, [])
+        Raises:
+            ValueError: If encoder_device is not a valid constant value
+        """
+        # Validate encoder_device
+        valid_devices = {ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU}
+        if encoder_device not in valid_devices:
+            raise ValueError(
+                f"Invalid encoder_device: {encoder_device}. "
+                f"Must be one of: {', '.join(valid_devices)}"
+            )
+
+        pairs = field_dict.get(encoder_device, [])
 
         if not pairs:
-            self.logger.warning(f"No encoder pairs found for key: {key}")
+            self.logger.warning(
+                f"No encoder pairs found for encoder_device: {encoder_device}"
+            )
             return None
 
         for search, result in pairs:
-            if search == "":  # to support optional parameters
-                return result
-
-            if VAAPI_SUFFIX_PLACEHOLDER in search or VAAPI_SUFFIX_PLACEHOLDER in result:
-                suffix = vaapi_suffix if vaapi_suffix is not None else ""
-                search = search.replace(VAAPI_SUFFIX_PLACEHOLDER, suffix)
-                result = result.replace(VAAPI_SUFFIX_PLACEHOLDER, suffix)
-
             for element in self.gst_inspector.elements:
                 if element[1] == search:
                     self.logger.debug(f"Selected encoder element: {result}")
                     return result
 
         self.logger.warning(
-            f"No matching encoder element found for device: {encoder_device.device_name}"
+            f"No matching encoder element found for encoder_device: {encoder_device}"
         )
         return None
 
@@ -230,7 +167,7 @@ class VideoEncoder:
         self,
         pipeline_id: str,
         pipeline_str: str,
-        encoder_device: EncoderDeviceConfig,
+        encoder_device: str,
         input_video_filenames: list[str],
     ) -> Tuple[str, List[str]]:
         """
@@ -239,33 +176,38 @@ class VideoEncoder:
         Args:
             pipeline_id: Pipeline ID used to generate unique output filenames
             pipeline_str: GStreamer pipeline string containing fakesink(s)
-            encoder_device: Encoder device configuration
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
 
         Returns:
             Tuple of (modified pipeline string, list of output paths)
 
         Raises:
-            ValueError: If codec is not supported or no suitable encoder is found
+            ValueError: If codec is not supported, encoder_device is invalid,
+                or no suitable encoder is found
         """
+        # Detect codec from input video files (h264, h265, etc.)
         codec = self._detect_codec_from_input(input_video_filenames)
         self._validate_codec(codec)
 
+        # Get encoder configuration for the detected codec (GPU/CPU variants)
         encoder_config = self.encoder_configs[codec]
-        gpu_id, vaapi_suffix = self.select_gpu(encoder_device.device_name)
 
+        # Select the best available encoder element based on device type and
+        # installed GStreamer plugins (e.g., vah264enc for GPU, x264enc for CPU)
         encoder_element = self.select_element(
             encoder_config,
             encoder_device,
-            vaapi_suffix,
         )
 
         if encoder_element is None:
             self.logger.error(
-                f"Failed to select encoder element for device: {encoder_device.device_name}"
+                f"Failed to select encoder element for codec: {codec} and encoder_device: {encoder_device}"
             )
             raise ValueError(
-                f"No suitable encoder found for device: {encoder_device.device_name}"
+                f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
         # Count fakesink instances

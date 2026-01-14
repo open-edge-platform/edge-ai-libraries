@@ -66,7 +66,7 @@ export const MetricChart = ({
 
     const emptyPointsCount = maxDataPoints - formatted.length;
     if (emptyPointsCount > 0) {
-      const emptyPoints = Array.from({ length: emptyPointsCount }, (_, i) => ({
+      const emptyPoints = Array.from({ length: emptyPointsCount }, () => ({
         timestamp: 0,
         time: "",
         ...Object.fromEntries(dataKeys.map((key) => [key, null])),
@@ -105,7 +105,7 @@ export const MetricChart = ({
   };
 
   return (
-    <div className={`bg-background shadow-md p-4 ${className}`}>
+    <div className={`bg-background shadow-md p-4 max-w-full overflow-hidden ${className}`}>
       <h3 className="text-sm font-medium text-foreground mb-8">{title}</h3>
       <div className="relative">
         <ChartContainer

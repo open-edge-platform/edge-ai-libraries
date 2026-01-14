@@ -38,7 +38,7 @@ export const TestProgressIndicator = ({
   const history = useMetricHistory();
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
-  // Get available GPU IDs from metrics
+  // get available GPU IDs from metrics
   const availableGpus = metrics.availableGpuIds.map((id) => parseInt(id));
 
   const fpsData = useMemo(
@@ -74,7 +74,7 @@ export const TestProgressIndicator = ({
     });
   }, [history, selectedGpu]);
 
-  // Determine which GPU engines are available (have at least one non-undefined value)
+  // determine which GPU engines are available (have at least one non-undefined value)
   const availableEngines = useMemo(() => {
     const engines: string[] = [];
     const checkEngine = (key: string) => {
@@ -92,10 +92,12 @@ export const TestProgressIndicator = ({
     return engines;
   }, [gpuData]);
 
-  // Filter and prepare data for chart - only include available engines and replace undefined with 0
+  // filter and prepare data for chart - only include available engines and replace undefined with 0
   const gpuChartData = useMemo(() => {
     return gpuData.map((point) => {
-      const chartPoint: Record<string, number> = {
+      const chartPoint: Record<string, number | undefined> & {
+        timestamp: number;
+      } = {
         timestamp: point.timestamp,
       };
 
@@ -244,19 +246,35 @@ export const TestProgressIndicator = ({
         <div className="space-y-4">
           <MetricCard
             title="GPU Usage"
-            value={
-              metrics.gpuDetailedMetrics[selectedGpu.toString()]?.compute ?? 0
-            }
+            value={(() => {
+              const gpuMetrics =
+                metrics.gpuDetailedMetrics[selectedGpu.toString()];
+              if (!gpuMetrics) return 0;
+              return Math.max(
+                gpuMetrics.compute ?? 0,
+                gpuMetrics.render ?? 0,
+                gpuMetrics.copy ?? 0,
+                gpuMetrics.video ?? 0,
+                gpuMetrics.videoEnhance ?? 0,
+              );
+            })()}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
           />
           <div className="bg-background shadow-md p-4">
             <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU{" "}
-              <span className="inline-block min-w-[1ch]">{selectedGpu}</span>{" "}
+              GPU
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[1ch]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}{" "}
               Usage Over Time
             </h3>
-            <div className="flex gap-4 items-stretch -mt-3">
+            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
                 <GpuSelector
                   availableGpus={availableGpus}
@@ -264,7 +282,7 @@ export const TestProgressIndicator = ({
                   onGpuChange={setSelectedGpu}
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <MetricChart
                   title=""
                   data={gpuChartData}
@@ -280,11 +298,18 @@ export const TestProgressIndicator = ({
           </div>
           <div className="bg-background shadow-md p-4">
             <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU{" "}
-              <span className="inline-block min-w-[1ch]">{selectedGpu}</span>{" "}
+              GPU
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[1ch]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}{" "}
               Frequency Over Time
             </h3>
-            <div className="flex gap-4 items-stretch -mt-3">
+            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
                 <GpuSelector
                   availableGpus={availableGpus}
@@ -292,7 +317,7 @@ export const TestProgressIndicator = ({
                   onGpuChange={setSelectedGpu}
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <MetricChart
                   title=""
                   data={gpuFrequencyData}
@@ -312,11 +337,18 @@ export const TestProgressIndicator = ({
           </div>
           <div className="bg-background shadow-md p-4">
             <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU{" "}
-              <span className="inline-block min-w-[1ch]">{selectedGpu}</span>{" "}
+              GPU
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[1ch]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}{" "}
               Power Usage Over Time
             </h3>
-            <div className="flex gap-4 items-stretch -mt-3">
+            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
                 <GpuSelector
                   availableGpus={availableGpus}
@@ -324,7 +356,7 @@ export const TestProgressIndicator = ({
                   onGpuChange={setSelectedGpu}
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <MetricChart
                   title=""
                   data={gpuPowerData}
