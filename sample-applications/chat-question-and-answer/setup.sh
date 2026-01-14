@@ -146,7 +146,7 @@ download_ovms_model() {
 
     echo "Downloading $MODEL_TYPE model '$MODEL_NAME' via model-download..."
 
-    mkdir -p temp_models ovms/models
+    mkdir -p temp_models
 
     # Submit download request
     local POST_RESPONSE
