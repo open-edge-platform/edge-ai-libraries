@@ -24,7 +24,20 @@ fi
 if [ ! -d "$MODEL_DIR" ]; then
     echo "Model directory does not exist. Exporting model..."
     echo "Starting model compression..."
-    if ! optimum-cli export openvino --trust-remote-code --model $VLM_MODEL_NAME $MODEL_DIR --weight-format $VLM_COMPRESSION_WEIGHT_FORMAT; then
+    EXPORT_CMD=(
+        optimum-cli export openvino
+        --trust-remote-code
+        --model "$VLM_MODEL_NAME"
+        "$MODEL_DIR"
+        --weight-format "$VLM_COMPRESSION_WEIGHT_FORMAT"
+    )
+
+    if [[ "$VLM_MODEL_NAME" == openbmb/MiniCPM-o-2_6* ]]; then
+        echo "openbmb/MiniCPM-o-2_6 model detected. Forcing image-text-to-text export task."
+        EXPORT_CMD+=(--task image-text-to-text)
+    fi
+
+    if ! "${EXPORT_CMD[@]}"; then
         echo "Model export failed. Removing partial artifacts in $MODEL_DIR" >&2
         rm -rf "$MODEL_DIR"
         exit 1

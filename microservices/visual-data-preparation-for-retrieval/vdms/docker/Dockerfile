@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ARG ARCH="cpu"
-ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG INSTALL_DRIVER_VERSION="25.48.36300"
 FROM python:3.12.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry

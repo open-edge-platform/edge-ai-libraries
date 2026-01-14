@@ -211,6 +211,41 @@ export VLM_ACCESS_LOG_FILE="/app/logs/access.log"
 - Health check requests appear in access logs regardless of application log level
 - Setting to `/dev/null` is recommended for production to reduce log noise
 
+### Telemetry Storage
+
+#### VLM_TELEMETRY_PATH
+
+**Description**: Absolute path to the JSONL file where `/v1/telemetry` entries are persisted. Each Gunicorn worker writes to the same file using file locks.
+
+**Default**: `/opt/vlm_telemetry.jsonl`
+
+**Examples**:
+
+```bash
+export VLM_TELEMETRY_PATH=/var/log/vlm/telemetry.jsonl
+export VLM_TELEMETRY_PATH=/tmp/dev-telemetry.jsonl
+```
+
+Use a location that is writable by the container user. When running multiple services on the same host, different paths prevent overlap.
+
+#### VLM_TELEMETRY_MAX_RECORDS
+
+**Description**: Maximum number of telemetry entries retained on disk. Older entries are dropped once the limit is reached.
+
+**Default**: `100`
+
+**Examples**:
+
+```bash
+# Keep the last 500 inference records
+export VLM_TELEMETRY_MAX_RECORDS=500
+```
+
+**Notes**:
+
+- Value must be a positive integer.
+- Higher values increase disk usage but provide deeper history in `/v1/telemetry` responses.
+
 ### Service Configuration
 
 #### VLM_SERVICE_PORT

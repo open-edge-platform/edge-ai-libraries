@@ -78,13 +78,10 @@ void RobotJointStateAggregatorNode::init(void)
 
 void RobotJointStateAggregatorNode::LeftArmPosCB(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
-		//RCLCPP_INFO(LOGGER, "Joint Name - %s ", msg->name[0].c_str());
     for (size_t i = 0; i < msg->position.size(); ++i)
     {
         mLeftArmJointAngles[i] =  msg->position[i];
     }
-
-		//RCLCPP_INFO(LOGGER, "left msg: %f, %f, %f, %f ", msg->position[0], msg->position[1],  msg->position[2], msg->position[3]);
 }
 
 void RobotJointStateAggregatorNode::RightArmPosCB(const sensor_msgs::msg::JointState::SharedPtr msg)
@@ -93,7 +90,6 @@ void RobotJointStateAggregatorNode::RightArmPosCB(const sensor_msgs::msg::JointS
     {
         mRightArmJointAngles[i] =  msg->position[i];
     }
-		//RCLCPP_INFO(LOGGER, "right msg: %f, %f, %f, %f ", msg->position[0], msg->position[1],  msg->position[2], msg->position[3]);
 }
 
 void RobotJointStateAggregatorNode::LegPosCB(const sensor_msgs::msg::JointState::SharedPtr msg)
@@ -137,10 +133,10 @@ void RobotJointStateAggregatorNode::timerCallback(void)
 	"base_imu_joint"
     };
     joint_state_msg.position = {
-        mLeftArmJointAngles[0],
-        mLeftArmJointAngles[1]*(-1),
-        mRightArmJointAngles[0],
-        mRightArmJointAngles[1]*(-1),
+        0.0,
+        mLeftArmJointAngles[3],
+        0.0,
+        mRightArmJointAngles[3],
         mLegJointAngles[2],
         mLegJointAngles[1],
         mLegJointAngles[0],
@@ -156,11 +152,11 @@ void RobotJointStateAggregatorNode::timerCallback(void)
         0.0,
         0.0,
         0.0,
+        mLeftArmJointAngles[1],
         0.0,
+        mRightArmJointAngles[1],
         0.0,
-        0.0,
-        0.0,
-				0.0
+        0.0
     };
     joint_state_msg.header.stamp = this->now();
     mRobotJointStatePub->publish(joint_state_msg);

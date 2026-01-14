@@ -84,7 +84,7 @@ Describe the activities and events captured in the images. Provide a detailed de
 export const PromptTemplates = {
   defaultFrames: `The images are sequential frames of a video. Analyze the sequence of frames to provide a detailed description of the activities, events, and interactions observed`,
   defaultSummary: `  
-You are provided with summaries of video segments of single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:
+You are provided with summaries of video segments of single video. Your task is to generate a single detailed and concise summary of the entire video. Ensure that the summary:
 - Clearly describes key actions, interactions, and notable details.
 - Highlights important objects, people, and contextual information.
 - Avoids unnecessary repetition and maintains coherence.
@@ -132,7 +132,7 @@ Focus on creating a coherent narrative that reflects the sequence of events accu
   // `,
 
   bodyCamSummary: `
-You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:
+You are provided with summaries of video segments of single video captured from a law enforcement body camera. Your task is to generate a single detailed and concise summary of the entire video. Ensure that the summary:
 - Clearly describes key actions, interactions, and notable details.
 - Highlights important objects, people, and contextual information.
 - Avoids unnecessary repetition and maintains coherence.

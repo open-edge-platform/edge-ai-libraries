@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0-rc1`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-2025.2.0-rc1.tgz`
+    `tar -xvf dlstreamer-pipeline-server-2025.2.0.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
@@ -44,7 +44,7 @@ Update the below fields in `values.yaml` file in the helm chart
     http_proxy: # example: http_proxy: http://proxy.example.com:891
     https_proxy: # example: http_proxy: http://proxy.example.com:891
   images:
-    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+    dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:2025.2.0-ubuntu22
   ```
 
 ### Install the helm chart
@@ -134,7 +134,7 @@ In this get started guide, you learned how to start the DL Streamer Pipeline Ser
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](Overview.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
--   For more details on Deep Learning Streamer visit [this](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/index.md) page.
+-   For more details on Deep Learning Streamer (DL Streamer) visit [this](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/index.md) page.
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.

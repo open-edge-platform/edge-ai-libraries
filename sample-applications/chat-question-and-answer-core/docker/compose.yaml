@@ -65,7 +65,6 @@ services:
       dockerfile: docker/Dockerfile
       args:
         USE_GPU: "true"
-        GPU_TYPE: "dgpu"
     devices:
       - /dev/dri:/dev/dri
     group_add:

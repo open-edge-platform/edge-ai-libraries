@@ -63,8 +63,8 @@ Details about the changes, improvements, and known issues in this release of the
 - **POSE model support**:
   - POSE estimation model is now supported as part of the pipeline configuration.
 
-- **DLStreamer Optimizer integration**:
-  - Integration with the DLStreamer Optimizer has been added to simplify configuration of GStreamer-based pipelines.
+- **DL Streamer Optimizer integration**:
+  - Integration with the DL Streamer Optimizer has been added to simplify configuration of GStreamer-based pipelines.
   - Optimized elements and parameters can be applied automatically, improving performance and reducing manual tuning.
 
 ### Improvements (v2025.2)

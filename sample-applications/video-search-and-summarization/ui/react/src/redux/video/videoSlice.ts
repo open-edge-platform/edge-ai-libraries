@@ -52,6 +52,7 @@ export const videosLoad = createAsyncThunk('videos/load', async () => {
 const selectVideoState = (state: RootState) => state.videos;
 
 export const videosSelector = createSelector([selectVideoState], (videosState) => ({
+  videos: videosState.videos,
   getVideo: (videoId: string) => {
     return videosState.videos.find((video) => video.videoId === videoId);
   },
