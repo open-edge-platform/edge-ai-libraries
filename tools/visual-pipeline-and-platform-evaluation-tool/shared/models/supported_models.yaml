@@ -142,3 +142,12 @@
   unsupported_devices: ""
   precision: FP16
   default: false
+- name: colorcls2
+  display_name: Color Classification 2 (FP16)
+  source: public
+  type: classification
+  model_path: public/colorcls2/colorcls2.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: FP16
+  default: false
