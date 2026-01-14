@@ -51,16 +51,33 @@ class OptimizationJob:
 
     This mirrors what is exposed through :class:`OptimizationJobStatus`
     and :class:`OptimizationJobSummary`, with a few runtime-only fields.
+
+    Attributes:
+        id: Job identifier.
+        original_pipeline_graph: Original advanced view of the pipeline.
+        original_pipeline_graph_simple: Original simple view of the pipeline.
+        original_pipeline_description: Original GStreamer pipeline string before optimization.
+        request: Original optimization request parameters.
+        state: Current job state (RUNNING, COMPLETED, ERROR, ABORTED).
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if still running).
+        optimized_pipeline_graph: Optimized advanced view (None until completed).
+        optimized_pipeline_graph_simple: Optimized simple view (None until completed).
+        optimized_pipeline_description: Optimized GStreamer pipeline string (None until completed).
+        total_fps: Measured FPS for optimized pipeline (None for PREPROCESS type).
+        error_message: Error description (None unless state is ERROR or ABORTED).
     """
 
     id: str
     original_pipeline_graph: PipelineGraph
+    original_pipeline_graph_simple: PipelineGraph
     original_pipeline_description: str
     request: PipelineRequestOptimize
     state: OptimizationJobState
     start_time: int
     end_time: Optional[int] = None
     optimized_pipeline_graph: Optional[PipelineGraph] = None
+    optimized_pipeline_graph_simple: Optional[PipelineGraph] = None
     optimized_pipeline_description: Optional[str] = None
     total_fps: Optional[float] = None
     error_message: Optional[str] = None
@@ -72,7 +89,11 @@ class PipelineOptimizationResult:
     Lightweight result object returned by :class:`OptimizationRunner`.
 
     It is intentionally minimal: the manager is responsible for converting
-    the optimized pipeline string back into :class:`PipelineGraph`.
+    the optimized GStreamer pipeline string back into :class:`PipelineGraph`.
+
+    Attributes:
+        optimized_pipeline_description: Optimized GStreamer pipeline string produced by the optimizer.
+        total_fps: Measured total FPS for the optimized pipeline (None for PREPROCESS type).
     """
 
     optimized_pipeline_description: str
@@ -103,11 +124,16 @@ class OptimizationRunner:
         self, pipeline_description: str
     ) -> PipelineOptimizationResult:
         """
-        Run only the preprocessing stage on the provided pipeline.
+        Run only the preprocessing stage on the provided GStreamer pipeline string.
 
-        The external optimizer takes a list of element strings, so we split
-        on ``!`` and then rejoin the processed list back into a single
-        string for the caller.
+        The external optimizer takes a GStreamer pipeline string, processes it,
+        and returns the preprocessed pipeline string.
+
+        Args:
+            pipeline_description: Original GStreamer pipeline string to preprocess.
+
+        Returns:
+            PipelineOptimizationResult: Result containing the preprocessed GStreamer pipeline string.
         """
         # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
         # https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/optimizer
@@ -122,10 +148,19 @@ class OptimizationRunner:
         self, pipeline_description: str, search_duration: int, sample_duration: int
     ) -> PipelineOptimizationResult:
         """
-        Run the full optimization process on the provided pipeline.
+        Run the full optimization process on the provided GStreamer pipeline string.
 
-        The optimizer returns the optimized pipeline and a measured
-        total FPS value.
+        The optimizer searches for optimal pipeline configurations and returns
+        the optimized GStreamer pipeline string along with measured FPS.
+
+        Args:
+            pipeline_description: Original GStreamer pipeline string to optimize.
+            search_duration: Duration in seconds for the optimization search phase.
+            sample_duration: Duration in seconds for measuring each configuration.
+
+        Returns:
+            PipelineOptimizationResult: Result containing the optimized GStreamer
+                pipeline string and measured total FPS.
         """
         # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
         # https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/optimizer
@@ -155,7 +190,9 @@ class OptimizationManager:
 
     * create and track :class:`OptimizationJob` instances,
     * run optimizations asynchronously in background threads,
-    * expose job status and summaries in a thread-safe manner.
+    * expose job status and summaries in a thread-safe manner,
+    * maintain both advanced and simple views of pipelines throughout optimization,
+    * convert between GStreamer pipeline strings and graph representations.
     """
 
     def __init__(self) -> None:
@@ -184,9 +221,17 @@ class OptimizationManager:
 
         The method:
 
-        * converts the pipeline graph to a pipeline description string,
+        * converts the pipeline graph to a GStreamer pipeline string,
+        * extracts both advanced and simple views from the pipeline,
         * creates a new :class:`OptimizationJob` with RUNNING state,
         * spawns a background thread that executes the optimization.
+
+        Args:
+            pipeline: Pipeline object containing both graph views.
+            optimization_request: Optimization parameters (type and optional settings).
+
+        Returns:
+            str: Unique job identifier for tracking the optimization.
         """
         job_id = self._generate_job_id()
 
@@ -195,10 +240,11 @@ class OptimizationManager:
             pipeline.pipeline_graph.model_dump()
         ).to_pipeline_description()
 
-        # Create job record
+        # Create job record with both views
         job = OptimizationJob(
             id=job_id,
             original_pipeline_graph=pipeline.pipeline_graph,
+            original_pipeline_graph_simple=pipeline.pipeline_graph_simple,
             original_pipeline_description=pipeline_description,
             request=optimization_request,
             state=OptimizationJobState.RUNNING,
@@ -224,7 +270,14 @@ class OptimizationManager:
         Build a :class:`OptimizationJobStatus` DTO from the internal job object.
 
         This method centralises the mapping to ensure consistency between
-        status queries.
+        status queries. It includes both advanced and simple views of the
+        original and optimized pipelines.
+
+        Args:
+            job: Internal OptimizationJob object.
+
+        Returns:
+            OptimizationJobStatus: Status object ready for API response.
         """
         current_time = int(time.time() * 1000)
         elapsed_time = (
@@ -240,7 +293,9 @@ class OptimizationManager:
             state=job.state,
             total_fps=job.total_fps,
             original_pipeline_graph=job.original_pipeline_graph,
+            original_pipeline_graph_simple=job.original_pipeline_graph_simple,
             optimized_pipeline_graph=job.optimized_pipeline_graph,
+            optimized_pipeline_graph_simple=job.optimized_pipeline_graph_simple,
             original_pipeline_description=job.original_pipeline_description,
             optimized_pipeline_description=job.optimized_pipeline_description,
             error_message=job.error_message,
@@ -323,6 +378,24 @@ class OptimizationManager:
         The method chooses between preprocessing or full optimization,
         delegates work to :class:`OptimizationRunner` and then updates
         the corresponding :class:`OptimizationJob` accordingly.
+
+        After successful optimization, both advanced and simple views
+        are generated from the optimized GStreamer pipeline string.
+
+        Args:
+            job_id: Unique identifier of the optimization job.
+            pipeline_description: GStreamer pipeline string to optimize.
+            optimization_request: Optimization parameters and type.
+
+        Returns:
+            None (updates job status in place via self.jobs[job_id])
+
+        Side effects:
+            - Updates job state to COMPLETED, ERROR, or ABORTED
+            - Stores optimized pipeline graphs (both views) on success
+            - Stores optimized GStreamer pipeline string on success
+            - Stores error_message on failure
+            - Removes runner from self.runners when done
         """
         try:
             self.logger.info(
@@ -387,12 +460,18 @@ class OptimizationManager:
                                 results.optimized_pipeline_description
                             )
 
-                            # Build a new graph from the optimized pipeline description
+                            # Build advanced graph from the optimized pipeline description
                             graph = Graph.from_pipeline_description(
                                 results.optimized_pipeline_description
                             )
                             job.optimized_pipeline_graph = PipelineGraph.model_validate(
                                 graph.to_dict()
+                            )
+
+                            # Generate simple view from the optimized advanced graph
+                            simple_graph = graph.to_simple_view()
+                            job.optimized_pipeline_graph_simple = (
+                                PipelineGraph.model_validate(simple_graph.to_dict())
                             )
 
                         self.logger.info(
