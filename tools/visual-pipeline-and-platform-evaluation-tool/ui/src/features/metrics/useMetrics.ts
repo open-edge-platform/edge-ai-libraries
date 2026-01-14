@@ -3,6 +3,7 @@ import {
   selectCpuMetric,
   selectCpuMetrics,
   selectFpsMetric,
+  selectGpuMetric,
   selectGpuMetrics,
   selectMemoryMetric,
   selectMetrics,
@@ -14,6 +15,7 @@ export const useMetrics = () => {
   const cpuDetailed = useAppSelector(selectCpuMetrics);
   const memory = useAppSelector(selectMemoryMetric);
   const allMetrics = useAppSelector(selectMetrics);
+  const gpu = useAppSelector(selectGpuMetric);
 
   // Dynamically get all available GPU IDs
   let availableGpuIds = Array.from(
@@ -91,6 +93,7 @@ export const useMetrics = () => {
   return {
     fps: fps ?? 0,
     cpu: cpu ?? 0,
+    gpu: gpu ?? 0,
     cpuDetailed,
     memory: memory ?? 0,
     availableGpuIds,
