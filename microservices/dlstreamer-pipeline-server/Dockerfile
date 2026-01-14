@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2025.1.2-ubuntu22
+ARG BASE_IMAGE=intel/dlstreamer:2025.2.0-ubuntu22
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -321,5 +321,10 @@ RUN apt update && \
     rm -rf /var/lib/apt/lists/*
     
 RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
+
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "22.04" ]; then \
+        rm /opt/intel/dlstreamer/gstreamer/lib/libsqlite3.so* ; \
+    fi
 
 USER ${USER}

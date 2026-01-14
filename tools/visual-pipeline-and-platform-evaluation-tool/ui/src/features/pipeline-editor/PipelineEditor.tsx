@@ -21,6 +21,7 @@ import {
   createGraphLayout,
   LayoutDirection,
 } from "@/features/pipeline-editor/utils/graphLayout";
+import { useTheme } from "next-themes";
 
 interface PipelineEditorProps {
   pipelineData?: Pipeline;
@@ -70,6 +71,8 @@ const PipelineEditorContent = ({
       return updatedNodes;
     });
   };
+
+  const { theme } = useTheme();
 
   useEffect(() => {
     onNodesChangeCallback?.(nodes);
@@ -145,6 +148,7 @@ const PipelineEditorContent = ({
         }}
         nodesDraggable={true}
         fitView
+        colorMode={theme === "dark" ? "dark" : "light"}
         className="h-full w-full"
       >
         <Controls />

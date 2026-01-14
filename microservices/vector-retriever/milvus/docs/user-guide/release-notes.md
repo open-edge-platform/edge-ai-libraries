@@ -2,8 +2,8 @@
 
 ## Current Release
 
-**Version**: 1.0.0 \
-**Release Date**: 21 Nov 2025  
+**Version**: 2025.2.0 \
+**Release Date**: 10 Dec 2025   
 
 **Features**:
 

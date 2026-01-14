@@ -15,7 +15,7 @@ RUN poetry config virtualenvs.create false && poetry install --no-root --only=ma
 
 FROM python:3.12.12-slim
 
-ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG INSTALL_DRIVER_VERSION="25.48.36300"
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 

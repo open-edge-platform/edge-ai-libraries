@@ -1,5 +1,16 @@
 # A Python Module for Video Chunking Utils
 
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/video-chunking-utils/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
 ## Introduction
 
 This is a Python module designed for video chunking. It allows users to split video files into smaller, manageable segments. The module is designed to be easily installable via pip and can be used in various applications such as video processing, analysis, and content delivery.
@@ -39,7 +50,7 @@ for i, micro_chunk in enumerate(micro_chunks_list):
 print(f"Total {len(micro_chunks_list)} chunks are generated.")
 ```
 
-### Method:  Pelt Chunking
+### Method: Pelt Chunking
 
 ```python
 from video_chunking import PeltChunking
