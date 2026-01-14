@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import re
 import sys
 from typing import Dict, List, Optional, Tuple
 
@@ -210,8 +211,9 @@ class VideoEncoder:
                 f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
-        # Count fakesink instances
-        fakesink_count = pipeline_str.count("fakesink")
+        # Count fakesink instances only when they are separate elements (not embedded in properties like video-sink=fakesink)
+        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink(?=(?:[\s!]|$))"
+        fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
 
         if fakesink_count == 0:
             self.logger.warning("No fakesink found in pipeline string")
@@ -229,9 +231,9 @@ class VideoEncoder:
             output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
             output_paths.append(output_path)
 
-            # Replace first occurrence of fakesink
+            # Replace first occurrence of standalone fakesink element
             video_output_str = f"{encoder_element} ! {codec}parse ! mp4mux ! filesink location={output_path}"
-            result = result.replace("fakesink", video_output_str, 1)
+            result = re.sub(fakesink_pattern, video_output_str, result, count=1)
 
         self.logger.info(
             f"Replaced {fakesink_count} fakesink(s) with video output(s): {output_paths} using codec: {codec}"

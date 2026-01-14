@@ -16,7 +16,7 @@ export const GpuUsageProgress = () => {
 
   const deviceMap = new Map(
     gpuDevices.map((device) => {
-      // Handle both single card "GPU" and multiple cards "GPU.0", "GPU.1"
+      // handle both single card "GPU" and multiple cards "GPU.0", "GPU.1"
       const id =
         device.device_name === "GPU"
           ? "0"
