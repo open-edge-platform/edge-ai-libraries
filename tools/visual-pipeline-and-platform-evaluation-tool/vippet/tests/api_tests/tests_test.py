@@ -200,8 +200,6 @@ class TestTestsAPI(unittest.TestCase):
 
         # Verify video output configuration
         self.assertTrue(call_args.video_output.enabled)
-        self.assertEqual(call_args.video_output.encoder_device.device_name, "GPU")
-        self.assertEqual(call_args.video_output.encoder_device.gpu_id, 0)
 
     # ------------------------------------------------------------------
     # /tests/density

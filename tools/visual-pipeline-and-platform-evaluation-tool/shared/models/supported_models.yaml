@@ -13,7 +13,7 @@
   type: classification
   model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
   model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
-  unsupported_devices: "NPU"
+  unsupported_devices: ""
   precision: INT8
   default: true
 - name: mobilenet-v2-pytorch
@@ -121,7 +121,7 @@
   type: detection
   model_path: public/yolo11n/FP16/yolo11n.xml
   model_proc: ""
-  unsupported_devices: "NPU"
+  unsupported_devices: ""
   precision: FP16
   default: false
 - name: face-detection-retail-0004

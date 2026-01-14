@@ -1,4 +1,4 @@
-name: Pallet Defect Detection [NPU]
+name: Manufacturing - Pallet Defect Detection [NPU]
 version: 1
 definition: >
   AI-powered pipeline for automatic pallet defect detection using computer vision, enabling efficient quality control in manufacturing.
