@@ -6,7 +6,7 @@ import yaml
 
 class PipelineLoader:
     @staticmethod
-    def list(pipeline_path: str = "pipelines") -> List[str]:
+    def list(pipeline_path: str = "pipelines") -> List[Path]:
         """Return available predefined pipeline config paths."""
         pipelines_dir = Path(pipeline_path)
         pipeline_config_paths = [
@@ -17,7 +17,7 @@ class PipelineLoader:
         return sorted(pipeline_config_paths)
 
     @staticmethod
-    def config(pipeline_config_path: str, pipeline_path: str = "pipelines") -> dict:
+    def config(pipeline_config_path: str) -> dict:
         """Return full config dict for a predefined pipeline."""
         config_path_real = os.path.realpath(str(pipeline_config_path))
 
