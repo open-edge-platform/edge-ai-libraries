@@ -6,3 +6,5 @@
   filename: obj_classification.mp4
 - url: "https://www.pexels.com/download/video/3249935"
   filename: age_prediction.mp4
+- url: "https://github.com/open-edge-platform/edge-ai-resources/raw/0d39322d6c6c578413cdf2a3d48c4e0978531e10/videos/smart_parking_720p_30fps.mp4"
+  filename: metro_smart_parking.mp4
