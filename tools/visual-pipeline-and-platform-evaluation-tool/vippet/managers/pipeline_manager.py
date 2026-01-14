@@ -229,8 +229,8 @@ class PipelineManager:
 
     def load_predefined_pipelines(self):
         predefined_pipelines = []
-        for pipeline_name in PipelineLoader.list():
-            config = PipelineLoader.config(pipeline_name)
+        for config_path in PipelineLoader.list():
+            config = PipelineLoader.config(config_path)
 
             pipeline_description = config.get("pipeline_description", "")
             pipeline_graph = Graph.from_pipeline_description(
