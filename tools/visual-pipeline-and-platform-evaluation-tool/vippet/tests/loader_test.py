@@ -27,13 +27,13 @@ class TestPipelineLoader(unittest.TestCase):
     def test_config(self):
         config_path = Path(self.test_dir.name) / "test_config.yaml"
         config_path.write_text("key: value")
-        config = PipelineLoader.config(str(config_path))
+        config = PipelineLoader.config(config_path)
         self.assertIsInstance(config, dict)
         self.assertEqual(config, {"key": "value"})
 
     def test_config_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
-            PipelineLoader.config("non_existent_file.yaml")
+            PipelineLoader.config(Path("non_existent_file.yaml"))
 
 
 if __name__ == "__main__":

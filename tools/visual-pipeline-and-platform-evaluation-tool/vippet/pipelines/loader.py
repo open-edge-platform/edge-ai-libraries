@@ -17,7 +17,7 @@ class PipelineLoader:
         return sorted(pipeline_config_paths)
 
     @staticmethod
-    def config(pipeline_config_path: str) -> dict:
+    def config(pipeline_config_path: Path) -> dict:
         """Return full config dict for a predefined pipeline."""
         config_path_real = os.path.realpath(str(pipeline_config_path))
 
