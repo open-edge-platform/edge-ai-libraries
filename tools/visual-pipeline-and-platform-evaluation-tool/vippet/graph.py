@@ -361,7 +361,7 @@ class Graph:
         directory, and collects the output paths.
 
         Note: This is used only during pipeline execution preparation and does
-        not affect the original graph stored in the database.
+        not affect the original graph stored in memory by the pipeline manager.
         """
         output_paths: list[str] = []
 
