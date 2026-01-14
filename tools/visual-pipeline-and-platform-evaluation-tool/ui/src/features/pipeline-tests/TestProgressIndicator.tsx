@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
-import { MetricChart } from "@/components/shared/MetricChart.tsx";
-import { GpuSelector } from "@/components/shared/GpuSelector.tsx";
+import { MetricChart } from "@/features/metrics/MetricChart";
+import { GpuSelector } from "@/features/metrics/GpuSelector";
 
 interface MetricCardProps {
   title: string;
@@ -41,23 +41,15 @@ export const TestProgressIndicator = ({
   // get available GPU IDs from metrics
   const availableGpus = metrics.availableGpuIds.map((id) => parseInt(id));
 
-  const fpsData = useMemo(
-    () =>
-      history.map((point) => ({
-        timestamp: point.timestamp,
-        value: point.fps ?? 0,
-      })),
-    [history],
-  );
+  const fpsData = history.map((point) => ({
+    timestamp: point.timestamp,
+    value: point.fps ?? 0,
+  }));
 
-  const cpuData = useMemo(
-    () =>
-      history.map((point) => ({
-        timestamp: point.timestamp,
-        user: point.cpuUser ?? 0,
-      })),
-    [history],
-  );
+  const cpuData = history.map((point) => ({
+    timestamp: point.timestamp,
+    user: point.cpuUser ?? 0,
+  }));
 
   const gpuData = useMemo(() => {
     const gpuId = selectedGpu.toString();
@@ -126,32 +118,20 @@ export const TestProgressIndicator = ({
     }));
   }, [history, selectedGpu]);
 
-  const cpuTempData = useMemo(
-    () =>
-      history.map((point) => ({
-        timestamp: point.timestamp,
-        temp: point.cpuTemp ?? 0,
-      })),
-    [history],
-  );
+  const cpuTempData = history.map((point) => ({
+    timestamp: point.timestamp,
+    temp: point.cpuTemp ?? 0,
+  }));
 
-  const cpuFrequencyData = useMemo(
-    () =>
-      history.map((point) => ({
-        timestamp: point.timestamp,
-        frequency: point.cpuAvgFrequency ?? 0,
-      })),
-    [history],
-  );
+  const cpuFrequencyData = history.map((point) => ({
+    timestamp: point.timestamp,
+    frequency: point.cpuAvgFrequency ?? 0,
+  }));
 
-  const memoryData = useMemo(
-    () =>
-      history.map((point) => ({
-        timestamp: point.timestamp,
-        memory: point.memory ?? 0,
-      })),
-    [history],
-  );
+  const memoryData = history.map((point) => ({
+    timestamp: point.timestamp,
+    memory: point.memory ?? 0,
+  }));
 
   const engineColors: Record<string, string> = {
     compute: "var(--color-yellow-chart)",

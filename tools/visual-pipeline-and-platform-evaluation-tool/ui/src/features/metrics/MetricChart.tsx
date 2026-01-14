@@ -45,8 +45,9 @@ export const MetricChart = ({
     const config: ChartConfig = {};
     dataKeys.forEach((key, index) => {
       config[key] = {
-        label: labels?.[index] ?? key.charAt(0).toUpperCase() + key.slice(1),
-        color: colors[index] || `hsl(${index * 60}, 70%, 50%)`,
+        label:
+          labels?.[index] ?? `${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+        color: colors[index] ?? `hsl(${index * 60}, 70%, 50%)`,
       };
     });
     return config;
@@ -105,7 +106,9 @@ export const MetricChart = ({
   };
 
   return (
-    <div className={`bg-background shadow-md p-4 max-w-full overflow-hidden ${className}`}>
+    <div
+      className={`bg-background shadow-md p-4 max-w-full overflow-hidden ${className}`}
+    >
       <h3 className="text-sm font-medium text-foreground mb-8">{title}</h3>
       <div className="relative">
         <ChartContainer
