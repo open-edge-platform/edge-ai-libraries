@@ -3,6 +3,7 @@ import unittest
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 from graph import Graph, Node, Edge
+from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
@@ -2169,6 +2170,134 @@ class TestNegativeCases(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             empty_graph.to_pipeline_description()
         self.assertIn("Empty graph", str(cm.exception))
+
+
+class TestGetRecommendedEncoderDevice(unittest.TestCase):
+    """Test cases for Graph.get_recommended_encoder_device method."""
+
+    def test_gpu_encoder_for_va_memory_caps(self):
+        """Test that GPU encoder is recommended when video/x-raw(memory:VAMemory) is found."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU)
+
+    def test_cpu_encoder_for_standard_video_raw(self):
+        """Test that CPU encoder is recommended for standard video/x-raw caps."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "640", "height": "480"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
+
+    def test_cpu_encoder_when_no_video_raw_caps(self):
+        """Test that CPU encoder is recommended when no video/x-raw caps exist."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="queue", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
+
+    def test_uses_last_video_raw_caps_when_multiple_exist(self):
+        """Test that the method uses the last video/x-raw caps in the pipeline."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "640"},
+                ),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+        # Should return GPU because the last video/x-raw has VAMemory
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU)
+
+    def test_iterates_backwards_through_nodes(self):
+        """Test that the method iterates backwards (uses last occurrence, not first)."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3", type="video/x-raw", data={"__node_kind": "caps"}
+                ),  # Last one, no VAMemory
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+        # Should return CPU because iterating backwards finds node 3 first (no VAMemory)
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
+
+    def test_empty_graph(self):
+        """Test that CPU encoder is recommended for an empty graph."""
+        graph = Graph(nodes=[], edges=[])
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
 
 class TestToSimpleView(unittest.TestCase):

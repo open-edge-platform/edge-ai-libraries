@@ -7,7 +7,6 @@ import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressInd
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { selectDevices } from "@/store/reducers/devices";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -16,7 +15,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
@@ -28,7 +26,6 @@ interface PipelineSelection {
 
 const PerformanceTests = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const devices = useAppSelector(selectDevices);
   const [runPerformanceTest, { isLoading: isRunning }] =
     useRunPerformanceTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
@@ -44,7 +41,6 @@ const PerformanceTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: jobId! },
@@ -149,24 +145,10 @@ const PerformanceTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
-      );
-
       const result = await runPerformanceTest({
-        performanceTestSpecInput: {
+        performanceTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             id: selection.pipelineId,
@@ -221,7 +203,7 @@ const PerformanceTests = () => {
                     onChange={(e) =>
                       handlePipelineChange(selection.pipelineId, e.target.value)
                     }
-                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-white dark:bg-background"
+                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-background"
                   >
                     {pipelines
                       .filter(
@@ -297,16 +279,6 @@ const PerformanceTests = () => {
               </TooltipContent>
             </Tooltip>
           </div>
-          {videoOutputEnabled && (
-            <div>
-              <span>Select device for encoding: </span>
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="w-fit px-3 py-2 border text-sm cursor-pointer bg-background"
-              />
-            </div>
-          )}
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
@@ -323,15 +295,15 @@ const PerformanceTests = () => {
         </button>
 
         {jobId && jobStatus && (
-          <div className="my-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500"></div>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                  <div className="h-2 w-2 bg-magenta-chart"></div>
+                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
                     Running performance test...
                   </span>
                 </div>

@@ -10,7 +10,7 @@ The following is an example of how to specify CPU cores in a docker-compose file
 ...
   services:
     dlstreamer-pipeline-server:
-    image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+    image: intel/dlstreamer-pipeline-server:2025.2.0-ubuntu22
     environment:
       CORE_PINNING: p-cores
 ...

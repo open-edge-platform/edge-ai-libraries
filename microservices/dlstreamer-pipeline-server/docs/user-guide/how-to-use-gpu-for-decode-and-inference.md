@@ -36,10 +36,10 @@ Gstreamer has a variety of hardware specific encoders and decoders elements such
 
 Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete).
 
-Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/dev_guide/gpu_device_selection.md) for more information on GPU selection.
+Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/gpu_device_selection.md) for more information on GPU selection.
 
 ### GPU specific element properties
-DL Streamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
+DL Streamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
 
 ## Tutorial on how to use GPU specific pipelines
 
@@ -85,4 +85,4 @@ DL Streamer inference elements also provides property such as `pre-process-backe
     ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/master/docs/source/dev_guide/performance_guide.md).
+- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
