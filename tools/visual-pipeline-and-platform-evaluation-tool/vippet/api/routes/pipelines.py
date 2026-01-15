@@ -150,7 +150,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
     Operation:
         * Convert the provided PipelineGraph to a GStreamer launch string.
         * Extract validation parameters (for example ``max-runtime``).
-        * Create a new validation job and run ``validator.py`` in a
+        * Create a new validation job and run ``gst_runner.py`` in a
           background thread.
         * Return the generated job id.
 
