@@ -21,6 +21,7 @@ import PipelineEditor, {
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
+import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import { toast } from "sonner";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
@@ -472,8 +473,8 @@ const Pipelines = () => {
       }).unwrap();
 
       setPerformanceTestJobId(null);
-      setShowDetailsPanel(false); // Close the panel when stopping
-      setCompletedVideoPath(null); // Clear any completed video
+      setShowDetailsPanel(false);
+      setCompletedVideoPath(null);
 
       toast.success("Pipeline stopped", {
         description: new Date().toISOString(),
@@ -510,12 +511,10 @@ const Pipelines = () => {
 
       const target = event.target as HTMLElement;
 
-      // Check if click is outside the details panel
       if (
         detailsPanelRef.current &&
         !detailsPanelRef.current.contains(target)
       ) {
-        // Also check if it's not the resize handle
         const isResizeHandle =
           target.closest("[data-resize-handle]") ||
           target.closest("[data-resize-handle-active]") ||
@@ -523,7 +522,6 @@ const Pipelines = () => {
           target.getAttribute("data-resize-handle") !== null;
 
         if (!isResizeHandle) {
-          // Don't close if performance test is running or showing results
           if (!performanceTestJobId && !completedVideoPath) {
             setShowDetailsPanel(false);
             setSelectedNode(null);
@@ -631,12 +629,14 @@ const Pipelines = () => {
 
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
-            <RunPipelineButton
-              isRunning={!!performanceTestJobId}
-              isStopping={isStopping}
-              onRun={handleRunPipeline}
-              onStop={handleStopPipeline}
-            />
+            {performanceTestJobId ? (
+              <StopPipelineButton
+                isStopping={isStopping}
+                onStop={handleStopPipeline}
+              />
+            ) : (
+              <RunPipelineButton onRun={handleRunPipeline} />
+            )}
 
             <button
               className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"

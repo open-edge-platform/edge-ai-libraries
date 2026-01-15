@@ -60,6 +60,7 @@ const NodeDataPanel = ({
 
   const handleInputChange = (key: string, value: string | unknown) => {
     const updatedData = { ...editableData, [key]: value };
+
     setEditableData(updatedData);
     onNodeDataUpdate(selectedNode.id, updatedData);
   };
