@@ -89,7 +89,8 @@ const Pipelines = () => {
     },
   );
 
-  const [runPerformanceTest] = useRunPerformanceTestMutation();
+  const [runPerformanceTest, { isLoading: isRunning }] =
+    useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [updatePipeline] = useUpdatePipelineMutation();
@@ -635,7 +636,10 @@ const Pipelines = () => {
                 onStop={handleStopPipeline}
               />
             ) : (
-              <RunPipelineButton onRun={handleRunPipeline} />
+              <RunPipelineButton
+                onRun={handleRunPipeline}
+                isRunning={isRunning}
+              />
             )}
 
             <button
