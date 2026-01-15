@@ -41,6 +41,18 @@ def get_pipeline_manager() -> "PipelineManager":
 
 
 class PipelineManager:
+    """
+    Manage pipelines including both advanced and simple graph views.
+
+    Responsibilities:
+    * Load predefined pipelines from configuration
+    * Create, read, update, delete user-created pipelines
+    * Maintain both advanced and simple views for all pipelines
+    * Generate simple views automatically from advanced views
+    * Apply simple view changes back to advanced views
+    * Build executable GStreamer pipeline commands with proper video encoding
+    """
+
     def __init__(self):
         self.logger = logging.getLogger("PipelineManager")
         # Shared lock protecting access to pipelines
@@ -51,6 +63,27 @@ class PipelineManager:
         self.video_encoder = get_video_encoder()
 
     def add_pipeline(self, new_pipeline: PipelineDefinition):
+        """
+        Create a new pipeline from a pipeline definition.
+
+        The method:
+        * Validates version numbering rules
+        * Generates a unique pipeline ID
+        * Parses GStreamer pipeline string (pipeline_description) into advanced graph
+        * Generates simple view from advanced graph
+        * Stores pipeline with both views
+
+        Args:
+            new_pipeline: PipelineDefinition with name, version, description (human-readable text),
+                type, pipeline_description (GStreamer pipeline string), and optional parameters.
+
+        Returns:
+            Pipeline: Created pipeline with generated ID and both graph views.
+
+        Raises:
+            ValueError: If version numbering rules are violated or GStreamer pipeline
+                string cannot be parsed.
+        """
         with self.lock:
             # Enforce strictly increasing, consecutive pipeline versions per name.
             self._ensure_next_version(new_pipeline.name, new_pipeline.version)
@@ -58,9 +91,13 @@ class PipelineManager:
             # Generate ID with "pipeline" prefix
             pipeline_id = generate_unique_id("pipeline")
 
-            pipeline_graph = Graph.from_pipeline_description(
-                new_pipeline.pipeline_description
-            ).to_dict()
+            # Parse pipeline description into advanced graph
+            graph = Graph.from_pipeline_description(new_pipeline.pipeline_description)
+            pipeline_graph = PipelineGraph.model_validate(graph.to_dict())
+
+            # Generate simple view from advanced graph
+            simple_graph = graph.to_simple_view()
+            pipeline_graph_simple = PipelineGraph.model_validate(simple_graph.to_dict())
 
             pipeline = Pipeline(
                 id=pipeline_id,
@@ -69,7 +106,8 @@ class PipelineManager:
                 description=new_pipeline.description,
                 source=new_pipeline.source,
                 type=new_pipeline.type,
-                pipeline_graph=PipelineGraph.model_validate(pipeline_graph),
+                pipeline_graph=pipeline_graph,
+                pipeline_graph_simple=pipeline_graph_simple,
                 parameters=new_pipeline.parameters,
             )
 
@@ -162,28 +200,46 @@ class PipelineManager:
         name: Optional[str] = None,
         description: Optional[str] = None,
         pipeline_graph: Optional[PipelineGraph] = None,
+        pipeline_graph_simple: Optional[PipelineGraph] = None,
         parameters: Optional[PipelineParameters] = None,
     ) -> Pipeline:
         """Update selected fields of an existing pipeline.
 
+        Important: Only ONE of pipeline_graph or pipeline_graph_simple should be provided.
+        If pipeline_graph is provided, it replaces the advanced view and a new simple view
+        is auto-generated. If pipeline_graph_simple is provided, changes are merged into
+        the advanced view using apply_simple_view_changes(), and a new simple view is
+        regenerated from the updated advanced view.
+
         Args:
             pipeline_id: ID of the pipeline to update.
             name: Optional new pipeline name.
-            description: Optional new human-readable description.
-            pipeline_graph: Optional new pipeline graph representation.
+            description: Optional new human-readable text describing what the pipeline does.
+            pipeline_graph: Optional new advanced graph representation.
+            pipeline_graph_simple: Optional modified simple graph with property changes.
             parameters: Optional new pipeline parameters.
 
         Returns:
-            The updated :class:`Pipeline` instance.
+            The updated :class:`Pipeline` instance with both graph views.
 
         Raises:
             ValueError: If the pipeline with the given ID does not exist.
+            ValueError: If both pipeline_graph and pipeline_graph_simple are provided.
+            ValueError: If pipeline_graph_simple changes are invalid (structural changes).
+            ValueError: If provided pipeline graph cannot be converted to a valid GStreamer pipeline string.
         """
 
         with self.lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
+
+            # Validate that only one graph type is provided
+            if pipeline_graph is not None and pipeline_graph_simple is not None:
+                raise ValueError(
+                    "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. "
+                    "Please provide only one."
+                )
 
             # Update fields if provided
             if name is not None:
@@ -192,9 +248,9 @@ class PipelineManager:
             if description is not None:
                 pipeline.description = description
 
-            # If a new pipeline graph is provided, validate and replace the existing one
+            # Handle pipeline graph updates
             if pipeline_graph is not None:
-                # Validate the pipeline graph by converting it to a pipeline description
+                # User provided new advanced graph - validate and regenerate simple view
                 pipeline_description = Graph.from_dict(
                     pipeline_graph.model_dump()
                 ).to_pipeline_description()
@@ -202,6 +258,58 @@ class PipelineManager:
                     raise ValueError("Provided pipeline graph is invalid.")
 
                 pipeline.pipeline_graph = pipeline_graph
+
+                # Auto-generate simple view from new advanced graph
+                graph = Graph.from_dict(pipeline_graph.model_dump())
+                simple_graph = graph.to_simple_view()
+                pipeline.pipeline_graph_simple = PipelineGraph.model_validate(
+                    simple_graph.to_dict()
+                )
+
+                self.logger.debug(
+                    f"Updated advanced graph for pipeline {pipeline_id} and regenerated simple view"
+                )
+
+            elif pipeline_graph_simple is not None:
+                # User provided modified simple graph - merge changes into advanced view
+                original_advanced_graph = Graph.from_dict(
+                    pipeline.pipeline_graph.model_dump()
+                )
+                original_simple_graph = Graph.from_dict(
+                    pipeline.pipeline_graph_simple.model_dump()
+                )
+                modified_simple_graph = Graph.from_dict(
+                    pipeline_graph_simple.model_dump()
+                )
+
+                # Apply simple view changes to advanced view
+                updated_advanced_graph = Graph.apply_simple_view_changes(
+                    modified_simple=modified_simple_graph,
+                    original_simple=original_simple_graph,
+                    original_advanced=original_advanced_graph,
+                )
+
+                # Validate updated advanced graph can be converted to pipeline description
+                pipeline_description = updated_advanced_graph.to_pipeline_description()
+                if not pipeline_description:
+                    raise ValueError(
+                        "Updated pipeline graph is invalid after applying simple view changes."
+                    )
+
+                # Store updated advanced graph
+                pipeline.pipeline_graph = PipelineGraph.model_validate(
+                    updated_advanced_graph.to_dict()
+                )
+
+                # Regenerate simple view from updated advanced graph
+                new_simple_graph = updated_advanced_graph.to_simple_view()
+                pipeline.pipeline_graph_simple = PipelineGraph.model_validate(
+                    new_simple_graph.to_dict()
+                )
+
+                self.logger.debug(
+                    f"Applied simple view changes to pipeline {pipeline_id} and regenerated both views"
+                )
 
             if parameters is not None:
                 pipeline.parameters = parameters
@@ -228,14 +336,30 @@ class PipelineManager:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
     def load_predefined_pipelines(self):
+        """
+        Load predefined pipelines from configuration files.
+
+        For each pipeline:
+        * Parse GStreamer pipeline string (pipeline_description) into advanced graph
+        * Generate simple view from advanced graph
+        * Create Pipeline object with both views
+
+        Returns:
+            list[Pipeline]: List of predefined pipelines with both graph views.
+        """
         predefined_pipelines = []
         for config_path in PipelineLoader.list():
             config = PipelineLoader.config(config_path)
 
             pipeline_description = config.get("pipeline_description", "")
-            pipeline_graph = Graph.from_pipeline_description(
-                pipeline_description
-            ).to_dict()
+
+            # Parse into advanced graph
+            graph = Graph.from_pipeline_description(pipeline_description)
+            pipeline_graph = PipelineGraph.model_validate(graph.to_dict())
+
+            # Generate simple view
+            simple_graph = graph.to_simple_view()
+            pipeline_graph_simple = PipelineGraph.model_validate(simple_graph.to_dict())
 
             predefined_pipelines.append(
                 Pipeline(
@@ -245,7 +369,8 @@ class PipelineManager:
                     description=config.get("definition", ""),
                     source=PipelineSource.PREDEFINED,
                     type=PipelineType.GSTREAMER,
-                    pipeline_graph=PipelineGraph.model_validate(pipeline_graph),
+                    pipeline_graph=pipeline_graph,
+                    pipeline_graph_simple=pipeline_graph_simple,
                     parameters=None,
                 )
             )
@@ -258,13 +383,18 @@ class PipelineManager:
         video_config: VideoOutputConfig,
     ) -> tuple[str, dict[str, List[str]]]:
         """
-        Build a complete GStreamer pipeline command from run specifications.
+        Build a complete executable GStreamer pipeline command from run specifications.
+
+        This method takes pipeline specifications with stream counts, retrieves the
+        corresponding pipeline graphs, and constructs a complete GStreamer command line
+        that can be executed to run all specified pipelines with all their streams.
 
         Args:
             pipeline_performance_specs: List of PipelinePerformanceSpec defining pipelines and streams.
+            video_config: Configuration for video output generation.
 
         Returns:
-            str: Complete GStreamer pipeline command string.
+            tuple: (Complete GStreamer command string, dictionary mapping pipeline IDs to output file paths)
 
         Raises:
             ValueError: If any pipeline in specs is not found.

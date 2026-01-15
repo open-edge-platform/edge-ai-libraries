@@ -102,6 +102,12 @@ class Graph:
         """
         Create Graph from a plain dictionary (for example deserialized JSON).
 
+        Args:
+            data: Dictionary with 'nodes' and 'edges' keys following the Graph schema
+
+        Returns:
+            Graph: New Graph instance created from the dictionary
+
         The dictionary is expected to follow the same structure as produced
         by Graph.to_dict() and exposed via the public API.
 
@@ -128,6 +134,9 @@ class Graph:
         """
         Convert Graph into a plain dictionary (for example for JSON serialization).
 
+        Returns:
+            dict: Dictionary representation of the graph with 'nodes' and 'edges' keys
+
         The resulting structure is compatible with the public API schema.
         Using asdict() here ensures all dataclass fields are serialized consistently.
         """
@@ -137,6 +146,12 @@ class Graph:
     def from_pipeline_description(pipeline_description: str) -> "Graph":
         """
         Parse a GStreamer-like pipeline description string into a Graph.
+
+        Args:
+            pipeline_description: GStreamer pipeline string with elements separated by '!'
+
+        Returns:
+            Graph: New Graph instance representing the parsed pipeline
 
         High-level algorithm:
           1. Split the description by '!' into segments (elements or caps).
@@ -261,6 +276,12 @@ class Graph:
         """
         Convert the in-memory Graph back into a GStreamer-like pipeline string.
 
+        Returns:
+            str: GStreamer pipeline description string
+
+        Raises:
+            ValueError: If graph is empty, circular, or contains unsupported model/device combinations
+
         High-level algorithm:
           1. Validate that the graph is non-empty and acyclic and that all
              models are supported on their target devices.
@@ -332,15 +353,15 @@ class Graph:
         """
         Prepare output sink nodes with unique filenames in the output directory.
 
+        Returns:
+            tuple: (Graph object with updated sink nodes, list of output file paths)
+
         Iterates through all sink nodes, generates unique filenames with
         timestamp and random suffix, updates the location to the output
         directory, and collects the output paths.
 
         Note: This is used only during pipeline execution preparation and does
-        not affect the original graph stored in the database.
-
-        Returns:
-            tuple: (Graph object with updated sink nodes, list of output file paths)
+        not affect the original graph stored in memory by the pipeline manager.
         """
         output_paths: list[str] = []
 
@@ -374,10 +395,10 @@ class Graph:
         """
         Retrieve a list of input video filenames from source nodes in the graph.
 
-        This intentionally skips sink nodes to avoid collecting output paths.
-
         Returns:
-            list: List of input video filenames.
+            list[str]: List of input video filenames
+
+        This intentionally skips sink nodes to avoid collecting output paths.
         """
         input_filenames: list[str] = []
 
@@ -420,6 +441,9 @@ class Graph:
         """
         Generate a simplified view of the pipeline graph by filtering out technical elements.
 
+        Returns:
+            Graph: A new simplified graph with only visible elements
+
         This function creates a new graph that shows only "meaningful" elements (sources,
         inference, outputs) while hiding technical plumbing elements (queues, converters, etc.).
 
@@ -436,9 +460,6 @@ class Graph:
           * Caps nodes (marked with __node_kind="caps") are always hidden
           * If all nodes in a path are hidden, the edge is dropped
           * Tee branch structure is maintained when tee has visible downstream nodes
-
-        Returns:
-            Graph: A new simplified graph with only visible elements
         """
         logger.debug("Generating simple view from advanced graph")
         logger.debug(f"Visible element patterns: {SIMPLE_VIEW_VISIBLE_ELEMENTS}")
@@ -499,6 +520,195 @@ class Graph:
         )
         return Graph(nodes=simple_nodes, edges=simple_edges)
 
+    @staticmethod
+    def apply_simple_view_changes(
+        modified_simple: "Graph", original_simple: "Graph", original_advanced: "Graph"
+    ) -> "Graph":
+        """
+        Merge changes from modified simple view back into the advanced view.
+
+        Args:
+            modified_simple: Simple view graph after user modifications
+            original_simple: Original simple view graph before modifications
+            original_advanced: Original advanced view graph to apply changes to
+
+        Returns:
+            Graph: New advanced view graph with changes applied
+
+        Raises:
+            ValueError: If any edges were added, removed, or modified
+            ValueError: If any nodes were added or removed
+            ValueError: If any unsupported changes were detected
+
+        Algorithm:
+          1. Detect changes in nodes (added/removed/modified)
+          2. If nodes were added or removed, raise ValueError (not supported)
+          3. Detect changes in edges between original_simple and modified_simple
+          4. If any edge changes detected, raise ValueError (edge changes not supported)
+          5. For modified node properties, update corresponding nodes in original_advanced
+          6. Return new advanced graph with updated properties
+
+        Note: Only property modifications of existing visible nodes are supported.
+        All structural changes (adding/removing nodes or edges) are rejected.
+        We check node structure first because removing nodes also removes their edges,
+        and we want to report the root cause (node removal) rather than the symptom (edge removal).
+        """
+        logger.debug("Applying simple view changes to advanced view")
+
+        # Step 1: Detect node changes
+        # Build sets of node IDs for comparison
+        original_node_ids = {node.id for node in original_simple.nodes}
+        modified_node_ids = {node.id for node in modified_simple.nodes}
+
+        # Check for added nodes
+        added_node_ids = modified_node_ids - original_node_ids
+        if added_node_ids:
+            added_nodes_str = ", ".join(sorted(added_node_ids))
+            raise ValueError(
+                f"Node additions are not supported in simple view. "
+                f"Added nodes: {added_nodes_str}. "
+                f"Please use advanced view to add new nodes."
+            )
+
+        # Check for removed nodes
+        removed_node_ids = original_node_ids - modified_node_ids
+        if removed_node_ids:
+            removed_nodes_str = ", ".join(sorted(removed_node_ids))
+            raise ValueError(
+                f"Node removals are not supported in simple view. "
+                f"Removed nodes: {removed_nodes_str}. "
+                f"Please use advanced view to remove nodes."
+            )
+
+        logger.debug("No node additions or removals detected - validation passed")
+
+        # Step 2: Detect edge changes
+        # Build dictionaries for efficient edge lookup by ID
+        original_edges_by_id = {edge.id: edge for edge in original_simple.edges}
+        modified_edges_by_id = {edge.id: edge for edge in modified_simple.edges}
+
+        # Get sets of edge IDs for comparison
+        original_edge_ids = set(original_edges_by_id.keys())
+        modified_edge_ids = set(modified_edges_by_id.keys())
+
+        # Check for added edges (new edge IDs that didn't exist before)
+        added_edge_ids = modified_edge_ids - original_edge_ids
+        if added_edge_ids:
+            added_edges_details = [
+                f"id={edge_id} ({modified_edges_by_id[edge_id].source} -> {modified_edges_by_id[edge_id].target})"
+                for edge_id in sorted(added_edge_ids)
+            ]
+            added_edges_str = ", ".join(added_edges_details)
+            raise ValueError(
+                f"Edge additions are not supported in simple view. "
+                f"Added edges: {added_edges_str}. "
+                f"Please use advanced view to modify graph structure."
+            )
+
+        # Check for removed edges (edge IDs that existed before but are now gone)
+        removed_edge_ids = original_edge_ids - modified_edge_ids
+        if removed_edge_ids:
+            removed_edges_details = [
+                f"id={edge_id} ({original_edges_by_id[edge_id].source} -> {original_edges_by_id[edge_id].target})"
+                for edge_id in sorted(removed_edge_ids)
+            ]
+            removed_edges_str = ", ".join(removed_edges_details)
+            raise ValueError(
+                f"Edge removals are not supported in simple view. "
+                f"Removed edges: {removed_edges_str}. "
+                f"Please use advanced view to modify graph structure."
+            )
+
+        # Check for modified edges (same edge ID but changed source or target)
+        modified_edges_details = []
+        for edge_id in original_edge_ids:
+            original_edge = original_edges_by_id[edge_id]
+            modified_edge = modified_edges_by_id[edge_id]
+
+            # Check if source or target changed for this edge ID
+            if (
+                original_edge.source != modified_edge.source
+                or original_edge.target != modified_edge.target
+            ):
+                modified_edges_details.append(
+                    f"id={edge_id} changed from ({original_edge.source} -> {original_edge.target}) "
+                    f"to ({modified_edge.source} -> {modified_edge.target})"
+                )
+
+        if modified_edges_details:
+            modified_edges_str = ", ".join(modified_edges_details)
+            raise ValueError(
+                f"Edge modifications are not supported in simple view. "
+                f"Modified edges: {modified_edges_str}. "
+                f"Please use advanced view to modify graph structure."
+            )
+
+        logger.debug("No edge changes detected - validation passed")
+
+        # Step 3: Detect modified node properties
+        # Build dictionaries for efficient lookup
+        original_nodes_by_id = {node.id: node for node in original_simple.nodes}
+        modified_nodes_by_id = {node.id: node for node in modified_simple.nodes}
+
+        # Track which nodes have property changes
+        modified_node_ids_with_changes = set()
+
+        for node_id in modified_node_ids:
+            original_node = original_nodes_by_id[node_id]
+            modified_node = modified_nodes_by_id[node_id]
+
+            # Check if type changed (should not happen in simple view)
+            if original_node.type != modified_node.type:
+                raise ValueError(
+                    f"Node type changes are not supported in simple view. "
+                    f"Node {node_id} type changed from '{original_node.type}' to '{modified_node.type}'. "
+                    f"Please use advanced view to modify node types."
+                )
+
+            # Check if data/properties changed
+            if original_node.data != modified_node.data:
+                modified_node_ids_with_changes.add(node_id)
+                logger.debug(
+                    f"Node {node_id} has property changes: "
+                    f"original={original_node.data}, modified={modified_node.data}"
+                )
+
+        # Step 4: Apply property changes to advanced view
+        # Create a deep copy of the advanced graph to avoid modifying the original
+        result_advanced = copy.deepcopy(original_advanced)
+
+        # Build a lookup dictionary for advanced nodes
+        advanced_nodes_by_id = {node.id: node for node in result_advanced.nodes}
+
+        # Apply changes to corresponding nodes in advanced view
+        for node_id in modified_node_ids_with_changes:
+            if node_id not in advanced_nodes_by_id:
+                # This should never happen if simple view was correctly generated from advanced view
+                # If it does happen, it indicates a bug in the simple view generation logic
+                raise ValueError(
+                    f"Internal error: Node {node_id} from simple view not found in advanced view. "
+                    f"This indicates a mismatch between the simple and advanced graph representations."
+                )
+
+            # Get the modified properties from simple view
+            modified_node = modified_nodes_by_id[node_id]
+
+            # Update the properties in the advanced view node
+            advanced_node = advanced_nodes_by_id[node_id]
+            advanced_node.data.clear()
+            advanced_node.data.update(modified_node.data)
+
+            logger.debug(
+                f"Applied property changes to advanced node {node_id}: {advanced_node.data}"
+            )
+
+        logger.debug(
+            f"Successfully applied changes from simple view to advanced view. "
+            f"Modified {len(modified_node_ids_with_changes)} nodes."
+        )
+
+        return result_advanced
+
 
 def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     """
@@ -508,11 +718,17 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     Caps nodes (identified by __node_kind="caps" in data) are always hidden.
 
     Args:
-        node: The node to check
-        visible_patterns: List of wildcard patterns (e.g., "*src", "gva*")
+        node: The node to check for visibility
+        visible_patterns: List of wildcard patterns (e.g., "*src", "gva*") to match against node type
 
     Returns:
-        bool: True if node should be visible, False if it should be hidden
+        bool: True if node should be visible in simple view, False if it should be hidden
+
+    Examples:
+        - Node with type "filesrc" matches pattern "*src" -> visible
+        - Node with type "gvadetect" matches pattern "gva*" -> visible
+        - Node with type "queue" doesn't match any pattern -> hidden
+        - Node with __node_kind="caps" -> always hidden regardless of type
     """
     # Always hide caps nodes regardless of their type
     if node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS:
@@ -549,12 +765,16 @@ def _find_visible_targets(
       3. Use visited set to avoid infinite loops in case of cycles
 
     Args:
-        source_id: Starting node ID
+        source_id: Starting node ID to search from
         edges_from: Adjacency map (node_id -> list of target node IDs)
         visible_node_ids: Set of node IDs that are visible in simple view
 
     Returns:
         set[str]: Set of visible node IDs reachable from source_id
+
+    Example:
+        If graph is: A(visible) -> B(hidden) -> C(hidden) -> D(visible)
+        Calling _find_visible_targets("A", ...) will return {"D"}
     """
     visible_targets: set[str] = set()
     visited: set[str] = set()
@@ -597,28 +817,32 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
                 key=value
               with both key and value being non-empty strings after trimming.
 
-    In that case we return:
-        (caps_base, {key1: value1, key2: value2, ...})
+    Args:
+        segment: Raw string segment from pipeline description (between '!' separators)
 
-    If the segment does not contain a comma at all, it is *never* treated as
-    caps and we return None. This means that:
-        - "video/x-raw(memory:NVMM)" is a regular element, not caps.
-        - "video/x-raw" is a regular element.
-        - "weird/no_comma" is a regular element.
+    Returns:
+        tuple[str, dict[str, str]] | None:
+            - If segment is valid caps: (caps_base, properties_dict)
+            - If segment is not caps: None
 
-    If the segment contains commas but any of the trailing parts is not a
-    valid "key=value" pair (or has an empty key or value), we raise ValueError.
+    Raises:
+        ValueError: If segment has commas but invalid property format (empty base, missing '=', empty key/value)
 
-    Examples treated as caps:
+    Examples of valid caps (returns tuple):
         "video/x-raw(memory:VAMemory),width=320,height=240"
         "video/x-raw,width=320,height=240"
         "video/x-raw(memory:NVMM),format=UYVY,width=2592,height=1944,framerate=28/1"
-        "video/x-raw,format=(string)UYVY,width=(int)2592,height=(int)1944,framerate=(fraction)28/1"
 
-    Examples treated as non-caps (return None, later parsed as elements):
-        "video/x-raw(memory:NVMM)"
-        "video/x-raw"
-        "weird/no_comma"
+    Examples of non-caps (returns None):
+        "video/x-raw(memory:NVMM)"  - no comma
+        "video/x-raw"                - no comma
+        "filesrc"                    - no comma
+
+    Examples that raise ValueError:
+        ",width=320"              - empty caps base
+        "video/x-raw,width"       - property missing '='
+        "video/x-raw,=320"        - empty key
+        "video/x-raw,width="      - empty value
     """
     text = segment.strip()
     if not text:
@@ -676,6 +900,23 @@ def _tokenize(element: str) -> Iterator[_Token]:
     This caused multiple subtle bugs for caps without parentheses. The caps
     handling has been refactored out into _parse_caps_segment(), and this
     tokenizer is now intentionally simple and focused purely on elements.
+
+    Args:
+        element: Non-caps segment string to tokenize (e.g., "filesrc location=/tmp/foo.mp4")
+
+    Yields:
+        _Token: Tokens with kind TYPE, PROPERTY, TEE_END, or MISMATCH
+
+    Token kinds:
+        - TYPE: Element type (e.g., "filesrc", "gvadetect")
+        - PROPERTY: Key=value pair (e.g., "location=/tmp/foo.mp4")
+        - TEE_END: Tee branch endpoint (e.g., "t.")
+        - MISMATCH: Unrecognized token (caller should raise error)
+        - SKIP: Whitespace (filtered out, never yielded)
+
+    Example:
+        Input: "filesrc location=/tmp/foo.mp4"
+        Output: [Token(TYPE, "filesrc"), Token(PROPERTY, "location=/tmp/foo.mp4")]
     """
     token_specification = [
         # Property in key=value format (no commas here; caps are handled separately)
@@ -741,6 +982,22 @@ def _add_caps_node(
           integer counter (edge_id) and stored as strings. This guarantees
           that edge IDs are unique even when multiple caps nodes appear
           in sequence, while preserving the representation as strings.
+
+    Args:
+        nodes: List of nodes to append the new caps node to (modified in place)
+        edges: List of edges to append new edge to (modified in place)
+        node_id: Numeric ID for the new caps node
+        caps_base: Base caps type (e.g., "video/x-raw" or "video/x-raw(memory:VAMemory)")
+        caps_props: Dictionary of caps properties (key=value pairs)
+        tee_stack: Stack of tee node IDs for handling tee branches (modified in place)
+        prev_token_kind: Kind of the previous token (used to determine edge source)
+        edge_id: Current edge ID counter for generating unique edge IDs
+
+    Returns:
+        int: Updated edge_id counter (incremented by 1 if edge was added, unchanged otherwise)
+
+    Raises:
+        ValueError: If prev_token_kind is TEE_END but tee_stack is empty
     """
     node_id_str = str(node_id)
     logger.debug(
@@ -808,6 +1065,21 @@ def _add_node(
     Tee handling:
         - If the new node is a "tee" element, we push its id onto tee_stack
           so that subsequent tee endpoints ("t.") can connect from it.
+
+    Args:
+        nodes: List of nodes to append the new element node to (modified in place)
+        edges: List of edges to append new edge to (modified in place)
+        node_id: Numeric ID for the new element node
+        token: Token containing the element type in token.value
+        prev_token_kind: Kind of the previous token (used to determine edge source)
+        tee_stack: Stack of tee node IDs for handling tee branches (modified in place if node is tee)
+        edge_id: Current edge ID counter for generating unique edge IDs
+
+    Returns:
+        int: Updated edge_id counter (incremented by 1 if edge was added, unchanged otherwise)
+
+    Raises:
+        ValueError: If prev_token_kind is TEE_END but tee_stack is empty
     """
     node_id_str = str(node_id)
     logger.debug(f"Adding node {node_id_str}: type={token.value}")
@@ -847,6 +1119,21 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     The property format is assumed to be "key=value" with optional spaces
     around the '='. No additional validation is done here; invalid properties
     should be filtered earlier during tokenization or caps parsing.
+
+    Args:
+        nodes: List of nodes (the last node will receive the property)
+        token: Token containing the property in "key=value" format
+
+    Returns:
+        None
+
+    Side effects:
+        - Modifies nodes[-1].data by adding the parsed key-value pair
+        - Logs warning if nodes list is empty (no-op in that case)
+
+    Example:
+        If token.value is "location=/tmp/foo.mp4", this adds
+        {"location": "/tmp/foo.mp4"} to the last node's data dict
     """
     if not nodes:
         logger.warning("Attempted to add property but no nodes exist")
@@ -883,7 +1170,26 @@ def _build_chain(
         tee name=t ! queue ! ...
         t. ! queue ! ...
 
-    visited is used to guard against infinite recursion on malformed graphs.
+    Args:
+        start_id: Node ID to start building the chain from
+        node_by_id: Dictionary mapping node IDs to Node objects
+        edges_from: Adjacency map (node_id -> list of target node IDs)
+        tee_names: Dictionary mapping tee node IDs to their names (for "t." notation)
+        visited: Set of already visited node IDs (modified in place to prevent cycles)
+        result_parts: List of string fragments forming the pipeline (modified in place)
+
+    Returns:
+        None (modifies result_parts and visited in place)
+
+    Side effects:
+        - Appends pipeline fragments to result_parts
+        - Adds processed node IDs to visited set
+        - Recursively calls itself for tee branches
+
+    Example output fragments:
+        Regular element: ["filesrc", "location=/tmp/foo.mp4", "!"]
+        Caps node: ["video/x-raw,width=320,height=240", "!"]
+        Tee branch: ["t.", "!", "queue", "!"]
     """
     current_id = start_id
 
@@ -965,6 +1271,22 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
 
     This is used when ingesting a pipeline description so that stored graphs
     reference logical model identifiers instead of absolute filesystem paths.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Side effects:
+        - Modifies node.data["model"] to contain display name instead of path
+        - Also converts node.data["model-proc"] if present
+        - Sets empty strings if model is not found in installed models
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["model"] = "/models/yolov8_license_plate_detector.xml"
+        Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
         path = node.data.get("model")
@@ -998,6 +1320,26 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
     This is used when converting a stored graph back into a runnable pipeline
     description. It also injects 'model-proc' immediately after 'model' when
     available so that the resulting pipeline is executable.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If model display name is not found in installed models
+        ValueError: If configured model-proc file is not found
+
+    Side effects:
+        - Modifies node.data["model"] to contain full path instead of display name
+        - Injects or updates node.data["model-proc"] with appropriate model-proc file path
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["model"] = "YOLOv8 License Plate Detector"
+        Output: node.data["model"] = "/models/yolov8_license_plate_detector.xml"
+                node.data["model-proc"] = "/models/yolov8_license_plate_detector.json"
     """
     for node in nodes:
         name = node.data.get("model")
@@ -1050,6 +1392,22 @@ def _insert_model_proc_after_model(node: Node, model_proc_path: str) -> None:
     Insert 'model-proc' property immediately after 'model' in node.data.
 
     This preserves the order of properties by rebuilding the data dictionary.
+
+    Args:
+        node: Node whose data dictionary will be modified
+        model_proc_path: Full path to the model-proc file
+
+    Returns:
+        None
+
+    Side effects:
+        - Rebuilds node.data to place 'model-proc' right after 'model'
+        - Removes any existing 'model-proc' entry and replaces it
+        - Preserves all other properties in their original order
+
+    Example:
+        Input:  node.data = {"model": "/path/to/model.xml", "device": "GPU", "model-proc": "/old/path"}
+        Output: node.data = {"model": "/path/to/model.xml", "model-proc": "/new/path", "device": "GPU"}
     """
     properties: dict[str, str] = {}
 
@@ -1074,6 +1432,23 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
     This check is performed before converting a graph back into a pipeline
     description to fail early when a user attempts to run an unsupported
     combination.
+
+    Args:
+        nodes: List of nodes to validate
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If model name is empty (not selected)
+        ValueError: If any model is not supported on its specified device
+
+    Side effects:
+        - Logs debug messages for each validated model-device pair
+
+    Example validation:
+        - Node with model="YOLOv8" and device="GPU" -> checks if YOLOv8 runs on GPU
+        - If not supported -> raises ValueError with clear message
     """
     for node in nodes:
         name = node.data.get("model")
@@ -1103,6 +1478,23 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
 
     This ensures that stored graphs are independent of the specific
     filesystem layout and instead reference logical video names only.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Side effects:
+        - Modifies node.data["source"] or node.data["location"] for non-sink nodes
+        - Converts absolute paths to filenames only
+        - Sets empty string if video path is not found
+        - Skips sink nodes to preserve output paths
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["location"] = "/videos/input/sample.mp4"
+        Output: node.data["location"] = "sample.mp4"
     """
     for node in nodes:
         if node.type.endswith("sink"):
@@ -1128,6 +1520,25 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
     This is performed when creating a runnable pipeline description from a
     stored graph. Sink nodes are intentionally skipped so that their output
     locations can be overridden by the caller if needed.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If video filename cannot be mapped to a valid path
+
+    Side effects:
+        - Modifies node.data["source"] or node.data["location"] for non-sink nodes
+        - Converts filenames to absolute paths
+        - Skips sink nodes to preserve output paths
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["location"] = "sample.mp4"
+        Output: node.data["location"] = "/videos/input/sample.mp4"
     """
     for node in nodes:
         if node.type.endswith("sink"):
@@ -1154,6 +1565,22 @@ def _labels_path_to_display_name(nodes: list[Node]) -> None:
 
     This ensures that stored graphs are independent of the specific
     filesystem layout and instead reference logical labels filenames only.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Side effects:
+        - Modifies node.data["labels"] or node.data["labels-file"] for inference nodes
+        - Converts absolute paths to filenames only
+        - Only processes gvadetect and gvaclassify node types
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["labels"] = "/labels/coco.txt"
+        Output: node.data["labels"] = "coco.txt"
     """
     for node in nodes:
         if node.type not in ("gvadetect", "gvaclassify"):
@@ -1173,6 +1600,25 @@ def _labels_name_to_path(nodes: list[Node]) -> None:
     Convert logical labels filenames back into absolute paths for gvadetect and gvaclassify nodes.
 
     This is performed when creating a runnable pipeline description from a stored graph.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If labels filename cannot be mapped to a valid path
+
+    Side effects:
+        - Modifies node.data["labels"] or node.data["labels-file"] for inference nodes
+        - Converts filenames to absolute paths
+        - Only processes gvadetect and gvaclassify node types
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["labels"] = "coco.txt"
+        Output: node.data["labels"] = "/labels/coco.txt"
     """
     for node in nodes:
         if node.type not in ("gvadetect", "gvaclassify"):
@@ -1198,6 +1644,22 @@ def _module_path_to_display_name(nodes: list[Node]) -> None:
 
     This ensures that stored graphs are independent of the specific
     filesystem layout and instead reference logical python module filenames only.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Side effects:
+        - Modifies node.data["module"] for gvapython nodes
+        - Converts absolute paths to filenames only
+        - Only processes gvapython node types
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["module"] = "/scripts/custom_processing.py"
+        Output: node.data["module"] = "custom_processing.py"
     """
     for node in nodes:
         if node.type != "gvapython":
@@ -1217,6 +1679,25 @@ def _module_name_to_path(nodes: list[Node]) -> None:
     Convert logical scripts filenames back into absolute paths for gvapython nodes.
 
     This is performed when creating a runnable pipeline description from a stored graph.
+
+    Args:
+        nodes: List of nodes to process (modified in place)
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If module filename cannot be mapped to a valid path
+
+    Side effects:
+        - Modifies node.data["module"] for gvapython nodes
+        - Converts filenames to absolute paths
+        - Only processes gvapython node types
+        - Logs debug messages for each conversion
+
+    Example:
+        Input:  node.data["module"] = "custom_processing.py"
+        Output: node.data["module"] = "/scripts/custom_processing.py"
     """
     for node in nodes:
         if node.type != "gvapython":
