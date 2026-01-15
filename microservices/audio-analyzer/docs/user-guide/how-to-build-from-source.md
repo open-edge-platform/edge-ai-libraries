@@ -13,7 +13,7 @@ This guide is ideal for developers who want to work directly with the source cod
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify your system meets the [minimum requirements](./get-started/system-requirements.md).
 - This guide assumes basic familiarity with Git commands, Python virtual environments, and
 terminal usage. If you are new to these concepts, see:
   - [Git Documentation](https://git-scm.com/doc)
@@ -24,8 +24,8 @@ terminal usage. If you are new to these concepts, see:
 
 The following options are provided to build the microservice:
 
-- [Build and run application with required dependencies using Docker Script](#build-and-run-in-containerusing-docker-script).
-- [Build and run on host using Setup Script](#setup-and-run-on-host-using-setup-script).
+- [Build and run application with required dependencies using Docker Script](#build-and-run-in-container-using-docker-script).
+- [Build and run on host using Setup Script](#build-and-run-on-host-using-setup-script).
 
 ### Build and run in container using Docker script
 
@@ -81,7 +81,7 @@ The following options are provided to build the microservice:
     export MAX_FILE_SIZE=314572800
     ```
 
-3. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
+6. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
 
     ```bash
     cd edge-ai-libraries/microservices/audio-analyzer
@@ -89,7 +89,7 @@ The following options are provided to build the microservice:
     ./setup_docker.sh
     ```
 
-4. If above step is successful, it will print the complete URL of API endpoint along with URL of Swagger API docs. Please refer the API docs to learn how to send request to Audio-Analyzer when running with Minio.
+7. If above step is successful, it will print the complete URL of API endpoint along with URL of Swagger API docs. Please refer the API docs to learn how to send request to Audio-Analyzer when running with Minio.
 
 #### Docker Setup Options
 
@@ -143,10 +143,12 @@ The production environment uses:
     ```
 
 Available options:
+
 - `--debug`, `-d`: Enable debug mode
 - `--reload`, `-r`: Enable auto-reload on code changes
 
 The setup script will:
+
 - Install all required system dependencies
 - Create directories for model storage. **For host setup using script, only storage backend available is local filesystem.**
 - Install Poetry and project dependencies
@@ -157,10 +159,9 @@ The setup script will:
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
-## Troubleshooting
-
 ## Supporting Resources
 
-- [Get Started Guide](get-started.md)
-- [System Requirements](system-requirements.md)
-- [API Reference](api-reference.md)
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
+- [Troubleshooting](./troubleshooting.md)

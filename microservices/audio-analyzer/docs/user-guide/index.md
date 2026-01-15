@@ -119,18 +119,19 @@ formats):
 ## Supporting Resources
 
 - [Get Started Guide](./get-started)
+- [System Requirements](./get-started/system-requirements.md)
 - [API Reference](./api-reference)
-- [System Requirements](./system-requirements)
+- [Troubleshooting](./troubleshooting.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-overview-architecture
-system-requirements
+how-it-works
 get-started
 how-to-build-from-source
 api-reference
+troubleshooting
 release-notes
 
 :::

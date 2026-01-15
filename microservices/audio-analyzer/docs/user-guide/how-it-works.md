@@ -1,4 +1,4 @@
-# Overview and Architecture
+# How It Works
 
 The Audio Analyzer microservice provides capability to transcribe audio from input video file.
 
@@ -6,7 +6,7 @@ The Audio Analyzer microservice provides capability to transcribe audio from inp
 
 ### High-Level Architecture Diagram
 
-![Architecture Diagram](images/Audio_Int_HLA.png)
+![Architecture Diagram](./images/Audio_Int_HLA.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ### Inputs
@@ -21,7 +21,9 @@ the input video file and providing the same to the Whisper model for transcripti
 transcription process follows the well documented Whisper model internals.
 
 ### Outputs
-- **API Responses**: Provides feedback on operations, including success or error messages, and returns output for the requested API call.
+
+- **API Responses**: Provides feedback on operations, including success or error messages,
+and returns output for the requested API call.
 
 ## API Endpoints
 
@@ -74,6 +76,6 @@ Option 2: MinIO Source
 
 ## Supporting Resources
 
-- [Get Started Guide](get-started.md)
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
