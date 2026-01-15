@@ -20,7 +20,7 @@ import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
-import TestPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
+import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import { toast } from "sonner";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
@@ -380,20 +380,16 @@ const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    setSelectedNode(node);
-    // Keep panel open if performance test is running, otherwise follow node selection
-    if (!performanceTestJobId) {
-      setShowDetailsPanel(!!node);
-      // Clear completed video when selecting a node
-      if (node) {
-        setCompletedVideoPath(null);
-      }
+    if (performanceTestJobId) {
+      return;
     }
-  };
 
-  const handleOpenTestPanel = () => {
-    setShowDetailsPanel(true);
-    setSelectedNode(null);
+    setSelectedNode(node);
+    setShowDetailsPanel(!!node);
+
+    if (node) {
+      setCompletedVideoPath(null);
+    }
   };
 
   const handleNodeDataUpdate = (
@@ -413,6 +409,8 @@ const Pipelines = () => {
     if (!id) return;
 
     setCompletedVideoPath(null); // Clear previous video
+    setShowDetailsPanel(true); // Open the details panel
+    setSelectedNode(null); // Clear node selection
 
     try {
       await updatePipeline({
@@ -449,8 +447,6 @@ const Pipelines = () => {
 
       if (response && typeof response === "object" && "job_id" in response) {
         setPerformanceTestJobId(response.job_id as string);
-        setShowDetailsPanel(true);
-        setSelectedNode(null); // Clear node selection when running test
       }
 
       toast.success("Pipeline run started", {
@@ -476,7 +472,8 @@ const Pipelines = () => {
       }).unwrap();
 
       setPerformanceTestJobId(null);
-      // Keep panel open to show results
+      setShowDetailsPanel(false); // Close the panel when stopping
+      setCompletedVideoPath(null); // Clear any completed video
 
       toast.success("Pipeline stopped", {
         description: new Date().toISOString(),
@@ -634,7 +631,12 @@ const Pipelines = () => {
 
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
-            <TestPipelineButton onTest={handleOpenTestPanel} />
+            <RunPipelineButton
+              isRunning={!!performanceTestJobId}
+              isStopping={isStopping}
+              onRun={handleRunPipeline}
+              onStop={handleStopPipeline}
+            />
 
             <button
               className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
@@ -703,9 +705,6 @@ const Pipelines = () => {
                 {showDetailsPanel && !selectedNode ? (
                   <PerformanceTestPanel
                     isRunning={!!performanceTestJobId}
-                    isStopping={isStopping}
-                    onRun={handleRunPipeline}
-                    onStop={handleStopPipeline}
                     completedVideoPath={completedVideoPath}
                   />
                 ) : (
