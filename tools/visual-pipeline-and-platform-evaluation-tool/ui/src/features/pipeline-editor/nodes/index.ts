@@ -29,12 +29,6 @@ import SplitmuxsinkNode, {
   SplitmuxsinkNodeWidth,
 } from "./SplitmuxsinkNode.tsx";
 import VideoScaleNode from "./VideoScaleNode.tsx";
-import VideoFileInput, {
-  VideoFileInputWidth,
-} from "./simple/VideoFileInput.tsx";
-import DetectionModel, {
-  DetectionModelWidth,
-} from "./simple/DetectionModel.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -62,8 +56,6 @@ export const nodeTypes = {
   tee: TeeNode,
   splitmuxsink: SplitmuxsinkNode,
   videoscale: VideoScaleNode,
-  videofileinput: VideoFileInput,
-  detectionmodel: DetectionModel,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -74,8 +66,6 @@ export const nodeWidths: Record<string, number> = {
   queue: QueueNodeWidth,
   tee: TeeNodeWidth,
   splitmuxsink: SplitmuxsinkNodeWidth,
-  videofileinput: VideoFileInputWidth,
-  detectionmodel: DetectionModelWidth,
 };
 
 export const defaultNodeWidth = 220;
