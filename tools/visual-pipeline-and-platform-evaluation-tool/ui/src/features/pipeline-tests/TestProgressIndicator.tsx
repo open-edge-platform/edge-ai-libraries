@@ -274,7 +274,7 @@ export const TestProgressIndicator = ({
                   colors={availableEngines.map((e) => engineColors[e])}
                   unit="%"
                   yAxisDomain={[0, 100]}
-                  className="!shadow-none !p-0"
+                  className="!shadow-none !p-0 !bg-transparent !border-0"
                   labels={availableEngines.map((e) => engineLabels[e])}
                 />
               </div>
@@ -314,7 +314,7 @@ export const TestProgressIndicator = ({
                   ]}
                   showLegend={false}
                   labels={["Frequency"]}
-                  className="!shadow-none !p-0"
+                  className="!shadow-none !p-0 !bg-transparent !border-0"
                 />
               </div>
             </div>
@@ -361,7 +361,7 @@ export const TestProgressIndicator = ({
                   ]}
                   showLegend={true}
                   labels={["GPU Power", "Package Power"]}
-                  className="!shadow-none !p-0"
+                  className="!shadow-none !p-0 !bg-transparent !border-0"
                 />
               </div>
             </div>

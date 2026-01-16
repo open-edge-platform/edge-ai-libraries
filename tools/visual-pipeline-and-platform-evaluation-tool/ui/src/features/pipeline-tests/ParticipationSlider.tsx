@@ -15,7 +15,7 @@ export const ParticipationSlider = ({
 }: ParticipationSliderProps) => {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-muted-foreground min-w-[2ch] text-center">
+      <span className="text-sm text-neutral-500 min-w-[2ch] text-center font-semibold">
         {min}
       </span>
       <Slider
@@ -26,7 +26,7 @@ export const ParticipationSlider = ({
         step={1}
         className="flex-1"
       />
-      <span className="text-sm text-muted-foreground min-w-[3ch] text-center">
+      <span className="text-sm text-neutral-500 min-w-[3ch] text-center font-semibold">
         {max}
       </span>
       <input
@@ -40,11 +40,11 @@ export const ParticipationSlider = ({
         }}
         min={min}
         max={max}
-        className="w-[4rem] px-2 py-1 text-sm font-medium border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-[4rem] px-3 py-1.5 text-sm font-bold border border-neutral-700 bg-neutral-950/80 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ textAlign: "center" }}
         disabled={true}
       />
-      <span className="text-sm text-muted-foreground">%</span>
+      <span className="text-sm text-neutral-500 font-semibold">%</span>
     </div>
   );
 };

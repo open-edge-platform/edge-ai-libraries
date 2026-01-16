@@ -243,10 +243,10 @@ const DemoMode = () => {
             {pipelineSelections.map((selection) => (
               <div
                 key={selection.pipelineId}
-                className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-2xl animate-[float_6s_ease-in-out_infinite] overflow-visible"
+                className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-2xl overflow-visible"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
-                <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 overflow-visible">
+                <div className="relative grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1.3fr] gap-6 overflow-visible">
                   <div className="space-y-3 relative z-30">
                     <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
                       Model
@@ -406,13 +406,16 @@ const DemoMode = () => {
                 disabled={
                   isRunning || pipelineSelections.length === 0 || !!jobId
                 }
-                className="w-full px-8 py-4 bg-white hover:bg-neutral-200 text-black rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                className="relative w-full px-8 py-4 bg-neutral-900 hover:bg-neutral-950 text-white rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-neutral-800 overflow-hidden group"
               >
-                {jobId
-                  ? "Running Test..."
-                  : isRunning
-                    ? "Starting..."
-                    : "Run Density Test"}
+                <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <span className="relative">
+                  {jobId
+                    ? "Running Test..."
+                    : isRunning
+                      ? "Starting..."
+                      : "Run Density Test"}
+                </span>
               </button>
             </div>
           </div>
@@ -444,6 +447,35 @@ const DemoMode = () => {
                       Running density test...
                     </span>
                   </div>
+
+                  {/* Live Video Preview */}
+                  <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950/50 shadow-lg mt-4">
+                    <div className="bg-neutral-900/50 px-4 py-3 border-b border-neutral-800/50">
+                      <p className="text-sm font-semibold text-neutral-300">
+                        Live Preview
+                      </p>
+                    </div>
+                    <div className="aspect-video bg-neutral-900/30 flex items-center justify-center">
+                      <video
+                        autoPlay
+                        muted
+                        loop
+                        className="w-full h-full object-contain"
+                        src="/assets/preview-stream.mp4"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            parent.innerHTML =
+                              '<div class="flex items-center justify-center h-full"><span class="text-neutral-500 text-sm">No preview available</span></div>';
+                          }
+                        }}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  </div>
+
                   <TestProgressIndicator />
                 </div>
               )}
@@ -463,34 +495,57 @@ const DemoMode = () => {
                 ✓ Test Completed Successfully
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-neutral-950/50 rounded-xl p-4 border border-blue-500/30">
-                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-widest mb-1">
-                    Per Stream FPS
-                  </p>
-                  <p className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                    {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
-                  </p>
+                <div className="bg-neutral-950/50 rounded-xl p-4 border border-magenta-chart/30 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                  <div className="relative">
+                    <p className="text-xs text-magenta-chart font-semibold uppercase tracking-widest mb-1">
+                      Per Stream FPS
+                    </p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-magenta-chart via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                      {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-neutral-950/50 rounded-xl p-4 border border-purple-500/30">
-                  <p className="text-xs text-purple-400 font-semibold uppercase tracking-widest mb-1">
-                    Total Streams
-                  </p>
-                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    {testResult.total_streams ?? "N/A"}
-                  </p>
+                <div className="bg-neutral-950/50 rounded-xl p-4 border border-green-chart/30 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                  <div className="relative">
+                    <p className="text-xs text-green-chart font-semibold uppercase tracking-widest mb-1">
+                      Total Streams
+                    </p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-green-chart via-cyan-400 to-magenta-chart bg-clip-text text-transparent">
+                      {testResult.total_streams ?? "N/A"}
+                    </p>
+                  </div>
                 </div>
               </div>
-              {testResult.streams_per_pipeline && (
-                <div>
-                  <p className="text-neutral-400 font-semibold mb-3 uppercase tracking-widest text-xs">
-                    Streams per Pipeline:
+
+              {/* Video Preview */}
+              <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950/50 shadow-lg mt-6 max-w-2xl mx-auto">
+                <div className="bg-neutral-900/50 px-4 py-3 border-b border-neutral-800/50">
+                  <p className="text-sm font-semibold text-neutral-300">
+                    Test Preview
                   </p>
-                  <PipelineStreamsSummary
-                    streamsPerPipeline={testResult.streams_per_pipeline}
-                    pipelines={pipelines ?? []}
-                  />
                 </div>
-              )}
+                <div className="aspect-video bg-neutral-900/30 flex items-center justify-center">
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    className="w-full h-full object-contain"
+                    src="/assets/preview-stream.mp4"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) {
+                        parent.innerHTML =
+                          '<div class="flex items-center justify-center h-full"><span class="text-neutral-500 text-sm">No preview available</span></div>';
+                      }
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              </div>
 
               {/* Metric Charts Summary */}
               {metricHistorySnapshot.length > 0 && (
@@ -499,6 +554,7 @@ const DemoMode = () => {
                     Performance Metrics Summary
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Frame Rate Column */}
                     <MetricChart
                       title="Frame Rate Over Time"
                       data={metricHistorySnapshot.map((point) => ({
@@ -519,6 +575,8 @@ const DemoMode = () => {
                       labels={["Frame Rate"]}
                       className="!h-[200px]"
                     />
+
+                    {/* CPU Column */}
                     <MetricChart
                       title="CPU Usage Over Time"
                       data={metricHistorySnapshot.map((point) => ({
@@ -533,6 +591,48 @@ const DemoMode = () => {
                       labels={["CPU Usage"]}
                       className="!h-[200px]"
                     />
+
+                    {/* GPU Column */}
+                    <MetricChart
+                      title="GPU Usage Over Time"
+                      data={metricHistorySnapshot.map((point) => {
+                        const gpu = point.gpus["0"];
+                        return {
+                          timestamp: point.timestamp,
+                          compute: gpu?.compute ?? 0,
+                          render: gpu?.render ?? 0,
+                          copy: gpu?.copy ?? 0,
+                          video: gpu?.video ?? 0,
+                          videoEnhance: gpu?.videoEnhance ?? 0,
+                        };
+                      })}
+                      dataKeys={[
+                        "compute",
+                        "render",
+                        "copy",
+                        "video",
+                        "videoEnhance",
+                      ]}
+                      colors={[
+                        "var(--color-yellow-chart)",
+                        "var(--color-orange-chart)",
+                        "var(--color-purple-chart)",
+                        "var(--color-red-chart)",
+                        "var(--color-geode-chart)",
+                      ]}
+                      unit="%"
+                      yAxisDomain={[0, 100]}
+                      showLegend={true}
+                      labels={[
+                        "Compute",
+                        "Render",
+                        "Copy",
+                        "Video",
+                        "Video Enhance",
+                      ]}
+                      className="!h-[200px]"
+                    />
+
                     <MetricChart
                       title="Memory Utilization Over Time"
                       data={metricHistorySnapshot.map((point) => ({
@@ -547,6 +647,7 @@ const DemoMode = () => {
                       labels={["Memory"]}
                       className="!h-[200px]"
                     />
+
                     <MetricChart
                       title="CPU Temperature Over Time"
                       data={metricHistorySnapshot.map((point) => ({
@@ -567,6 +668,32 @@ const DemoMode = () => {
                       labels={["Temperature"]}
                       className="!h-[200px]"
                     />
+
+                    <MetricChart
+                      title="GPU Frequency Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        frequency: point.gpus["0"]?.frequency ?? 0,
+                      }))}
+                      dataKeys={["frequency"]}
+                      colors={["var(--color-yellow-chart)"]}
+                      unit=" GHz"
+                      yAxisDomain={[
+                        0,
+                        Math.max(
+                          ...metricHistorySnapshot.map(
+                            (d) => d.gpus["0"]?.frequency ?? 0,
+                          ),
+                          3,
+                        ),
+                      ]}
+                      showLegend={false}
+                      labels={["Frequency"]}
+                      className="!h-[200px]"
+                    />
+
+                    <div></div>
+
                     <MetricChart
                       title="CPU Frequency Over Time"
                       data={metricHistorySnapshot.map((point) => ({
@@ -587,6 +714,36 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["Frequency"]}
+                      className="!h-[200px]"
+                    />
+
+                    <MetricChart
+                      title="GPU Power Usage Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        gpuPower: point.gpus["0"]?.gpuPower ?? 0,
+                        pkgPower: point.gpus["0"]?.pkgPower ?? 0,
+                      }))}
+                      dataKeys={["gpuPower", "pkgPower"]}
+                      colors={[
+                        "var(--color-red-chart)",
+                        "var(--color-yellow-chart)",
+                      ]}
+                      unit=" W"
+                      yAxisDomain={[
+                        0,
+                        Math.max(
+                          ...metricHistorySnapshot.map((d) =>
+                            Math.max(
+                              d.gpus["0"]?.gpuPower ?? 0,
+                              d.gpus["0"]?.pkgPower ?? 0,
+                            ),
+                          ),
+                          50,
+                        ),
+                      ]}
+                      showLegend={true}
+                      labels={["GPU Power", "Package Power"]}
                       className="!h-[200px]"
                     />
                   </div>

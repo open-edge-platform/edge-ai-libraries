@@ -157,6 +157,7 @@ export const MetricChart = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
+                  className="bg-neutral-900 border-neutral-700 text-white"
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
@@ -169,7 +170,11 @@ export const MetricChart = ({
                 />
               }
             />
-            {showLegend && <ChartLegend content={<ChartLegendContent />} />}
+            {showLegend && (
+              <ChartLegend
+                content={<ChartLegendContent className="text-white" />}
+              />
+            )}
             {dataKeys.map((key, index) => (
               <Area
                 key={key}
