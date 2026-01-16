@@ -1019,7 +1019,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
               {!selectedFile && recentVideos.length > 0 && (
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
-                  <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('recentUploads')}</div>
                   <RecentVideosList>
                     {recentVideos.map((video) => (
                       <RecentVideoItem
