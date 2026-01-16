@@ -27,10 +27,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install qmassa
-RUN cargo install --locked qmassa@1.1.0
+RUN cargo install --locked qmassa@1.2.1
 
 # Final image for the collector
-FROM docker.io/library/telegraf:1.36.3 AS collector
+FROM docker.io/library/telegraf:1.37.1 AS collector
 
 # Copy qmassa binary from the build stage
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
