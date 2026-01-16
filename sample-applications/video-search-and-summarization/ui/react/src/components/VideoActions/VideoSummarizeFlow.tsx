@@ -252,16 +252,16 @@ const SettingsPanel = styled.div`
 const VideoSelectorContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.25rem;
   width: 100%;
-  margin-top: 1rem;
+  margin-top: 0.25rem;
 `;
 
 const VideoSelectorDivider = styled.div`
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin: 0.5rem 0;
+  margin: 0.25rem 0;
   color: #666;
   font-size: 0.9rem;
   
@@ -276,26 +276,27 @@ const VideoSelectorDivider = styled.div`
 
 const RecentVideosList = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  flex-direction: row;
+  gap: 0.75rem;
   padding: 0.5rem;
   background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  width: 100%;
 `;
 
 const RecentVideoItem = styled.div<{ selected: boolean }>`
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   background: ${({ selected }) => (selected ? '#e5f6ff' : '#fff')};
-  border: 1px solid ${({ selected }) => (selected ? '#0072c3' : '#e0e0e0')};
+  border: 2px solid ${({ selected }) => (selected ? '#0072c3' : '#e0e0e0')};
   
   &:hover {
     background: ${({ selected }) => (selected ? '#e5f6ff' : '#f0f0f0')};
@@ -307,27 +308,36 @@ const VideoItemInfo = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.5rem;
 `;
 
 const VideoItemName = styled.span`
   font-weight: 500;
   color: #333;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 `;
 
 const VideoItemDate = styled.span`
-  font-size: 0.8rem;
+  font-size: 0.65rem;
   color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 `;
 
 const VideoThumbnail = styled.video`
-  width: 80px;
-  height: 45px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 4px;
   background: #000;
-  flex-shrink: 0;
-  margin-left: 1rem;
 `;
 
 const StyledModalFooter = styled(ModalFooter)`
@@ -1009,7 +1019,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
               {!selectedFile && recentVideos.length > 0 && (
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
-                  <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('recentUploads')}</div>
                   <RecentVideosList>
                     {recentVideos.map((video) => (
                       <RecentVideoItem
@@ -1017,13 +1026,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                         selected={selectedExistingVideo?.videoId === video.videoId}
                         onClick={() => handleSelectExistingVideo(video)}
                       >
-                        <VideoItemInfo>
-                          <VideoItemName>{video.dataStore?.fileName || video.name || video.videoId}</VideoItemName>
-                          <VideoItemDate>
-                            {t('uploadedOn')}: {new Date(video.createdAt).toLocaleString()}
-                            {video.tags && video.tags.length > 0 && ` • Tags: ${video.tags.join(', ')}`}
-                          </VideoItemDate>
-                        </VideoItemInfo>
                         {video.dataStore && (
                           <VideoThumbnail
                             src={`${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`}
@@ -1037,6 +1039,14 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                             }}
                           />
                         )}
+                        <VideoItemInfo>
+                          <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
+                            {video.dataStore?.fileName || video.name || video.videoId}
+                          </VideoItemName>
+                          <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
+                            {new Date(video.createdAt).toLocaleDateString()}
+                          </VideoItemDate>
+                        </VideoItemInfo>
                       </RecentVideoItem>
                     ))}
                   </RecentVideosList>
