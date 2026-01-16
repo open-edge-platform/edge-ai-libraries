@@ -171,11 +171,11 @@ Before running the application, you need to set several environment variables:
     The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
     ```bash
-    # Enabled by default for --search and --all
-    export ENABLE_VSS_COLLECTOR=true
-
-    # Disable the collector if you don't want telemetry
+    # Disabled by default for --search and --all
     export ENABLE_VSS_COLLECTOR=false
+
+    # Enable the collector if you want telemetry
+    export ENABLE_VSS_COLLECTOR=true
     ```
 
 **🔐 Work with Gated Models**
@@ -282,10 +282,10 @@ Follow these steps to run the application:
     source setup.sh --search
     ```
 
-    > **Telemetry**: By default, `--search` also starts the telemetry collector and shows live metrics in the UI. To disable it:
+    > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
 
     ```bash
-    ENABLE_VSS_COLLECTOR=false source setup.sh --search
+    ENABLE_VSS_COLLECTOR=true source setup.sh --search
     ```
 
        > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to    learn how to set up automatic monitoring and processing of video files from a specified directory.
@@ -296,10 +296,10 @@ Follow these steps to run the application:
        source setup.sh --all
        ```
 
-    > **Telemetry**: By default, `--all` also starts the telemetry collector and shows live metrics in the UI. To disable it:
+    > **Telemetry**: By default, `--all` does not start the telemetry collector. To enable it:
 
     ```bash
-    ENABLE_VSS_COLLECTOR=false source setup.sh --all
+    ENABLE_VSS_COLLECTOR=true source setup.sh --all
     ```
 
 - **To run Video Summarization with OpenVINO model server microservice for a final summary :**
