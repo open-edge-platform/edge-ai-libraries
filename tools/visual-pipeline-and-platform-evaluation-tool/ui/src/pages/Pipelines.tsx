@@ -1,30 +1,40 @@
 import { useParams } from "react-router";
 import {
+  useGetOptimizationJobStatusQuery,
+  useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
+  useGetValidationJobStatusQuery,
+  useOptimizePipelineMutation,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
   useUpdatePipelineMutation,
-  useGetPerformanceJobStatusQuery,
   useValidatePipelineMutation,
-  useGetValidationJobStatusQuery,
-  useOptimizePipelineMutation,
-  useGetOptimizationJobStatusQuery,
 } from "@/api/api.generated";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import PipelineEditor from "@/features/pipeline-editor/PipelineEditor.tsx";
 import FpsDisplay from "@/features/pipeline-editor/FpsDisplay.tsx";
 import { toast } from "sonner";
 import RunPerformanceTestButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanceTestButton.tsx";
-import StatePreviewButton from "@/features/pipeline-editor/StatePreviewButton.tsx";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
-import OpenPipelineButton from "@/features/pipeline-editor/OpenPipelineButton.tsx";
+import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
+import DeviceSelect from "@/components/shared/DeviceSelect";
+import { Zap } from "lucide-react";
+import { isApiError } from "@/lib/apiUtils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAppSelector } from "@/store/hooks";
+import { selectDevices } from "@/store/reducers/devices";
 
 type UrlParams = {
   id: string;
@@ -32,6 +42,7 @@ type UrlParams = {
 
 const Pipelines = () => {
   const { id } = useParams<UrlParams>();
+  const devices = useAppSelector(selectDevices);
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -200,8 +211,11 @@ const Pipelines = () => {
           toast.info("Optimizing pipeline...");
         }
       } catch (error) {
+        const errorMessage = isApiError(error)
+          ? error.data.message
+          : "Unknown error";
         toast.error("Failed to start optimization", {
-          description: error instanceof Error ? error.message : "Unknown error",
+          description: errorMessage,
         });
         setIsOptimizing(false);
         setPendingOptimizationNodes([]);
@@ -295,8 +309,11 @@ const Pipelines = () => {
 
         toast.success("Optimized pipeline applied");
       } catch (error) {
+        const errorMessage = isApiError(error)
+          ? error.data.message
+          : "Unknown error";
         toast.error("Failed to apply optimized pipeline", {
-          description: error instanceof Error ? error.message : "Unknown error",
+          description: errorMessage,
         });
         console.error("Failed to apply optimized pipeline:", error);
       }
@@ -379,18 +396,24 @@ const Pipelines = () => {
         },
       }).unwrap();
 
+      const selectedDevice = devices.find(
+        (d) => d.device_name === encoderDevice,
+      );
+
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device: videoOutputEnabled
-              ? {
-                  device_name: encoderDevice.startsWith("GPU") ? "GPU" : "CPU",
-                  gpu_id: encoderDevice.startsWith("GPU")
-                    ? parseInt(encoderDevice.split("/")[1])
-                    : undefined,
-                }
-              : undefined,
+            encoder_device:
+              videoOutputEnabled && selectedDevice
+                ? {
+                    device_name: selectedDevice.device_name,
+                    gpu_id:
+                      selectedDevice.device_family === "GPU"
+                        ? (selectedDevice.gpu_id ?? 0)
+                        : undefined,
+                  }
+                : undefined,
           },
           pipeline_performance_specs: [
             {
@@ -409,8 +432,11 @@ const Pipelines = () => {
         description: new Date().toISOString(),
       });
     } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
       toast.error("Failed to start pipeline", {
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
       });
       console.error("Failed to start pipeline:", error);
     }
@@ -430,8 +456,11 @@ const Pipelines = () => {
         description: new Date().toISOString(),
       });
     } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
       toast.error("Failed to stop pipeline", {
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
       });
       console.error("Failed to stop pipeline:", error);
     }
@@ -485,8 +514,11 @@ const Pipelines = () => {
         toast.info("Validating pipeline...");
       }
     } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
       toast.error("Failed to start validation", {
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
       });
       setIsOptimizing(false);
       setPendingOptimizationNodes([]);
@@ -513,19 +545,9 @@ const Pipelines = () => {
         />
 
         <div className="absolute top-4 right-4 flex flex-col gap-2 items-center">
-          <div className="flex flex-row gap-2">
-            <button
-              className="bg-gray-600 text-white p-2 rounded-lg shadow-lg transition-colors disabled:opacity-50 hover:bg-gray-700 disabled:hover:bg-gray-600"
-              title="Optimize Pipeline"
-              disabled={isOptimizing || !!performanceTestJobId}
-              onClick={handleOptimizePipeline}
-            >
-              {isOptimizing ? "Optimizing..." : "Optimize"}
-            </button>
-            <FpsDisplay />
-          </div>
+          <FpsDisplay />
           {completedVideoPath && (
-            <div className="bg-white p-2 rounded-lg shadow-lg">
+            <div className="bg-white p-2 shadow-lg">
               <video
                 controls
                 className="w-64 h-auto"
@@ -537,7 +559,7 @@ const Pipelines = () => {
           )}
         </div>
 
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-end">
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
             {performanceTestJobId ? (
               <StopPerformanceTestButton
@@ -551,7 +573,15 @@ const Pipelines = () => {
               />
             )}
 
-            <OpenPipelineButton onImport={handleImport} />
+            <button
+              className="bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors disabled:opacity-50 disabled:hover:bg-orange-600 flex items-center gap-2"
+              title="Optimize Pipeline"
+              disabled={isOptimizing || !!performanceTestJobId}
+              onClick={handleOptimizePipeline}
+            >
+              <Zap className="w-5 h-5" />
+              <span>{isOptimizing ? "Optimizing..." : "Optimize"}</span>
+            </button>
 
             <ImportPipelineButton onImport={handleImport} />
 
@@ -562,34 +592,56 @@ const Pipelines = () => {
               pipelineName={data.name}
             />
 
-            <StatePreviewButton
-              edges={currentEdges}
-              nodes={currentNodes}
-              viewport={currentViewport}
-            />
-
-            <label className="bg-white p-2 rounded-lg shadow-lg flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={videoOutputEnabled}
-                onChange={(e) => setVideoOutputEnabled(e.target.checked)}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <span className="text-sm font-medium">Create Video</span>
-            </label>
-
-            {videoOutputEnabled && (
-              <select
-                value={encoderDevice}
-                onChange={(e) => setEncoderDevice(e.target.value)}
-                className="bg-white p-2 rounded-lg shadow-lg text-sm font-medium cursor-pointer border-none outline-none"
-              >
-                <option value="CPU">CPU</option>
-                <option value="GPU/0">GPU/0</option>
-                <option value="GPU/1">GPU/1</option>
-              </select>
+            {id && (
+              <DeletePipelineButton pipelineId={id} pipelineName={data.name} />
             )}
           </div>
+
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="bg-white p-2 flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={videoOutputEnabled}
+                    onCheckedChange={(checked) =>
+                      setVideoOutputEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">Save output</span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  Selecting this option changes the last fakesink to filesink so
+                  it is possible to view generated output
+                </p>
+              </TooltipContent>
+            </Tooltip>
+            {videoOutputEnabled && (
+              <DeviceSelect
+                value={encoderDevice}
+                onChange={setEncoderDevice}
+                className="bg-white p-2 text-sm font-medium cursor-pointer border-none outline-none"
+              />
+            )}
+          </div>
+          {videoOutputEnabled && (
+            <div className="text-muted-foreground border border-amber-400 my-2 p-2 bg-amber-200/50 w-[634px]">
+              <b>Note</b>: The current implementation does not automatically
+              infer the best encoding device from the existing pipeline. Select
+              the same device that is already used by other blocks in your
+              pipeline. To learn more, refer to our documentation:{" "}
+              <a
+                href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-classic-blue transition-colors underline"
+              >
+                link
+              </a>
+              .
+            </div>
+          )}
         </div>
       </div>
     );

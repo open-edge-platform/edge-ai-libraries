@@ -28,24 +28,22 @@ export PROJECT_NAME="your-project-name"
 export TAG="your_tag"
 ```
 
-> **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url. 
+> **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url.
 
-> **_EXAMPLE:_** If variables are set using above command, the final image names for _VLM OpenVINO Serving_ would be `<your-container-registry-url>/<your-project-name>/vlm-openvino-serving:<your-tag>`. 
+> **_EXAMPLE:_** If variables are set using above command, the final image names for _VLM OpenVINO Serving_ would be `<your-container-registry-url>/<your-project-name>/vlm-openvino-serving:<your-tag>`.
 
 If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be `vlm-openvino-serving:latest`.
 
 1. **Clone the Repository**:
 ```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+# Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 
 cd edge-ai-libraries/microservices/vlm-openvino-serving/docker
 ```
 
 2. **Set up environment values**:
-    
+
 Follow all the instructions provided in the [get started](./get-started.md#set-environment-values) document to set up the environment variables.
 
 3. **Build the Docker image**:

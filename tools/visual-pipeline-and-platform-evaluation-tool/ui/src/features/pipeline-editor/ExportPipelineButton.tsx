@@ -84,10 +84,11 @@ const ExportPipelineButton = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg shadow-lg transition-colors"
+          className="bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
           title="Export Pipeline"
         >
           <Download className="w-5 h-5" />
+          <span>Export</span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64">

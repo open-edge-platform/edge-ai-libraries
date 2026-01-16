@@ -89,6 +89,112 @@ For RVIZ, please go to Motion Control Gateway to run ros2 node `robot_rviz`.
 ros2 launch robot_rviz robot_rviz.launch.py
 ```
 
+
+Below ros2 topic publishers are available to control the left/right arm robot in RVIZ:
+
+```shell
+# For left arm joint trajectory controller (initial position is 0.0 for all joints)
+ros2 topic pub --once /fake_joint_trajectory_controller/left_arm_joint_trajectory trajectory_msgs/msg/JointTrajectory '{
+  header: {
+    stamp: "now",
+    frame_id: ""
+  },
+  joint_names: [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "joint7"
+  ],
+  points: [{
+    positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    effort: [],
+    time_from_start: {sec: 1, nanosec: 0}
+  }]
+}'
+
+# For left arm joint trajectory controller (target position is 1.57 for joint2/joint4, 1.57 for radian of joint)
+ros2 topic pub --once /fake_joint_trajectory_controller/left_arm_joint_trajectory trajectory_msgs/msg/JointTrajectory '{
+  header: {
+    stamp: "now",
+    frame_id: ""
+  },
+  joint_names: [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "joint7"
+  ],
+  points: [{
+    positions: [0.0, 1.57, 0.0, -1.57, 0.0, 0.0, 0.0],
+    velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    effort: [],
+    time_from_start: {sec: 1, nanosec: 0}
+  }]
+}'
+```
+
+```shell
+# For right arm joint trajectory controller (initial position is 0.0 for all joints)
+ros2 topic pub --once /fake_joint_trajectory_controller/right_arm_joint_trajectory trajectory_msgs/msg/JointTrajectory '{
+  header: {
+    stamp: "now",
+    frame_id: ""
+  },
+  joint_names: [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "joint7"
+  ],
+  points: [{
+    positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    effort: [],
+    time_from_start: {sec: 1, nanosec: 0}
+  }]
+
+}'
+
+# For right arm joint trajectory controller (target position is 1.57 for joint2/joint4, 1.57 for radian of joint)
+ros2 topic pub --once /fake_joint_trajectory_controller/right_arm_joint_trajectory trajectory_msgs/msg/JointTrajectory '{
+  header: {
+    stamp: "now",
+    frame_id: ""
+  },
+  joint_names: [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "joint7"
+  ],
+  points: [{
+    positions: [0.0, -1.57, 0.0, 1.57, 0.0, 0.0, 0.0],
+    velocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    accelerations: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    effort: [],
+    time_from_start: {sec: 1, nanosec: 0}
+  }]
+}'
+```
+
+![robot_rviz](docs/images/robot_rviz.gif)
+
 # LICENSE
 
 The source code is licensed under the Apache. See [LICENSE](LICENSE) file for details.

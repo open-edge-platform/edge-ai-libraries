@@ -153,7 +153,7 @@ class VideoEncoder:
             Selected encoder element string with properties, or None if not found
         """
         key = OTHER
-        if encoder_device.device_name == "GPU":
+        if encoder_device.device_name.startswith("GPU"):
             if encoder_device.gpu_id == 0:
                 key = GPU_0
             elif encoder_device.gpu_id is not None and encoder_device.gpu_id > 0:

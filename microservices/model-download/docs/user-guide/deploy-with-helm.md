@@ -20,24 +20,24 @@ Following steps should be followed to deploy Model-Download using Helm. You can 
 
 #### Step 1: Pull the Specific Chart
 
-Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download):
+Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/model-download --version <version-no>
+helm pull oci://registry-1.docker.io/intel/model-download-chart --version <version-no>
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/model-download/tags) for details on the latest version number to use for the application.
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
 
 #### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 ```bash
-tar -xvf model-download-<version-no>.tgz
+tar -xvf model-download-chart-<version-no>.tgz
 ```
 
-This will create a directory named `model-download` containing the chart files. Navigate to the extracted directory.
+This will create a directory named `model-download-chart` containing the chart files. Navigate to the extracted directory.
 ```bash
-cd model-download
+cd model-download-chart
 ```
 
 ### Option 2: Install from Source
@@ -46,10 +46,8 @@ cd model-download
 
 *Clone the repository containing the Helm chart*:
 ```bash
-# Clone the latest on mainline
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+# Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 ```
 
 #### Step 2: Change to the Chart Directory

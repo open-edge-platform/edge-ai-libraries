@@ -30,7 +30,7 @@ pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 ### Option 2: Install from Source (Development)
 
 ```bash
-git clone https://github.com/intel/edge-ai-libraries
+git clone https://github.com/intel/edge-ai-libraries -b release-2025.2.0
 cd edge-ai-libraries/microservices/multimodal-embedding-serving
 pip install -e .
 ```
@@ -74,7 +74,7 @@ print(f"Text embedding shape: {len(embedding)}")
 # Multiple text embeddings
 texts = [
     "A red car driving down the road",
-    "A blue ocean with white waves", 
+    "A blue ocean with white waves",
     "A green forest in spring"
 ]
 embeddings = embedding_model.embed_documents(texts)
@@ -149,11 +149,11 @@ print(f"Image embedding shape: {len(embedding)}")
 ```python
 async def process_video_url():
     video_url = "https://example.com/video.mp4"
-    
+
     # Basic video processing
     frame_embeddings = await embedding_model.get_video_embedding_from_url(video_url)
     print(f"Video frame embeddings: {len(frame_embeddings)} frames")
-    
+
     # With custom segment configuration
     segment_config = {
         "startOffsetSec": 10,
@@ -173,14 +173,14 @@ asyncio.run(process_video_url())
 ```python
 async def process_local_video():
     video_path = "/path/to/your/video.mp4"
-    
+
     # Advanced frame sampling options
     segment_config = {
         "fps": 2.0,  # Extract 2 frames per second
         "startOffsetSec": 0,
         "clip_duration": -1  # Process entire video
     }
-    
+
     frame_embeddings = await embedding_model.get_video_embedding_from_file(
         video_path, segment_config
     )
@@ -271,7 +271,7 @@ image_embedding = await embedding_model.get_image_embedding_from_url(
 
 # Calculate similarity
 similarity = cosine_similarity(
-    [text_embedding], 
+    [text_embedding],
     [image_embedding]
 )[0][0]
 print(f"Similarity: {similarity:.3f}")
@@ -286,20 +286,20 @@ async def search_video_content():
         "movie.mp4",
         {"fps": 0.5, "clip_duration": -1}  # 1 frame every 2 seconds
     )
-    
+
     # Search query
     query = "person walking in a park"
     query_embedding = embedding_model.embed_query(query)
-    
+
     # Find most similar frames
     similarities = []
     for i, frame_emb in enumerate(video_embeddings):
         sim = cosine_similarity([query_embedding], [frame_emb])[0][0]
         similarities.append((i, sim))
-    
+
     # Get top 5 matches
     top_matches = sorted(similarities, key=lambda x: x[1], reverse=True)[:5]
-    
+
     for frame_idx, similarity in top_matches:
         timestamp = frame_idx * 2  # Since we used 0.5 fps
         print(f"Frame {frame_idx} (t={timestamp}s): {similarity:.3f}")
@@ -335,20 +335,20 @@ print(f"Multilingual embeddings: {len(embeddings)} texts processed")
 async def batch_process_images():
     image_urls = [
         "https://example.com/image1.jpg",
-        "https://example.com/image2.jpg", 
+        "https://example.com/image2.jpg",
         "https://example.com/image3.jpg"
     ]
-    
+
     # Process images concurrently
     import asyncio
     tasks = [
-        embedding_model.get_image_embedding_from_url(url) 
+        embedding_model.get_image_embedding_from_url(url)
         for url in image_urls
     ]
-    
+
     embeddings = await asyncio.gather(*tasks)
     print(f"Processed {len(embeddings)} images")
-    
+
     return embeddings
 
 asyncio.run(batch_process_images())
@@ -364,13 +364,13 @@ try:
     model_handler = get_model_handler("your-chosen-model")
     model_handler.load_model()
     embedding_model = EmbeddingModel(model_handler)
-    
+
     # Check if model is healthy
     if embedding_model.check_health():
         print("Model is ready!")
     else:
         print("Model health check failed")
-        
+
 except Exception as e:
     print(f"Failed to load model: {e}")
 
@@ -436,7 +436,7 @@ embedding_model = EmbeddingModel(model_handler)
 def embed_text():
     data = request.json
     text = data.get('text', '')
-    
+
     try:
         embedding = embedding_model.embed_query(text)
         return jsonify({'embedding': embedding})

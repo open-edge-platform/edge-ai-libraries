@@ -17,7 +17,7 @@ This section shows you how to:
 - Install `Python 3.11` programming language.
 - Access to required model files and API key, if applicable.
 ## Supported Models
-All LLM models which are supported by the OpenVINO™ Model Server can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models. 
+All LLM models which are supported by the OpenVINO™ Model Server can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models.
 
 The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
 
@@ -26,7 +26,7 @@ The sample application has been validated with a few models just to validate the
    |--------------|-------------------|
    | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
-Note: Limited validation was done on DeepSeek model. 
+Note: Limited validation was done on DeepSeek model.
 
 ### Getting access to models
 
@@ -39,10 +39,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
 1. **Clone the Repository**:
     - Clone the Document Summarization Sample Application repository:
       ```bash
-      # Clone the latest on mainline
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, Clone a specific release branch
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      # Clone the release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
       ```
       **Note**: Adjust the repo link appropriately in case of forked repo.
 
@@ -82,28 +80,28 @@ Visit https://huggingface.co/settings/tokens to get your token.
       >  export OTLP_ENDPOINT=<OTLP-endpoint>
       >  export no_proxy=${no_proxy},$OTLP_ENDPOINT,
       >   ```
-      
+
     - Run the following script to set up the rest of the environment:
 
         ```bash
         source ./setup.sh
-        ```        
+        ```
 4. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
       docker compose up
       ```
-      
+
     - This will start:
-     
+
         - The  OpenVINO™ model server service for model serving (gRPC: port 9300, REST: port 8300)
-        
+
         - The FastAPI backend service (port 8090)
-        
+
         - The Gradio UI service (port 9998)
-        
+
         - The NGINX web server (port 8101)
-          
+
 5. **Verify the Application**:
    Check that the application is running:
 

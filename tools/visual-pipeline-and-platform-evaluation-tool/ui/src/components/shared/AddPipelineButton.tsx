@@ -15,6 +15,7 @@ import {
   useGetValidationJobStatusQuery,
 } from "@/api/api.generated";
 import { toast } from "sonner";
+import { isApiError } from "@/lib/apiUtils";
 
 const AddPipelineButton = () => {
   const navigate = useNavigate();
@@ -45,6 +46,10 @@ const AddPipelineButton = () => {
   );
 
   useEffect(() => {
+    if (!validationJobStatus) return;
+
+    if (validationJobStatus.id !== validationJobId) return;
+
     const handleCreatePipeline = async () => {
       if (!pendingPipelineData) return;
 
@@ -76,8 +81,11 @@ const AddPipelineButton = () => {
           navigate(`/pipelines/${response.id}`);
         }
       } catch (error) {
+        const errorMessage = isApiError(error)
+          ? error.data.message
+          : "Unknown error";
         toast.error("Failed to create pipeline", {
-          description: error instanceof Error ? error.message : "Unknown error",
+          description: errorMessage,
         });
         console.error("Failed to create pipeline:", error);
         setValidationJobId(null);
@@ -112,7 +120,13 @@ const AddPipelineButton = () => {
       setValidationStatus("");
       setPendingPipelineData(null);
     }
-  }, [validationJobStatus, createPipeline, navigate, pendingPipelineData]);
+  }, [
+    validationJobStatus,
+    createPipeline,
+    navigate,
+    pendingPipelineData,
+    validationJobId,
+  ]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -127,10 +141,15 @@ const AddPipelineButton = () => {
   };
 
   const handleAdd = async () => {
-    if (!name.trim() || !pipelineDescription.trim()) {
-      toast.error("Name and pipeline description are required");
+    if (!name.trim() || !description.trim() || !pipelineDescription.trim()) {
+      toast.error("Name, description and pipeline description are required");
       return;
     }
+
+    // Reset any previous validation state
+    setValidationJobId(null);
+    setValidationStatus("");
+    setPendingPipelineData(null);
 
     try {
       // Step 1: Convert description to graph
@@ -160,13 +179,22 @@ const AddPipelineButton = () => {
           description: description.trim(),
           pipelineDescription: pipelineDescription,
         });
+      } else {
+        // Immediate validation response
+        setValidationStatus("");
+        setValidationJobId(null);
+        setPendingPipelineData(null);
       }
     } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
       toast.error("Failed to process pipeline", {
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
       });
-      console.error("Failed to process pipeline:", error);
       setValidationStatus("");
+      setValidationJobId(null);
+      setPendingPipelineData(null);
     }
   };
 
@@ -176,10 +204,7 @@ const AddPipelineButton = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
-          className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-          title="Add Pipeline"
-        >
+        <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue dark:hover:text-blue-400">
           <Plus className="w-12 h-12" />
           <span className="text-lg font-medium">Add New Pipeline</span>
         </button>
@@ -199,7 +224,7 @@ const AddPipelineButton = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter pipeline name..."
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border"
             />
           </div>
 
@@ -216,7 +241,7 @@ const AddPipelineButton = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Enter pipeline description..."
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border"
             />
           </div>
 
@@ -232,7 +257,7 @@ const AddPipelineButton = () => {
               type="file"
               accept=".txt"
               onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
             />
           </div>
 
@@ -248,13 +273,13 @@ const AddPipelineButton = () => {
               value={pipelineDescription}
               onChange={(e) => setPipelineDescription(e.target.value)}
               placeholder="Paste or upload your pipeline description here..."
-              className="w-full h-64 p-3 border rounded-md resize-none font-mono text-sm"
+              className="w-full h-64 p-3 border resize-none font-mono text-sm"
             />
           </div>
 
           <div className="flex justify-end gap-2">
             <button
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
               onClick={() => {
                 setOpen(false);
                 setName("");
@@ -265,10 +290,13 @@ const AddPipelineButton = () => {
               Cancel
             </button>
             <button
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-white bg-classic-blue hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleAdd}
               disabled={
-                isLoading || !name.trim() || !pipelineDescription.trim()
+                isLoading ||
+                !name.trim() ||
+                !description.trim() ||
+                !pipelineDescription.trim()
               }
             >
               {validationStatus

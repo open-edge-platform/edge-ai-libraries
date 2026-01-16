@@ -46,7 +46,7 @@
 ## Clone source code
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
 
@@ -58,7 +58,7 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
-> **Note:**  
+> **Note:**
 > To include copyleft licensed sources when building the Docker image, use the below command:
 >
 > ```bash
@@ -88,11 +88,11 @@ To push images to a Docker registry:
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
 By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analytics/udfs/temperature_classifier.py` which does not use any model file for
-inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25. 
-The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/temperature_classifier.tick`. 
+inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25.
+The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/temperature_classifier.tick`.
 
 Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details is as below:
-  
+
 ### **`config.json`**:
 
 | Key                     | Description                                                                                     | Example Value                          |
@@ -133,7 +133,7 @@ The `mqtt` section specifies the MQTT broker details for sending alerts.
 
 ### **`tick_scripts/`**:
   - The TICKScript `temperature_classifier.tick` determines processing of the input data coming in.
-    Mainly, has the details on execution of the UDF file and publishing of alerts. 
+    Mainly, has the details on execution of the UDF file and publishing of alerts.
 
 ## Deploy with Docker Compose
 

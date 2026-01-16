@@ -23,10 +23,8 @@ The Model Download Service is a microservice that enables downloading models fro
 1. **Clone the Repository**:
     - Clone the model-download repository:
       ```bash
-      # Clone the latest on mainline
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, Clone a specific release branch
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      # Clone the release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
       ```
 2. **Navigate to the directory**:
     - Go to the model-download microservice directory
@@ -51,7 +49,7 @@ The Model Download Service is a microservice that enables downloading models fro
 
       #### Options available with the script:
 
-        __Usage__: 
+        __Usage__:
         ```bash
           source scripts/run_service.sh [options] [action]
         ```
@@ -69,7 +67,7 @@ The Model Download Service is a microservice that enables downloading models fro
         | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
         | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins |
         | `--help`                 | Show this help message                                                                           |
-      
+
       **Examples**:
         - Start the service with default settings: `source scripts/run_service.sh up`
         - Stop the service: `source scripts/run_service.sh down`

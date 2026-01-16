@@ -12,10 +12,11 @@ const RunPerformanceTestButton = ({
   <button
     onClick={onRun}
     disabled={isRunning}
-    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-2 rounded-lg shadow-lg transition-colors"
+    className="w-[160px] bg-primary hover:bg-green-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center gap-2"
     title="Run Pipeline"
   >
     <Play className="w-5 h-5" />
+    <span>Run pipeline</span>
   </button>
 );
 

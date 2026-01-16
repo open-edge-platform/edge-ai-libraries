@@ -15,17 +15,14 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
    Clone the repository containing the Helm chart to your local machine.
 
    ```sh
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-   
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/minioserver
    ```
    Adjust the repo link appropriately in case of forked repo.
 
 2. **Update Values**
-    
+
     Update the values.yaml file with the necessary configurations. Ensure you set the MINIO_ROOT_USER and MINIO_ROOT_PASSWORD environment The following table lists the configurable parameters of the Minio server Helm chart and their default values.
 
     | Parameter                        | Description                                    | Default                                  |
@@ -44,7 +41,7 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
     ```
 
 3. **Deploy the Helm Chart**
-    
+
     Use the following command to deploy the Helm chart:
     ```sh
     helm install minio-server . \
@@ -63,7 +60,7 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
     Replace `<service-name>`, `<local-port>`, and `<service-port>` with the appropriate values from your deployment.
 
 5. **Cleanup**
-    
+
     To delete the MinIO server deployment, use the following command:
     ```sh
     helm uninstall minio-server

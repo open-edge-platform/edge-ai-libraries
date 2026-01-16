@@ -79,10 +79,8 @@ This method provides the fastest way to get started with the microservice.
 1. **Clone the repository**:
     Run the following command to clone the repository:
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     ```
 
 2. **Change to project directory**:
@@ -102,22 +100,22 @@ This method provides the fastest way to get started with the microservice.
     The valid configuration will ensure the latest prebuilt image from `intel` registry is downloaded. The scripts take care of this.
 
 5. **Start the Microservices**:
-    The user is required to configure the registry and tag params before starting the microservices. 
+    The user is required to configure the registry and tag params before starting the microservices.
     ```bash
     export CONTAINER_REGISTRY_URL=<preferred-registry-url> #defaults to "intel/" if not set
     export CONTAINER_TAG=<preferred-tag> #defaults to "latest" if not set
-    
+
     # Run the production environment for all services in daemon mode
     source ./run.sh
 
     # Run the production environment for all services in non-daemon mode
     source ./run.sh --nd
     ```
-    If the user prefers to build and run the `dataprep` in dev mode: 
+    If the user prefers to build and run the `dataprep` in dev mode:
     ```bash
     # Run the development environment (only for DataStore) and prod environment for all other services in daemon mode
     source ./run.sh --dev
-    
+
     # Run the development environment (only for DataStore) and prod environment for all other services in non-daemon mode
     source ./run.sh --dev --nd
     ```
@@ -210,7 +208,7 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
 Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
 
  > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
- 
+
 1. **Upload URLs to create and store embeddings**:
    Submit one or more URLs to be processed for embedding creation.
    ```bash

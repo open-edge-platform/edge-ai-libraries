@@ -33,7 +33,7 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
    cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
@@ -50,6 +50,6 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 2. **Access the application API documentation**:
    - Open a browser and navigate to `http://localhost:7860/docs` to access the Swagger UI.
 
-## Troubleshooting
+## Known issues, limitations and troubleshooting
 
-- Refer to [Troubleshooting Common Issues](./support.md#troubleshooting-common-issues).
+- Refer to [Known issues, limitations and troubleshooting](known-issues.md).

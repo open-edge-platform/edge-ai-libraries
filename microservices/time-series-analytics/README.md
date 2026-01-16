@@ -41,7 +41,7 @@ For more details on Architecture, see [Architecture](docs/user-guide/high-level-
 Follow the steps to run the unit tests.
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries -b release-2025.2.0
 cd edge-ai-libraries/microservices/time-series-analytics
 echo "Running unit tests"
 ./tests/run_tests.sh
@@ -51,7 +51,7 @@ echo "Running unit tests"
 
 Follow the steps to run the functional tests.
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries -b release-2025.2.0
 cd edge-ai-libraries/microservices/time-series-analytics/tests-functional
 echo "Running functional tests"
 pip3 install -r requirements.txt

@@ -57,7 +57,7 @@ For Local filesystem storage:
 export STORAGE_BACKEND=local
 ```
 
-On the other hand, the host setup script `setup_host.sh` uses **local** filesystem as the only storage backend available. 
+On the other hand, the host setup script `setup_host.sh` uses **local** filesystem as the only storage backend available.
 
 ## MinIO integration
 The service supports MinIO object storage integration for:
@@ -78,7 +78,7 @@ export MINIO_SECRET_KEY=<your-minio-password>
 ## Models Selection
 Refer to [supported models](./Overview.md#models-supported) for the list of models that can be used for transcription. You can specify which models to enable through the `ENABLED_WHISPER_MODELS` environment variable.
 
-# Quick Start
+## Quick Start
 
 User has following different options to start and use the application :
 
@@ -161,7 +161,7 @@ Below are examples of how to use the API on command line with `curl`.
     -F "file=@/path/to/your/video.mp4" \
     -F "include_timestamps=true" \
     -F "device=cpu" \
-    -F "model_name=small.en" 
+    -F "model_name=small.en"
   ```
 
 #### Get Transcripts from Local Filesystem
@@ -187,10 +187,8 @@ The service uses **pywhispercpp** with the following optimizations for CPU trans
 
 1. Clone the repository and change directory to the audio-analyzer microservice:
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     # Access the code
     cd edge-ai-libraries/microservices/audio-analyzer
     ```

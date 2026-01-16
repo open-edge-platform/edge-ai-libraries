@@ -33,7 +33,7 @@ sample-applications/video-search-and-summarization/
 ├── docker                     # Docker Compose files
 │   ├── compose.base.yaml      # Base services configuration
 │   ├── compose.summary.yaml   # Compose override file for video summarization services
-│   ├── compose.search.yaml    # Compose override file for video search services 
+│   ├── compose.search.yaml    # Compose override file for video search services
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OpenVINO™ model server
 ├── docs                       # Documentation
 │   └── user-guide             # User guides and tutorials
@@ -55,7 +55,7 @@ Before running the application, you need to set several environment variables:
    The application uses registry URL and tag to pull the required images.
 
     ```bash
-    export REGISTRY_URL=intel   
+    export REGISTRY_URL=intel
     export TAG=1.3.1
     ```
 
@@ -188,7 +188,7 @@ The Video Summarization application offers multiple modes and deployment options
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
 
-## ℹ️ Using Edge Microvisor Toolkit 
+## ℹ️ Using Edge Microvisor Toolkit
 
 If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit** — an Azure Linux-based build pipeline for Intel® platforms — follow the below listed guidelines. The guidelines vary based on the flavor of EMT used and the user is encouraged to refer to detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node). A few specific dependencies are called out below.
 
@@ -202,10 +202,10 @@ For `EMT-D`, the following steps should work.
 > sudo tdnf install mesa-libGL
 > ```
 
-For `EMT-S`, 
+For `EMT-S`,
 > ```bash
 > sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
-> export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/ 
+> export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
 > ```
 
 Additional tools and packages that should be installed includes `git` and `wget`. The instructions for the same is available in the detailed `EMT-S` and `EMT-D` documentations. The instructions work for any other required packages too.
@@ -219,11 +219,8 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-    
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
@@ -356,9 +353,9 @@ For alternative ways to set up the sample application, see:
 ### Containers have started but the application is not working
 
 - You can try resetting the volume storage by deleting the previously created volumes:
-  
+
   > Note: This step does not apply when you are setting up the application for the first time.
-  
+
   ```bash
   source setup.sh --clean-data
   ```
@@ -407,7 +404,7 @@ For alternative ways to set up the sample application, see:
    ```bash
    # For Video Summarization
    source setup.sh --summary
-   
+
    # Or for Video Search
    source setup.sh --search
    ```

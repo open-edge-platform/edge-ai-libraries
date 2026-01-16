@@ -11,12 +11,10 @@ This Helm chart deploys pgVector, a PostgreSQL extension for vector similarity s
 
 1. **Clone the repository**
     Clone the repository containing the Helm chart to your local machine.
-    
+
     ```sh
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 
     cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/pgvector
     ```
@@ -42,14 +40,14 @@ This Helm chart deploys pgVector, a PostgreSQL extension for vector similarity s
     | `pgvectorContainer.image.tag`      | Image tag for pgVector  | `pg16`                   |
     | `pgvectorContainer.env.POSTGRES_USER`| PostgreSQL user  | <postgres-user>                   |
     | `pgvectorContainer.env.POSTGRES_PASSWORD`| PostgreSQL password    | <postgres-passwd>         |
-    | `pgvectorContainer.env.POSTGRES_DB`| PostgreSQL database    | <postgres-db>                | 
+    | `pgvectorContainer.env.POSTGRES_DB`| PostgreSQL database    | <postgres-db>                |
 
 3. **Install the Helm chart**
 
     ```sh
     helm install pgvector .  \
     --namespace <your-namespace>
-    ``` 
+    ```
 4. **Accessing the Service locally**
 
     Once deployed, the PGVector service will be available within the Kubernetes cluster. You can access it using the service name and port specified in the `values.yaml` file.

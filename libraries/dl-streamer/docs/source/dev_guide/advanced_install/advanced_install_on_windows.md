@@ -8,7 +8,7 @@ from the source code provided in
 ## Step 1: Clone Deep Learning Streamer repository
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
 cd edge-ai-libraries
 git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 ```

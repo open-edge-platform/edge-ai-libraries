@@ -7,9 +7,14 @@ import {
   ProgressValue,
 } from "@/components/ui/progress";
 import { Cpu } from "lucide-react";
+import { useAppSelector } from "@/store/hooks.ts";
+import { selectDeviceByFamily } from "@/store/reducers/devices.ts";
 
 export const CpuUsageProgress = () => {
   const { cpu } = useMetrics();
+  const deviceName = useAppSelector((state) =>
+    selectDeviceByFamily(state, "CPU"),
+  );
 
   return (
     <Progress value={cpu} max={100}>
@@ -18,7 +23,7 @@ export const CpuUsageProgress = () => {
           <ProgressLabel>
             <span className="flex items-center gap-2">
               <Cpu className="h-4 w-4" />
-              CPU
+              CPU: {deviceName?.full_device_name}
             </span>
           </ProgressLabel>
           <ProgressValue>

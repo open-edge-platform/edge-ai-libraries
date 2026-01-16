@@ -38,10 +38,8 @@ By following this guide, you will learn how to:
    Clone the repository.
 
      ```bash
-     # Clone the latest on mainline
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-     # Alternatively, Clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     # Clone the release branch
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
      ```
    Note: Adjust the repo link appropriately in case of forked repo.
 

@@ -28,10 +28,7 @@ Following options are provided to build the microservice.
 
 1. Clone the repository:
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     ```
 
 2. Default storage backend used in the Docker script based setup is `minio`. We need to set following required environment variables for Minio on shell:
@@ -53,14 +50,14 @@ Following options are provided to build the microservice.
     export TAG=<your-tag>
     ```
 
-    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`  
+    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`
     If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-analyzer:${TAG}`
 
 4. Set the required environment variables:
 
     ```bash
     # (Required) Comma-separated list of models to download
-    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  
+    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
     ```
 
 5. **(OPTIONAL)** You can customize the setup with these additional environment variables:
@@ -94,9 +91,9 @@ The `setup_docker.sh` script when run without any parameters builds and runs the
 Options:
   --dev                 Build and run development environment
   --build               Only build production Docker image
-  --build-dev           Only build development Docker image  
-  --down                Stop and remove all containers, networks, 
-                        and volumes  
+  --build-dev           Only build development Docker image
+  --down                Stop and remove all containers, networks,
+                        and volumes
   -h, --help            Show this help message
 ```
 
@@ -121,10 +118,8 @@ The production environment uses:
 
 1. Clone the repository:
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     ```
 
 2. Run the setup script with desired options:

@@ -1,0 +1,110 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+include /usr/share/dpkg/vendor.mk
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+
+# special characters
+empty :=
+space := $(empty) $(empty)
+comma := ,
+semicol := ;
+
+# helper to create comma separated list from space separated list
+commasep = $(subst $(space),$(comma)$(space),$1)
+semicolsep = $(subst $(space),$(comma),$1)
+
+# remove double quotes
+unquote = $(subst $\",,$1)
+
+# recursive wildcard
+rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+
+# Hardening.
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export DEB_CXXFLAGS_MAINT_APPEND = -g1
+export DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+CFLAGS := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto -ffat-lto-objects", $(shell dpkg-buildflags --get CFLAGS))
+CXXFLAGS := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto -ffat-lto-objects", $(shell dpkg-buildflags --get CXXFLAGS))
+LDFLAGS  := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto", $(shell dpkg-buildflags --get LDFLAGS))
+
+optdir := opt/intel/orb_lze
+
+BUILD_LIBORB_DIR=$(CURDIR)/build
+BUILD_ORBTEST_DIR=$(CURDIR)/build-orbtest
+
+export DEB_CXXFLAGS_MAINT_APPEND +=-DNDEBUG
+
+override_dh_auto_configure:
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	dh_auto_configure -O--buildsystem=cmake 	\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ --   	\
+		-DCMAKE_BUILD_TYPE=Release              \
+		-DCMAKE_INSTALL_INCLUDEDIR=include/ && 	\
+	dh_auto_configure -O--buildsystem=cmake 	\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --   \
+
+override_dh_auto_build:
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	dh_auto_build -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ -- && 	\
+	dh_auto_build -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --
+
+override_dh_shlibdeps:
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	dh_shlibdeps
+
+override_dh_auto_clean:
+	$(RM) -r $(CURDIR)/build && 			\
+	$(RM) -r $(CURDIR)/build-orbtest &&		\
+	dh_clean
+
+override_dh_auto_install:
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	dh_auto_install -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ -- && 	\
+	dh_auto_install -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --
+	install -d $(CURDIR)/debian/tmp/$(optdir)/samples
+	install -m 0644 $(CURDIR)/samples/* \
+		$(CURDIR)/debian/tmp/$(optdir)/samples
+	install -m 0644 $(CURDIR)/images/* \
+		$(CURDIR)/debian/tmp/$(optdir)/samples
+	install -d $(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0644 $(CURDIR)/images/* \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/gaussTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/resizeTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/orbdescTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/fastTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/stereoTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/multicameraTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/multithreadTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/opencvfreeTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/imagemaskTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/rectmaskTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/fuzzer/fuzzer_stereo \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+%:
+	dh $@ -v $(PARALLEL)

@@ -21,16 +21,13 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 1. Clone the repo and change to `video_ingestion` component directory:
 
     ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-    
+    # Clone the release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
 2. Download and Convert Models to OpenVINO IR format
 
-This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO supported format. 
+This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO supported format.
 Ensure you have Python installed and run the following commands to execute the script.
 
 2.1. Create a virtual environment.
@@ -44,7 +41,7 @@ python -m venv ov_env
 ```sh
 source ov_env/bin/activate
 ```
-2.3. Download and install dependencies 
+2.3. Download and install dependencies
 
 ```sh
 pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
@@ -95,9 +92,9 @@ deactivate
     export TAG="your_tag"
     ```
 
-    > **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created by further suffixing the application name and tag with the namespaced url. 
+    > **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created by further suffixing the application name and tag with the namespaced url.
 
-    > **_EXAMPLE:_** If variables are set using above command, the final image name for _Video Ingestion Service_ would be `your_container_registry_url/your_project_name/video-ingestion:your_tag`. If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be : `video-ingestion:latest`. 
+    > **_EXAMPLE:_** If variables are set using above command, the final image name for _Video Ingestion Service_ would be `your_container_registry_url/your_project_name/video-ingestion:your_tag`. If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be : `video-ingestion:latest`.
 
 5. Run this to auto-setup all the required variables for deployment:
 
@@ -172,11 +169,11 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
   }'
 ```
 
-> **_NOTE:_** You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation. 
+> **_NOTE:_** You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
 
 > Also note, these parameters have minimum and maximum allowed value defined. For any invalid value outside the allowed limit, pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
 
-Once the pipeline starts, you will receive a UUID (ex: b729ce2ef34711ef99eb0242ac170004) that you can use to track the pipeline's statistics. The metadata generated during the pipeline execution will be sent to the RabbitMQ queue. Additionally, the processed video frames and a `metadata.json` file will be stored in the specified MinIO bucket. 
+Once the pipeline starts, you will receive a UUID (ex: b729ce2ef34711ef99eb0242ac170004) that you can use to track the pipeline's statistics. The metadata generated during the pipeline execution will be sent to the RabbitMQ queue. Additionally, the processed video frames and a `metadata.json` file will be stored in the specified MinIO bucket.
 
 To view the frames and metadata:
 1. Log in to the MinIO console using your credentials.

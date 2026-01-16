@@ -1,0 +1,5 @@
+tar-ignore=.git
+tar-ignore=.gitignore
+tar-ignore=.github
+tar-ignore=.ci
+tar-ignore=ci

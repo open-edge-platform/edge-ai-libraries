@@ -6,9 +6,9 @@
 ## Prerequisites
 
 * [System Requirements](./system-requirements.md)
-  
+
 ## Quick try out
-Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server docker image followed by running a sample usecase. 
+Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server docker image followed by running a sample usecase.
 
 ### Pull the image and start container
 
@@ -16,7 +16,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
   ```sh
     cd [WORKDIR]
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
     ```
 
@@ -32,7 +32,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
    ```sh
      docker compose up
    ```
-   
+
 ### Run default sample
 
 Once the container is up, we will send a pipeline request to DL Streamer pipeline server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
@@ -74,7 +74,7 @@ The REST request will return a pipeline instance ID, which can be used as an ide
     tail -f /tmp/results.jsonl
   ```
 
-- RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc 
+- RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc
 
   ![sample frame RTSP stream](./images/sample-pallet-defect-detection.png)
 
@@ -85,7 +85,7 @@ To check the pipeline status and stop the pipeline send the following requests,
     curl --location -X GET http://localhost:8080/pipelines/status
    ```
 
- - stop a running pipeline instance, 
+ - stop a running pipeline instance,
    ```sh
     curl --location -X DELETE http://localhost:8080/pipelines/{instance_id}
    ```

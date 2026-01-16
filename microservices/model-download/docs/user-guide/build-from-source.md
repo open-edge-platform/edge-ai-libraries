@@ -11,10 +11,8 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the model-download repository:
       ```bash
-      # Clone the latest on mainline
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, Clone a specific release branch
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      # Clone the release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
       ```
 2. **Navigate to the directory**:
     - Go to the model-download microservice directory
@@ -30,14 +28,14 @@ Before you begin, ensure that you have the following prerequisites:
     - Build the Docker image for the Model Download Microservice:
       ```bash
       source scripts/run_service.sh --build
-      ``` 
+      ```
       - Once the service is built as shown in the below screenshot.
     ![alt text](./images/image.png)
     **Examples**
       - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
       - Display usage information: `source scripts/run_service.sh --help`
-      
-5. **Run the Docker Container**: 
+
+5. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
         source scripts/run_service.sh up --plugins all --model-path tmp/models

@@ -2,9 +2,9 @@
 
 This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
 
-> **Note:** 
+> **Note:**
 > - The dependent microservices must be built separately from their respective microservice folders.
-> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT.
 
 ## Prerequisites
 
@@ -16,10 +16,8 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the ChatQ&A Sample Application repository:
       ```bash
-      # Clone the latest on mainline
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, Clone a specific release branch
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      # Clone the release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2025.2.0
       ```
 
 2. **Navigate to the Directory**:
@@ -28,7 +26,7 @@ Before you begin, ensure that you have the following prerequisites:
       cd edge-ai-libraries/sample-applications/chat-question-and-answer
       ```
       Adjust the repo link appropriately in case of forked repo.
-   
+
 3. **Set Up Environment Variables**:
     Set up the environment variables based on the inference method you plan to use:
 
@@ -45,7 +43,7 @@ Before you begin, ensure that you have the following prerequisites:
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
     Refer to the supported model list in the [Get Started](./get-started.md) document.
-    
+
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
@@ -63,8 +61,8 @@ Before you begin, ensure that you have the following prerequisites:
     - The following services will be built as shown in the below screenshot.
 
          ![Chatqna Services build from Source](./images/Chatqna-service-build.png)
-      
-    - Refer to [Overview](./overview.md#technical-architecture) for details on the built microservices. 
+
+    - Refer to [Overview](./overview.md#technical-architecture) for details on the built microservices.
     Note: `chatqna` and `ChatQnA backend` refer to the same microservice.
 
 5. **Run the Docker Container**:
