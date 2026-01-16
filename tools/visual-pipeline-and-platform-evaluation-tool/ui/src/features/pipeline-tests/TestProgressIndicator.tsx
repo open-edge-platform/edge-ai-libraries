@@ -13,15 +13,19 @@ interface MetricCardProps {
 }
 
 const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-background shadow-md p-4 flex items-center space-x-3">
-    <div className="shrink-0 p-2 bg-classic-blue/5 dark:bg-teal-chart">
+  <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6 flex items-center space-x-4">
+    <div className="shrink-0 p-3 bg-gradient-to-br from-white/10 to-white/5 rounded-lg backdrop-blur-sm">
       {icon}
     </div>
-    <div>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <p className="text-2xl font-bold text-foreground">
+    <div className="flex-1">
+      <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-1">
+        {title}
+      </h3>
+      <p className="text-3xl font-bold text-white">
         {value.toFixed(2)}
-        <span className="text-sm text-muted-foreground ml-1">{unit}</span>
+        <span className="text-sm text-neutral-500 ml-1.5 font-semibold">
+          {unit}
+        </span>
       </p>
     </div>
   </div>
@@ -241,8 +245,8 @@ export const TestProgressIndicator = ({
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
           />
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
+          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
+            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
               GPU
               {availableGpus.length > 1 && (
                 <>
@@ -276,8 +280,8 @@ export const TestProgressIndicator = ({
               </div>
             </div>
           </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
+          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
+            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
               GPU
               {availableGpus.length > 1 && (
                 <>
@@ -315,8 +319,8 @@ export const TestProgressIndicator = ({
               </div>
             </div>
           </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
+          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
+            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
               GPU
               {availableGpus.length > 1 && (
                 <>

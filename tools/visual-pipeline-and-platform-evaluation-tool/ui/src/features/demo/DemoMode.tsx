@@ -1,0 +1,544 @@
+import { useEffect, useState } from "react";
+import {
+  type PipelinePerformanceSpec,
+  useGetDensityJobStatusQuery,
+  useRunDensityTestMutation,
+} from "@/api/api.generated.ts";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { useAppSelector } from "@/store/hooks";
+import { selectPipelines } from "@/store/reducers/pipelines";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Home, ChevronDown } from "lucide-react";
+import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
+import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import { useNavigate } from "react-router";
+import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
+import { useModelsLoader } from "@/hooks/useModels.ts";
+import { useDevicesLoader } from "@/hooks/useDevices.ts";
+import { Toaster } from "@/components/ui/sonner.tsx";
+
+interface PipelineSelection {
+  pipelineId: string;
+  stream_rate: number;
+}
+
+const DemoMode = () => {
+  const navigate = useNavigate();
+  usePipelinesLoader();
+  useModelsLoader();
+  useDevicesLoader();
+  const pipelines = useAppSelector(selectPipelines);
+  const [runDensityTest, { isLoading: isRunning }] =
+    useRunDensityTestMutation();
+  const [pipelineSelections, setPipelineSelections] = useState<
+    PipelineSelection[]
+  >([]);
+  const [fpsFloor, setFpsFloor] = useState<number>(30);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{
+    per_stream_fps: number | null;
+    total_streams: number | null;
+    streams_per_pipeline: PipelinePerformanceSpec[] | null;
+    video_output_paths: { [key: string]: string[] } | null;
+  } | null>(null);
+  const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
+
+  // Parse pipeline names to extract model and device
+  const parsePipelineName = (name: string) => {
+    // Match device in square brackets [CPU], [GPU], [NPU], etc.
+    const deviceMatch = name.match(/\[(.*?)\]/);
+
+    if (deviceMatch) {
+      const device = deviceMatch[1].toUpperCase();
+      const model = name.replace(/\s*\[.*?\]\s*/, "").trim();
+      return { model: model, device: device };
+    }
+
+    return { model: name, device: "" };
+  };
+
+  // Get unique models and devices
+  const uniqueModels = Array.from(
+    new Set(pipelines.map((p) => parsePipelineName(p.name).model)),
+  );
+
+  const getDevicesForModel = (model: string) => {
+    return pipelines
+      .filter((p) => parsePipelineName(p.name).model === model)
+      .map((p) => ({
+        device: parsePipelineName(p.name).device,
+        pipelineId: p.id,
+      }));
+  };
+
+  const selectedPipeline = pipelineSelections[0];
+  const selectedPipelineData = pipelines.find(
+    (p) => p.id === selectedPipeline?.pipelineId,
+  );
+  const currentModel = selectedPipelineData
+    ? parsePipelineName(selectedPipelineData.name).model
+    : "";
+  const currentDevice = selectedPipelineData
+    ? parsePipelineName(selectedPipelineData.name).device
+    : "";
+  const availableDevices = getDevicesForModel(currentModel);
+
+  const { data: jobStatus } = useGetDensityJobStatusQuery(
+    { jobId: jobId! },
+    {
+      skip: !jobId,
+      pollingInterval: 1000,
+    },
+  );
+
+  useEffect(() => {
+    if (jobStatus?.state === "COMPLETED") {
+      setTestResult({
+        per_stream_fps: jobStatus.per_stream_fps,
+        total_streams: jobStatus.total_streams,
+        streams_per_pipeline: jobStatus.streams_per_pipeline,
+        video_output_paths: jobStatus.video_output_paths,
+      });
+      setErrorMessage(null);
+      setJobId(null);
+    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
+      console.error("Test failed:", jobStatus.error_message);
+      setErrorMessage(jobStatus.error_message || "Test failed");
+      setTestResult(null);
+      setJobId(null);
+    }
+  }, [jobStatus]);
+
+  useEffect(() => {
+    if (pipelines.length > 0 && pipelineSelections.length === 0) {
+      setPipelineSelections([
+        {
+          pipelineId: pipelines[0].id,
+          stream_rate: 50,
+        },
+      ]);
+    }
+  }, [pipelines, pipelineSelections.length]);
+
+  const handlePipelineChange = (
+    oldPipelineId: string,
+    newPipelineId: string,
+  ) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel) =>
+        sel.pipelineId === oldPipelineId
+          ? { ...sel, pipelineId: newPipelineId }
+          : sel,
+      ),
+    );
+  };
+
+  const handleModelChange = (model: string) => {
+    const devicesForModel = getDevicesForModel(model);
+    if (devicesForModel.length > 0) {
+      handlePipelineChange(
+        selectedPipeline.pipelineId,
+        devicesForModel[0].pipelineId,
+      );
+    }
+  };
+
+  const handleDeviceChange = (pipelineId: string) => {
+    handlePipelineChange(selectedPipeline.pipelineId, pipelineId);
+  };
+
+  const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel) =>
+        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
+      ),
+    );
+  };
+
+  const handleRunTest = async () => {
+    if (pipelineSelections.length === 0) return;
+
+    setTestResult(null);
+    setErrorMessage(null);
+    try {
+      const result = await runDensityTest({
+        densityTestSpec: {
+          video_output: {
+            enabled: videoOutputEnabled,
+          },
+          fps_floor: fpsFloor,
+          pipeline_density_specs: pipelineSelections.map((selection) => ({
+            id: selection.pipelineId,
+            stream_rate: selection.stream_rate,
+          })),
+        },
+      }).unwrap();
+      setJobId(result.job_id);
+    } catch (err) {
+      console.error("Failed to run density test:", err);
+    }
+  };
+
+  if (pipelines.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Loading pipelines...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="min-h-screen bg-black text-white overflow-auto">
+        {/* Animated background */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
+          <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-white/3 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
+        </div>
+
+        <div className="relative z-10 container mx-auto py-8 px-6">
+          {/* Header */}
+          <div className="mb-8 flex items-center justify-between">
+            <div className="space-y-2">
+              <h1 className="text-6xl font-black">
+                <span className="bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent">
+                  ViPPET
+                </span>
+              </h1>
+              <p className="text-neutral-400 text-lg">
+                density testing platform
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/")}
+              className="group relative px-6 py-3 rounded-xl border border-neutral-700 bg-neutral-900/60 backdrop-blur-xl hover:border-neutral-500 transition-all duration-300"
+            >
+              <div className="flex items-center gap-2">
+                <Home className="w-5 h-5 text-neutral-300 group-hover:scale-110 transition-transform" />
+                <span className="font-semibold text-neutral-200">Exit</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Pipeline Configuration */}
+          <div className="mb-8 relative z-40">
+            {pipelineSelections.map((selection) => (
+              <div
+                key={selection.pipelineId}
+                className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-2xl animate-[float_6s_ease-in-out_infinite] overflow-visible"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
+                <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 overflow-visible">
+                  <div className="space-y-3 relative z-30">
+                    <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
+                      Model
+                    </label>
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="w-full px-4 py-3 bg-neutral-950/80 border border-neutral-700 rounded-xl text-white text-left flex items-center justify-between hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                      >
+                        <span>{currentModel || "Select Model"}</span>
+                        <ChevronDown
+                          className={`w-5 h-5 text-neutral-400 transition-transform duration-200 ${
+                            isDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      {isDropdownOpen && (
+                        <div className="absolute z-[100] w-full mt-2 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                          {uniqueModels.map((model) => (
+                            <button
+                              key={model}
+                              onClick={() => {
+                                handleModelChange(model);
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-3 text-left hover:bg-neutral-800 transition-colors ${
+                                model === currentModel
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "text-neutral-300"
+                              }`}
+                            >
+                              {model}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 relative z-20">
+                    <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
+                      Device
+                    </label>
+                    <div className="relative">
+                      <button
+                        onClick={() =>
+                          setIsDeviceDropdownOpen(!isDeviceDropdownOpen)
+                        }
+                        className="w-full px-4 py-3 bg-neutral-950/80 border border-neutral-700 rounded-xl text-white text-left flex items-center justify-between hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                      >
+                        <span>{currentDevice || "Select Device"}</span>
+                        <ChevronDown
+                          className={`w-5 h-5 text-neutral-400 transition-transform duration-200 ${
+                            isDeviceDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      {isDeviceDropdownOpen && (
+                        <div className="absolute z-[100] w-full mt-2 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden">
+                          {availableDevices.map((item) => (
+                            <button
+                              key={item.pipelineId}
+                              onClick={() => {
+                                handleDeviceChange(item.pipelineId);
+                                setIsDeviceDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-3 text-left hover:bg-neutral-800 transition-colors ${
+                                item.pipelineId === selection.pipelineId
+                                  ? "bg-neutral-800 text-white font-semibold"
+                                  : "text-neutral-300"
+                              }`}
+                            >
+                              {item.device}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
+                      Participation Rate
+                    </label>
+                    <div className="bg-neutral-950/50 rounded-xl p-4 border border-neutral-800/50">
+                      <ParticipationSlider
+                        value={selection.stream_rate}
+                        onChange={(val) =>
+                          handleStreamRateChange(selection.pipelineId, val)
+                        }
+                        min={0}
+                        max={100}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Test Configuration */}
+          <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900/50 backdrop-blur-xl p-6 shadow-2xl mb-8">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
+            <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
+                  Target FPS
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="number"
+                    value={fpsFloor}
+                    onChange={(e) => setFpsFloor(Number(e.target.value))}
+                    min={1}
+                    max={120}
+                    className="w-32 px-4 py-3 bg-neutral-950/80 border border-neutral-700 rounded-xl text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                  />
+                  <span className="text-neutral-400 font-semibold">FPS</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div className="relative">
+                        <Checkbox
+                          checked={videoOutputEnabled}
+                          onCheckedChange={(checked) =>
+                            setVideoOutputEnabled(checked === true)
+                          }
+                          className="w-6 h-6 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                        />
+                      </div>
+                      <span className="text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-widest">
+                        Save Output
+                      </span>
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="bg-neutral-800 border-neutral-700"
+                  >
+                    <p>
+                      Selecting this option changes the last fakesink to
+                      filesink so it is possible to view generated output
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                {videoOutputEnabled && <SaveOutputWarning />}
+              </div>
+            </div>
+
+            <div className="relative mt-6">
+              <button
+                onClick={handleRunTest}
+                disabled={
+                  isRunning || pipelineSelections.length === 0 || !!jobId
+                }
+                className="w-full px-8 py-4 bg-white hover:bg-neutral-200 text-black rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {jobId
+                  ? "Running Test..."
+                  : isRunning
+                    ? "Starting..."
+                    : "Run Density Test"}
+              </button>
+            </div>
+          </div>
+
+          {/* Status Messages */}
+          {jobId && jobStatus && (
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-3 w-3 bg-white rounded-full animate-pulse"></div>
+                <p className="text-lg font-bold text-white">
+                  Test Status: {jobStatus.state}
+                </p>
+              </div>
+              {jobStatus.state === "RUNNING" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
+                      <div className="h-2 w-2 bg-neutral-400 rounded-full animate-bounce"></div>
+                      <div
+                        className="h-2 w-2 bg-neutral-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.1s" }}
+                      ></div>
+                      <div
+                        className="h-2 w-2 bg-neutral-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.2s" }}
+                      ></div>
+                    </div>
+                    <span className="text-neutral-300">
+                      Running density test...
+                    </span>
+                  </div>
+                  <TestProgressIndicator />
+                </div>
+              )}
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl mb-8">
+              <p className="text-lg font-bold text-white mb-2">Test Failed</p>
+              <p className="text-neutral-300">{errorMessage}</p>
+            </div>
+          )}
+
+          {testResult && (
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl mb-8">
+              <p className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                ✓ Test Completed Successfully
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-neutral-950/50 rounded-xl p-4 border border-blue-500/30">
+                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-widest mb-1">
+                    Per Stream FPS
+                  </p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                    {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
+                  </p>
+                </div>
+                <div className="bg-neutral-950/50 rounded-xl p-4 border border-purple-500/30">
+                  <p className="text-xs text-purple-400 font-semibold uppercase tracking-widest mb-1">
+                    Total Streams
+                  </p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    {testResult.total_streams ?? "N/A"}
+                  </p>
+                </div>
+              </div>
+              {testResult.streams_per_pipeline && (
+                <div>
+                  <p className="text-neutral-400 font-semibold mb-3 uppercase tracking-widest text-xs">
+                    Streams per Pipeline:
+                  </p>
+                  <PipelineStreamsSummary
+                    streamsPerPipeline={testResult.streams_per_pipeline}
+                    pipelines={pipelines ?? []}
+                  />
+                </div>
+              )}
+
+              {videoOutputEnabled &&
+                testResult.video_output_paths &&
+                Object.keys(testResult.video_output_paths).length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-neutral-400 font-semibold mb-4 uppercase tracking-widest text-xs">
+                      📹 Output Videos
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {Object.entries(testResult.video_output_paths).map(
+                        ([pipelineId, paths]) => {
+                          const videoPath =
+                            paths && paths.length > 0 ? [...paths].pop() : null;
+
+                          return (
+                            <div
+                              key={pipelineId}
+                              className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950/50 shadow-lg"
+                            >
+                              <div className="bg-neutral-900/50 px-4 py-3 border-b border-neutral-800/50">
+                                <p className="text-sm font-semibold text-neutral-300">
+                                  <PipelineName pipelineId={pipelineId} />
+                                </p>
+                              </div>
+                              {videoPath ? (
+                                <video
+                                  controls
+                                  className="w-full"
+                                  src={`/assets${videoPath}`}
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
+                              ) : (
+                                <div className="p-8 text-center text-neutral-400">
+                                  no streams
+                                </div>
+                              )}
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      </div>
+      <Toaster position="top-center" richColors />
+      <style>{`
+        @keyframes float {0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+        @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+        @keyframes spin_reverse {0%{transform:rotate(360deg);}100%{transform:rotate(0deg);}}
+      `}</style>
+    </>
+  );
+};
+
+export default DemoMode;

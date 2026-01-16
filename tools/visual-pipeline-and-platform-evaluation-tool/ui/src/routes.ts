@@ -10,8 +10,13 @@ import Jobs from "@/pages/Jobs.tsx";
 import PerformanceJobDetail from "@/pages/PerformanceJobDetail.tsx";
 import DensityJobDetail from "@/pages/DensityJobDetail.tsx";
 import OptimizationJobDetail from "@/pages/OptimizationJobDetail.tsx";
+import DemoMode from "@/features/demo/DemoMode.tsx";
 
 export default createBrowserRouter([
+  {
+    path: "/demo",
+    Component: DemoMode,
+  },
   {
     path: "/",
     Component: Layout,

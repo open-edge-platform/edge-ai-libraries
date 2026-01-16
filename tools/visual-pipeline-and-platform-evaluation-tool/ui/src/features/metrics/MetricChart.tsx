@@ -107,16 +107,23 @@ export const MetricChart = ({
 
   return (
     <div
-      className={`bg-background shadow-md p-4 max-w-full overflow-hidden ${className}`}
+      className={`bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6 max-w-full overflow-hidden ${className}`}
     >
-      <h3 className="text-sm font-medium text-foreground mb-8">{title}</h3>
+      <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-8">
+        {title}
+      </h3>
       <div className="relative">
         <ChartContainer
           config={chartConfig}
           className={showLegend ? "h-[230px] w-full" : "h-[200px] w-full"}
         >
           <AreaChart data={formattedData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#404040"
+              opacity={0.3}
+            />
             <XAxis
               dataKey="time"
               tickLine={false}
@@ -125,6 +132,7 @@ export const MetricChart = ({
               tickFormatter={() => ""}
               minTickGap={40}
               interval="preserveStartEnd"
+              stroke="#737373"
             />
             <YAxis
               tickLine={false}
@@ -134,6 +142,7 @@ export const MetricChart = ({
               tickFormatter={(value) => `${value}${unit}`}
               width={80}
               allowDecimals={false}
+              stroke="#737373"
             />
             <ChartTooltip
               content={
@@ -158,8 +167,8 @@ export const MetricChart = ({
                 dataKey={key}
                 stroke={colors[index]}
                 fill={colors[index]}
-                fillOpacity={0.2}
-                strokeWidth={2}
+                fillOpacity={0.3}
+                strokeWidth={2.5}
                 isAnimationActive={false}
               />
             ))}
@@ -168,7 +177,9 @@ export const MetricChart = ({
         <div
           className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : "bottom-0"}`}
         >
-          <span className="text-xs text-muted-foreground">{totalTime}</span>
+          <span className="text-xs text-neutral-500 font-semibold">
+            {totalTime}
+          </span>
         </div>
       </div>
       {!showLegend && <div className="h-[30px]" />}
