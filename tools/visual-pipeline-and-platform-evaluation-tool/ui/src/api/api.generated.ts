@@ -248,7 +248,7 @@ const injectedRtkApi = api
   });
 export { injectedRtkApi as api };
 export type ToGraphApiResponse =
-  /** status 200 Conversion successful */ PipelineGraph;
+  /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
   pipelineDescription: PipelineDescription;
 };
@@ -333,9 +333,9 @@ export type CreatePipelineApiResponse =
 export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
-export type ValidatePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline validation started */ ValidationJobResponse;
+export type ValidatePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -355,9 +355,9 @@ export type DeletePipelineApiResponse =
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
-export type OptimizePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
+export type OptimizePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
 export type OptimizePipelineApiArg = {
   pipelineId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;
@@ -393,6 +393,12 @@ export type PipelineGraph = {
   /** List of directed edges between nodes. */
   edges: Edge[];
 };
+export type PipelineGraphResponse = {
+  /** Advanced graph view with all pipeline elements including technical plumbing. */
+  pipeline_graph: PipelineGraph;
+  /** Simplified graph view showing only sources, inference nodes, and sinks. */
+  pipeline_graph_simple: PipelineGraph;
+};
 export type MessageResponse = {
   /** Human-readable error or status message. */
   message: string;
@@ -406,7 +412,7 @@ export type HttpValidationError = {
   detail?: ValidationError[];
 };
 export type PipelineDescription = {
-  /** GStreamer-like pipeline string. */
+  /** GStreamer pipeline string with elements separated by '!'. */
   pipeline_description: string;
 };
 export type DeviceType = "DISCRETE" | "INTEGRATED";
@@ -499,7 +505,9 @@ export type OptimizationJobStatus = {
   state: OptimizationJobState;
   total_fps: number | null;
   original_pipeline_graph: PipelineGraph;
+  original_pipeline_graph_simple: PipelineGraph;
   optimized_pipeline_graph: PipelineGraph | null;
+  optimized_pipeline_graph_simple: PipelineGraph | null;
   original_pipeline_description: string;
   optimized_pipeline_description: string | null;
   error_message: string | null;
@@ -556,6 +564,7 @@ export type Pipeline = {
   source: PipelineSource;
   type: PipelineType;
   pipeline_graph: PipelineGraph;
+  pipeline_graph_simple: PipelineGraph;
   parameters: PipelineParameters | null;
 };
 export type PipelineCreationResponse = {
@@ -566,11 +575,11 @@ export type PipelineDefinition = {
   name: string;
   /** Pipeline version (must be greater than or equal to 1). */
   version?: number;
-  /** Non-empty human-readable pipeline description. */
+  /** Non-empty human-readable text describing what the pipeline does. */
   description: string;
   source?: PipelineSource;
   type: PipelineType;
-  /** GStreamer pipeline definition string (e.g., 'fakesrc ! fakesink'). */
+  /** Complete GStreamer pipeline string with elements separated by '!' (e.g., 'filesrc location=input.mp4 ! decodebin ! fakesink'). */
   pipeline_description: string;
   parameters: PipelineParameters | null;
 };
@@ -589,6 +598,7 @@ export type PipelineUpdate = {
   name?: string | null;
   description?: string | null;
   pipeline_graph?: PipelineGraph | null;
+  pipeline_graph_simple?: PipelineGraph | null;
   parameters?: PipelineParameters | null;
 };
 export type OptimizationJobResponse = {
