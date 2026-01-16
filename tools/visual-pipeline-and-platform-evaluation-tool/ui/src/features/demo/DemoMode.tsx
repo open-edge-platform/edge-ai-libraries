@@ -210,6 +210,7 @@ const DemoMode = () => {
       <div className="min-h-screen bg-black text-white overflow-auto">
         {/* Animated background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-br from-magenta-chart/10 to-green-chart/10 animate-[pulse_8s_ease-in-out_infinite]"></div>
           <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
           <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-white/3 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
         </div>
@@ -218,11 +219,7 @@ const DemoMode = () => {
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div className="space-y-2">
-              <h1 className="text-6xl font-black">
-                <span className="bg-gradient-to-b from-white to-neutral-400 bg-clip-text text-transparent">
-                  ViPPET
-                </span>
-              </h1>
+              <h1 className="text-6xl font-black text-white/90">ViPPET</h1>
               <p className="text-neutral-400 text-lg">
                 density testing platform
               </p>
@@ -350,7 +347,7 @@ const DemoMode = () => {
           {/* Test Configuration */}
           <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900/50 backdrop-blur-xl p-6 shadow-2xl mb-8">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
-            <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="relative space-y-6">
               <div className="space-y-3">
                 <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
                   Target FPS
@@ -362,40 +359,27 @@ const DemoMode = () => {
                     onChange={(e) => setFpsFloor(Number(e.target.value))}
                     min={1}
                     max={120}
-                    className="w-32 px-4 py-3 bg-neutral-950/80 border border-neutral-700 rounded-xl text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                    className="w-32 px-4 py-3 bg-neutral-950/80 border border-neutral-700 rounded-xl text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-neutral-400 font-semibold">FPS</span>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <div className="relative">
-                        <Checkbox
-                          checked={videoOutputEnabled}
-                          onCheckedChange={(checked) =>
-                            setVideoOutputEnabled(checked === true)
-                          }
-                          className="w-6 h-6 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-widest">
-                        Save Output
-                      </span>
-                    </label>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="bg-neutral-800 border-neutral-700"
-                  >
-                    <p>
-                      Selecting this option changes the last fakesink to
-                      filesink so it is possible to view generated output
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative">
+                    <Checkbox
+                      checked={videoOutputEnabled}
+                      onCheckedChange={(checked) =>
+                        setVideoOutputEnabled(checked === true)
+                      }
+                      className="w-6 h-6 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-widest">
+                    Save Output
+                  </span>
+                </label>
                 {videoOutputEnabled && <SaveOutputWarning />}
               </div>
             </div>
@@ -408,7 +392,7 @@ const DemoMode = () => {
                 }
                 className="relative w-full px-8 py-4 bg-neutral-900 hover:bg-neutral-950 text-white rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-neutral-800 overflow-hidden group"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 via-green-chart/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <span className="relative">
                   {jobId
                     ? "Running Test..."
@@ -494,56 +478,58 @@ const DemoMode = () => {
               <p className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 ✓ Test Completed Successfully
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-neutral-950/50 rounded-xl p-4 border border-magenta-chart/30 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
-                  <div className="relative">
-                    <p className="text-xs text-magenta-chart font-semibold uppercase tracking-widest mb-1">
-                      Per Stream FPS
-                    </p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-magenta-chart via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                      {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
-                    </p>
+              <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 mb-6">
+                <div className="flex flex-col gap-4">
+                  <div className="bg-neutral-950/50 rounded-xl p-4 border border-magenta-chart/30 relative overflow-hidden flex-1">
+                    <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                    <div className="relative h-full flex flex-col justify-center items-center text-center">
+                      <p className="text-xs text-magenta-chart font-semibold uppercase tracking-widest mb-1">
+                        Per Stream FPS
+                      </p>
+                      <p className="text-4xl font-bold text-magenta-chart">
+                        {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-neutral-950/50 rounded-xl p-4 border border-green-chart/30 relative overflow-hidden flex-1">
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                    <div className="relative h-full flex flex-col justify-center items-center text-center">
+                      <p className="text-xs text-green-chart font-semibold uppercase tracking-widest mb-1">
+                        Total Streams
+                      </p>
+                      <p className="text-4xl font-bold text-green-chart">
+                        {testResult.total_streams ?? "N/A"}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-neutral-950/50 rounded-xl p-4 border border-green-chart/30 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
-                  <div className="relative">
-                    <p className="text-xs text-green-chart font-semibold uppercase tracking-widest mb-1">
-                      Total Streams
-                    </p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-green-chart via-cyan-400 to-magenta-chart bg-clip-text text-transparent">
-                      {testResult.total_streams ?? "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Video Preview */}
-              <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950/50 shadow-lg mt-6 max-w-2xl mx-auto">
-                <div className="bg-neutral-900/50 px-4 py-3 border-b border-neutral-800/50">
-                  <p className="text-sm font-semibold text-neutral-300">
-                    Test Preview
-                  </p>
-                </div>
-                <div className="aspect-video bg-neutral-900/30 flex items-center justify-center">
-                  <video
-                    autoPlay
-                    muted
-                    loop
-                    className="w-full h-full object-contain"
-                    src="/assets/preview-stream.mp4"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                      const parent = e.currentTarget.parentElement;
-                      if (parent) {
-                        parent.innerHTML =
-                          '<div class="flex items-center justify-center h-full"><span class="text-neutral-500 text-sm">No preview available</span></div>';
-                      }
-                    }}
-                  >
-                    Your browser does not support the video tag.
-                  </video>
+                {/* Video Preview */}
+                <div className="rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950/50 shadow-lg">
+                  <div className="bg-neutral-900/50 px-4 py-3 border-b border-neutral-800/50">
+                    <p className="text-sm font-semibold text-neutral-300">
+                      Test Preview
+                    </p>
+                  </div>
+                  <div className="aspect-video bg-neutral-900/30 flex items-center justify-center">
+                    <video
+                      autoPlay
+                      muted
+                      loop
+                      className="w-full h-full object-contain"
+                      src="/assets/preview-stream.mp4"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) {
+                          parent.innerHTML =
+                            '<div class="flex items-center justify-center h-full"><span class="text-neutral-500 text-sm">No preview available</span></div>';
+                        }
+                      }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
                 </div>
               </div>
 
@@ -640,7 +626,7 @@ const DemoMode = () => {
                         memory: point.memory ?? 0,
                       }))}
                       dataKeys={["memory"]}
-                      colors={["var(--color-blue-chart)"]}
+                      colors={["var(--color-magenta-chart)"]}
                       unit="%"
                       yAxisDomain={[0, 100]}
                       showLegend={false}
@@ -655,7 +641,7 @@ const DemoMode = () => {
                         temp: point.cpuTemp ?? 0,
                       }))}
                       dataKeys={["temp"]}
-                      colors={["var(--color-orange-chart)"]}
+                      colors={["var(--color-green-chart)"]}
                       unit="°C"
                       yAxisDomain={[
                         0,

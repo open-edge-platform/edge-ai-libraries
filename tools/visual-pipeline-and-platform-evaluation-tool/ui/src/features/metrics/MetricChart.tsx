@@ -153,6 +153,7 @@ export const MetricChart = ({
               width={80}
               allowDecimals={false}
               stroke="#737373"
+              tickCount={isCompact ? 3 : undefined}
             />
             <ChartTooltip
               content={

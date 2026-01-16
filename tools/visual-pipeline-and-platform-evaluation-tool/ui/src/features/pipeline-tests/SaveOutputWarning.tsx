@@ -1,8 +1,10 @@
 const SaveOutputWarning = () => {
   return (
-    <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-1/2">
-      <b>Note</b>: Selecting this option will negatively impact the performance
-      results.
+    <div className="mt-3 text-xs text-neutral-300 bg-neutral-900/30 border border-neutral-700/50 rounded-lg px-4 py-2.5 flex items-start gap-2">
+      <p>
+        <span className="font-semibold">Note:</span> This option may negatively
+        impact performance results.
+      </p>
     </div>
   );
 };
