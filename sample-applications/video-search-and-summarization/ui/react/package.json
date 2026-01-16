@@ -26,6 +26,7 @@
     "@microsoft/fetch-event-source": "^2.0.1",
     "@reduxjs/toolkit": "^2.8.2",
     "axios": "^1.12.2",
+    "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
     "i18next": "^25.3.6",
     "react": "^19.1.1",
@@ -38,7 +39,7 @@
     "socket.io-client": "^4.8.1",
     "styled-components": "^6.1.19"
   },
-   "overrides": {
+  "overrides": {
     "glob": "^10.5.0"
   },
   "devDependencies": {

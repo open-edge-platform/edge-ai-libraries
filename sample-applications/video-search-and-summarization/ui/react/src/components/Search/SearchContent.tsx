@@ -12,6 +12,7 @@ import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
 import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
+import TelemetryAccordion from './TelemetryAccordion';
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -393,6 +394,7 @@ export const SearchContent: FC = () => {
             {showVideoGroups ? <VideoGroupsView /> : isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
           </>
         )}
+        <TelemetryAccordion />
       </QueryContentWrapper>
     </>
   );
