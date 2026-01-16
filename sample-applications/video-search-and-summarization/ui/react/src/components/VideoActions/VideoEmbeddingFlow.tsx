@@ -151,9 +151,9 @@ const SettingsPanel = styled.div`
 const VideoSelectorContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
   width: 100%;
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
 `;
 
 const VideoSelectorDivider = styled.div`
@@ -188,8 +188,8 @@ const RecentVideoItem = styled.div<{ selected: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 calc(20% - 0.6rem);
+  min-width: 120px;
   padding: 0.5rem;
   border-radius: 6px;
   cursor: pointer;
@@ -741,6 +741,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               {!selectedFile && recentVideos.length > 0 && (
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
+                  <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('recentUploads')}</div>
                   <RecentVideosList>
                     {recentVideos.map((video) => (
                       <RecentVideoItem
