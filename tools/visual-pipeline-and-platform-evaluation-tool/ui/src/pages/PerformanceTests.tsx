@@ -3,11 +3,10 @@ import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
 } from "@/api/api.generated";
-import { TestProgressIndicator } from "@/components/shared/TestProgressIndicator.tsx";
-import { PipelineName } from "@/components/shared/PipelineName.tsx";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { selectDevices } from "@/store/reducers/devices";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -15,8 +14,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plus, X } from "lucide-react";
-import { StreamsSlider } from "@/components/shared/StreamsSlider";
-import DeviceSelect from "@/components/shared/DeviceSelect";
+import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
+import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -27,7 +26,6 @@ interface PipelineSelection {
 
 const PerformanceTests = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const devices = useAppSelector(selectDevices);
   const [runPerformanceTest, { isLoading: isRunning }] =
     useRunPerformanceTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
@@ -41,9 +39,8 @@ const PerformanceTests = () => {
       [key: string]: string[];
     } | null;
   } | null>(null);
-  const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: jobId! },
@@ -148,24 +145,10 @@ const PerformanceTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
-      );
-
       const result = await runPerformanceTest({
-        performanceTestSpecInput: {
+        performanceTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             id: selection.pipelineId,
@@ -202,7 +185,7 @@ const PerformanceTests = () => {
           {pipelineSelections.map((selection) => (
             <div
               key={selection.pipelineId}
-              className={`flex items-center gap-3 p-2 border bg-white transition-all duration-300 ${
+              className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
                 selection.isRemoving
                   ? "opacity-0 -translate-y-2"
                   : selection.isNew
@@ -220,7 +203,7 @@ const PerformanceTests = () => {
                     onChange={(e) =>
                       handlePipelineChange(selection.pipelineId, e.target.value)
                     }
-                    className="w-full px-3 py-2 border text-sm cursor-pointer"
+                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-background"
                   >
                     {pipelines
                       .filter(
@@ -267,7 +250,7 @@ const PerformanceTests = () => {
           <button
             onClick={handleAddPipeline}
             disabled={pipelineSelections.length >= pipelines.length}
-            className="w-fit px-4 py-2 bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
@@ -296,28 +279,13 @@ const PerformanceTests = () => {
               </TooltipContent>
             </Tooltip>
           </div>
-          {videoOutputEnabled && (
-            <div>
-              <span>Select device for encoding: </span>
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="w-fit px-3 py-2 border text-sm cursor-pointer"
-              />
-            </div>
-          )}
-          {videoOutputEnabled && (
-            <div className="text-muted-foreground">
-              Note: Select the device that is used in other blocks in your
-              pipeline.
-            </div>
-          )}
+          {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
         <button
           onClick={handleRunTest}
           disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-          className="w-fit px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-fit px-4 py-2 bg-classic-blue font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
         >
           {jobId
             ? "Running..."
@@ -327,15 +295,15 @@ const PerformanceTests = () => {
         </button>
 
         {jobId && jobStatus && (
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500"></div>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                  <div className="h-2 w-2 bg-magenta-chart"></div>
+                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
                     Running performance test...
                   </span>
                 </div>
@@ -346,7 +314,7 @@ const PerformanceTests = () => {
         )}
 
         {errorMessage && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+          <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
               Test Failed
             </p>
@@ -357,7 +325,7 @@ const PerformanceTests = () => {
         )}
 
         {testResult && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+          <div className="my-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
             <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
               Test Completed Successfully
             </p>

@@ -486,7 +486,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         config["udfs"] = config_data.udfs
         if config_data.alerts:
             config["alerts"] = config_data.alerts
-        logger.debug("Received configuration data: %s", config)
+        logger.info("Received configuration data: %s", config)
     except json.JSONDecodeError as error:
         logger.error("Invalid JSON format in configuration data: %s", error)
         raise HTTPException(status_code=422,

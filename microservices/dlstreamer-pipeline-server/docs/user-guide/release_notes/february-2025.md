@@ -13,9 +13,9 @@
 ### Fixed
 - Bug in Geti UDF loader's color space handling.
 - Bug in not being able to run multiple instances simultaneously of the same pipeline on dGPU and iGPU.
-- Bug in allowing to re-run pipeline with a failed model-instance-id. 
+- Bug in allowing to re-run pipeline with a failed model-instance-id.
 
 ### Updates
-- DLStreamer updated to 2025.0.0.
+- DL Streamer updated to 2025.0.0.
 - Geti SDK updated to version 2.5.0.
 - Updated documentation, license, copyright.

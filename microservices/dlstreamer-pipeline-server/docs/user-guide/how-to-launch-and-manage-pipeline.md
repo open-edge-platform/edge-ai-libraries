@@ -5,7 +5,7 @@ Within a running DL Streamer Pipeline Server container, you can start and stop a
 ## Steps
 
 1. A sample config has been provided for this tutorial at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
- 
+
 ```sh
     volumes:
       # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
@@ -18,9 +18,9 @@ MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
 MQTT_PORT=1883
 ```
 
-3. Start the DLStreamer pipeline server
+3. Start the DL Streamer pipeline server
 ```sh
-cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/    
+cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
 docker compose up
 ```
 
@@ -63,9 +63,9 @@ data = {
 response = requests.post(url, headers=headers, data=json.dumps(data))
 print("Status Code:", response.status_code)
 print("Response:", response.text)
-``` 
+```
 
-Run the file using following command 
+Run the file using following command
 ```sh
 python3 start_pipeline.py
 ```
@@ -126,7 +126,7 @@ print(f"Status Code: {response.status_code}")
 print(f"Response Body: {response.text}")
 ```
 
-Run the file using following command 
+Run the file using following command
 ```sh
 python3 stop_pipeline.py
 ```

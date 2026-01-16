@@ -24,7 +24,6 @@ import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanc
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import { Zap } from "lucide-react";
 import { isApiError } from "@/lib/apiUtils";
 import {
@@ -33,8 +32,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAppSelector } from "@/store/hooks";
-import { selectDevices } from "@/store/reducers/devices";
 
 type UrlParams = {
   id: string;
@@ -42,7 +39,6 @@ type UrlParams = {
 
 const Pipelines = () => {
   const { id } = useParams<UrlParams>();
-  const devices = useAppSelector(selectDevices);
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -56,7 +52,6 @@ const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
@@ -396,24 +391,10 @@ const Pipelines = () => {
         },
       }).unwrap();
 
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
-      );
-
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
+        performanceTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           pipeline_performance_specs: [
             {
@@ -574,7 +555,7 @@ const Pipelines = () => {
             )}
 
             <button
-              className="bg-white hover:bg-carbon border border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors disabled:opacity-50 disabled:hover:bg-orange-600 flex items-center gap-2"
+              className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
               title="Optimize Pipeline"
               disabled={isOptimizing || !!performanceTestJobId}
               onClick={handleOptimizePipeline}
@@ -600,7 +581,7 @@ const Pipelines = () => {
           <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="bg-white p-2 flex items-center gap-2 cursor-pointer">
+                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={videoOutputEnabled}
                     onCheckedChange={(checked) =>
@@ -617,13 +598,6 @@ const Pipelines = () => {
                 </p>
               </TooltipContent>
             </Tooltip>
-            {videoOutputEnabled && (
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="bg-white p-2 text-sm font-medium cursor-pointer border-none outline-none"
-              />
-            )}
           </div>
         </div>
       </div>

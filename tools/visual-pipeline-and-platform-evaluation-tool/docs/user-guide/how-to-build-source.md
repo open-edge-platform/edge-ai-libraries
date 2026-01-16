@@ -22,7 +22,7 @@ Before starting, ensure the following:
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in:
 
-- [Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-1.2.0/libraries/dl-streamer/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
+- [Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
 
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see:
 
@@ -50,6 +50,6 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 2. **Access the application API documentation**:
    - Open a browser and navigate to `http://localhost:7860/docs` to access the Swagger UI.
 
-## Troubleshooting
+## Known issues, limitations and troubleshooting
 
-- Refer to [Troubleshooting Common Issues](./support.md#troubleshooting-common-issues).
+- Refer to [Known issues, limitations and troubleshooting](known-issues.md).

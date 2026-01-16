@@ -13,7 +13,7 @@
   type: classification
   model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
   model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
-  unsupported_devices: "NPU"
+  unsupported_devices: ""
   precision: INT8
   default: true
 - name: mobilenet-v2-pytorch
@@ -112,6 +112,33 @@
   type: classification
   model_path: omz/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
   model_proc: omz/human-pose-estimation-0001/human-pose-estimation-0001.json
+  unsupported_devices: ""
+  precision: FP16
+  default: false
+- name: yolo11n
+  display_name: YOLO 11n 640x640 (FP16)
+  source: public
+  type: detection
+  model_path: public/yolo11n/FP16/yolo11n.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: FP16
+  default: false
+- name: face-detection-retail-0004
+  display_name: Face Detection Retail 0004 (FP16)
+  source: omz
+  type: detection
+  model_path: omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+  model_proc: omz/face-detection-retail-0004/face-detection-retail-0004.json
+  unsupported_devices: ""
+  precision: FP16
+  default: false
+- name: age-gender-recognition-retail-0013
+  display_name: Age Gender Recognition Retail 0013 (FP16)
+  source: omz
+  type: classification
+  model_path: omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
+  model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
   unsupported_devices: ""
   precision: FP16
   default: false

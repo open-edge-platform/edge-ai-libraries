@@ -23,7 +23,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 ## Software Requirements
 
 **DL Streamer requirements**
-- Ensure all [requirements](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/get_started/install/install_guide_ubuntu.html) of DL Streamer are fulfilled.
+- Ensure all [requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dl-streamer/get_started/system_requirements.html) for DL Streamer are fulfilled.
 
 **Required Software**:
 - Docker 27.3.1 or higher
@@ -31,10 +31,10 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 
 ## Validation
-- Ensure all required software are installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all required software is installed and configured before proceeding to [Get Started](./get-started.md).
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [Get Started Guide](get-started.md)
-* [API Reference](api-reference.md)
+- [Overview](Overview.md)
+- [Get Started Guide](get-started.md)
+- [API Reference](api-reference.md)

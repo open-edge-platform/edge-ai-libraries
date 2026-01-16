@@ -31,22 +31,14 @@ RUN apt-get update && \
 # Copy kapacitor Python UDF agent files from builder image
 COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
-# Install Intel GPU tools and clean up
-RUN export no_proxy= && \
-    apt-get update && \
-    . /etc/os-release && \
-    if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
-        echo "Ubuntu version ${VERSION_CODENAME} not supported"; \
-    else \
-        wget --no-check-certificate -qO- https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/gpu-intel-graphics.gpg && \
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gpu-intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
-        tee /etc/apt/sources.list.d/intel-gpu-"${VERSION_CODENAME}".list && \
-        apt-get update; \
-    fi && \
-    apt-get install -y --no-install-recommends \
-    intel-opencl-icd intel-level-zero-gpu && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* 
+RUN apt-get update && apt-get install -y libnuma1 ocl-icd-libopencl1 --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
+    mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb && \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb && \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb && \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb && \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb && \
+	dpkg -i *.deb && rm -Rf /tmp/gpu_deps
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME

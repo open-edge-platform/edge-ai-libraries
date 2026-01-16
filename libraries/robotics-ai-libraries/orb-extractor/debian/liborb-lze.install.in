@@ -1,4 +1,0 @@
-usr/lib/*/libgpu_orb.so
-usr/lib/*/libgpu_orb_ocvfree.so
-@zebindir@/*.bin
-@spirvdir@/*.spv

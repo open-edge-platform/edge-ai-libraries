@@ -8,25 +8,33 @@ import {
 } from "@/components/ui/card";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
-import AddPipelineButton from "@/components/shared/AddPipelineButton.tsx";
-import CopyPipelineButton from "@/components/shared/CopyPipelineButton.tsx";
+import AddPipelineButton from "@/features/pipelines/AddPipelineButton.tsx";
+import CopyPipelineButton from "@/features/pipelines/CopyPipelineButton.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
-import { BookOpen, Sparkles, Code } from "lucide-react";
+import { BookOpen, Code, Sparkles } from "lucide-react";
 import pipeline0 from "@/assets/pipeline_0.png";
 import pipeline1 from "@/assets/pipeline_1.png";
 import pipeline2 from "@/assets/pipeline_2.png";
+import pipeline3 from "@/assets/pipeline_3.png";
+import pipeline4 from "@/assets/pipeline_4.png";
+import pipeline5 from "@/assets/pipeline_5.png";
 import type { Pipeline } from "@/api/api.generated";
-import { selectHasGPU1, selectHasNPU } from "@/store/reducers/devices.ts";
+import { selectHasNPU } from "@/store/reducers/devices.ts";
 import { NpuUsageProgress } from "@/features/metrics/NpuUsageProgress.tsx";
-import { Gpu1UsageProgress } from "@/features/metrics/Gpu1UsageProgress.tsx";
 
-const pipelineImages = [pipeline0, pipeline1, pipeline2];
+const pipelineImages = [
+  pipeline0,
+  pipeline1,
+  pipeline2,
+  pipeline3,
+  pipeline4,
+  pipeline5,
+];
 
 const Home = () => {
   const pipelines = useAppSelector(selectPipelines);
 
-  const hasGpu1 = useAppSelector(selectHasGPU1);
   const hasNpu = useAppSelector(selectHasNPU);
 
   const predefinedPipelines =
@@ -98,7 +106,7 @@ const Home = () => {
                         baseName={group.baseName}
                         description={group.description}
                       >
-                        <button className="text-white bg-classic-blue hover:bg-classic-blue-hover px-4 py-2 transition-colors">
+                        <button className="cursor-pointer font-medium text-white dark:text-[#242528] bg-classic-blue dark:bg-energy-blue hover:bg-classic-blue-hover dark:hover:bg-energy-blue-tint-1 px-4 py-2 transition-colors">
                           Copy pipeline
                         </button>
                       </CopyPipelineButton>
@@ -128,7 +136,7 @@ const Home = () => {
                     <CardFooter>
                       <Link
                         to={`/pipelines/${pipeline.id}`}
-                        className="text-white bg-classic-blue hover:bg-classic-blue-hover px-4 py-2 transition-colors"
+                        className="text-white dark:text-[#242528] font-medium bg-classic-blue dark:bg-energy-blue hover:bg-classic-blue-hover dark:hover:bg-energy-blue-tint-1 px-4 py-2 transition-colors"
                       >
                         Open in Builder
                       </Link>
@@ -139,22 +147,21 @@ const Home = () => {
             </div>
           </div>
         </div>
-        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9]">
+        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9] dark:bg-[#3c3e42]">
           <h1 className="font-medium text-2xl">Resource utilization</h1>
           <CpuUsageProgress />
           <GpuUsageProgress />
-          {hasGpu1 && <Gpu1UsageProgress />}
           {hasNpu && <NpuUsageProgress />}
 
           <h1 className="font-medium text-2xl mt-4">Learning and support</h1>
 
           <div className="flex gap-3">
-            <BookOpen className="w-6 h-6 text-classic-blue shrink-0" />
+            <BookOpen className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
-              href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
+              href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">Getting Started</h3>
               <p className="text-sm text-muted-foreground">
@@ -164,12 +171,12 @@ const Home = () => {
           </div>
 
           <div className="flex gap-3">
-            <Sparkles className="w-6 h-6 text-classic-blue shrink-0" />
+            <Sparkles className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
-              href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/release-notes.html"
+              href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">What's new?</h3>
               <p className="text-sm text-muted-foreground">
@@ -179,12 +186,12 @@ const Home = () => {
           </div>
 
           <div className="flex gap-3">
-            <Code className="w-6 h-6 text-classic-blue shrink-0" />
+            <Code className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
             <a
               href="/api/v1/redoc"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-classic-blue transition-colors"
+              className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
             >
               <h3 className="font-semibold text-base mb-1">REST API</h3>
               <p className="text-sm text-muted-foreground">

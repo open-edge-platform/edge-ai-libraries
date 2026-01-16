@@ -1,8 +1,29 @@
 # Release Notes
 
-# August 2025
+## Version: 2025.2.0 (December 2025)
 
-## v3.1.0
+### Added
+- `souphttpsrc` element in docker file.
+
+### Fixed
+- Wrong formatting in compose file
+- Added missing eis_mqtt_publish_doc.md documentation
+- Fixed WebRTC GPU pipeline functionality for Xeon+dGPU hardware combinations
+- Updated Helm chart version in documentation and dockerhub to be in sync with current one.
+- Resolved issue where videoconvert was dropping tensor data provided by gvametaconvert
+- Updated [Helm chart](https://hub.docker.com/layers/intel/dlstreamer-pipeline-server/2025.2.0/images/sha256-c878cc4d3606ebe242611b8ba7ffd551726c95a806e6bc415965d3f0f15a5a8f) on Dockerhub
+- Incorrect communication between containers has been fixed by configuring properenv variables.
+- RSTP connection error recovery mechanism
+
+
+### Updates
+- DL Streamer updated to 2025.2.0
+
+
+---
+
+
+## v3.1.0 (August 2025)
 
 ### Added
 - Support for Ubuntu22 and Ubuntu24 based docker images
@@ -43,7 +64,7 @@
 
 ### Fixed
 - Fixes in model update flow
-- Fixed an issue where overlay was improper for published frames when source has I420 image format 
+- Fixed an issue where overlay was improper for published frames when source has I420 image format
 
 ### Updates
 - DLS upgraded to 2025.0.1.2
@@ -59,14 +80,14 @@
 - Image blob write support for S3 API compliant storage.
 - Metadata and image blob (optional) publish support over OPCUA protocol.
 - OpenTelemetry support to publish gathered metrics to Open Telemetry collector.
-- MRaaS model update support for non Intel® Geti™ models (YOLO and OMZ) loaded through gva DLStreamer elements that perform inference.
+- MRaaS model update support for non Intel® Geti™ models (YOLO and OMZ) loaded through gva DL Streamer elements that perform inference.
 - Optimized docker image size - removed unused libraries.
 
 ### Fixed
 - Warnings from OpenVINO telemetry.
 
 ### Updates
-- DLStreamer updated to 2025.0.1.
+- DL Streamer updated to 2025.0.1.
 - Updated third party programs list for components with copyleft licenses.
 - Updated documentation.
 
@@ -77,7 +98,7 @@
 ### Added
 - Support for synchronous REST API, timeout and base64 image in Image Ingestor.
 - MRaaS support in Helm chart.
-- Support for NV12 and I420 image formats in DLStreamer Pipeline Server Publisher.
+- Support for NV12 and I420 image formats in DL Streamer Pipeline Server Publisher.
 - Option to send frames optionally in image ingestion REST API requests.
 - Payload support in config when auto-start is enabled.
 - Insourced pipeline server.
@@ -85,10 +106,10 @@
 ### Fixed
 - Bug in Geti UDF loader's color space handling.
 - Bug in not being able to run multiple instances simultaneously of the same pipeline on dGPU and iGPU.
-- Bug in allowing to re-run pipeline with a failed model-instance-id. 
+- Bug in allowing to re-run pipeline with a failed model-instance-id.
 
 ### Updates
-- DLStreamer updated to 2025.0.0.
+- DL Streamer updated to 2025.0.0.
 - Geti SDK updated to version 2.5.0.
 - Updated documentation, license, copyright.
 
@@ -98,17 +119,17 @@
 
 ### Added
 - Annotation overlay support for clients.
-- Support for mTLS and configurable gRPC in DLStreamer pipeline server.
+- Support for mTLS and configurable gRPC in DL Streamer pipeline server.
 - Option to disable LEM check.
 - Time field to gvapython mqtt publisher and Geti wrapper.
 - Multi-threaded client publishers for performance improvements.
-- Standalone DLStreamer pipeline server Helm chart.
+- Standalone DL Streamer pipeline server Helm chart.
 - Optimizations to Dockerfile for lean docker image size.
 
 ### Fixed
 - Bug where missing UDFs would cause task key errors.
 - Issue where multiple pipeline instances wouldn't refer to their own data.
-- Expired Model Registry Microservice JWT handling in DLStreamer pipeline server.
+- Expired Model Registry Microservice JWT handling in DL Streamer pipeline server.
 - Hardcoded visualization overlay for classification models.
 - Error for REST requests with no metadata.
 - Volume mount permissions for deployments.
@@ -116,7 +137,7 @@
 - Removed encoded geti prediction from metadata
 
 ### Updates
-- DLStreamer updated to 2024.2.0.
+- DL Streamer updated to 2024.2.0.
 - Removed deprecated pipeline size checks for client list size.
 - Updated documentation.
 
@@ -126,7 +147,7 @@
 
 ### Added
 - Support for image file ingestor and RGB frame format in UDF plugin.
-- Capability to load models from the Model Registry Microservice during DLStreamer pipeline server startup.
+- Capability to load models from the Model Registry Microservice during DL Streamer pipeline server startup.
 - New REST API endpoint for model downloading.
 - gRPC integration for communication.
 - SSL (HTTPS) support for serving traffic.
@@ -141,7 +162,7 @@
 ### Updates
 - Enhanced ModelRegistryClient and simplified interactions with the Model Registry.
 - Geti SDK upgraded to version 2.2.0.
-- DLStreamer updated to 2024.1.0.
+- DL Streamer updated to 2024.1.0.
 
 ---
 
@@ -172,6 +193,6 @@
 - Issues with image format handling (in gencamrsrc) and NPU driver updates.
 
 ### Updates
-- DLStreamer updated to version 2024.0.2.
+- DL Streamer updated to version 2024.0.2.
 - Updated ONNX and OpenVINO pip packages.
 - Documentation updates.

@@ -29,7 +29,7 @@ numpy==1.26.4
 boto3==1.36.17
 
 # Influxdb
-influxdb-client==1.48.0
+influxdb-client==1.49.0
 
 # Influxdb schema
 marshmallow==4.0.0

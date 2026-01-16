@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router";
 import {
-  useGetPerformanceStatusesQuery,
   useGetDensityStatusesQuery,
   useGetOptimizationStatusesQuery,
+  useGetPerformanceStatusesQuery,
 } from "@/api/api.generated";
 import {
   Table,
@@ -13,7 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
-import { PipelineName } from "@/components/shared/PipelineName";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
 
 const Jobs = () => {
   const location = useLocation();
@@ -43,13 +44,6 @@ const Jobs = () => {
     { id: "optimize", label: "Optimize", path: "/jobs/optimize" },
   ];
 
-  const formatElapsedTime = (milliseconds: number) => {
-    const seconds = milliseconds / 1000;
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}m ${secs}s`;
-  };
-
   const formatTimestamp = (timestamp: number) => {
     return format(new Date(timestamp), "MMM d, yyyy HH:mm:ss");
   };
@@ -75,8 +69,8 @@ const Jobs = () => {
                   py-4 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     currentTab === tab.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-foreground/50 hover:text-foreground hover:border-foreground dark:text-foreground/50 dark:hover:text-foreground"
                   }
                 `}
               >
@@ -118,7 +112,7 @@ const Jobs = () => {
                           <TableCell className="font-mono text-xs">
                             <Link
                               to={`/jobs/performance/${job.id}`}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                              className="text-classic-blue hover:text-classic-blue-hover dark:text-energy-blue dark:hover:text-energy-blue-shade-1 hover:underline"
                             >
                               {job.id}
                             </Link>
@@ -154,7 +148,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null
@@ -227,7 +221,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null
@@ -317,7 +311,7 @@ const Jobs = () => {
                             {formatTimestamp(job.start_time)}
                           </TableCell>
                           <TableCell>
-                            {formatElapsedTime(job.elapsed_time)}
+                            {formatElapsedTimeMillis(job.elapsed_time)}
                           </TableCell>
                           <TableCell>
                             {job.total_fps !== null

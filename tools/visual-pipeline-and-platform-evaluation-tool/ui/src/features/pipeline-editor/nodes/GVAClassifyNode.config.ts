@@ -11,6 +11,9 @@ export const gvaClassifyConfig = {
       type: "select" as const,
       defaultValue: "",
       description: "Path to inference model network file",
+      params: {
+        filter: "classification",
+      },
     },
     {
       key: "device",
@@ -22,22 +25,22 @@ export const gvaClassifyConfig = {
     {
       key: "batch-size",
       label: "Batch size",
-      type: "number" as const,
-      defaultValue: 0,
+      type: "text" as const,
+      defaultValue: "0",
       description: "Number of frames batched together for a single inference",
     },
     {
       key: "nireq",
       label: "Nireq",
-      type: "number" as const,
-      defaultValue: 0,
+      type: "text" as const,
+      defaultValue: "0",
       description: "Number of inference requests",
     },
     {
       key: "inference-interval",
       label: "Inference interval",
-      type: "number" as const,
-      defaultValue: 1,
+      type: "text" as const,
+      defaultValue: "1",
       description:
         "Interval between inference requests. An interval of N performs inference on every Nth frame",
     },

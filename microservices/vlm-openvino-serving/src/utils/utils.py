@@ -7,7 +7,7 @@ import random
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import aiohttp
 import numpy as np
@@ -39,6 +39,67 @@ if settings.no_proxy_env:
     proxies["no_proxy"] = settings.no_proxy_env
 
 logger.debug(f"proxies: {proxies}")
+
+_MODEL_CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def get_best_video_backend() -> str:
+    """Return preferred backend supported by HF video loader (decord/pyav/torchcodec)."""
+
+    preferred_order = ["decord", "pyav", "torchcodec", "torchvision", "opencv"]
+
+    def _is_torchcodec_available() -> bool:
+        try:
+            import torchcodec  # type: ignore # noqa: F401
+
+            return True
+        except Exception:
+            return False
+
+    try:
+        from transformers.utils import (
+            is_av_available,
+            is_cv2_available,
+            is_decord_available,
+            is_torchvision_available,
+        )
+
+        availability_checks = {
+            "decord": is_decord_available(),
+            "pyav": is_av_available(),
+            "torchcodec": _is_torchcodec_available(),
+            "torchvision": is_torchvision_available(),
+            "opencv": is_cv2_available(),
+        }
+
+        logger.debug(f"Video backend availability: {availability_checks}")
+        for backend in preferred_order:
+            if availability_checks.get(backend):
+                logger.info(f"Selected video backend: {backend}")
+                return backend
+    except ImportError as exc:
+        logger.warning(
+            "Video backend detection failed (%s); defaulting to OpenCV",
+            exc,
+        )
+
+    logger.warning("No video backends detected, falling back to OpenCV")
+    return "opencv"
+
+
+def model_supports_video(
+    model_name: Optional[str], config_path: Path = Path("src/config/model_config.yaml")
+) -> bool:
+    """Return True if the provided model name advertises native video support."""
+
+    if not model_name:
+        return False
+
+    normalized = model_name.lower()
+    for pattern in get_video_supported_patterns(config_path):
+        if pattern and pattern in normalized:
+            return True
+    return False
 
 
 def convert_model(
@@ -257,6 +318,22 @@ def is_model_ready(model_dir: Path) -> bool:
     return bool(ov_files)
 
 
+def _resolve_config_cache_key(config_path: Path) -> str:
+    return str(Path(config_path).expanduser().resolve(strict=False))
+
+
+def _load_model_config_data(config_path: Path) -> Dict[str, Any]:
+    """Load and cache model configuration data for a given path."""
+
+    global _MODEL_CONFIG_CACHE
+    cache_key = _resolve_config_cache_key(config_path)
+    if cache_key not in _MODEL_CONFIG_CACHE:
+        resolved_path = Path(config_path)
+        with open(resolved_path, "r") as config_file:
+            _MODEL_CONFIG_CACHE[cache_key] = yaml.safe_load(config_file) or {}
+    return _MODEL_CONFIG_CACHE[cache_key]
+
+
 def load_model_config(
     model_name: str, config_path: Path = Path("src/config/model_config.yaml")
 ) -> Dict:
@@ -274,8 +351,7 @@ def load_model_config(
         RuntimeError: If an error occurs while loading or parsing the configuration.
     """
     try:
-        with open(config_path, "r") as config_file:
-            configs = yaml.safe_load(config_file)
+        configs = _load_model_config_data(config_path)
         config = configs.get(model_name.lower(), {})
         logger.info(f"Loaded configuration for model '{model_name}': {config}")
         return config
@@ -288,6 +364,31 @@ def load_model_config(
     except Exception as e:
         logger.error(f"Error loading model configuration: {e}")
         raise RuntimeError(f"Error loading model configuration: {e}")
+
+
+def get_video_supported_patterns(
+    config_path: Path = Path("src/config/model_config.yaml"),
+) -> List[str]:
+    """Return normalized video-capable model patterns from configuration."""
+
+    try:
+        configs = _load_model_config_data(config_path)
+    except FileNotFoundError:
+        logger.warning("model_config.yaml not found; no video-capable models configured.")
+        return []
+    except yaml.YAMLError as exc:
+        logger.warning(f"Error parsing model_config.yaml ({exc}); no video-capable models configured.")
+        return []
+    except Exception as exc:
+        logger.warning(f"Failed to load video patterns from config: {exc}")
+        return []
+    patterns = configs.get("video_supported_models", []) or []
+    normalized: List[str] = []
+    for pattern in patterns:
+        if not pattern:
+            continue
+        normalized.append(str(pattern).lower())
+    return normalized
 
 
 def setup_seed(seed: int):
@@ -317,9 +418,13 @@ def validate_video_inputs(content, model_name):
     Returns:
         str: An error message if validation fails, otherwise None.
     """
+    if not isinstance(content, MessageContentVideoUrl):
+        return None
+
+    model_lower = (model_name or "").lower()
     if (
-        isinstance(content, MessageContentVideoUrl)
-        and ModelNames.QWEN not in model_name.lower()
+        ModelNames.QWEN not in model_lower
+        and ModelNames.SMOLVLM not in model_lower
     ):
         return ErrorMessages.UNSUPPORTED_VIDEO_URL_INPUT
     return None
@@ -350,3 +455,180 @@ def decode_and_save_video(base64_video: str, output_dir: Path = Path("/tmp")) ->
     except Exception as e:
         logger.error(f"Error decoding and saving video: {e}")
         raise RuntimeError(f"Error decoding and saving video: {e}")
+
+
+def pil_image_to_ov_tensor(image: Image.Image) -> ov.Tensor:
+    """Convert a PIL RGB image into an OpenVINO tensor with NHWC layout.
+
+    Args:
+        image (Image.Image): The PIL image to convert. The image is converted to
+            RGB before tensor creation to guarantee three channels.
+
+    Returns:
+        ov.Tensor: A tensor with shape `(1, H, W, 3)` and dtype `uint8` that can
+        be passed directly to `ov_genai` pipelines.
+
+    Raises:
+        ValueError: If the supplied image does not have three dimensions after
+            RGB conversion.
+    """
+    image_data = np.array(image.convert("RGB"))
+    if image_data.ndim != 3:
+        raise ValueError("Expected an RGB image when converting to OpenVINO tensor.")
+    tensor_data = image_data.reshape(1, image_data.shape[0], image_data.shape[1], image_data.shape[2])
+    return ov.Tensor(tensor_data.astype(np.uint8))
+
+
+def convert_qwen_image_inputs(
+    image_inputs: Optional[Sequence[Image.Image]],
+) -> Optional[List[ov.Tensor]]:
+    """Normalize optional Qwen image inputs to the tensor format required by ov_genai.
+
+    Args:
+        image_inputs (Sequence[Image.Image] | None): Zero or more PIL images
+            coming from `qwen_vl_utils.process_vision_info`.
+
+    Returns:
+        list[ov.Tensor] | None: A list of OpenVINO tensors (one per image) or
+        `None` if no images were provided.
+    """
+    if not image_inputs:
+        return None
+    return [pil_image_to_ov_tensor(image) for image in image_inputs]
+
+
+def _video_tensor_to_numpy(video_tensor: Union[torch.Tensor, np.ndarray]) -> np.ndarray:
+    """Convert a torch or numpy video tensor to a THWC numpy array.
+
+    Args:
+        video_tensor (torch.Tensor | np.ndarray): Video data in either
+            `(frames, channels, height, width)` or `(frames, height, width, channels)`
+            layout.
+
+    Returns:
+        np.ndarray: Video data arranged as `(frames, height, width, channels)`.
+
+    Raises:
+        TypeError: If the provided object is not a Tensor or numpy array.
+        ValueError: If the tensor does not have four dimensions.
+    """
+    if isinstance(video_tensor, torch.Tensor):
+        video_np = (
+            video_tensor.detach().to("cpu").permute(0, 2, 3, 1).contiguous().numpy()
+        )
+    elif isinstance(video_tensor, np.ndarray):
+        video_np = video_tensor
+    else:
+        raise TypeError("Unsupported video tensor type.")
+    if video_np.ndim != 4:
+        raise ValueError("Video tensor must have 4 dimensions [frames, height, width, channels].")
+    return video_np
+
+
+def convert_qwen_video_inputs(
+    video_inputs: Optional[Sequence[Union[torch.Tensor, Sequence[Image.Image]]]],
+) -> Optional[List[ov.Tensor]]:
+    """Convert Qwen video inputs (torch tensors or frame lists) to OpenVINO tensors.
+
+    Args:
+        video_inputs (Sequence[torch.Tensor | Sequence[Image.Image]] | None): Each
+            entry represents one video either as a tensor or a list of PIL frames.
+
+    Returns:
+        list[ov.Tensor] | None: A list of tensors with per-video frame stacks, or
+        `None` when no videos were supplied.
+
+    Raises:
+        ValueError: If a video contains no frames.
+    """
+    if not video_inputs:
+        return None
+
+    ov_videos: List[ov.Tensor] = []
+    for video in video_inputs:
+        if isinstance(video, torch.Tensor) or isinstance(video, np.ndarray):
+            video_np = _video_tensor_to_numpy(video)
+        else:
+            frames = [np.array(frame.convert("RGB")) for frame in video]
+            if not frames:
+                raise ValueError("Video frame list is empty.")
+            video_np = np.stack(frames, axis=0)
+        video_uint8 = np.clip(video_np, 0, 255).astype(np.uint8)
+        ov_videos.append(ov.Tensor(video_uint8))
+    return ov_videos
+
+
+async def convert_frame_urls_to_video_tensors(
+    video_frame_groups: Optional[Sequence[Sequence[str]]],
+) -> List[ov.Tensor]:
+    """Download frame URLs for each video clip and convert them into tensors.
+
+    Args:
+        video_frame_groups (Sequence[Sequence[str]] | None): Each inner sequence
+            represents one logical video composed of multiple frame URLs or
+            base64-encoded images.
+
+    Returns:
+        list[ov.Tensor]: A list of stacked frame tensors ready for VLMPipeline.
+
+    Raises:
+        RuntimeError: Propagates load or decoding failures from ``load_images``.
+    """
+
+    if not video_frame_groups:
+        return []
+
+    video_tensors: List[ov.Tensor] = []
+    for frame_urls in video_frame_groups:
+        if not frame_urls:
+            continue
+        images, _ = await load_images(list(frame_urls))
+        frame_arrays = [np.array(image.convert("RGB")) for image in images]
+        if not frame_arrays:
+            continue
+        stacked = np.stack(frame_arrays, axis=0).astype(np.uint8)
+        video_tensors.append(ov.Tensor(stacked))
+    return video_tensors
+
+
+def extract_qwen_video_frames(
+    video_inputs: Optional[Sequence[Union[torch.Tensor, np.ndarray]]],
+    max_frames: int = 12,
+) -> List[Image.Image]:
+    """Convert video tensors into a limited list of PIL frames for fallback image processing.
+
+    Args:
+        video_inputs (Sequence[torch.Tensor | np.ndarray] | None): Raw videos produced by
+            ``qwen_vl_utils.process_vision_info``.
+        max_frames (int): Maximum number of frames to extract across all videos.
+
+    Returns:
+        list[Image.Image]: Sampled RGB frames suitable for ``convert_qwen_image_inputs``.
+    """
+    if not video_inputs:
+        return []
+
+    sampled_frames: List[Image.Image] = []
+    remaining_budget = max_frames if max_frames > 0 else None
+
+    for video in video_inputs:
+        video_np = _video_tensor_to_numpy(video)
+        frame_total = video_np.shape[0]
+        if frame_total == 0:
+            continue
+        current_budget = remaining_budget or frame_total
+        frames_to_take = min(frame_total, current_budget)
+        if frames_to_take <= 0:
+            break
+        indices = (
+            np.linspace(0, frame_total - 1, frames_to_take).astype(int)
+            if frames_to_take < frame_total
+            else np.arange(frame_total)
+        )
+        for idx in indices:
+            sampled_frames.append(Image.fromarray(video_np[idx].astype(np.uint8)))
+        if remaining_budget is not None:
+            remaining_budget -= frames_to_take
+            if remaining_budget <= 0:
+                break
+    return sampled_frames

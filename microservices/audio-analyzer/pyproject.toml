@@ -16,7 +16,7 @@ pydantic = "^2.11.5"
 pydantic-settings = "^2.9.1"
 setuptools = "^80.9.0"
 transformers = "^4.51.3"
-pywhispercpp = { git = "https://github.com/absadiki/pywhispercpp.git" }
+pywhispercpp = { git = "https://github.com/absadiki/pywhispercpp.git", tag = "v1.4.0" }
 moviepy = "^2.1.2"
 aiofiles = "^23.2.1"
 optimum-intel = "^1.24.0"
