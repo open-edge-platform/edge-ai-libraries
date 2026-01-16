@@ -23,7 +23,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@070a95caeeed643fc9d1a34c11eac78179ce136d  # 0.1.34
+    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@c6a01b803d3c045de1b1b2f788a47eaaefed3f07  # 2026.0.4
     with:
       runs_on: ubuntu-24.04-16core-64GB
       bootstrap_tools: 'nodejs'
