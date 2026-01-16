@@ -233,7 +233,7 @@ services:
       - "9300:9300"
       - "8300:80"
     volumes:
-      - "${VOLUME_OVMS:-./ovms}:/workspace:ro"
+      - "${VOLUME_OVMS:-./ovms/models}:/workspace:ro"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
       interval: 30s
