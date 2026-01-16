@@ -288,6 +288,12 @@ Follow these steps to run the application:
     ENABLE_VSS_COLLECTOR=true source setup.sh --search
     ```
 
+    > **Telemetry**: By default, `--search` also starts the telemetry collector and shows live metrics in the UI. To disable it:
+
+    ```bash
+    ENABLE_VSS_COLLECTOR=false source setup.sh --search
+    ```
+
     > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
 
    - **To run a unified Video Search and Summarization :**
@@ -300,6 +306,12 @@ Follow these steps to run the application:
 
     ```bash
     ENABLE_VSS_COLLECTOR=true source setup.sh --all
+    ```
+
+    > **Telemetry**: By default, `--all` also starts the telemetry collector and shows live metrics in the UI. To disable it:
+
+    ```bash
+    ENABLE_VSS_COLLECTOR=false source setup.sh --all
     ```
 
 - **To run Video Summarization with OpenVINO model server microservice for a final summary :**
