@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-GStreamer Pipeline Validator
+GStreamer Pipeline Runner
 
-This module provides a small command-line tool and library API for
-*validating* GStreamer pipeline descriptions.
+This script provides a command-line tool and library API for running
+GStreamer pipeline descriptions.
 
-The validation logic is intentionally conservative and focuses on
-detecting obvious early failures rather than running pipelines to
-completion. More concretely, the validator:
+The runner:
 
 1. Initializes GStreamer and hooks its debug logging into Python's logging.
 2. Parses a textual pipeline description via Gst.parse_launch().
@@ -16,25 +14,15 @@ completion. More concretely, the validator:
    - any GStreamer ERROR-level log is emitted during parsing.
 4. If parsing succeeds without ERRORs:
    - starts the pipeline (PLAYING),
-   - runs it under a GLib.MainLoop for a short, configurable window
-     (max-runtime),
+   - runs it under a GLib.MainLoop for a configurable duration (max-runtime),
    - watches the bus for GStreamer ERROR and EOS messages.
 5. Stops the pipeline when:
-   - an ERROR is observed on the bus (validation FAIL), OR
-   - EOS is observed on the bus (validation SUCCESS), OR
-   - the max-runtime timeout elapses; in this case the pipeline is
-     stopped and, if no ERRORs were observed at any point, the run is
-     considered SUCCESS by timeout.
+   - an ERROR is observed on the bus (run FAIL), OR
+   - EOS is observed on the bus (run SUCCESS), OR
+   - the max-runtime elapses; in this case the pipeline is stopped and,
+     if no ERRORs were observed at any point, the run is considered SUCCESS.
 
-The validator does NOT aim to verify that the pipeline produces correct
-application-level output or runs to natural EOS. It is a "smoke test"
-for:
-
-- pipeline description validity,
-- early element/linking failures,
-- failures that surface during a short initial run or on shutdown.
-
-Validation semantics:
+Running semantics:
 
 - Failure (exit code 1):
   * pipeline cannot be parsed (exception in parse_launch), OR
@@ -45,15 +33,14 @@ Validation semantics:
 - Success (exit code 0):
   * the pipeline is parsed successfully AND
   * no GStreamer ERROR appears during parsing, run, or shutdown.
-  * reaching the max-runtime and stopping the pipeline due to timeout is
-    considered SUCCESS, provided no ERRORs were seen.
+  * reaching the max-runtime and stopping the pipeline is considered SUCCESS,
+    provided no ERRORs were seen.
 
 The script is designed to:
 
-- Be robust and production ready (clear logging, careful cleanup).
-- Be suitable to be called as a subprocess by another application.
-- Be unit-test-friendly: the core logic is factored into functions that can be
-  tested without requiring a real GStreamer environment (via dependency injection).
+- Be callable as a subprocess by another application.
+- Provide clear logging for diagnosing pipeline issues.
+- Be testable via dependency injection.
 """
 
 import argparse
@@ -120,7 +107,7 @@ def configure_root_logging(level: int) -> None:
 
 def get_logger() -> logging.Logger:
     """Get the module-level logger for this script."""
-    return logging.getLogger("validator")
+    return logging.getLogger("gst_runner")
 
 
 def gst_log_bridge(
@@ -329,7 +316,7 @@ def parse_pipeline(pipeline_description: str) -> Tuple[Optional[Gst.Pipeline], b
     This approach is conservative but practical: in many real-world cases
     GStreamer logs a parse-time ERROR (e.g. missing elements, resources,
     or caps negotiation issues) without raising an exception. From the
-    validator's perspective such pipelines should be rejected before any
+    runner's perspective such pipelines should be rejected before any
     runtime validation is attempted.
 
     Args:
@@ -385,39 +372,36 @@ def parse_pipeline(pipeline_description: str) -> Tuple[Optional[Gst.Pipeline], b
 
 
 ###############################################################################
-# Short-run validation using a GLib.MainLoop
+# Pipeline execution using a GLib.MainLoop
 ###############################################################################
 
 
 @dataclass
 class _RunState:
-    """Internal state tracked during a single validation run."""
+    """Internal state tracked during a single pipeline run."""
 
     error_seen: bool = False
     eos_seen: bool = False
-    timeout_triggered: bool = False
+    max_runtime_triggered: bool = False
     reason: Optional[str] = None
 
 
-class _ValidationRunner:
-    """Internal helper that runs a pipeline under a short validation window.
+class _PipelineRunner:
+    """Internal helper that runs a pipeline under a GLib.MainLoop.
 
     This class encapsulates:
 
     - A GLib.MainLoop driving the pipeline, similar to gst-launch.
-    - A timeout that stops the pipeline after a short period.
+    - A mechanism that stops the pipeline after max-runtime elapses.
     - A bus message handler that records ERROR/EOS and terminates the loop.
 
-    The goal is to detect early failures (ERRORs) while allowing the pipeline
-    to start and run briefly without requiring it to reach EOS.
+    Max-runtime semantics:
 
-    Timeout semantics:
-
-    - If an ERROR or EOS is observed before the timeout, the loop is stopped
-      immediately and the outcome is derived from the observed messages.
-    - If the timeout elapses first, the pipeline is stopped (set to NULL) and
-      the loop is quit. Provided no ERRORs were observed, this is considered
-      a successful validation by timeout.
+    - If an ERROR or EOS is observed before max-runtime elapses, the loop is
+      stopped immediately and the outcome is derived from the observed messages.
+    - If max-runtime elapses first, the pipeline is stopped (set to NULL) and
+      the loop quits. Provided no ERRORs were observed, this is considered
+      a successful run.
     """
 
     def __init__(self, pipeline: Gst.Pipeline, max_run_time_sec: float):
@@ -443,7 +427,7 @@ class _ValidationRunner:
             err, debug = message.parse_error()
             debug = debug.replace("\r", " ").replace("\n", " ")
             self._logger.error(
-                "Pipeline runtime error during validation: %s (debug: %s)",
+                "Pipeline runtime error: %s (debug: %s)",
                 err.message,
                 debug,
             )
@@ -452,15 +436,15 @@ class _ValidationRunner:
             loop.quit()
 
         elif msg_type == Gst.MessageType.EOS:
-            self._logger.info("Pipeline produced EOS during validation run.")
+            self._logger.info("Pipeline produced EOS during run.")
             self._state.eos_seen = True
             self._state.reason = self._state.reason or None
             loop.quit()
 
         return True
 
-    def _hard_timeout_thread(self, loop: GLib.MainLoop):
-        """Thread that enforces the maximum validation runtime.
+    def _max_runtime_enforcement_thread(self, loop: GLib.MainLoop):
+        """Thread that enforces the maximum pipeline runtime.
 
         After `max_run_time_sec` seconds, this thread stops the pipeline and
         quits the main loop, regardless of whether EOS was reached.
@@ -468,8 +452,8 @@ class _ValidationRunner:
         Note:
             If an ERROR or EOS has already terminated the run, this thread
             does nothing. Otherwise, it performs a controlled stop of the
-            pipeline and ends the validation window, which is treated as a
-            success by timeout (provided no ERRORs are found on the bus).
+            pipeline, which is treated as success (provided no ERRORs are
+            found on the bus).
         """
         time.sleep(self._max_run_time_sec)
 
@@ -478,46 +462,48 @@ class _ValidationRunner:
             return
 
         self._logger.info(
-            "Validation timeout (%.1f s) elapsed; stopping pipeline.",
+            "Max runtime (%.1f s) elapsed; stopping pipeline.",
             self._max_run_time_sec,
         )
-        self._state.timeout_triggered = True
-        self._state.reason = self._state.reason or "timeout"
+        self._state.max_runtime_triggered = True
+        self._state.reason = self._state.reason or "max_runtime"
 
         try:
             self._pipeline.set_state(Gst.State.NULL)
         except Exception as exc:  # noqa: BLE001
-            self._logger.warning("Error while stopping pipeline on timeout: %r", exc)
+            self._logger.warning(
+                "Error while stopping pipeline at max runtime: %r", exc
+            )
 
         # Quit the loop so that run() can proceed to final evaluation.
         loop.quit()
 
     def run(self) -> Tuple[bool, Optional[str]]:
-        """Run the pipeline under validation and return (ok, reason).
+        """Run the pipeline and return (ok, reason).
 
         The sequence is:
 
         1. Obtain the pipeline's bus and create a GLib.MainLoop.
         2. Attach a bus watch and connect _on_bus_message for ERROR/EOS.
         3. Request PLAYING state on the pipeline.
-        4. Call get_state() with a short timeout (for diagnostics only) to
-           log the initial state-change outcome.
-        5. Start a background thread that will trigger a hard timeout after
-           max_run_time_sec.
+        4. Call get_state() with a configured wait time (for diagnostics only)
+           to log the initial state-change outcome.
+        5. Start a background thread that will trigger when max_run_time_sec
+           elapses.
         6. Run the GLib.MainLoop until:
              - ERROR on the bus, OR
              - EOS on the bus, OR
-             - the timeout thread calls loop.quit().
+             - the max-runtime enforcement thread calls loop.quit().
         7. After the loop exits, stop the pipeline, remove the bus watch,
            drain any remaining bus messages for logging, and derive the
-           final validation result from _RunState.
+           final result from _RunState.
 
         Returns:
             (True, None)
-                if the pipeline is considered valid (EOS or clean run
-                before timeout, and no errors on the bus).
-            (True, "timeout")
-                if the pipeline was stopped by timeout with no errors
+                if the pipeline ran successfully (EOS or clean run before
+                max-runtime, and no errors on the bus).
+            (True, "max_runtime")
+                if the pipeline was stopped at max-runtime with no errors
                 observed during run or shutdown.
             (False, "error")
                 if any GStreamer ERROR was observed.
@@ -534,8 +520,8 @@ class _ValidationRunner:
         self._logger.debug("Requested pipeline state PLAYING, result: %s", ret)
 
         # Wait for initial state change (for logging only).
-        # This does not control validation outcome directly; runtime errors
-        # are still detected via bus messages and the timeout thread.
+        # This does not control the run outcome directly; runtime errors
+        # are still detected via bus messages and the max-runtime enforcement thread.
         state_change_ret, current_state, pending = self._pipeline.get_state(
             5 * Gst.SECOND,
         )
@@ -546,18 +532,18 @@ class _ValidationRunner:
             pending,
         )
 
-        # Start hard-timeout thread.
-        timeout_thread = threading.Thread(
-            target=self._hard_timeout_thread,
+        # Start max-runtime enforcement thread.
+        max_runtime_thread = threading.Thread(
+            target=self._max_runtime_enforcement_thread,
             args=(loop,),
             daemon=True,
         )
-        timeout_thread.start()
+        max_runtime_thread.start()
 
         # Run main loop until:
         #   - ERROR (bus handler quits loop),
         #   - EOS   (bus handler quits loop),
-        #   - hard timeout thread quits loop.
+        #   - max-runtime enforcement thread quits loop.
         try:
             loop.run()
         finally:
@@ -579,90 +565,90 @@ class _ValidationRunner:
         # Determine final outcome.
         if self._state.error_seen:
             return False, "error"
-        if self._state.timeout_triggered and not self._state.error_seen:
-            return True, "timeout"
+        if self._state.max_runtime_triggered and not self._state.error_seen:
+            return True, "max_runtime"
         # EOS or normal stop without errors.
         return True, None
 
 
-def run_pipeline_for_short_validation(
+def run_pipeline_for_duration(
     pipeline: Gst.Pipeline,
     max_run_time_sec: float,
 ) -> Tuple[bool, Optional[str]]:
-    """Run the pipeline briefly to validate that it starts without errors.
+    """Run the pipeline for up to max_run_time_sec seconds.
 
-    This is a thin wrapper around _ValidationRunner to keep the public
+    This is a thin wrapper around _PipelineRunner to keep the public
     interface simple and testable.
 
     Args:
         pipeline: A GStreamer pipeline created by parse_launch().
-        max_run_time_sec: Maximum time in seconds for which we observe the
-                          pipeline. Passing this timeout is NOT an error unless
-                          shutdown then produces GStreamer errors.
+        max_run_time_sec: Maximum time in seconds for which the pipeline
+                          will run. Reaching this limit is NOT an error unless
+                          shutdown produces GStreamer errors.
 
     Returns:
-        (True, None)       if the pipeline is considered valid (EOS or clean
-                           run before timeout and clean shutdown).
-        (False, "error")  if a GStreamer ERROR was observed.
-        (True, "timeout") if we stopped due to timeout with NO error. Timeout
-                           is considered SUCCESS.
+        (True, None)          if the pipeline ran successfully (EOS or clean
+                              run before max-runtime and clean shutdown).
+        (False, "error")      if a GStreamer ERROR was observed.
+        (True, "max_runtime") if the pipeline was stopped at max-runtime with
+                              NO error.
     """
-    runner = _ValidationRunner(pipeline, max_run_time_sec)
+    runner = _PipelineRunner(pipeline, max_run_time_sec)
     return runner.run()
 
 
 ###############################################################################
-# High-level validation and CLI
+# High-level pipeline running and CLI
 ###############################################################################
 
 
-def validate_pipeline(
+def run_pipeline(
     pipeline_description: str,
     max_run_time_sec: float,
 ) -> bool:
-    """High-level pipeline validation helper.
+    """High-level pipeline running helper.
 
-    This function combines parsing and a short run of the pipeline into a
-    single high-level operation suitable for use in main() and in unit tests.
+    This function combines parsing and running of the pipeline into a single
+    high-level operation suitable for use in main() and in unit tests.
 
-    Validation rules:
+    Running rules:
 
     - If parsing fails (exception OR parse-time GStreamer ERRORs) ->
-      validation FAILS.
+      run FAILS.
     - If parsing succeeds but the pipeline emits a GStreamer ERROR at any
-      moment during the run or shutdown -> validation FAILS.
+      moment during the run or shutdown -> run FAILS.
     - If the pipeline runs and:
-        * reaches EOS within the time window, OR
-        * stays alive without errors until the timeout is reached and shuts
-          down cleanly without errors,
-      -> validation SUCCEEDS.
+        * reaches EOS within the max-runtime, OR
+        * runs until max-runtime is reached and shuts down cleanly without
+          errors,
+      -> run SUCCEEDS.
 
     Args:
         pipeline_description: Textual GStreamer pipeline description.
-        max_run_time_sec: Maximum allowed observation time in seconds.
+        max_run_time_sec: Maximum runtime in seconds.
 
     Returns:
-        True  if the pipeline is considered valid.
+        True  if the pipeline ran successfully.
         False otherwise.
     """
     logger = get_logger()
 
     pipeline, parsed_ok = parse_pipeline(pipeline_description)
     if not parsed_ok or pipeline is None:
-        logger.error("Validation failed: pipeline parsing error.")
+        logger.error("Pipeline run failed: pipeline parsing error.")
         return False
 
     run_ok: bool = False
     failure_reason: Optional[str] = None
 
     try:
-        run_ok, failure_reason = run_pipeline_for_short_validation(
+        run_ok, failure_reason = run_pipeline_for_duration(
             pipeline=pipeline,
             max_run_time_sec=max_run_time_sec,
         )
     finally:
         # Ensure the pipeline is always set to NULL, even if something goes
-        # wrong in the validation runner.
+        # wrong in the runner.
         try:
             logger.debug("Final pipeline cleanup (ensuring NULL state).")
             pipeline.set_state(Gst.State.NULL)
@@ -671,18 +657,18 @@ def validate_pipeline(
 
     if not run_ok:
         logger.error(
-            "Validation failed: pipeline runtime error (reason: %s).",
+            "Pipeline run failed: pipeline runtime error (reason: %s).",
             failure_reason or "unknown",
         )
         return False
 
-    if failure_reason == "timeout":
+    if failure_reason == "max_runtime":
         logger.info(
-            "Validation succeeded by timeout: pipeline ran for the whole "
-            "max-runtime and shut down without GStreamer errors."
+            "Pipeline run succeeded: pipeline ran for the configured max-runtime "
+            "and shut down without GStreamer errors."
         )
     else:
-        logger.info("Validation succeeded: pipeline is considered healthy.")
+        logger.info("Pipeline run succeeded: pipeline completed successfully.")
 
     return True
 
@@ -698,12 +684,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         Parsed arguments as an argparse.Namespace instance.
     """
     parser = argparse.ArgumentParser(
-        prog="GStreamer Pipeline Validator",
+        prog="GStreamer Pipeline Runner",
         description=(
-            "Validate a GStreamer pipeline by starting it and observing it "
-            "for a short time window. The validator only checks for early "
-            "GStreamer errors and does NOT require the pipeline to run "
-            "until EOS."
+            "Run a GStreamer pipeline by starting it and running it for a "
+            "configurable duration. The runner monitors for GStreamer errors "
+            "during execution."
         ),
     )
 
@@ -713,10 +698,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=10.0,
         metavar="SECONDS",
         help=(
-            "Maximum time (in seconds) to observe the pipeline after starting "
-            "it. If the pipeline does not reach EOS or error within this time, "
-            "it is considered VALID (timeout is NOT a failure as long as "
-            "no errors are observed). Default: %(default).1f seconds."
+            "Maximum time (in seconds) to run the pipeline. If the pipeline "
+            "does not reach EOS or error within this time, it will be stopped. "
+            "Reaching max-runtime is NOT a failure as long as no errors are "
+            "observed. Default: %(default).1f seconds."
         ),
     )
 
@@ -725,7 +710,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default="INFO",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help=(
-            "Minimum log level to use for both the validator and the "
+            "Minimum log level to use for both the runner and the "
             "GStreamer-to-logging bridge (default: %(default)s)."
         ),
     )
@@ -734,7 +719,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "pipeline",
         nargs="+",
         help=(
-            "GStreamer pipeline description to be validated. "
+            "GStreamer pipeline description to be run. "
             "All positional arguments are joined with spaces into a single "
             "string before being passed to Gst.parse_launch()."
         ),
@@ -746,31 +731,30 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 def run_application(
     argv: Optional[List[str]],
     initialize_gst_fn: Callable[[], None],
-    validate_fn: Callable[[str, float], bool],
+    run_fn: Callable[[str, float], bool],
 ) -> int:
     """Core implementation of the CLI entry point with dependency injection.
 
     This function contains the actual main() logic, but accepts the GStreamer
-    initialization function and the pipeline validation function as arguments.
+    initialization function and the pipeline running function as arguments.
 
     Benefits:
 
     - In production, we call it with real implementations:
           initialize_gst_fn = initialize_gstreamer_logging
-          validate_fn      = validate_pipeline
-    - In unit tests, we can call it with fake/mocked implementations,
-      without relying on monkeypatching module-level symbols.
+          run_fn           = run_pipeline
+    - In tests, we can call it with fake/mocked implementations.
 
     Args:
         argv: Optional list of CLI arguments (like sys.argv[1:]).
         initialize_gst_fn: Function used to initialize GStreamer and logging.
-        validate_fn: Function used to validate the pipeline string. The callable
-                     MUST accept (pipeline_description: str,
-                     max_run_time_sec: float) in this order.
+        run_fn: Function used to run the pipeline string. The callable
+                MUST accept (pipeline_description: str,
+                max_run_time_sec: float) in this order.
 
     Returns:
-        0 on successful validation,
-        1 on validation failure or unexpected internal error.
+        0 on successful run,
+        1 on run failure or unexpected internal error.
     """
     if argv is None:
         argv = sys.argv[1:]
@@ -794,20 +778,20 @@ def run_application(
 
     # Join the pipeline pieces into a single string.
     pipeline_description = " ".join(args.pipeline)
-    logger.info("Validating pipeline: %s", pipeline_description)
+    logger.info("Running pipeline: %s", pipeline_description)
 
     try:
-        valid = validate_fn(
+        success = run_fn(
             pipeline_description,
             args.max_runtime,
         )
     except Exception as exc:  # noqa: BLE001
-        # Any unexpected internal error is treated as a validation failure,
+        # Any unexpected internal error is treated as a run failure,
         # but we still exit "cleanly" with a non-zero code.
-        logger.exception("Unexpected internal error during validation: %r", exc)
+        logger.exception("Unexpected internal error during pipeline run: %r", exc)
         return 1
 
-    if not valid:
+    if not success:
         return 1
 
     return 0
@@ -818,15 +802,15 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     This is the function actually called when running the script as:
 
-        python3 validator.py ...
+        python3 gst_runner.py ...
 
     For production execution, it simply forwards to run_application()
-    with the real GStreamer initialization and validation implementations.
+    with the real GStreamer initialization and running implementations.
     """
     return run_application(
         argv=argv,
         initialize_gst_fn=initialize_gstreamer_logging,
-        validate_fn=validate_pipeline,
+        run_fn=run_pipeline,
     )
 
 

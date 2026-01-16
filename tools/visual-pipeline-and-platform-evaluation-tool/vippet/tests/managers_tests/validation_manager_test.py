@@ -90,7 +90,7 @@ class TestValidationManager(unittest.TestCase):
 
         request = self._build_validation_request(parameters=None)
 
-        # Patch _execute_validation so we do not actually spawn validator.py
+        # Patch _execute_validation so we do not actually spawn gst_runner.py
         with patch.object(manager, "_execute_validation") as mock_execute:
             job_id = manager.run_validation(request)
 
@@ -436,16 +436,16 @@ class TestValidatorRunner(unittest.TestCase):
     def test_parse_stderr_collects_only_validator_error_lines(self):
         """
         _parse_stderr should:
-          * keep only lines starting with 'validator - ERROR - ',
+          * keep only lines starting with 'gst_runner - ERROR - ',
           * strip that prefix,
           * drop empty/whitespace-only messages.
         """
         raw = "\n".join(
             [
                 "some-other-tool - INFO - hello",
-                "validator - ERROR - first error",
-                "validator - ERROR -   second error   ",
-                "validator - ERROR -    ",
+                "gst_runner - ERROR - first error",
+                "gst_runner - ERROR -   second error   ",
+                "gst_runner - ERROR -    ",
                 "completely unrelated line",
             ]
         )
@@ -461,7 +461,7 @@ class TestValidatorRunner(unittest.TestCase):
 
     def test_parse_stderr_ignores_non_prefixed_lines(self):
         """Lines without the expected prefix must be ignored."""
-        raw = "validator - INFO - not-an-error\nother - ERROR - also-ignored"
+        raw = "gst_runner - INFO - not-an-error\nother - ERROR - also-ignored"
         errors = ValidatorRunner._parse_stderr(raw)
         self.assertEqual(errors, [])
 

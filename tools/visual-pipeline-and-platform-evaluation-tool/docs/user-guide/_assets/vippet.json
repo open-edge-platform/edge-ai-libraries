@@ -16,8 +16,8 @@
         "tags": [
           "convert"
         ],
-        "summary": "Convert pipeline description to pipeline graph",
-        "description": "Convert a GStreamer-like pipeline description string into a structured pipeline graph.\n\nThis endpoint parses the textual pipeline description, validates it and builds a list\nof nodes and edges that can be used by the UI or other services.\n\nArgs:\n    request: PipelineDescription body containing the ``pipeline_description`` string\n        to be converted.\n\nReturns:\n    PipelineGraph: On success (HTTP 200) a graph representation of the pipeline,\n        with resolved model and video display names.\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The pipeline description is syntactically correct and all referenced models\n      and input videos can be resolved.\n    * The description can be mapped to a non-empty, acyclic graph with at least one\n      start node.\n\nFailure cases:\n    * 400 \u2013 invalid or unparsable pipeline description (syntax error, unsupported\n      token, missing required data, unknown model/video).\n    * 500 \u2013 unexpected internal error while converting the description.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n            {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n          ]\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid pipeline description: Unrecognized token in pipeline description: '??'\"\n        }",
+        "summary": "Convert pipeline description to pipeline graphs (both views)",
+        "description": "Convert a GStreamer-like pipeline description string into structured pipeline graphs.\n\nThis endpoint parses the textual pipeline description, validates it and builds both\nan advanced view (with all technical elements) and a simple view (with only meaningful\nelements like sources, inference nodes, and sinks).\n\nArgs:\n    request: PipelineDescription body containing the ``pipeline_description`` string\n        to be converted.\n\nReturns:\n    PipelineGraphResponse: On success (HTTP 200) both graph representations:\n        - pipeline_graph: Advanced view with all elements including technical plumbing\n        - pipeline_graph_simple: Simplified view with only visible elements\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The pipeline description is syntactically correct and all referenced models\n      and input videos can be resolved.\n    * The description can be mapped to a non-empty, acyclic graph with at least one\n      start node.\n    * Simple view can be generated from the advanced view.\n\nFailure cases:\n    * 400 \u2013 invalid or unparsable pipeline description (syntax error, unsupported\n      token, missing required data, unknown model/video).\n    * 500 \u2013 unexpected internal error while converting the description.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n              {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"2\"}\n            ]\n          }\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid pipeline description: Unrecognized token in pipeline description: '??'\"\n        }",
         "operationId": "to_graph",
         "requestBody": {
           "content": {
@@ -35,7 +35,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PipelineGraph"
+                  "$ref": "#/components/schemas/PipelineGraphResponse"
                 }
               }
             }
@@ -79,7 +79,7 @@
           "convert"
         ],
         "summary": "Convert pipeline graph to pipeline description",
-        "description": "Convert a structured pipeline graph into a GStreamer-like pipeline description string.\n\nThis endpoint validates the input graph and serializes its nodes and edges back into\na single pipeline description line.\n\nArgs:\n    request: PipelineGraph body containing nodes and edges that define the pipeline.\n\nReturns:\n    PipelineDescription: On success (HTTP 200) a textual ``pipeline_description``\n        that can be used to run the pipeline.\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The graph is non-empty and contains at least one start node.\n    * The graph is a valid directed acyclic graph for a pipeline (no unresolved\n      references, no fully circular graph).\n    * All model and input video display names can be mapped back to real paths.\n\nFailure cases:\n    * 400 \u2013 invalid graph structure (no start nodes, circular graph, missing nodes\n      for edges, unknown model/video, or empty graph).\n    * 500 \u2013 unexpected internal error while converting the graph.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n            {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid graph: circular graph detected or no start nodes found\"\n        }",
+        "description": "Convert a structured pipeline graph into a GStreamer-like pipeline description string.\n\nThis endpoint validates the input graph (advanced view) and serializes its nodes\nand edges back into a single pipeline description line. The input should be an\nadvanced view graph containing all technical elements.\n\nArgs:\n    request: PipelineGraph body containing nodes and edges that define the pipeline\n        (advanced view expected).\n\nReturns:\n    PipelineDescription: On success (HTTP 200) a textual ``pipeline_description``\n        that can be used to run the pipeline.\n    MessageResponse: On client or server error (HTTP 400 or 500) a message describing\n        the failure.\n\nSuccess criteria:\n    * The graph is non-empty and contains at least one start node.\n    * The graph is a valid directed acyclic graph for a pipeline (no unresolved\n      references, no fully circular graph).\n    * All model and input video display names can be mapped back to real paths.\n\nFailure cases:\n    * 400 \u2013 invalid graph structure (no start nodes, circular graph, missing nodes\n      for edges, unknown model/video, or empty graph).\n    * 500 \u2013 unexpected internal error while converting the graph.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"videotestsrc\", \"data\": {}},\n            {\"id\": \"1\", \"type\": \"videoconvert\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"autovideosink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! autovideosink\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid graph: circular graph detected or no start nodes found\"\n        }",
         "operationId": "to_description",
         "requestBody": {
           "content": {
@@ -873,7 +873,7 @@
           "pipelines"
         ],
         "summary": "Get Pipelines",
-        "description": "List all pipelines currently registered in the system.\n\nOperation:\n    Return both predefined pipelines loaded from configuration and\n    user-created pipelines added via this API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects.\n\nSuccess conditions:\n    * PipelineManager is initialized.\n\nFailure conditions:\n    * Unexpected errors will be propagated as 500 by FastAPI.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"pipeline-a3f5d9e1\",\n            \"name\": \"vehicle-detection\",\n            \"version\": 1,\n            \"description\": \"Simple vehicle detection pipeline\",\n            \"source\": \"PREDEFINED\",\n            \"type\": \"GStreamer\",\n            \"pipeline_graph\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"parameters\": null\n          }\n        ]",
+        "description": "List all pipelines currently registered in the system.\n\nOperation:\n    Return both predefined pipelines loaded from configuration and\n    user-created pipelines added via this API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects.\n\nSuccess conditions:\n    * PipelineManager is initialized.\n\nFailure conditions:\n    * Unexpected errors will be propagated as 500 by FastAPI.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"pipeline-a3f5d9e1\",\n            \"name\": \"vehicle-detection\",\n            \"version\": 1,\n            \"description\": \"Simple vehicle detection pipeline\",\n            \"source\": \"PREDEFINED\",\n            \"type\": \"GStreamer\",\n            \"pipeline_graph\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"pipeline_graph_simple\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"parameters\": null\n          }\n        ]",
         "operationId": "get_pipelines",
         "responses": {
           "200": {
@@ -897,7 +897,7 @@
           "pipelines"
         ],
         "summary": "Create Pipeline",
-        "description": "Create a new user-defined pipeline from a GStreamer launch string.\n\nRequest body:\n    body: PipelineDefinition\n        * name \u2013 non-empty pipeline name.\n        * version \u2013 positive integer. Must be exactly 1 for a new name,\n          or \"last_version + 1\" for an existing name.\n        * description \u2013 non-empty human-readable description.\n        * source \u2013 ignored and forced to USER_CREATED by this endpoint.\n        * type \u2013 pipeline type (currently GStreamer is used).\n        * pipeline_description \u2013 full GStreamer launch string.\n        * parameters \u2013 optional default parameters for this pipeline.\n\nReturns:\n    201 Created:\n        PipelineCreationResponse with generated pipeline id.\n    400 Bad Request:\n        MessageResponse when:\n        * versioning rules are violated (e.g. version not next in sequence),\n        * pipeline name or definition is invalid at manager level.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs while creating\n        the pipeline.\n\nSuccess conditions:\n    * PipelineDefinition is structurally valid.\n    * PipelineManager successfully adds the pipeline and converts the\n      launch string to a graph.\n\nFailure conditions (high level):\n    * Version conflicts or invalid name \u2192 400.\n    * Any other unhandled error in PipelineManager / Graph \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! videoconvert ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid version '2' for pipeline 'vehicle-detection'. Expected version '1' for a new pipeline.\"\n        }",
+        "description": "Create a new user-defined pipeline from a GStreamer pipeline string.\n\nRequest body:\n    body: PipelineDefinition\n        * name \u2013 non-empty pipeline name.\n        * version \u2013 positive integer. Must be exactly 1 for a new name,\n          or \"last_version + 1\" for an existing name.\n        * description \u2013 non-empty human-readable text describing what the pipeline does.\n        * source \u2013 ignored and forced to USER_CREATED by this endpoint.\n        * type \u2013 pipeline type (currently GStreamer is used).\n        * pipeline_description \u2013 complete GStreamer pipeline string with elements\n          separated by '!' symbols (e.g., \"filesrc location=input.mp4 ! decodebin ! fakesink\").\n        * parameters \u2013 optional default parameters for this pipeline.\n\nReturns:\n    201 Created:\n        PipelineCreationResponse with generated pipeline id.\n    400 Bad Request:\n        MessageResponse when:\n        * versioning rules are violated (e.g. version not next in sequence),\n        * pipeline name or description is invalid at manager level,\n        * GStreamer pipeline string cannot be parsed.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs while creating\n        the pipeline.\n\nSuccess conditions:\n    * PipelineDefinition is structurally valid.\n    * PipelineManager successfully adds the pipeline and converts the\n      GStreamer pipeline string to a graph.\n\nFailure conditions (high level):\n    * Version conflicts or invalid name \u2192 400.\n    * Invalid GStreamer pipeline string \u2192 400.\n    * Any other unhandled error in PipelineManager / Graph \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! videoconvert ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid version '2' for pipeline 'vehicle-detection'. Expected version '1' for a new pipeline.\"\n        }",
         "operationId": "create_pipeline",
         "requestBody": {
           "content": {
@@ -1029,7 +1029,7 @@
           "pipelines"
         ],
         "summary": "Get Pipeline",
-        "description": "Get details of a single pipeline by its id.\n\nPath parameters:\n    pipeline_id: Unique identifier of the pipeline (for example\n        ``\"pipeline-a3f5d9e1\"``).\n\nReturns:\n    200 OK:\n        Pipeline object with full graph and metadata.\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors in the manager layer.\n\nSuccess conditions:\n    * Pipeline with the given id is present in PipelineManager.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n    * Any other unhandled exception \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
+        "description": "Get details of a single pipeline by its id.\n\nOperation:\n    Retrieve the full pipeline definition including both advanced and simple\n    graph views, metadata, and parameters.\n\nPath parameters:\n    pipeline_id: Unique identifier of the pipeline (for example\n        ``\"pipeline-a3f5d9e1\"``).\n\nReturns:\n    200 OK:\n        Pipeline object with full graph (both views) and metadata:\n        - pipeline_graph: Advanced view\n        - pipeline_graph_simple: Simple view\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors in the manager layer.\n\nSuccess conditions:\n    * Pipeline with the given id is present in PipelineManager.\n    * Both graph views are available.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n    * Any other unhandled exception \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
         "operationId": "get_pipeline",
         "parameters": [
           {
@@ -1090,7 +1090,7 @@
           "pipelines"
         ],
         "summary": "Update Pipeline",
-        "description": "Partially update selected fields of an existing pipeline.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string).\n        * description \u2013 new human-readable description (non-empty string).\n        * pipeline_graph \u2013 new graph representation. It must contain at\n          least one node and one edge and must be convertible to a valid\n          pipeline description string.\n        * parameters \u2013 new pipeline parameters.\n\nReturns:\n    200 OK:\n        Updated Pipeline object.\n    400 Bad Request:\n        MessageResponse when:\n        * none of the updatable fields is provided,\n        * provided name or description is empty,\n        * provided pipeline_graph has no nodes/edges or cannot be\n          converted to a valid pipeline description.\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n    * For pipeline_graph, Graph.to_pipeline_description() succeeds.\n\nFailure conditions:\n    * Validation failures in this handler or PipelineManager.update_pipeline.\n    * Unknown id \u2192 404.\n    * Any other exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 120\n            }\n          }\n        }\n\nError response example (400, empty body):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided.\"\n        }",
+        "description": "Partially update selected fields of an existing pipeline.\n\nImportant: Only ONE of pipeline_graph or pipeline_graph_simple should be provided\nwhen updating graph structure. If both are provided, the request will fail with\n400 error.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string).\n        * description \u2013 new human-readable text describing what the pipeline does (non-empty string).\n        * pipeline_graph \u2013 new advanced graph. When provided, simple view is\n          auto-generated from it. Graph must contain at least one node and one edge.\n        * pipeline_graph_simple \u2013 modified simple graph with property changes only.\n          When provided, changes are merged into advanced view using\n          apply_simple_view_changes(), and both views are regenerated.\n          Structural changes (add/remove nodes or edges) are not allowed and will\n          result in 400 error.\n        * parameters \u2013 new pipeline parameters.\n\nReturns:\n    200 OK:\n        Updated Pipeline object with both graph views.\n    400 Bad Request:\n        MessageResponse when:\n        * none of the updatable fields is provided,\n        * both pipeline_graph and pipeline_graph_simple are provided,\n        * provided name or description is empty,\n        * provided pipeline_graph has no nodes/edges or cannot be\n          converted to a valid GStreamer pipeline string,\n        * provided pipeline_graph_simple contains structural changes\n          (add/remove nodes or edges, modify edge endpoints).\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n    * For pipeline_graph, Graph.to_pipeline_description() succeeds and produces\n      a valid GStreamer pipeline string.\n    * For pipeline_graph_simple, Graph.apply_simple_view_changes() succeeds.\n\nFailure conditions:\n    * Validation failures in this handler or PipelineManager.update_pipeline.\n    * Both graph fields provided \u2192 400.\n    * Structural changes in simple view \u2192 400.\n    * Unknown id \u2192 404.\n    * Any other exception \u2192 500.\n\nRequest example (updating advanced view):\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nRequest example (updating simple view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated inference parameters\",\n          \"pipeline_graph_simple\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\", \"device\": \"CPU\"}},\n              {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [...]\n          }\n        }\n\nError response example (400, both graphs provided):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one.\"\n        }\n\nError response example (400, structural change in simple view):\n    .. code-block:: json\n\n        {\n          \"message\": \"Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes.\"\n        }",
         "operationId": "update_pipeline",
         "parameters": [
           {
@@ -1892,7 +1892,20 @@
           "original_pipeline_graph": {
             "$ref": "#/components/schemas/PipelineGraph"
           },
+          "original_pipeline_graph_simple": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
           "optimized_pipeline_graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optimized_pipeline_graph_simple": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PipelineGraph"
@@ -1938,13 +1951,15 @@
           "state",
           "total_fps",
           "original_pipeline_graph",
+          "original_pipeline_graph_simple",
           "optimized_pipeline_graph",
+          "optimized_pipeline_graph_simple",
           "original_pipeline_description",
           "optimized_pipeline_description",
           "error_message"
         ],
         "title": "OptimizationJobStatus",
-        "description": "Detailed status of an optimization job.\n\nAttributes:\n    id: Job identifier.\n    type: Optimization type (PREPROCESS or OPTIMIZE).\n    start_time: Start time in milliseconds since epoch.\n    elapsed_time: Elapsed time in milliseconds.\n    state: Current job state.\n    total_fps: Measured FPS for optimized pipeline (for OPTIMIZE).\n    original_pipeline_graph: Original pipeline graph before optimization.\n    optimized_pipeline_graph: Optimized pipeline graph (if available).\n    original_pipeline_description: Original GStreamer pipeline string.\n    optimized_pipeline_description: Optimized GStreamer pipeline string (if any).\n    error_message: Error details when state is ERROR or ABORTED."
+        "description": "Detailed status of an optimization job.\n\nAttributes:\n    id: Job identifier.\n    type: Optimization type (PREPROCESS or OPTIMIZE).\n    start_time: Start time in milliseconds since epoch.\n    elapsed_time: Elapsed time in milliseconds.\n    state: Current job state.\n    total_fps: Measured FPS for optimized pipeline (for OPTIMIZE).\n    original_pipeline_graph: Original pipeline graph (advanced view) before optimization.\n    original_pipeline_graph_simple: Original pipeline graph (simple view) before optimization.\n    optimized_pipeline_graph: Optimized pipeline graph (advanced view) if available.\n    optimized_pipeline_graph_simple: Optimized pipeline graph (simple view) if available.\n    original_pipeline_description: Original GStreamer pipeline string before optimization.\n    optimized_pipeline_description: Optimized GStreamer pipeline string after optimization (if any).\n    error_message: Error details when state is ERROR or ABORTED."
       },
       "OptimizationJobSummary": {
         "properties": {
@@ -2168,6 +2183,9 @@
           "pipeline_graph": {
             "$ref": "#/components/schemas/PipelineGraph"
           },
+          "pipeline_graph_simple": {
+            "$ref": "#/components/schemas/PipelineGraph"
+          },
           "parameters": {
             "anyOf": [
               {
@@ -2188,10 +2206,11 @@
           "source",
           "type",
           "pipeline_graph",
+          "pipeline_graph_simple",
           "parameters"
         ],
         "title": "Pipeline",
-        "description": "Full pipeline definition exposed by the pipelines API.\n\nAttributes:\n    id: Unique pipeline identifier generated by the backend.\n    name: Logical pipeline name (may have multiple versions).\n    version: Version number of this pipeline definition.\n    description: Human readable description.\n    source: Origin of the pipeline (PREDEFINED or USER_CREATED).\n    type: Pipeline type (for example GStreamer).\n    pipeline_graph: Structured graph representation derived from\n        the launch string.\n    parameters: Optional default parameter set for this pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+        "description": "Full pipeline definition exposed by the pipelines API.\n\nAttributes:\n    id: Unique pipeline identifier generated by the backend.\n    name: Logical pipeline name (may have multiple versions).\n    version: Version number of this pipeline definition.\n    description: Human-readable text describing what the pipeline does.\n    source: Origin of the pipeline (PREDEFINED or USER_CREATED).\n    type: Pipeline type (for example GStreamer).\n    pipeline_graph: Structured graph representation (advanced view) derived from\n        the GStreamer pipeline string. Contains all technical elements including queues,\n        converters, caps nodes, etc.\n    pipeline_graph_simple: Simplified graph representation showing only meaningful\n        elements (sources, inference nodes, sinks) with technical plumbing hidden.\n        This view is auto-generated from pipeline_graph.\n    parameters: Optional default parameter set for this pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
       },
       "PipelineCreationResponse": {
         "properties": {
@@ -2226,7 +2245,7 @@
             "type": "string",
             "minLength": 1,
             "title": "Description",
-            "description": "Non-empty human-readable pipeline description."
+            "description": "Non-empty human-readable text describing what the pipeline does."
           },
           "source": {
             "$ref": "#/components/schemas/PipelineSource",
@@ -2239,7 +2258,7 @@
             "type": "string",
             "minLength": 1,
             "title": "Pipeline Description",
-            "description": "GStreamer pipeline definition string (e.g., 'fakesrc ! fakesink')."
+            "description": "Complete GStreamer pipeline string with elements separated by '!' (e.g., 'filesrc location=input.mp4 ! decodebin ! fakesink')."
           },
           "parameters": {
             "anyOf": [
@@ -2261,7 +2280,7 @@
           "parameters"
         ],
         "title": "PipelineDefinition",
-        "description": "Input model used to create a new pipeline via the API.\n\nAttributes:\n    name: Non-empty pipeline name.\n    version: Pipeline version (must be >= 1). For a new name this\n        must be 1; for an existing name it must be the next version.\n    description: Non-empty human-readable pipeline description.\n    source: Pipeline source. For create endpoint this value is\n        overwritten to USER_CREATED.\n    type: Pipeline type (e.g. GStreamer).\n    pipeline_description: GStreamer launch string that will be\n        parsed into a PipelineGraph.\n    parameters: Optional default parameter set.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+        "description": "Input model used to create a new pipeline via the API.\n\nAttributes:\n    name: Non-empty pipeline name.\n    version: Pipeline version (must be >= 1). For a new name this\n        must be 1; for an existing name it must be the next version.\n    description: Non-empty human-readable text describing what the pipeline does.\n    source: Pipeline source. For create endpoint this value is\n        overwritten to USER_CREATED.\n    type: Pipeline type (e.g. GStreamer).\n    pipeline_description: Complete GStreamer pipeline string that will be\n        parsed into a PipelineGraph. This is the actual GStreamer launch line\n        with elements separated by '!' symbols.\n    parameters: Optional default parameter set.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
       },
       "PipelineDensitySpec": {
         "properties": {
@@ -2296,7 +2315,7 @@
           "pipeline_description": {
             "type": "string",
             "title": "Pipeline Description",
-            "description": "GStreamer-like pipeline string.",
+            "description": "GStreamer pipeline string with elements separated by '!'.",
             "examples": [
               "videotestsrc ! videoconvert ! autovideosink"
             ]
@@ -2307,7 +2326,7 @@
           "pipeline_description"
         ],
         "title": "PipelineDescription",
-        "description": "Request or response body containing a pipeline description string.\n\nThe string is a single launch line in the selected pipeline\nframework (for example GStreamer).\n\nAttributes:\n    pipeline_description: Full pipeline description line to be converted\n        or executed."
+        "description": "Request or response body containing a GStreamer pipeline string.\n\nThe pipeline_description field contains a complete GStreamer launch line\nwith elements separated by '!' symbols, for example:\n\"filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink\"\n\nAttributes:\n    pipeline_description: Complete GStreamer pipeline string to be converted\n        or executed."
       },
       "PipelineGraph": {
         "properties": {
@@ -2368,6 +2387,25 @@
         ],
         "title": "PipelineGraph",
         "description": "Request or response body containing the structured pipeline graph.\n\nThis is a generic representation and is used by multiple endpoints\n(conversion, validation, optimization).\n\nAttributes:\n    nodes: List of graph nodes.\n    edges: Directed connections between nodes."
+      },
+      "PipelineGraphResponse": {
+        "properties": {
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Advanced graph view with all pipeline elements including technical plumbing."
+          },
+          "pipeline_graph_simple": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Simplified graph view showing only sources, inference nodes, and sinks."
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_graph",
+          "pipeline_graph_simple"
+        ],
+        "title": "PipelineGraphResponse",
+        "description": "Response body containing both advanced and simple views of a pipeline graph.\n\nUsed by the /convert/to-graph endpoint to return both representations\nat once.\n\nAttributes:\n    pipeline_graph: Advanced view with all technical elements including\n        queues, converters, caps nodes, and other plumbing elements.\n        This view contains the complete pipeline structure as parsed\n        from the pipeline description.\n    pipeline_graph_simple: Simplified view showing only meaningful elements\n        such as sources, inference nodes (gva*), and sinks. Technical\n        plumbing elements are hidden and edges are reconnected to show\n        direct connections between visible nodes.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"queue\", \"data\": {}},\n              {\"id\": \"3\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\"}},\n              {\"id\": \"4\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n              {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"},\n              {\"id\": \"3\", \"source\": \"3\", \"target\": \"4\"}\n            ]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"3\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\"}},\n              {\"id\": \"4\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"3\"},\n              {\"id\": \"1\", \"source\": \"3\", \"target\": \"4\"}\n            ]\n          }\n        }"
       },
       "PipelineParameters": {
         "properties": {
@@ -2497,6 +2535,16 @@
               }
             ]
           },
+          "pipeline_graph_simple": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parameters": {
             "anyOf": [
               {
@@ -2510,7 +2558,7 @@
         },
         "type": "object",
         "title": "PipelineUpdate",
-        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional; at least one must be provided when calling\nthe update endpoint.\n\nAttributes:\n    name: Optional new pipeline name (non-empty if provided).\n    description: Optional new description (non-empty if provided).\n    pipeline_graph: Optional new graph; must be non-empty and valid.\n    parameters: Optional new default parameters for the pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline description\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 120\n            }\n          }\n        }"
+        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional; at least one must be provided when calling\nthe update endpoint.\n\nImportant: Only ONE of pipeline_graph or pipeline_graph_simple should be provided.\nIf both are provided, the request will be rejected with 400 error.\n\nAttributes:\n    name: Optional new pipeline name (non-empty if provided).\n    description: Optional new human-readable text describing what the pipeline does (non-empty if provided).\n    pipeline_graph: Optional new advanced graph; must be non-empty and valid.\n        When provided, simple view is auto-generated from it.\n    pipeline_graph_simple: Optional new simple graph with property changes.\n        When provided, changes are merged into the advanced view using\n        apply_simple_view_changes(), and new simple view is regenerated.\n    parameters: Optional new default parameters for the pipeline.\n\nExample (updating advanced view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nExample (updating simple view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated inference parameters\",\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }"
       },
       "PipelineValidation-Input": {
         "properties": {
