@@ -7,6 +7,8 @@ import {
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { MetricChart } from "@/features/metrics/MetricChart";
+import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,6 +37,7 @@ const DemoMode = () => {
   useModelsLoader();
   useDevicesLoader();
   const pipelines = useAppSelector(selectPipelines);
+  const history = useMetricHistory();
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
@@ -52,6 +55,9 @@ const DemoMode = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
+  const [metricHistorySnapshot, setMetricHistorySnapshot] = useState<
+    typeof history
+  >([]);
 
   // Parse pipeline names to extract model and device
   const parsePipelineName = (name: string) => {
@@ -109,6 +115,8 @@ const DemoMode = () => {
         streams_per_pipeline: jobStatus.streams_per_pipeline,
         video_output_paths: jobStatus.video_output_paths,
       });
+      // Save snapshot of metric history
+      setMetricHistorySnapshot([...history]);
       setErrorMessage(null);
       setJobId(null);
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
@@ -481,6 +489,107 @@ const DemoMode = () => {
                     streamsPerPipeline={testResult.streams_per_pipeline}
                     pipelines={pipelines ?? []}
                   />
+                </div>
+              )}
+
+              {/* Metric Charts Summary */}
+              {metricHistorySnapshot.length > 0 && (
+                <div className="mt-8">
+                  <p className="text-neutral-400 font-semibold mb-4 uppercase tracking-widest text-xs">
+                    Performance Metrics Summary
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <MetricChart
+                      title="Frame Rate Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        value: point.fps ?? 0,
+                      }))}
+                      dataKeys={["value"]}
+                      colors={["var(--color-magenta-chart)"]}
+                      unit=" fps"
+                      yAxisDomain={[
+                        0,
+                        Math.max(
+                          ...metricHistorySnapshot.map((d) => d.fps ?? 0),
+                          60,
+                        ),
+                      ]}
+                      showLegend={false}
+                      labels={["Frame Rate"]}
+                      className="!h-[200px]"
+                    />
+                    <MetricChart
+                      title="CPU Usage Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        user: point.cpuUser ?? 0,
+                      }))}
+                      dataKeys={["user"]}
+                      colors={["var(--color-green-chart)"]}
+                      unit="%"
+                      yAxisDomain={[0, 100]}
+                      showLegend={false}
+                      labels={["CPU Usage"]}
+                      className="!h-[200px]"
+                    />
+                    <MetricChart
+                      title="Memory Utilization Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        memory: point.memory ?? 0,
+                      }))}
+                      dataKeys={["memory"]}
+                      colors={["var(--color-blue-chart)"]}
+                      unit="%"
+                      yAxisDomain={[0, 100]}
+                      showLegend={false}
+                      labels={["Memory"]}
+                      className="!h-[200px]"
+                    />
+                    <MetricChart
+                      title="CPU Temperature Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        temp: point.cpuTemp ?? 0,
+                      }))}
+                      dataKeys={["temp"]}
+                      colors={["var(--color-orange-chart)"]}
+                      unit="°C"
+                      yAxisDomain={[
+                        0,
+                        Math.max(
+                          ...metricHistorySnapshot.map((d) => d.cpuTemp ?? 0),
+                          100,
+                        ),
+                      ]}
+                      showLegend={false}
+                      labels={["Temperature"]}
+                      className="!h-[200px]"
+                    />
+                    <MetricChart
+                      title="CPU Frequency Over Time"
+                      data={metricHistorySnapshot.map((point) => ({
+                        timestamp: point.timestamp,
+                        frequency: point.cpuAvgFrequency ?? 0,
+                      }))}
+                      dataKeys={["frequency"]}
+                      colors={["var(--color-green-chart)"]}
+                      unit=" GHz"
+                      yAxisDomain={[
+                        0,
+                        Math.max(
+                          ...metricHistorySnapshot.map(
+                            (d) => d.cpuAvgFrequency ?? 0,
+                          ),
+                          5,
+                        ),
+                      ]}
+                      showLegend={false}
+                      labels={["Frequency"]}
+                      className="!h-[200px]"
+                    />
+                  </div>
                 </div>
               )}
 

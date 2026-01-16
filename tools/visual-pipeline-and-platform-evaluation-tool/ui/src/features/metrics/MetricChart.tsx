@@ -105,17 +105,27 @@ export const MetricChart = ({
     return `${seconds}s`;
   };
 
+  const isCompact = className?.includes("!h-");
+
   return (
     <div
-      className={`bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6 max-w-full overflow-hidden ${className}`}
+      className={`bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${className}`}
     >
-      <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-8">
+      <h3
+        className={`text-xs font-semibold text-neutral-400 uppercase tracking-widest ${isCompact ? "mb-4" : "mb-8"}`}
+      >
         {title}
       </h3>
       <div className="relative">
         <ChartContainer
           config={chartConfig}
-          className={showLegend ? "h-[230px] w-full" : "h-[200px] w-full"}
+          className={
+            isCompact
+              ? "h-[135px] w-full"
+              : showLegend
+                ? "h-[230px] w-full"
+                : "h-[200px] w-full"
+          }
         >
           <AreaChart data={formattedData}>
             <CartesianGrid
@@ -175,14 +185,14 @@ export const MetricChart = ({
           </AreaChart>
         </ChartContainer>
         <div
-          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : "bottom-0"}`}
+          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : isCompact ? "bottom-[-8px]" : "bottom-0"}`}
         >
           <span className="text-xs text-neutral-500 font-semibold">
             {totalTime}
           </span>
         </div>
       </div>
-      {!showLegend && <div className="h-[30px]" />}
+      {!showLegend && !isCompact && <div className="h-[30px]" />}
     </div>
   );
 };
