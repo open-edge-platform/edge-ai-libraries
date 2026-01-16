@@ -267,7 +267,7 @@ elif [ "$1" = "--nd" ] && [ "$#" -eq 1 ]; then
 elif [ "$#" -eq 0 ]; then
     if ! ./build.sh; then
         echo -e "${RED}ERROR: build.sh failed. Please inspect the build logs.${NC}"
-        return
+        exit 1
     fi
 
     docker compose -f docker/compose.yaml up -d --no-build
