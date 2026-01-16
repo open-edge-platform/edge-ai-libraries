@@ -27,6 +27,7 @@ x-vippet: &vippet
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     RECORDINGS_PATH: /videos/input
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}

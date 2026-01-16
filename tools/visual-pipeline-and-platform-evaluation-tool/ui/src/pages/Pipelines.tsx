@@ -24,7 +24,6 @@ import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanc
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
-import DeviceSelect from "@/components/shared/DeviceSelect";
 import { Zap } from "lucide-react";
 import { isApiError } from "@/lib/apiUtils";
 import {
@@ -33,8 +32,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAppSelector } from "@/store/hooks";
-import { selectDevices } from "@/store/reducers/devices";
 
 type UrlParams = {
   id: string;
@@ -42,7 +39,6 @@ type UrlParams = {
 
 const Pipelines = () => {
   const { id } = useParams<UrlParams>();
-  const devices = useAppSelector(selectDevices);
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -56,7 +52,6 @@ const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
-  const [encoderDevice, setEncoderDevice] = useState<string>("CPU");
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
@@ -396,24 +391,10 @@ const Pipelines = () => {
         },
       }).unwrap();
 
-      const selectedDevice = devices.find(
-        (d) => d.device_name === encoderDevice,
-      );
-
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
+        performanceTestSpec: {
           video_output: {
             enabled: videoOutputEnabled,
-            encoder_device:
-              videoOutputEnabled && selectedDevice
-                ? {
-                    device_name: selectedDevice.device_name,
-                    gpu_id:
-                      selectedDevice.device_family === "GPU"
-                        ? (selectedDevice.gpu_id ?? 0)
-                        : undefined,
-                  }
-                : undefined,
           },
           pipeline_performance_specs: [
             {
@@ -617,31 +598,7 @@ const Pipelines = () => {
                 </p>
               </TooltipContent>
             </Tooltip>
-            {videoOutputEnabled && (
-              <DeviceSelect
-                value={encoderDevice}
-                onChange={setEncoderDevice}
-                className="bg-background p-2 text-sm font-medium cursor-pointer border-none outline-none"
-              />
-            )}
           </div>
-          {videoOutputEnabled && (
-            <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-[634px]">
-              <b>Note</b>: The current implementation does not automatically
-              infer the best encoding device from the existing pipeline. Select
-              the same device that is already used by other blocks in your
-              pipeline. To learn more, refer to our documentation:{" "}
-              <a
-                href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-classic-blue transition-colors underline"
-              >
-                link
-              </a>
-              .
-            </div>
-          )}
         </div>
       </div>
     );
