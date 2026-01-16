@@ -5,18 +5,12 @@ import {
   useRunDensityTestMutation,
 } from "@/api/api.generated.ts";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
-import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Home, ChevronDown } from "lucide-react";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
