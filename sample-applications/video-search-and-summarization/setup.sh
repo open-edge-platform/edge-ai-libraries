@@ -390,8 +390,8 @@ export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
 
 export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
 
-# Telemetry collector toggle for search (enabled by default)
-export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-true}
+# Telemetry collector toggle for search (disabled by default)
+export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
@@ -614,9 +614,9 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
         if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
             APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
-            echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=false to disable)${NC}"
+            echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
         else
-            echo -e  "[telemetry] ${YELLOW}vss-collector disabled (ENABLE_VSS_COLLECTOR=false)${NC}"
+            echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
         fi && \
     echo -e  "[pipeline-manager] ${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
     
@@ -822,9 +822,9 @@ elif [ "$1" = "--search" ]; then
     APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml"
     if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
         APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
-        echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=false to disable)${NC}"
+        echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
     else
-        echo -e  "[telemetry] ${YELLOW}vss-collector disabled (ENABLE_VSS_COLLECTOR=false)${NC}"
+        echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
     fi
     echo -e  "[video-search] ${GREEN}Setting up Video Search application${NC}"
 
