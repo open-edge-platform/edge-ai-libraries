@@ -5,7 +5,6 @@ from managers.pipeline_manager import PipelineManager
 from api.api_schemas import (
     Node,
     Edge,
-    EncoderDeviceConfig,
     PipelineType,
     PipelineSource,
     PipelineGraph,
@@ -458,7 +457,6 @@ class TestPipelineManager(unittest.TestCase):
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
         video_config = VideoOutputConfig(
             enabled=True,
-            encoder_device=EncoderDeviceConfig(device_name="CPU", gpu_id=None),
         )
 
         command, output_paths = manager.build_pipeline_command(
@@ -497,7 +495,6 @@ class TestPipelineManager(unittest.TestCase):
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=2)]
         video_config = VideoOutputConfig(
             enabled=True,
-            encoder_device=EncoderDeviceConfig(device_name="GPU", gpu_id=0),
         )
 
         command, output_paths = manager.build_pipeline_command(
@@ -544,7 +541,6 @@ class TestPipelineManager(unittest.TestCase):
         ]
         video_config = VideoOutputConfig(
             enabled=True,
-            encoder_device=EncoderDeviceConfig(device_name="CPU", gpu_id=None),
         )
 
         command, output_paths = manager.build_pipeline_command(

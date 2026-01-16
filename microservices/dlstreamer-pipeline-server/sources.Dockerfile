@@ -1,5 +1,5 @@
 # -------- Stage 1: Ubuntu 22.04 Sources --------
-FROM intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22 AS ubuntu22-builder
+FROM intel/dlstreamer-pipeline-server:2025.2.0-extended-ubuntu22 AS ubuntu22-builder
 LABEL stage="ubuntu22"
 
 USER root
@@ -24,7 +24,7 @@ RUN sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list && \
     done
 
 # -------- Stage 2: Ubuntu 24.04 Sources --------
-FROM intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24 AS ubuntu24-builder
+FROM intel/dlstreamer-pipeline-server:2025.2.0-extended-ubuntu24 AS ubuntu24-builder
 LABEL stage="ubuntu24"
 
 USER root
