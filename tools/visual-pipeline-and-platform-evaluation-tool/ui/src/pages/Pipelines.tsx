@@ -398,10 +398,8 @@ const Pipelines = () => {
     nodeId: string,
     updatedData: Record<string, unknown>,
   ) => {
-    // Call the PipelineEditor's update method via ref
     pipelineEditorRef.current?.updateNodeData(nodeId, updatedData);
 
-    // Update selected node with new data
     if (selectedNode && selectedNode.id === nodeId) {
       setSelectedNode({ ...selectedNode, data: updatedData });
     }
@@ -410,9 +408,9 @@ const Pipelines = () => {
   const handleRunPipeline = async () => {
     if (!id) return;
 
-    setCompletedVideoPath(null); // Clear previous video
-    setShowDetailsPanel(true); // Open the details panel
-    setSelectedNode(null); // Clear node selection
+    setCompletedVideoPath(null);
+    setShowDetailsPanel(true);
+    setSelectedNode(null);
 
     try {
       await updatePipeline({
@@ -542,7 +540,6 @@ const Pipelines = () => {
     };
 
     const handleMouseUp = () => {
-      // Use requestAnimationFrame to defer the flag reset
       if (isResizingRef.current) {
         requestAnimationFrame(() => {
           isResizingRef.current = false;
@@ -645,7 +642,7 @@ const Pipelines = () => {
             <button
               className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
               title="Optimize Pipeline"
-              disabled={isOptimizing || !!performanceTestJobId}
+              disabled={isOptimizing || performanceTestJobId !== null}
               onClick={handleOptimizePipeline}
             >
               <Zap className="w-5 h-5" />
@@ -708,7 +705,7 @@ const Pipelines = () => {
               >
                 {showDetailsPanel && !selectedNode ? (
                   <PerformanceTestPanel
-                    isRunning={!!performanceTestJobId}
+                    isRunning={performanceTestJobId != null}
                     completedVideoPath={completedVideoPath}
                   />
                 ) : (
