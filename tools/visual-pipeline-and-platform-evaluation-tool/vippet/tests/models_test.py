@@ -121,7 +121,7 @@ class TestModels(unittest.TestCase):
             self.assertEqual(found_by_disp.name, "inst")
 
             # find by model_path and model_proc_path
-            found_by_path = manager.find_model_by_model_and_proc_path(
+            found_by_path = manager.find_installed_model_by_name_and_proc(
                 str(installed), ""
             )
             self.assertIsNotNone(found_by_path)
