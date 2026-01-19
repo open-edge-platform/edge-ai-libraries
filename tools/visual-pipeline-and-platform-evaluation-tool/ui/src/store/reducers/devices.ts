@@ -20,10 +20,14 @@ const devicesSlice = createSlice({
       state.items = action.payload;
       state.lastFetched = Date.now();
     },
+    setTestDevices: (state, action: { payload: Device[] }) => {
+      state.items = action.payload;
+      state.lastFetched = Date.now();
+    },
   },
 });
 
-export const { setDevices } = devicesSlice.actions;
+export const { setDevices, setTestDevices } = devicesSlice.actions;
 
 // Base selector
 export const selectDevices = (state: RootState) => state.devices.items;
@@ -41,12 +45,14 @@ export const selectDeviceByName = (state: RootState, deviceName: string) =>
 export const selectDeviceByFamily = (state: RootState, deviceFamily: string) =>
   selectDevices(state).find((device) => device.device_family === deviceFamily);
 
-export const selectHasGPU1 = createSelector([selectDevices], (devices) =>
-  devices.some((device) => device.device_name === "GPU.1"),
-);
-
 export const selectHasNPU = createSelector([selectDevices], (devices) =>
   devices.some((device) => device.device_family === "NPU"),
+);
+
+export const selectGpuDevices = createSelector([selectDevices], (devices) =>
+  devices
+    .filter((device) => device.device_family === "GPU")
+    .sort((d1, d2) => d1.device_name.localeCompare(d2.device_name)),
 );
 
 export default devicesSlice.reducer;

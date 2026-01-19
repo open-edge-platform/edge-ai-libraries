@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 export const GVADetectNodeWidth = 280;
 
@@ -58,17 +59,17 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-indigo-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvadetect") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-indigo-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvadetect") }}
     />
   </div>
 );

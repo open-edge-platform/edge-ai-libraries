@@ -11,9 +11,10 @@ You can use either traditional pip/venv or the modern uv tool for dependency man
 #### Using uv
 
 ```bash
+# Navigate to model-download service directory
+cd microservices/model-download
+
 # Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# or
 pip install uv
 
 # Create and activate virtual environment

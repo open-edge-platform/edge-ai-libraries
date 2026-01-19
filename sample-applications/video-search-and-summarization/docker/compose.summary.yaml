@@ -98,6 +98,10 @@ services:
       - no_proxy=${no_proxy},localhost
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
     ports:
       - "${OVMS_HTTP_HOST_PORT}:80"
       - "${OVMS_GRPC_HOST_PORT}:81"

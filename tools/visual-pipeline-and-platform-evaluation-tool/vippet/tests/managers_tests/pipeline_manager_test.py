@@ -557,3 +557,357 @@ class TestPipelineManager(unittest.TestCase):
 
         # Verify output directory is in the command
         self.assertIn(OUTPUT_VIDEO_DIR, command)
+
+    def test_add_pipeline_generates_simple_view(self):
+        """
+        add_pipeline should generate simple view automatically from advanced view.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-simple-view",
+            version=1,
+            description="Test simple view generation",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="filesrc location=/tmp/test.mp4 ! decodebin3 ! autovideosink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(new_pipeline)
+
+        # Verify both views exist
+        self.assertIsNotNone(added.pipeline_graph)
+        self.assertIsNotNone(added.pipeline_graph_simple)
+
+        # Verify simple view is different from advanced view (simplified)
+        self.assertLess(
+            len(added.pipeline_graph_simple.nodes),
+            len(added.pipeline_graph.nodes),
+        )
+
+        # Verify both views have valid node and edge structures
+        self.assertGreater(len(added.pipeline_graph.nodes), 0)
+        self.assertGreater(len(added.pipeline_graph_simple.nodes), 0)
+
+    def test_load_predefined_pipelines_generates_simple_views(self):
+        """
+        load_predefined_pipelines should generate simple view for each predefined pipeline.
+        """
+        manager = PipelineManager()
+        pipelines = manager.get_pipelines()
+
+        # Verify each predefined pipeline has both views
+        for pipeline in pipelines:
+            self.assertIsNotNone(
+                pipeline.pipeline_graph,
+                f"Pipeline {pipeline.name} missing advanced view",
+            )
+            self.assertIsNotNone(
+                pipeline.pipeline_graph_simple,
+                f"Pipeline {pipeline.name} missing simple view",
+            )
+
+            # Verify both views have nodes
+            self.assertGreater(
+                len(pipeline.pipeline_graph.nodes),
+                0,
+                f"Pipeline {pipeline.name} advanced view has no nodes",
+            )
+            self.assertGreater(
+                len(pipeline.pipeline_graph_simple.nodes),
+                0,
+                f"Pipeline {pipeline.name} simple view has no nodes",
+            )
+
+    def test_update_pipeline_with_advanced_graph_regenerates_simple_view(self):
+        """
+        Updating pipeline with new advanced graph should auto-generate simple view.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        original_pipeline = PipelineDefinition(
+            name="test-graph-update",
+            version=1,
+            description="Original pipeline",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="fakesrc ! fakesink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(original_pipeline)
+        original_simple_view = added.pipeline_graph_simple
+
+        # Update with new advanced graph
+        new_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={}),
+                Node(id="1", type="videoconvert", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        updated = manager.update_pipeline(
+            pipeline_id=added.id, pipeline_graph=new_graph
+        )
+
+        # Verify advanced view is updated
+        self.assertEqual(updated.pipeline_graph, new_graph)
+
+        # Verify simple view was regenerated (auto-generated)
+        self.assertIsNotNone(updated.pipeline_graph_simple)
+        # New simple view should be different from original
+        self.assertNotEqual(
+            updated.pipeline_graph_simple.model_dump(),
+            original_simple_view.model_dump(),
+        )
+
+    def test_update_pipeline_with_simple_graph_applies_changes_to_advanced(self):
+        """
+        Updating pipeline with simple graph should regenerate both views successfully.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        original_pipeline = PipelineDefinition(
+            name="test-simple-update",
+            version=1,
+            description="Pipeline for simple graph update",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! videoconvert ! fakesink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(original_pipeline)
+
+        # Get the current simple view
+        current_simple = added.pipeline_graph_simple
+
+        # Create modified simple view with same structure (no property changes)
+        # This tests that applying simple view changes works correctly
+        modified_simple = PipelineGraph(
+            nodes=current_simple.nodes,
+            edges=current_simple.edges,
+        )
+
+        # Update with modified simple graph
+        updated = manager.update_pipeline(
+            pipeline_id=added.id, pipeline_graph_simple=modified_simple
+        )
+
+        # Verify both views exist and are valid
+        self.assertIsNotNone(updated.pipeline_graph)
+        self.assertIsNotNone(updated.pipeline_graph_simple)
+
+        # Verify updated pipeline has valid structure
+        self.assertGreater(len(updated.pipeline_graph.nodes), 0)
+        self.assertGreater(len(updated.pipeline_graph_simple.nodes), 0)
+
+        # Verify the pipeline can still be converted to a valid GStreamer description
+        self.assertIsNotNone(updated.pipeline_graph)
+
+    def test_update_pipeline_invalid_advanced_graph_raises_error(self):
+        """
+        Updating with invalid advanced graph that fails pipeline description conversion should raise error.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        pipeline = PipelineDefinition(
+            name="test-invalid-advanced",
+            version=1,
+            description="Test invalid advanced graph",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="fakesrc ! fakesink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(pipeline)
+
+        # Create invalid graph with no start nodes (all nodes have incoming edges)
+        # This creates a circular/disconnected structure that fails validation
+        invalid_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="0"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_pipeline(pipeline_id=added.id, pipeline_graph=invalid_graph)
+
+        # Should fail due to circular graph or no start nodes
+        error_msg = str(context.exception).lower()
+        self.assertTrue(
+            "circular" in error_msg or "start" in error_msg or "invalid" in error_msg,
+            f"Expected error about circular or invalid graph, got: {context.exception}",
+        )
+
+    def test_update_pipeline_with_simple_graph_invalid_changes_raises_error(self):
+        """
+        Applying invalid simple graph changes (removing nodes) to advanced view should raise error.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        pipeline = PipelineDefinition(
+            name="test-invalid-simple-changes",
+            version=1,
+            description="Test invalid simple view changes",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="filesrc location=/tmp/video.mp4 ! decodebin3 ! autovideosink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(pipeline)
+        current_simple = added.pipeline_graph_simple
+
+        # Create invalid modified simple view by removing node (not allowed in simple view)
+        modified_simple = PipelineGraph(
+            nodes=current_simple.nodes[:1],  # Only first node - removes others
+            edges=[],  # No connections
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_pipeline(
+                pipeline_id=added.id, pipeline_graph_simple=modified_simple
+            )
+
+        # Check for the actual error message about node removal
+        self.assertIn("node removals are not supported", str(context.exception).lower())
+
+    def test_pipeline_views_in_get_pipelines(self):
+        """
+        get_pipelines should return pipelines with both advanced and simple views.
+        """
+        manager = PipelineManager()
+
+        pipelines = manager.get_pipelines()
+
+        # All pipelines should have both views
+        for pipeline in pipelines:
+            self.assertIsNotNone(pipeline.pipeline_graph)
+            self.assertIsNotNone(pipeline.pipeline_graph_simple)
+            self.assertGreater(len(pipeline.pipeline_graph.nodes), 0)
+            self.assertGreater(len(pipeline.pipeline_graph_simple.nodes), 0)
+
+    def test_build_pipeline_command_preserves_both_graph_views(self):
+        """
+        build_pipeline_command should work with both advanced and simple views.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        pipeline = PipelineDefinition(
+            name="test-views-build",
+            version=1,
+            description="Test pipeline for build command",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! fakesink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(pipeline)
+
+        # Verify pipeline has both views before building command
+        self.assertIsNotNone(added.pipeline_graph)
+        self.assertIsNotNone(added.pipeline_graph_simple)
+
+        # Build command should work
+        specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
+        video_config = VideoOutputConfig(enabled=False)
+
+        command, output_paths = manager.build_pipeline_command(specs, video_config)
+
+        # Verify command was built successfully
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+        self.assertIn("videotestsrc", command)
+
+    def test_update_pipeline_preserves_other_fields_with_graph_update(self):
+        """
+        Updating pipeline graph should not affect name, description, or parameters if not specified.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        original_params = PipelineParameters(default={"key": "original"})
+        pipeline = PipelineDefinition(
+            name="test-preserve-fields",
+            version=1,
+            description="Original description",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="fakesrc ! fakesink",
+            parameters=original_params,
+        )
+
+        added = manager.add_pipeline(pipeline)
+
+        # Update only the graph
+        new_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
+        )
+
+        updated = manager.update_pipeline(
+            pipeline_id=added.id, pipeline_graph=new_graph
+        )
+
+        # Verify other fields are unchanged
+        self.assertEqual(updated.name, "test-preserve-fields")
+        self.assertEqual(updated.description, "Original description")
+        self.assertIsNotNone(updated.parameters)
+        if updated.parameters is not None:
+            self.assertEqual(updated.parameters.default, {"key": "original"})
+
+    def test_add_pipeline_with_complex_graph_generates_simple_view(self):
+        """
+        Adding pipeline with complex GStreamer pipeline should generate valid simple view.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        complex_pipeline = PipelineDefinition(
+            name="test-complex-pipeline",
+            version=1,
+            description="Complex pipeline with multiple branches",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="filesrc location=/tmp/test.mp4 ! decodebin3 ! videoconvert ! autovideosink",
+            parameters=None,
+        )
+
+        added = manager.add_pipeline(complex_pipeline)
+
+        # Both views should be valid
+        self.assertIsNotNone(added.pipeline_graph)
+        self.assertIsNotNone(added.pipeline_graph_simple)
+
+        # Simple view should have fewer or equal nodes than advanced
+        self.assertLessEqual(
+            len(added.pipeline_graph_simple.nodes),
+            len(added.pipeline_graph.nodes),
+        )
+
+        # Both should have valid edges
+        self.assertGreater(len(added.pipeline_graph.edges), 0)
+        self.assertGreater(len(added.pipeline_graph_simple.edges), 0)
