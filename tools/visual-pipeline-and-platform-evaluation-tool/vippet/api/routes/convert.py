@@ -5,7 +5,12 @@ from graph import Graph
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from api.api_schemas import MessageResponse, PipelineDescription, PipelineGraph
+from api.api_schemas import (
+    MessageResponse,
+    PipelineDescription,
+    PipelineGraph,
+    PipelineGraphResponse,
+)
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.convert")
@@ -14,27 +19,32 @@ logger = logging.getLogger("api.routes.convert")
 @router.post(
     "/to-graph",
     operation_id="to_graph",
-    summary="Convert pipeline description to pipeline graph",
+    summary="Convert pipeline description to pipeline graphs (both views)",
     responses={
-        200: {"description": "Conversion successful", "model": PipelineGraph},
+        200: {
+            "description": "Conversion successful",
+            "model": PipelineGraphResponse,
+        },
         400: {"description": "Invalid pipeline description", "model": MessageResponse},
         500: {"description": "Internal server error", "model": MessageResponse},
     },
 )
 def to_graph(request: PipelineDescription):
     """
-    Convert a GStreamer-like pipeline description string into a structured pipeline graph.
+    Convert a GStreamer-like pipeline description string into structured pipeline graphs.
 
-    This endpoint parses the textual pipeline description, validates it and builds a list
-    of nodes and edges that can be used by the UI or other services.
+    This endpoint parses the textual pipeline description, validates it and builds both
+    an advanced view (with all technical elements) and a simple view (with only meaningful
+    elements like sources, inference nodes, and sinks).
 
     Args:
         request: PipelineDescription body containing the ``pipeline_description`` string
             to be converted.
 
     Returns:
-        PipelineGraph: On success (HTTP 200) a graph representation of the pipeline,
-            with resolved model and video display names.
+        PipelineGraphResponse: On success (HTTP 200) both graph representations:
+            - pipeline_graph: Advanced view with all elements including technical plumbing
+            - pipeline_graph_simple: Simplified view with only visible elements
         MessageResponse: On client or server error (HTTP 400 or 500) a message describing
             the failure.
 
@@ -43,6 +53,7 @@ def to_graph(request: PipelineDescription):
           and input videos can be resolved.
         * The description can be mapped to a non-empty, acyclic graph with at least one
           start node.
+        * Simple view can be generated from the advanced view.
 
     Failure cases:
         * 400 – invalid or unparsable pipeline description (syntax error, unsupported
@@ -60,15 +71,26 @@ def to_graph(request: PipelineDescription):
         .. code-block:: json
 
             {
-              "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {"id": "1", "type": "videoconvert", "data": {}},
-                {"id": "2", "type": "autovideosink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"}
-              ]
+              "pipeline_graph": {
+                "nodes": [
+                  {"id": "0", "type": "videotestsrc", "data": {}},
+                  {"id": "1", "type": "videoconvert", "data": {}},
+                  {"id": "2", "type": "autovideosink", "data": {}}
+                ],
+                "edges": [
+                  {"id": "0", "source": "0", "target": "1"},
+                  {"id": "1", "source": "1", "target": "2"}
+                ]
+              },
+              "pipeline_graph_simple": {
+                "nodes": [
+                  {"id": "0", "type": "videotestsrc", "data": {}},
+                  {"id": "2", "type": "autovideosink", "data": {}}
+                ],
+                "edges": [
+                  {"id": "0", "source": "0", "target": "2"}
+                ]
+              }
             }
 
     Error response example (400):
@@ -79,8 +101,18 @@ def to_graph(request: PipelineDescription):
             }
     """
     try:
+        # Parse into advanced graph
         graph = Graph.from_pipeline_description(request.pipeline_description)
-        return PipelineGraph.model_validate(graph.to_dict())
+        pipeline_graph = PipelineGraph.model_validate(graph.to_dict())
+
+        # Generate simple view
+        simple_graph = graph.to_simple_view()
+        pipeline_graph_simple = PipelineGraph.model_validate(simple_graph.to_dict())
+
+        return PipelineGraphResponse(
+            pipeline_graph=pipeline_graph,
+            pipeline_graph_simple=pipeline_graph_simple,
+        )
     except ValueError as e:
         logger.error("Invalid pipeline description received: %s", e)
         return JSONResponse(
@@ -111,11 +143,13 @@ def to_description(request: PipelineGraph):
     """
     Convert a structured pipeline graph into a GStreamer-like pipeline description string.
 
-    This endpoint validates the input graph and serializes its nodes and edges back into
-    a single pipeline description line.
+    This endpoint validates the input graph (advanced view) and serializes its nodes
+    and edges back into a single pipeline description line. The input should be an
+    advanced view graph containing all technical elements.
 
     Args:
-        request: PipelineGraph body containing nodes and edges that define the pipeline.
+        request: PipelineGraph body containing nodes and edges that define the pipeline
+            (advanced view expected).
 
     Returns:
         PipelineDescription: On success (HTTP 200) a textual ``pipeline_description``

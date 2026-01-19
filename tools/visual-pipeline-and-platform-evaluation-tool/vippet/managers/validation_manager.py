@@ -64,7 +64,7 @@ class ValidationJob:
 
 class ValidatorRunner:
     """
-    Thin wrapper around the external ``validator.py`` script.
+    Thin wrapper around the external ``gst_runner.py`` script.
 
     All direct subprocess interaction is encapsulated here to make the
     manager logic easier to unit-test (this class can be mocked).
@@ -80,13 +80,13 @@ class ValidatorRunner:
         hard_timeout: int,
     ) -> Tuple[bool, List[str]]:
         """
-        Execute ``validator.py`` in a subprocess and return its outcome.
+        Execute ``gst_runner.py`` in a subprocess and return its outcome.
 
         Parameters
         ----------
         pipeline_description:
             GStreamer pipeline launch string to be validated. This is
-            passed as the last CLI argument to ``validator.py`` so that
+            passed as the last CLI argument to ``gst_runner.py`` so that
             the validator does not depend on stdin semantics.
         max_runtime:
             Soft execution limit in seconds, taken from the request
@@ -101,12 +101,12 @@ class ValidatorRunner:
             * ``is_valid`` – ``True`` if the pipeline is considered valid,
               ``False`` otherwise.
             * ``errors`` – list of human-readable error strings produced
-              by ``validator.py`` (possibly empty when valid).
+              by ``gst_runner.py`` (possibly empty when valid).
         """
         # Build the command; the pipeline string is passed as the last argument.
         cmd = [
             sys.executable,
-            "validator.py",
+            "gst_runner.py",
             "--max-runtime",
             str(max_runtime),
             pipeline_description,
@@ -132,20 +132,21 @@ class ValidatorRunner:
             # If the process exceeds the overall timeout, kill it and
             # attempt to read any remaining stderr for diagnostics.
             self.logger.warning(
-                "validator.py timed out after %s seconds, killing process", hard_timeout
+                "gst_runner.py timed out after %s seconds, killing process",
+                hard_timeout,
             )
             proc.kill()
             # collect as much information as possible
             stdout, stderr = proc.communicate()
             errors = self._parse_stderr(stderr)
             errors.append(
-                "Pipeline validation timed out: validator.py did not finish "
+                "Pipeline validation timed out: gst_runner.py did not finish "
                 "within the allowed time and had to be terminated."
             )
             return False, errors
 
         self.logger.debug(
-            "validator.py finished with returncode=%s, stdout=%r, stderr=%r",
+            "gst_runner.py finished with returncode=%s, stdout=%r, stderr=%r",
             proc.returncode,
             stdout,
             stderr,
@@ -162,12 +163,12 @@ class ValidatorRunner:
     @staticmethod
     def _parse_stderr(raw_stderr: str) -> List[str]:
         """
-        Parse raw stderr from ``validator.py`` into a list of clean messages.
+        Parse raw stderr from ``gst_runner.py`` into a list of clean messages.
 
         The implementation:
 
         * splits stderr into lines,
-        * filters only lines starting with ``"validator - ERROR - "``,
+        * filters only lines starting with ``"gst_runner - ERROR - "``,
         * strips that prefix from each selected line,
         * trims surrounding whitespace,
         * discards lines that are empty or contain only whitespace,
@@ -177,10 +178,10 @@ class ValidatorRunner:
             return []
 
         messages: List[str] = []
-        prefix = "validator - ERROR - "
+        prefix = "gst_runner - ERROR - "
 
         for line in raw_stderr.splitlines():
-            # Only consider messages produced by validator's ERROR logger.
+            # Only consider messages produced by gst_runner's ERROR logger.
             if not line.startswith(prefix):
                 continue
 
@@ -198,13 +199,13 @@ class ValidatorRunner:
 
 class ValidationManager:
     """
-    Manage validation jobs that call the external ``validator.py`` tool.
+    Manage validation jobs that call the external ``gst_runner.py`` tool.
 
     Responsibilities:
 
     * create and track :class:`ValidationJob` instances,
     * run validations asynchronously in background threads,
-    * spawn a separate subprocess for ``validator.py`` per job to guard
+    * spawn a separate subprocess for ``gst_runner.py`` per job to guard
       against crashes such as segmentation faults,
     * expose job status and summaries in a thread-safe manner.
     """
@@ -234,7 +235,7 @@ class ValidationManager:
         * converts the pipeline graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
         * creates a new :class:`ValidationJob` with RUNNING state,
-        * spawns a background thread that executes ``validator.py`` via
+        * spawns a background thread that executes ``gst_runner.py`` via
           :class:`ValidatorRunner`.
 
         Raises
@@ -348,7 +349,7 @@ class ValidationManager:
         """
         Mark the job as failed and persist the error message.
 
-        Used both for validation errors produced by ``validator.py`` and
+        Used both for validation errors produced by ``gst_runner.py`` and
         for unexpected exceptions in the manager itself.
         """
         with self.lock:

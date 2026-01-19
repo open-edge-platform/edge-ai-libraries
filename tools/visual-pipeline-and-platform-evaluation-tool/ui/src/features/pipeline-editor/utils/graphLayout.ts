@@ -73,3 +73,10 @@ export const createGraphLayout = (
     };
   });
 };
+
+export const getHandleLeftPosition = (nodeType: string): string => {
+  const width = nodeWidths[nodeType] ?? defaultNodeWidth;
+  const handleWidth = 12;
+  const leftPosition = (width - handleWidth) / 2;
+  return `${leftPosition}px`;
+};
