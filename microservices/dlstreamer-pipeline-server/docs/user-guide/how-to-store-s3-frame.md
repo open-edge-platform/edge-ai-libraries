@@ -8,7 +8,7 @@ First you must add server configuration details such as host, port, credentials,
 
 If you are launching the service along with DL Streamer Pipeline Server, you should add the S3 storage server service details to DL Streamer Pipeline Server's docker-compose.yml file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`. For this tutorial we will be following this approach.
 
-> **Note** In an production deployment, you should get the server details from your system admin and update the environment variables or compose file accordingly.
+> **Note** In a production deployment, get the server details from your system admin and update the environment variables or compose file accordingly.
 
 For the sake of demonstration, we will be using SeaweedFS as the S3 storage for storing frames and will be launched together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
