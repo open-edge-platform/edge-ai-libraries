@@ -1305,7 +1305,9 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             )
         else:
             node.data["model"] = ""
-            logger.debug(f"Model path not found in installed models: {model_path}")
+            logger.debug(
+                f"Model not found in installed models: model_path='{model_path}', model_proc_path='{model_proc_path}'"
+            )
 
         # Remove model-proc to avoid leaking internal filesystem layout.
         node.data.pop("model-proc", None)
@@ -1317,7 +1319,7 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
     This is used when converting a stored graph back into a runnable pipeline
     description. It also injects 'model-proc' immediately after 'model' when
-    available so that the resulting pipeline is executable.
+    the model has an associated model-proc file.
 
     Args:
         nodes: List of nodes to process (modified in place)
@@ -1327,11 +1329,10 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
     Raises:
         ValueError: If model display name is not found in installed models
-        ValueError: If configured model-proc file is not found
 
     Side effects:
         - Modifies node.data["model"] to contain full path instead of display name
-        - Injects or updates node.data["model-proc"] with appropriate model-proc file path
+        - Injects node.data["model-proc"] with the model-proc file path if available
         - Logs debug messages for each conversion
 
     Example:

@@ -165,43 +165,38 @@ class SupportedModelsManager:
                         and len(extra_model_procs) > 0
                     )
 
-                    # Add the original model with variant suffix if extra_model_procs exists
-                    if has_extra_procs and model_proc and model_proc.strip():
-                        # Extract the filename without extension from the model_proc path
+                    # Determine if we need to modify the name/display_name for variants
+                    should_modify_for_variant = (
+                        has_extra_procs and model_proc and model_proc.strip()
+                    )
+
+                    # Compute name and display_name based on whether this is a variant
+                    if should_modify_for_variant:
                         proc_filename = os.path.splitext(os.path.basename(model_proc))[
                             0
                         ]
-                        variant_display_name = (
+                        model_name = f"{name}_{proc_filename}"
+                        model_display_name = (
                             f"{display_name} [model-proc: {proc_filename}]"
                         )
-                        self._models.append(
-                            SupportedModel(
-                                name=f"{name}_{proc_filename}",
-                                display_name=variant_display_name,
-                                source=source,
-                                model_type=model_type,
-                                model_path=model_path,
-                                model_proc=model_proc,
-                                unsupported_devices=unsupported_devices,
-                                precision=precision,
-                                default=default,
-                            )
-                        )
                     else:
-                        # Add the original model without variant suffix
-                        self._models.append(
-                            SupportedModel(
-                                name=name,
-                                display_name=display_name,
-                                source=source,
-                                model_type=model_type,
-                                model_path=model_path,
-                                model_proc=model_proc,
-                                unsupported_devices=unsupported_devices,
-                                precision=precision,
-                                default=default,
-                            )
+                        model_name = name
+                        model_display_name = display_name
+
+                    # Add the original model
+                    self._models.append(
+                        SupportedModel(
+                            name=model_name,
+                            display_name=model_display_name,
+                            source=source,
+                            model_type=model_type,
+                            model_path=model_path,
+                            model_proc=model_proc,
+                            unsupported_devices=unsupported_devices,
+                            precision=precision,
+                            default=default,
                         )
+                    )
 
                     # If extra_model_procs is provided and is a list, create duplicate entries
                     if has_extra_procs:
@@ -217,13 +212,13 @@ class SupportedModelsManager:
                                 proc_filename = os.path.splitext(
                                     os.path.basename(extra_proc)
                                 )[0]
-                                duplicate_display_name = (
+                                model_display_name = (
                                     f"{display_name} [model-proc: {proc_filename}]"
                                 )
                                 self._models.append(
                                     SupportedModel(
                                         name=f"{name}_{proc_filename}",
-                                        display_name=duplicate_display_name,
+                                        display_name=model_display_name,
                                         source=source,
                                         model_type=model_type,
                                         model_path=model_path,
@@ -424,13 +419,16 @@ class SupportedModelsManager:
             return None
 
         # If model_proc_path is specified, try to find a variant with matching model_proc filename
-        if model_proc_path is not None:
+        if model_proc_path is not None and model_proc_path.strip():
             for model in matching_models:
                 if model.model_proc_full and os.path.basename(
                     model.model_proc_full
                 ) == os.path.basename(model_proc_path):
                     logger.debug(f"Found matching model: {model.display_name}")
                     return model
-
+            logger.debug(
+                f"No matching model variant found for model-proc: {model_proc_path}"
+            )
+            return None
         # Return the first matching model
         return matching_models[0]
