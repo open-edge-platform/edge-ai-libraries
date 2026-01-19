@@ -8,3 +8,7 @@ services:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     group_add:
       - ${RENDER_DEVICE_GID:-0}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
