@@ -114,10 +114,10 @@ class TestModels(unittest.TestCase):
             self.assertEqual(installed_models[0].name, "inst")
 
             # find by internal name
-            found_by_name = manager.find_installed_model_by_name("inst")
+            found_by_name = manager.find_installed_model_by_name_and_proc("inst", "")
             self.assertIsNotNone(found_by_name)
             self.assertEqual(found_by_name.display_name, "Installed Model")
-            self.assertIsNone(manager.find_installed_model_by_name("miss"))
+            self.assertIsNone(manager.find_installed_model_by_name_and_proc("miss", ""))
 
             # find by display name
             found_by_disp = manager.find_installed_model_by_display_name(
@@ -127,8 +127,8 @@ class TestModels(unittest.TestCase):
             self.assertEqual(found_by_disp.name, "inst")
 
             # find by model_path_full
-            found_by_path = manager.find_installed_model_by_model_path_full(
-                str(installed)
+            found_by_path = manager.find_installed_model_by_name_and_proc(
+                str(installed), ""
             )
             self.assertIsNotNone(found_by_path)
             self.assertEqual(found_by_path.name, "inst")

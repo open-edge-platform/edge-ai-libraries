@@ -50,6 +50,7 @@ class SupportedModel:
         unsupported_devices: str | None = None,
         precision: str | None = None,
         default: bool = False,
+        model_proc_is_full_path: bool = False,
     ) -> None:
         """
         Initializes the SupportedModel instance.
@@ -64,6 +65,7 @@ class SupportedModel:
             unsupported_devices (str | None, optional): String listing unsupported devices. Defaults to None.
             precision (str | None, optional): Model precision (e.g., 'FP32', 'INT8'). Defaults to None.
             default (bool, optional): Whether this model should be a default choice. Defaults to False.
+            model_proc_is_full_path (bool, optional): If True, model_proc is treated as an absolute path. Defaults to False.
         """
         self.name: str = name
         self.display_name: str = display_name
@@ -76,9 +78,14 @@ class SupportedModel:
         self.default: bool = bool(default)
 
         self.model_path_full: str = os.path.join(MODELS_PATH, self.model_path)
-        # Set model_proc_full to the absolute path if model_proc is provided and not empty, otherwise empty string
+        # Set model_proc_full based on whether it's a full path or relative path
         if self.model_proc is not None and self.model_proc.strip() != "":
-            self.model_proc_full: str = os.path.join(MODELS_PATH, self.model_proc)
+            if model_proc_is_full_path:
+                # Use the full path directly (from extra_model_procs)
+                self.model_proc_full: str = self.model_proc
+            else:
+                # Join with MODELS_PATH for relative paths
+                self.model_proc_full: str = os.path.join(MODELS_PATH, self.model_proc)
         else:
             self.model_proc_full: str = ""
 
@@ -140,20 +147,94 @@ class SupportedModelsManager:
 
                 for idx, entry in enumerate(models_yaml):
                     # Validate and extract required fields
-                    # Read all optional fields, use None if they are missing
-                    self._models.append(
-                        SupportedModel(
-                            name=require_str_field(entry, "name", idx),
-                            display_name=require_str_field(entry, "display_name", idx),
-                            source=require_str_field(entry, "source", idx),
-                            model_type=require_str_field(entry, "type", idx),
-                            model_path=require_str_field(entry, "model_path", idx),
-                            model_proc=entry.get("model_proc", None),
-                            unsupported_devices=entry.get("unsupported_devices", None),
-                            precision=entry.get("precision", None),
-                            default=entry.get("default", False),
-                        )
+                    name = require_str_field(entry, "name", idx)
+                    display_name = require_str_field(entry, "display_name", idx)
+                    source = require_str_field(entry, "source", idx)
+                    model_type = require_str_field(entry, "type", idx)
+                    model_path = require_str_field(entry, "model_path", idx)
+                    model_proc = entry.get("model_proc", None)
+                    unsupported_devices = entry.get("unsupported_devices", None)
+                    precision = entry.get("precision", None)
+                    default = entry.get("default", False)
+                    extra_model_procs = entry.get("extra_model_procs", None)
+
+                    # Check if extra_model_procs exists and is a non-empty list
+                    has_extra_procs = (
+                        extra_model_procs
+                        and isinstance(extra_model_procs, list)
+                        and len(extra_model_procs) > 0
                     )
+
+                    # Add the original model with variant suffix if extra_model_procs exists
+                    if has_extra_procs and model_proc and model_proc.strip():
+                        # Extract the filename without extension from the model_proc path
+                        proc_filename = os.path.splitext(os.path.basename(model_proc))[
+                            0
+                        ]
+                        variant_display_name = (
+                            f"{display_name} [model-proc: {proc_filename}]"
+                        )
+                        self._models.append(
+                            SupportedModel(
+                                name=f"{name}_{proc_filename}",
+                                display_name=variant_display_name,
+                                source=source,
+                                model_type=model_type,
+                                model_path=model_path,
+                                model_proc=model_proc,
+                                unsupported_devices=unsupported_devices,
+                                precision=precision,
+                                default=default,
+                            )
+                        )
+                    else:
+                        # Add the original model without variant suffix
+                        self._models.append(
+                            SupportedModel(
+                                name=name,
+                                display_name=display_name,
+                                source=source,
+                                model_type=model_type,
+                                model_path=model_path,
+                                model_proc=model_proc,
+                                unsupported_devices=unsupported_devices,
+                                precision=precision,
+                                default=default,
+                            )
+                        )
+
+                    # If extra_model_procs is provided and is a list, create duplicate entries
+                    if has_extra_procs:
+                        for extra_proc in extra_model_procs:
+                            if (
+                                extra_proc
+                                and isinstance(extra_proc, str)
+                                and extra_proc.strip()
+                            ):
+                                # Create a duplicate with modified model_proc and display_name
+                                # Note: extra_model_procs contains full absolute paths, not relative paths
+                                # Extract the filename without extension from the extra_proc path
+                                proc_filename = os.path.splitext(
+                                    os.path.basename(extra_proc)
+                                )[0]
+                                duplicate_display_name = (
+                                    f"{display_name} [model-proc: {proc_filename}]"
+                                )
+                                self._models.append(
+                                    SupportedModel(
+                                        name=f"{name}_{proc_filename}",
+                                        display_name=duplicate_display_name,
+                                        source=source,
+                                        model_type=model_type,
+                                        model_path=model_path,
+                                        model_proc=extra_proc,
+                                        unsupported_devices=unsupported_devices,
+                                        precision=precision,
+                                        default=False,  # Variants are not default
+                                        model_proc_is_full_path=True,  # extra_model_procs contains full paths
+                                    )
+                                )
+
         except Exception as e:
             # Raise a descriptive error if the file cannot be read or parsed
             raise RuntimeError(
@@ -294,21 +375,6 @@ class SupportedModelsManager:
         # If model not found, treat as not supported
         return False
 
-    def find_installed_model_by_name(self, name: str) -> Optional[SupportedModel]:
-        """
-        Finds an installed model by its internal name.
-
-        Args:
-            name (str): The internal name of the model.
-
-        Returns:
-            Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
-        """
-        for model in self._models:
-            if model.name == name and model.exists_on_disk():
-                return model
-        return None
-
     def find_installed_model_by_display_name(
         self, display_name: str
     ) -> Optional[SupportedModel]:
@@ -326,19 +392,45 @@ class SupportedModelsManager:
                 return model
         return None
 
-    def find_installed_model_by_model_path_full(
-        self, model_path_full: str
+    def find_installed_model_by_name_and_proc(
+        self, model_path: str, model_proc_path: Optional[str] = None
     ) -> Optional[SupportedModel]:
         """
-        Finds an installed model by its full model path.
+        Finds an installed model by its full model path and optionally by model_proc_path path.
+
+        If model_proc_path is provided, tries to find a model variant that matches both
+        model filename and model_proc filename extracted from paths. If no exact match is
+        found or model_proc_path is None, returns the first model matching just the model filename.
 
         Args:
-            model_path_full (str): The absolute path to the model file.
+            model_path (str): The path to the model file.
+            model_proc (Optional[str]): The path to the model-proc file, or None.
 
         Returns:
             Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
         """
-        for model in self._models:
-            if model.model_path_full == model_path_full and model.exists_on_disk():
-                return model
-        return None
+        # Extract the model filename from the provided path
+        model_filename = os.path.basename(model_path)
+
+        # Find all models matching the model filename
+        matching_models = [
+            model
+            for model in self._models
+            if os.path.basename(model.model_path) == model_filename
+            and model.exists_on_disk()
+        ]
+
+        if not matching_models:
+            return None
+
+        # If model_proc_path is specified, try to find a variant with matching model_proc filename
+        if model_proc_path is not None:
+            for model in matching_models:
+                if model.model_proc_full and os.path.basename(
+                    model.model_proc_full
+                ) == os.path.basename(model_proc_path):
+                    logger.debug(f"Found matching model: {model.display_name}")
+                    return model
+
+        # Return the first matching model
+        return matching_models[0]
