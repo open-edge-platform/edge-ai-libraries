@@ -121,7 +121,7 @@ class TestModels(unittest.TestCase):
             self.assertEqual(found_by_disp.name, "inst")
 
             # find by model_path and model_proc_path
-            found_by_path = manager.find_installed_model_by_name_and_proc(
+            found_by_path = manager.find_installed_model_by_model_and_proc_path(
                 str(installed), ""
             )
             self.assertIsNotNone(found_by_path)
@@ -239,7 +239,7 @@ class TestModels(unittest.TestCase):
             # model not found should return False
             self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
 
-    def test_find_installed_model_by_name_and_proc_with_extra_model_procs(self):
+    def test_find_installed_model_by_model_and_proc_path_with_extra_model_procs(self):
         """Test matching when extra_model_procs provides full-path model-proc variants."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -276,14 +276,14 @@ class TestModels(unittest.TestCase):
             manager = m.SupportedModelsManager()
 
             # Find by base model_proc
-            found_base = manager.find_installed_model_by_name_and_proc(
+            found_base = manager.find_installed_model_by_model_and_proc_path(
                 str(model_file), str(base_proc)
             )
             self.assertIsNotNone(found_base)
             self.assertIn("model-proc: base", found_base.display_name)
 
             # Find by extra model_proc
-            found_extra = manager.find_installed_model_by_name_and_proc(
+            found_extra = manager.find_installed_model_by_model_and_proc_path(
                 str(model_file), str(extra_proc)
             )
             self.assertIsNotNone(found_extra)

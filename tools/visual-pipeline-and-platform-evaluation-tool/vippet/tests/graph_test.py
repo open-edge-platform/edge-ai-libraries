@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 from graph import Graph, Node, Edge
 from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
+from typing import Optional
+
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
@@ -17,7 +19,9 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_installed_model_by_name_and_proc(model_path: str, model_proc_path: str):
+def _mock_find_installed_model_by_model_and_proc_path(
+    model_path: str, model_proc_path: Optional[str] = None
+):
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -64,8 +68,8 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager.find_installed_model_by_name_and_proc.side_effect = (
-    _mock_find_installed_model_by_name_and_proc
+mock_models_manager.find_installed_model_by_model_and_proc_path.side_effect = (
+    _mock_find_installed_model_by_model_and_proc_path
 )
 mock_models_manager.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name

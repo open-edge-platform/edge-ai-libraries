@@ -387,7 +387,7 @@ class SupportedModelsManager:
                 return model
         return None
 
-    def find_installed_model_by_name_and_proc(
+    def find_installed_model_by_model_and_proc_path(
         self, model_path: str, model_proc_path: Optional[str] = None
     ) -> Optional[SupportedModel]:
         """
