@@ -1319,7 +1319,7 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
     This is used when converting a stored graph back into a runnable pipeline
     description. It also injects 'model-proc' immediately after 'model' when
-    the model has an associated model-proc file.
+    available so that the resulting pipeline is executable.
 
     Args:
         nodes: List of nodes to process (modified in place)

@@ -170,7 +170,7 @@ class SupportedModelsManager:
                         has_extra_procs and model_proc and model_proc.strip()
                     )
 
-                    # Compute name and display_name based on whether this is a variant
+                    # Set name and display_name based on whether this is a variant
                     if should_modify_for_variant:
                         proc_filename = os.path.splitext(os.path.basename(model_proc))[
                             0
@@ -183,7 +183,7 @@ class SupportedModelsManager:
                         model_name = name
                         model_display_name = display_name
 
-                    # Add the original model
+                    # Add the base model
                     self._models.append(
                         SupportedModel(
                             name=model_name,
@@ -391,11 +391,11 @@ class SupportedModelsManager:
         self, model_path: str, model_proc_path: Optional[str] = None
     ) -> Optional[SupportedModel]:
         """
-        Finds an installed model by its model path and optionally by model_proc_path path.
+        Finds an installed model by its model path and, if provided, by its model_proc_path.
 
-        If model_proc_path is provided, tries to find a model variant that matches both
-        model filename and model_proc filename extracted from paths. If no exact match is
-        found or model_proc_path is None, returns the first model matching just the model filename.
+        If model_proc_path is given and not empty, returns only a model variant that matches
+        both the model filename and the model-proc filename. If no such variant exists, returns None.
+        If model_proc_path is None or empty, returns the first model matching just the model filename.
 
         Args:
             model_path (str): The path to the model file.
