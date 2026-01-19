@@ -11,28 +11,32 @@ type GVATrackNodeProps = {
 };
 
 const GVATrackNode = ({ data }: GVATrackNodeProps) => (
-  <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-yellow-400 min-w-[200px]">
+  <div className="px-4 py-2 shadow-md bg-background border-2 border-yellow-400 min-w-[220px]">
     <div className="flex flex-col">
       {/* Node Header */}
       <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-yellow-700">GVATrack</div>
-        <div className="text-xs text-gray-500 px-2 py-1 bg-yellow-100 rounded">
+        <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+          GVATrack
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-yellow-100 dark:bg-yellow-900 rounded">
           Tracking
         </div>
       </div>
 
       {/* Tracking type */}
       {data["tracking-type"] && (
-        <div className="text-xs text-gray-600 mb-2">
+        <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
           <span className="font-medium">Tracking type:</span>
-          <div className="mt-1 p-2 bg-gray-50 rounded text-xs font-mono break-all">
+          <div className="mt-1 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono break-all">
             {data["tracking-type"]}
           </div>
         </div>
       )}
 
       {/* Description */}
-      <div className="text-xs text-gray-600">GStreamer VA tracking</div>
+      <div className="text-xs text-gray-600 dark:text-gray-300">
+        GStreamer VA tracking
+      </div>
     </div>
 
     {/* Input Handle */}
