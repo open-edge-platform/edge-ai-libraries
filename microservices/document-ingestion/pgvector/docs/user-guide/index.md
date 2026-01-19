@@ -30,7 +30,7 @@ vectorDB and minIO is used as the data store.
 ## Example Use Case
 
 **Use Case 1**: Refer to the
-[ChatQnA](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
+[ChatQnA](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html)
 sample application where this microservice is used.
 
 ### High-Level System View Diagram
@@ -48,8 +48,8 @@ support other vectorDBs.
 
 ## Supporting Resources
 
-- [System Requirements](./system-requirements)
-- [Get Started Guide](./get-started)
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
 - [How to customize](./how-to-customize.md)
 - [API reference](./dataprep-api.yml)
 
@@ -57,7 +57,6 @@ support other vectorDBs.
 :::{toctree}
 :hidden:
 
-system-requirements
 get-started
 how-to-customize
 

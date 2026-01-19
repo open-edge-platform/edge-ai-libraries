@@ -30,10 +30,10 @@ is used for interacting with the microservice.
 ## Prerequisites
 
 Before you begin, ensure the following prerequisites are addressed. Note that these
-pre-requisites are superceded by the prerequisites listed in the respective application using
+prerequisites are superceded by the prerequisites listed in the respective application using
 this microservice.
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 - **Docker compose installed**: See [Install docker compose](https://docs.docker.com/compose/install/).
 - **Proxy Configuration (if applicable)**: If the setup is behind a proxy, ensure `http_proxy`,
@@ -72,12 +72,13 @@ export USER_AGENT_HEADER=<your_user_agent_string>
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 ```
-Refer to [manually customize](./how-to-customize.md) for customization options for the microservice.
+Refer to instructions on [manual customization](./how-to-customize.md) for the customization
+options for the microservice.
 
 ## Proxy Configuration
 
-If your environment requires proxy settings, configure the following environment variables before
-starting the services:
+If your environment requires proxy settings, configure the following environment variables
+before starting the services:
 
 ```bash
 # Set proxy environment variables
@@ -291,4 +292,11 @@ To customize the microservice, refer to [customization documentation](./how-to-c
 
 ## Supporting Resources
 
-- [API Reference](dataprep-api.yml)
+- [API Reference](./dataprep-api.yml)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+get-started/system-requirements
+:::
+hide_directive-->
