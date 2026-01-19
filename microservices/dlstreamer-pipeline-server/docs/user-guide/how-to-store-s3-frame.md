@@ -10,7 +10,7 @@ If you are launching the service along with DL Streamer Pipeline Server, you sho
 
 > **Note** In a production deployment, get the server details from your system admin and update the environment variables or compose file accordingly.
 
-For the sake of demonstration, we will be using SeaweedFS as the S3 storage for storing frames and will be launched together with DL Streamer Pipeline Server. To get started, follow the steps below.
+For demonstration, we will use SeaweedFS as the S3 storage for frames, launching it together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
 1. Modify environment variables in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.
     - Provide the S3 storage server details and credentials.
