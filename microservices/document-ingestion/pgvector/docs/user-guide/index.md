@@ -51,7 +51,7 @@ support other vectorDBs.
 - [Get Started Guide](./get-started.md)
 - [System Requirements](./get-started/system-requirements.md)
 - [How to customize](./how-to-customize.md)
-- [API reference](./dataprep-api.yml)
+- [API reference](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}
@@ -59,6 +59,7 @@ support other vectorDBs.
 
 get-started
 how-to-customize
+api-reference.md
 
 :::
 hide_directive-->

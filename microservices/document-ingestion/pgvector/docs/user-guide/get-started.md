@@ -292,7 +292,7 @@ To customize the microservice, refer to [customization documentation](./how-to-c
 
 ## Supporting Resources
 
-- [API Reference](./dataprep-api.yml)
+- [API Reference](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}

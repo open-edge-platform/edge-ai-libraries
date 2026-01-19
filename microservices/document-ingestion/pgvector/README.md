@@ -86,6 +86,6 @@ Guidance for Authors:
 ## Supporting Resources
 
 - [**Get Started Guide**](./docs/user-guide/get-started.md)
-- [**API Reference**](./docs/user-guide/dataprep-api.yml)
+- [**API Reference**](./docs/user-guide/api-reference.md)
 - [**System Requirements**](./docs/user-guide/get-started/system-requirements.md)
 <!-- - **Developer Forum** -->
