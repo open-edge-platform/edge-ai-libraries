@@ -143,21 +143,22 @@ fi
 download_ovms_model() {
     local MODEL_NAME=$1
     local MODEL_TYPE=$2   # llm | embeddings | rerank
+    local HUB=${3:-openvino}          # set default to openvino.
 
     echo "Downloading $MODEL_TYPE model '$MODEL_NAME' via model-download..."
 
-    mkdir -p temp_models
+    mkdir -p downloaded_models
 
     # Submit download request
     local POST_RESPONSE
     POST_RESPONSE=$(
-        curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=temp_models" \
+        curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=downloaded_models" \
             -H "Content-Type: application/json" \
             -d "{
                 \"models\": [
                     {
                         \"name\": \"${MODEL_NAME}\",
-                        \"hub\": \"openvino\",
+                        \"hub\": \"${HUB}\",
                         \"type\": \"${MODEL_TYPE}\",
                         \"is_ovms\": true,
                         \"config\": {
@@ -290,7 +291,8 @@ setup_inference() {
 
                         fi
                         
-                        download_ovms_model "$LLM_MODEL" "llm"
+                        # download_ovms_model MODEL_NAME MODEL_TYPE HUB via model-download service
+                        download_ovms_model "$LLM_MODEL" "llm" "openvino"
                         ;;
                 tgi)
                         echo "Error: TGI support is deprecated and no longer available."
@@ -321,7 +323,8 @@ setup_embedding() {
 
                         fi
                         
-                        download_ovms_model "$EMBEDDING_MODEL_NAME" "embeddings"
+                        # download_ovms_model MODEL_NAME MODEL_TYPE HUB via model-download service
+                        download_ovms_model "$EMBEDDING_MODEL_NAME" "embeddings" "openvino"
                         ;;
                 *)
                         echo "Invalid Embedding Service option: $service"
