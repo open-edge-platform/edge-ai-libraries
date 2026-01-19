@@ -30,7 +30,7 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
         **Note** the default compose file from DL Streamer Pipeline Server provides an MQTT broker already. If you already have a broker running, only the host and port details are to be added to the environment variables.
 
 2. Add SeaweedFS services to the docker compose yml.
-    - Modify the docker-compose.yml file with the following changes. Add `seaweedfs-master`, `seaweedfs-volume`, `seaweedfs-filer` and `seaweedfs-s3` services under `services` section. Modify the values as per your requirements. The credentials are fetched from `.env` file updated in the previous step.
+    - Update the docker-compose.yml file by adding `seaweedfs-master`, `seaweedfs-volume`, `seaweedfs-filer` and `seaweedfs-s3` under `services` section. Adjust the values to suit your setup. Credentials are loaded from the `.env` file updated in the previous step.
 
         ```yaml
         services:
