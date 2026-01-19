@@ -129,7 +129,6 @@ const Pipelines = () => {
         description: new Date().toISOString(),
       });
 
-      // Extract video path if available
       if (videoOutputEnabled && jobStatus.video_output_paths && id) {
         const paths = jobStatus.video_output_paths[id];
         if (paths && paths.length > 0) {
@@ -141,7 +140,6 @@ const Pipelines = () => {
       }
 
       setPerformanceTestJobId(null);
-      // Keep panel open to show results
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
       toast.error("Pipeline run failed", {
         description: jobStatus.error_message || "Unknown error",
@@ -150,7 +148,6 @@ const Pipelines = () => {
     }
   }, [jobStatus, videoOutputEnabled, id]);
 
-  // Handle validation job status query errors
   useEffect(() => {
     if (validationError && validationJobId) {
       toast.error("Failed to get validation status", {
@@ -163,7 +160,6 @@ const Pipelines = () => {
     }
   }, [validationError, validationJobId]);
 
-  // Handle optimization job status query errors
   useEffect(() => {
     if (optimizationError && optimizationJobId) {
       toast.error("Failed to get optimization status", {
@@ -177,14 +173,12 @@ const Pipelines = () => {
   }, [optimizationError, optimizationJobId]);
 
   useEffect(() => {
-    // Guard: only process if we have an active validation job
     if (!validationJobId) return;
 
     const handleOptimizeAfterValidation = async () => {
       if (!id) return;
 
       try {
-        // Step 2: Update pipeline with snapshot graph
         await updatePipeline({
           pipelineId: id,
           pipelineUpdate: {
@@ -203,7 +197,6 @@ const Pipelines = () => {
           },
         }).unwrap();
 
-        // Step 3: Start optimization
         const optimizationResponse = await optimizePipeline({
           pipelineId: id,
           pipelineRequestOptimize: {
@@ -235,10 +228,8 @@ const Pipelines = () => {
 
     if (validationStatus?.state === "COMPLETED") {
       if (validationStatus.is_valid) {
-        // Validation passed, proceed to optimization
         handleOptimizeAfterValidation();
       } else {
-        // Validation failed
         toast.error("Pipeline validation failed", {
           description:
             validationStatus.error_message?.join(", ") || "Unknown error",
@@ -279,7 +270,6 @@ const Pipelines = () => {
       if (!id) return;
 
       try {
-        // Dismiss the toast first
         toast.dismiss();
 
         // Step 1: Save optimized pipeline to backend
@@ -296,7 +286,7 @@ const Pipelines = () => {
             id: node.id,
             type: node.type,
             data: node.data,
-            position: { x: 250 * index, y: 100 }, // Basic horizontal layout
+            position: { x: 250 * index, y: 100 },
           }),
         );
 
@@ -312,7 +302,6 @@ const Pipelines = () => {
         setShouldFitView(true);
         setEditorKey((prev) => prev + 1); // Force re-render with layout
 
-        // Clear optimization state
         setPendingOptimizationNodes([]);
         setPendingOptimizationEdges([]);
 
@@ -332,7 +321,6 @@ const Pipelines = () => {
       const optimizedGraph = optimizationStatus.optimized_pipeline_graph;
 
       if (optimizedGraph) {
-        // Show toast with Apply/Cancel buttons
         toast.success("Pipeline optimization completed", {
           duration: Infinity,
           description: "Would you like to apply the optimized pipeline?",
@@ -529,31 +517,9 @@ const Pipelines = () => {
       }
     };
 
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const isResizeHandle =
-        target.closest("[data-resize-handle]") ||
-        target.closest('[role="separator"]');
-      if (isResizeHandle) {
-        isResizingRef.current = true;
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isResizingRef.current) {
-        requestAnimationFrame(() => {
-          isResizingRef.current = false;
-        });
-      }
-    };
-
-    document.addEventListener("mousedown", handleMouseDown);
-    document.addEventListener("mouseup", handleMouseUp);
     document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
-      document.removeEventListener("mousedown", handleMouseDown);
-      document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
@@ -563,12 +529,10 @@ const Pipelines = () => {
 
     setIsOptimizing(true);
 
-    // Capture snapshot of current graph for optimization
     setPendingOptimizationNodes(currentNodes);
     setPendingOptimizationEdges(currentEdges);
 
     try {
-      // Step 1: Validate pipeline
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
           id: node.id,

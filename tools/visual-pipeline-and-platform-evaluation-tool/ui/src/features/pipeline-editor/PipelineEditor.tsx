@@ -190,5 +190,6 @@ const PipelineEditor = forwardRef<PipelineEditorHandle, PipelineEditorProps>(
 );
 
 PipelineEditor.displayName = "PipelineEditor";
+PipelineEditorContent.displayName = "PipelineEditorContent";
 
 export default PipelineEditor;
