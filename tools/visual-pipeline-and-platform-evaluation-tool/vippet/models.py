@@ -392,11 +392,11 @@ class SupportedModelsManager:
                 return model
         return None
 
-    def find_installed_model_by_name_and_proc(
+    def find_model_by_model_and_proc_path(
         self, model_path: str, model_proc_path: Optional[str] = None
     ) -> Optional[SupportedModel]:
         """
-        Finds an installed model by its full model path and optionally by model_proc_path path.
+        Finds an installed model by its model path and optionally by model_proc_path path.
 
         If model_proc_path is provided, tries to find a model variant that matches both
         model filename and model_proc filename extracted from paths. If no exact match is
@@ -404,7 +404,7 @@ class SupportedModelsManager:
 
         Args:
             model_path (str): The path to the model file.
-            model_proc (Optional[str]): The path to the model-proc file, or None.
+            model_proc_path (Optional[str]): The path to the model-proc file, or None.
 
         Returns:
             Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.

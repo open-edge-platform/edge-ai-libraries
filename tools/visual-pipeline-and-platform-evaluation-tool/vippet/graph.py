@@ -1294,7 +1294,7 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
-        model = models_manager.find_installed_model_by_name_and_proc(
+        model = models_manager.find_model_by_model_and_proc_path(
             model_path, model_proc_path
         )
 

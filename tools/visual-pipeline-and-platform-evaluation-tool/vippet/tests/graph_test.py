@@ -17,7 +17,7 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_model_by_name(name: str):
+def _mock_find_model_by_model_and_proc_path(model_path: str, model_proc_path: str):
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -36,9 +36,11 @@ def _mock_find_model_by_name(name: str):
         "${YOLO11n_POST_MODEL}",
     ]
 
-    if name in mapped_names:
+    base_name = os.path.splitext(os.path.basename(model_path))[0]
+
+    if base_name in mapped_names:
         mock_model = MagicMock()
-        mock_model.display_name = name
+        mock_model.display_name = base_name
         return mock_model
     else:
         return None
@@ -62,7 +64,9 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager.find_installed_model_by_name_and_proc.side_effect = _mock_find_model_by_name
+mock_models_manager.find_model_by_model_and_proc_path.side_effect = (
+    _mock_find_model_by_model_and_proc_path
+)
 mock_models_manager.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
 )
