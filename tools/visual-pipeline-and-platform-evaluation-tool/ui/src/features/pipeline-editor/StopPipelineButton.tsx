@@ -5,7 +5,7 @@ type StopPipelineButtonProps = {
   onStop: () => void;
 };
 
-const StopPerformanceTestButton = ({
+const StopPipelineButton = ({
   isStopping,
   onStop,
 }: StopPipelineButtonProps) => (
@@ -20,4 +20,4 @@ const StopPerformanceTestButton = ({
   </button>
 );
 
-export default StopPerformanceTestButton;
+export default StopPipelineButton;

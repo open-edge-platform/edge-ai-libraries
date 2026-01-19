@@ -1948,6 +1948,726 @@ unsorted_nodes_edges = [
 ]
 
 
+@dataclass
+class GraphTestCase:
+    pipeline_description: str
+    original_pipeline_graph: Graph
+    original_pipeline_graph_simple: Graph
+    modified_pipeline_graph_simple: Graph
+    modified_pipeline_graph: Graph
+
+
+# Positive test cases for apply_simple_view_changes
+# These test cases verify that property modifications are correctly applied
+apply_simple_view_changes_positive_test_cases = [
+    # Test case: Modify single node property
+    GraphTestCase(
+        pipeline_description="test_modify_single_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed GPU -> CPU
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed GPU -> CPU
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: Modify multiple node properties
+    GraphTestCase(
+        pipeline_description="test_modify_multiple_properties",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "resnet", "device": "GPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "resnet", "device": "GPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "CPU", "threshold": "0.7"},
+                ),  # Changed device and threshold
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "mobilenet", "device": "CPU"},
+                ),  # Changed model and device
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "CPU", "threshold": "0.7"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "mobilenet", "device": "CPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: No changes (identity test)
+    GraphTestCase(
+        pipeline_description="test_no_changes",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+    # Test case: Add new property to existing node
+    GraphTestCase(
+        pipeline_description="test_add_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Added device property
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Added device property
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: Remove property from existing node
+    GraphTestCase(
+        pipeline_description="test_remove_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Removed threshold property
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Removed threshold property
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+]
+
+
+# Negative test cases for apply_simple_view_changes
+# These test cases verify that unsupported operations raise appropriate errors
+@dataclass
+class NegativeGraphTestCase:
+    test_name: str
+    original_pipeline_graph: Graph
+    original_pipeline_graph_simple: Graph
+    modified_pipeline_graph_simple: Graph
+    expected_error_message: str
+
+
+apply_simple_view_changes_negative_test_cases = [
+    # Test case: Add new edge
+    NegativeGraphTestCase(
+        test_name="test_add_edge",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+                Edge(id="2", source="0", target="3"),  # New edge added
+            ],
+        ),
+        expected_error_message="Edge additions are not supported in simple view",
+    ),
+    # Test case: Remove edge
+    NegativeGraphTestCase(
+        test_name="test_remove_edge",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # Edge from 1 to 2 removed
+            ],
+        ),
+        expected_error_message="Edge removals are not supported in simple view",
+    ),
+    # Test case: Modify edge source
+    NegativeGraphTestCase(
+        test_name="test_modify_edge_source",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="0", target="2"),  # Changed source from 1 to 0
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        expected_error_message="Edge modifications are not supported in simple view",
+    ),
+    # Test case: Modify edge target
+    NegativeGraphTestCase(
+        test_name="test_modify_edge_target",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="3"),  # Changed target from 2 to 3
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        expected_error_message="Edge modifications are not supported in simple view",
+    ),
+    # Test case: Add new node
+    NegativeGraphTestCase(
+        test_name="test_add_node",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+                Node(id="3", type="gvatrack", data={}),  # New node added
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        expected_error_message="Node additions are not supported in simple view",
+    ),
+    # Test case: Remove node
+    NegativeGraphTestCase(
+        test_name="test_remove_node",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                # Node id="2" removed
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="3"),
+            ],
+        ),
+        expected_error_message="Node removals are not supported in simple view",
+    ),
+    # Test case: Change node type
+    NegativeGraphTestCase(
+        test_name="test_change_node_type",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvaclassify", data={"model": "yolo"}
+                ),  # Changed type from gvadetect to gvaclassify
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        expected_error_message="Node type changes are not supported in simple view",
+    ),
+    # Test case: Multiple edges added
+    NegativeGraphTestCase(
+        test_name="test_multiple_edges_added",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="0", target="2"),  # Added edge
+                Edge(id="4", source="1", target="3"),  # Added edge
+            ],
+        ),
+        expected_error_message="Edge additions are not supported in simple view",
+    ),
+    # Test case: Multiple nodes removed
+    NegativeGraphTestCase(
+        test_name="test_multiple_nodes_removed",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                # Nodes 2, 3 removed
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="4"),
+            ],
+        ),
+        expected_error_message="Node removals are not supported in simple view",
+    ),
+]
+
+
 class TestToFromDict(unittest.TestCase):
     def test_to_from_dict(self):
         self.maxDiff = None
@@ -2376,6 +3096,173 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+
+class TestApplySimpleViewChanges(unittest.TestCase):
+    """
+    Test the apply_simple_view_changes method which merges property changes
+    from the simple view back into the advanced view.
+    """
+
+    def test_positive_cases(self):
+        """
+        Test successful application of property changes from simple view to advanced view.
+
+        This test verifies that:
+        - Property modifications in simple view are correctly applied to advanced view
+        - Hidden nodes in advanced view remain unchanged
+        - Node IDs and structure are preserved
+        - Multiple property changes work correctly
+        - Adding and removing properties works
+        """
+        self.maxDiff = None
+
+        for tc in apply_simple_view_changes_positive_test_cases:
+            with self.subTest(test=tc.pipeline_description):
+                result = Graph.apply_simple_view_changes(
+                    modified_simple=tc.modified_pipeline_graph_simple,
+                    original_simple=tc.original_pipeline_graph_simple,
+                    original_advanced=tc.original_pipeline_graph,
+                )
+
+                # Verify that the result matches the expected graph
+                self.assertEqual(
+                    len(result.nodes), len(tc.modified_pipeline_graph.nodes)
+                )
+
+                # Check each node
+                for i, (actual_node, expected_node) in enumerate(
+                    zip(result.nodes, tc.modified_pipeline_graph.nodes)
+                ):
+                    self.assertEqual(
+                        actual_node.id,
+                        expected_node.id,
+                        f"Node {i} ID mismatch: expected {expected_node.id}, got {actual_node.id}",
+                    )
+                    self.assertEqual(
+                        actual_node.type,
+                        expected_node.type,
+                        f"Node {i} type mismatch: expected {expected_node.type}, got {actual_node.type}",
+                    )
+                    self.assertDictEqual(
+                        actual_node.data,
+                        expected_node.data,
+                        f"Node {i} data mismatch: expected {expected_node.data}, got {actual_node.data}",
+                    )
+
+                # Verify edges remain unchanged
+                self.assertEqual(
+                    len(result.edges), len(tc.modified_pipeline_graph.edges)
+                )
+                for i, (actual_edge, expected_edge) in enumerate(
+                    zip(result.edges, tc.modified_pipeline_graph.edges)
+                ):
+                    self.assertEqual(actual_edge.id, expected_edge.id)
+                    self.assertEqual(actual_edge.source, expected_edge.source)
+                    self.assertEqual(actual_edge.target, expected_edge.target)
+
+    def test_negative_cases(self):
+        """
+        Test that unsupported operations raise appropriate ValueError exceptions.
+
+        This test verifies that:
+        - Adding edges raises ValueError with clear message
+        - Removing edges raises ValueError with clear message
+        - Modifying edge source/target raises ValueError with clear message
+        - Adding nodes raises ValueError with clear message
+        - Removing nodes raises ValueError with clear message
+        - Changing node type raises ValueError with clear message
+        - Error messages contain specific details about what changed
+        """
+        self.maxDiff = None
+
+        for tc in apply_simple_view_changes_negative_test_cases:
+            with self.subTest(test=tc.test_name):
+                with self.assertRaises(ValueError) as cm:
+                    Graph.apply_simple_view_changes(
+                        modified_simple=tc.modified_pipeline_graph_simple,
+                        original_simple=tc.original_pipeline_graph_simple,
+                        original_advanced=tc.original_pipeline_graph,
+                    )
+
+                # Verify error message contains expected text
+                self.assertIn(
+                    tc.expected_error_message,
+                    str(cm.exception),
+                    f"Error message should contain '{tc.expected_error_message}', but got: {str(cm.exception)}",
+                )
+
+    def test_does_not_modify_input_graphs(self):
+        """
+        Test that apply_simple_view_changes does not modify the input graphs.
+
+        This ensures that the method creates a deep copy and works on that copy,
+        leaving the original graphs unchanged.
+        """
+        # Create test graphs
+        original_advanced = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        original_simple = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        modified_simple = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        # Store original values for comparison
+        original_advanced_node_2_device = original_advanced.nodes[2].data["device"]
+
+        # Apply changes
+        result = Graph.apply_simple_view_changes(
+            modified_simple=modified_simple,
+            original_simple=original_simple,
+            original_advanced=original_advanced,
+        )
+
+        # Verify original_advanced was not modified
+        self.assertEqual(
+            original_advanced.nodes[2].data["device"],
+            original_advanced_node_2_device,
+            "Original advanced graph should not be modified",
+        )
+
+        # Verify result has the changed value
+        self.assertEqual(
+            result.nodes[2].data["device"],
+            "CPU",
+            "Result graph should have the modified value",
+        )
 
 
 if __name__ == "__main__":

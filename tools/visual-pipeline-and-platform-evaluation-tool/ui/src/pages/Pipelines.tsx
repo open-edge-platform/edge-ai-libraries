@@ -15,12 +15,15 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useState } from "react";
-import PipelineEditor from "@/features/pipeline-editor/PipelineEditor.tsx";
-import FpsDisplay from "@/features/pipeline-editor/FpsDisplay.tsx";
+import { useEffect, useState, useRef } from "react";
+import PipelineEditor, {
+  type PipelineEditorHandle,
+} from "@/features/pipeline-editor/PipelineEditor.tsx";
+import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
+import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
+import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
+import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import { toast } from "sonner";
-import RunPerformanceTestButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
-import StopPerformanceTestButton from "@/features/pipeline-editor/StopPerformanceTestButton.tsx";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
@@ -32,6 +35,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 type UrlParams = {
   id: string;
@@ -66,6 +74,11 @@ const Pipelines = () => {
   const [pendingOptimizationEdges, setPendingOptimizationEdges] = useState<
     ReactFlowEdge[]
   >([]);
+  const [showDetailsPanel, setShowDetailsPanel] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const detailsPanelRef = useRef<HTMLDivElement>(null);
+  const isResizingRef = useRef(false);
+  const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
 
   const { data, isSuccess } = useGetPipelineQuery(
     {
@@ -116,7 +129,6 @@ const Pipelines = () => {
         description: new Date().toISOString(),
       });
 
-      // Extract video path if available
       if (videoOutputEnabled && jobStatus.video_output_paths && id) {
         const paths = jobStatus.video_output_paths[id];
         if (paths && paths.length > 0) {
@@ -136,7 +148,6 @@ const Pipelines = () => {
     }
   }, [jobStatus, videoOutputEnabled, id]);
 
-  // Handle validation job status query errors
   useEffect(() => {
     if (validationError && validationJobId) {
       toast.error("Failed to get validation status", {
@@ -149,7 +160,6 @@ const Pipelines = () => {
     }
   }, [validationError, validationJobId]);
 
-  // Handle optimization job status query errors
   useEffect(() => {
     if (optimizationError && optimizationJobId) {
       toast.error("Failed to get optimization status", {
@@ -163,14 +173,12 @@ const Pipelines = () => {
   }, [optimizationError, optimizationJobId]);
 
   useEffect(() => {
-    // Guard: only process if we have an active validation job
     if (!validationJobId) return;
 
     const handleOptimizeAfterValidation = async () => {
       if (!id) return;
 
       try {
-        // Step 2: Update pipeline with snapshot graph
         await updatePipeline({
           pipelineId: id,
           pipelineUpdate: {
@@ -189,7 +197,6 @@ const Pipelines = () => {
           },
         }).unwrap();
 
-        // Step 3: Start optimization
         const optimizationResponse = await optimizePipeline({
           pipelineId: id,
           pipelineRequestOptimize: {
@@ -221,10 +228,8 @@ const Pipelines = () => {
 
     if (validationStatus?.state === "COMPLETED") {
       if (validationStatus.is_valid) {
-        // Validation passed, proceed to optimization
         handleOptimizeAfterValidation();
       } else {
-        // Validation failed
         toast.error("Pipeline validation failed", {
           description:
             validationStatus.error_message?.join(", ") || "Unknown error",
@@ -265,7 +270,6 @@ const Pipelines = () => {
       if (!id) return;
 
       try {
-        // Dismiss the toast first
         toast.dismiss();
 
         // Step 1: Save optimized pipeline to backend
@@ -282,7 +286,7 @@ const Pipelines = () => {
             id: node.id,
             type: node.type,
             data: node.data,
-            position: { x: 250 * index, y: 100 }, // Basic horizontal layout
+            position: { x: 250 * index, y: 100 },
           }),
         );
 
@@ -298,7 +302,6 @@ const Pipelines = () => {
         setShouldFitView(true);
         setEditorKey((prev) => prev + 1); // Force re-render with layout
 
-        // Clear optimization state
         setPendingOptimizationNodes([]);
         setPendingOptimizationEdges([]);
 
@@ -318,7 +321,6 @@ const Pipelines = () => {
       const optimizedGraph = optimizationStatus.optimized_pipeline_graph;
 
       if (optimizedGraph) {
-        // Show toast with Apply/Cancel buttons
         toast.success("Pipeline optimization completed", {
           duration: Infinity,
           description: "Would you like to apply the optimized pipeline?",
@@ -367,10 +369,36 @@ const Pipelines = () => {
     setCurrentViewport(viewport);
   };
 
+  const handleNodeSelect = (node: ReactFlowNode | null) => {
+    if (performanceTestJobId) {
+      return;
+    }
+
+    setSelectedNode(node);
+    setShowDetailsPanel(!!node);
+
+    if (node) {
+      setCompletedVideoPath(null);
+    }
+  };
+
+  const handleNodeDataUpdate = (
+    nodeId: string,
+    updatedData: Record<string, unknown>,
+  ) => {
+    pipelineEditorRef.current?.updateNodeData(nodeId, updatedData);
+
+    if (selectedNode && selectedNode.id === nodeId) {
+      setSelectedNode({ ...selectedNode, data: updatedData });
+    }
+  };
+
   const handleRunPipeline = async () => {
     if (!id) return;
 
-    setCompletedVideoPath(null); // Clear previous video
+    setCompletedVideoPath(null);
+    setShowDetailsPanel(true);
+    setSelectedNode(null);
 
     try {
       await updatePipeline({
@@ -432,6 +460,8 @@ const Pipelines = () => {
       }).unwrap();
 
       setPerformanceTestJobId(null);
+      setShowDetailsPanel(false);
+      setCompletedVideoPath(null);
 
       toast.success("Pipeline stopped", {
         description: new Date().toISOString(),
@@ -460,17 +490,49 @@ const Pipelines = () => {
     setEditorKey((prev) => prev + 1); // Force PipelineEditor to re-initialize
   };
 
+  useEffect(() => {
+    if (!showDetailsPanel) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isResizingRef.current) return;
+
+      const target = event.target as HTMLElement;
+
+      if (
+        detailsPanelRef.current &&
+        !detailsPanelRef.current.contains(target)
+      ) {
+        const isResizeHandle =
+          target.closest("[data-resize-handle]") ||
+          target.closest("[data-resize-handle-active]") ||
+          target.closest('[role="separator"]') ||
+          target.getAttribute("data-resize-handle") !== null;
+
+        if (!isResizeHandle) {
+          if (!performanceTestJobId && !completedVideoPath) {
+            setShowDetailsPanel(false);
+            setSelectedNode(null);
+          }
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
+
   const handleOptimizePipeline = async () => {
     if (!id) return;
 
     setIsOptimizing(true);
 
-    // Capture snapshot of current graph for optimization
     setPendingOptimizationNodes(currentNodes);
     setPendingOptimizationEdges(currentEdges);
 
     try {
-      // Step 1: Validate pipeline
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
           id: node.id,
@@ -509,14 +571,16 @@ const Pipelines = () => {
   };
 
   if (isSuccess && data) {
-    return (
+    const editorContent = (
       <div className="w-full h-full relative">
         <PipelineEditor
+          ref={pipelineEditorRef}
           key={editorKey}
           pipelineData={data}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onViewportChange={handleViewportChange}
+          onNodeSelect={handleNodeSelect}
           initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
           initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
           initialViewport={
@@ -525,39 +589,24 @@ const Pipelines = () => {
           shouldFitView={shouldFitView}
         />
 
-        <div className="absolute top-4 right-4 flex flex-col gap-2 items-center">
-          <FpsDisplay />
-          {completedVideoPath && (
-            <div className="bg-white p-2 shadow-lg">
-              <video
-                controls
-                className="w-64 h-auto"
-                src={`/assets${completedVideoPath}`}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
-          )}
-        </div>
-
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
             {performanceTestJobId ? (
-              <StopPerformanceTestButton
+              <StopPipelineButton
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
               />
             ) : (
-              <RunPerformanceTestButton
-                isRunning={isRunning}
+              <RunPipelineButton
                 onRun={handleRunPipeline}
+                isRunning={isRunning}
               />
             )}
 
             <button
               className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
               title="Optimize Pipeline"
-              disabled={isOptimizing || !!performanceTestJobId}
+              disabled={isOptimizing || performanceTestJobId != null}
               onClick={handleOptimizePipeline}
             >
               <Zap className="w-5 h-5" />
@@ -601,6 +650,39 @@ const Pipelines = () => {
           </div>
         </div>
       </div>
+    );
+
+    return (
+      <ResizablePanelGroup orientation="horizontal" className="w-full h-full">
+        <ResizablePanel defaultSize={showDetailsPanel ? 70 : 100} minSize={30}>
+          {editorContent}
+        </ResizablePanel>
+
+        {showDetailsPanel && (
+          <>
+            <ResizableHandle withHandle />
+
+            <ResizablePanel defaultSize={30} minSize={20}>
+              <div
+                ref={detailsPanelRef}
+                className="w-full h-full bg-background overflow-auto relative"
+              >
+                {showDetailsPanel && !selectedNode ? (
+                  <PerformanceTestPanel
+                    isRunning={performanceTestJobId != null}
+                    completedVideoPath={completedVideoPath}
+                  />
+                ) : (
+                  <NodeDataPanel
+                    selectedNode={selectedNode}
+                    onNodeDataUpdate={handleNodeDataUpdate}
+                  />
+                )}
+              </div>
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
     );
   }
 

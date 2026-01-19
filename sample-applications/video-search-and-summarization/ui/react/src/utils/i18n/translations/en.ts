@@ -187,4 +187,13 @@ export const enTranslations = {
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',
+
+  // Video selector translations
+  orSelectExisting: 'Or select from recent uploads',
+  recentUploads: 'Recent Uploads',
+  noRecentVideos: 'No recent videos available',
+  uploadNew: 'Upload New Video',
+  selectFromRecent: 'select from recent uploads',
+  selectedVideo: 'Selected Video',
+  uploadedOn: 'Uploaded on',
 };

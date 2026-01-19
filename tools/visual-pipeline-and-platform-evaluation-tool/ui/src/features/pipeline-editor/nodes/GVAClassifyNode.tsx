@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 import type { DeviceType } from "@/features/pipeline-editor/nodes/shared-types.ts";
 
 type GVAClassifyNodeProps = {
@@ -47,17 +48,17 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-purple-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvaclassify") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-purple-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvaclassify") }}
     />
   </div>
 );

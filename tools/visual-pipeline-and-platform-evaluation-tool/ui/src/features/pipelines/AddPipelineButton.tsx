@@ -165,7 +165,7 @@ const AddPipelineButton = () => {
       const validationResponse = await validatePipeline({
         pipelineValidationInput: {
           type: "GStreamer",
-          pipeline_graph: graphResponse,
+          pipeline_graph: graphResponse.pipeline_graph,
         },
       }).unwrap();
 
