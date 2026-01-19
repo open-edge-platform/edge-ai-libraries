@@ -184,11 +184,9 @@ class KapacitorClassifier():
                 if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
-
             self.kapacitor_proc = subprocess.Popen(
                 ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
             )
-
             # Start a thread to reap the kapacitor process when it exits
             def reap_kapacitor_proc(proc, logger):
                 try:
@@ -231,11 +229,11 @@ class KapacitorClassifier():
     def kapacitor_port_open(self, host_name):
         """Verify Kapacitor's port is ready for accepting connection
         """
-        if self.process_zombie(KAPACITOR_NAME):
-            self.exit_with_failure_message("Kapacitor fail to start. "
-                                           "Please verify the "
-                                           "Time Series Analytics microservice logs for "
-                                           "UDF/kapacitor Errors.")
+        # if self.process_zombie(KAPACITOR_NAME):
+        #     self.exit_with_failure_message("Kapacitor fail to start. "
+        #                                    "Please verify the "
+        #                                    "Time Series Analytics microservice logs for "
+        #                                    "UDF/kapacitor Errors.")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.logger.info("Attempting to connect to Kapacitor on port 9092")
         result = sock.connect_ex((host_name, KAPACITOR_PORT))
@@ -400,115 +398,114 @@ def delete_old_subscription(secure_mode):
 def classifier_startup(config):
     """Main to start kapacitor service
     """
-    mode = os.getenv("SECURE_MODE", "false")
-    secure_mode = mode.lower() == "true"
+    try:
+        mode = os.getenv("SECURE_MODE", "false")
+        secure_mode = mode.lower() == "true"
 
-    # Delete old subscription
-    if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
-        delete_old_subscription(secure_mode)
-    conf_file = KAPACITOR_PROD if secure_mode else KAPACITOR_DEV
-    # Copy the kapacitor conf file to the secure temp directory
-    dest_conf_path = os.path.join(SECURE_TEMP_DIR, conf_file) 
-    shutil.copy("/app/config/" + conf_file, dest_conf_path)
-    # Read the existing configuration
-    with open(dest_conf_path, 'r', encoding='utf-8') as file:
-        config_data = tomlkit.parse(file.read())
-    udf_name = config['udfs']['name']
-    if "models" in config['udfs'].keys():
-        model_name = config['udfs']['models']
-    else:
-        model_name = ""
-    device = "auto"
-    device_config = config['udfs'].get("device", None)
-    if device_config:
-        device = device_config.lower()
-        if device == "cpu":
-            device = "auto"
-        elif device == "gpu" or (device.startswith("gpu:") and device.split(":")[1].isdigit()):
-            device = device
+        # Delete old subscription
+        if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
+            delete_old_subscription(secure_mode)
+        conf_file = KAPACITOR_PROD if secure_mode else KAPACITOR_DEV
+        # Copy the kapacitor conf file to the secure temp directory
+        dest_conf_path = os.path.join(SECURE_TEMP_DIR, conf_file) 
+        shutil.copy("/app/config/" + conf_file, dest_conf_path)
+        # Read the existing configuration
+        with open(dest_conf_path, 'r', encoding='utf-8') as file:
+            config_data = tomlkit.parse(file.read())
+        udf_name = config['udfs']['name']
+        if "models" in config['udfs'].keys():
+            model_name = config['udfs']['models']
         else:
-            raise ValueError(f"Invalid value for 'device' in udfs: {device_config}, must be 'cpu' or 'gpu'")
+            model_name = ""
+        device = "auto"
+        device_config = config['udfs'].get("device", None)
+        if device_config:
+            device = device_config.lower()
+            if device == "cpu":
+                device = "auto"
+            elif device == "gpu" or (device.startswith("gpu:") and device.split(":")[1].isdigit()):
+                device = device
+            else:
+                raise ValueError(f"Invalid value for 'device' in udfs: {device_config}, must be 'cpu' or 'gpu'")
+        if os.getenv("SAMPLE_APP") is not None:
+            dir_name = os.getenv("SAMPLE_APP")
+        else:
+            dir_name = udf_name
 
-    if os.getenv("SAMPLE_APP") is not None:
-        dir_name = os.getenv("SAMPLE_APP")
-    else:
-        dir_name = udf_name
+        udf_section = config_data.get('udf', {}).get('functions', {})
+        udf_section[udf_name] = tomlkit.table()
 
-    udf_section = config_data.get('udf', {}).get('functions', {})
-    udf_section[udf_name] = tomlkit.table()
+        udf_section[udf_name]['prog'] = 'python3'
 
-    udf_section[udf_name]['prog'] = 'python3'
+        udf_section[udf_name]['args'] = ["-u", os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", udf_name + ".py")] 
 
-    udf_section[udf_name]['args'] = ["-u", os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", udf_name + ".py")] 
+        udf_section[udf_name]['timeout'] = "60s"
+        udf_section[udf_name]['env'] = {
+            'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:",
+            'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name),
+            'DEVICE': device
+        }
+        if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
+            config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
+            mqtt_url = config_data["mqtt"][0]["url"]
+            mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST",
+                                        config["alerts"]["mqtt"]["mqtt_broker_host"])
+            mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT",
+                                        str(config["alerts"]["mqtt"]["mqtt_broker_port"]))
+            config_data["mqtt"][0]["url"] = mqtt_url
+        else:
+            config_data["mqtt"][0]["enabled"] = False
 
-    udf_section[udf_name]['timeout'] = "60s"
-    udf_section[udf_name]['env'] = {
-        'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:",
-        'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name),
-        'DEVICE': device
-    }
-    if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
-        config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
-        mqtt_url = config_data["mqtt"][0]["url"]
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST",
-                                    config["alerts"]["mqtt"]["mqtt_broker_host"])
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT",
-                                    str(config["alerts"]["mqtt"]["mqtt_broker_port"]))
-        config_data["mqtt"][0]["url"] = mqtt_url
-    else:
-        config_data["mqtt"][0]["enabled"] = False
+        if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
+            config_data["influxdb"][0]["enabled"] = True
+        # Write the updated configuration back to the file
+        with open(dest_conf_path, 'w', encoding='utf-8') as file:
+            file.write(tomlkit.dumps(config_data, sort_keys=False))
+        # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
+        src_dir = "/app/temperature_classifier"
+        dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier")
+        if os.path.exists(dst_dir):
+            shutil.rmtree(dst_dir)
+        shutil.copytree(src_dir, dst_dir)
 
-    if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
-        config_data["influxdb"][0]["enabled"] = True
-    # Write the updated configuration back to the file
-    with open(dest_conf_path, 'w', encoding='utf-8') as file:
-        file.write(tomlkit.dumps(config_data, sort_keys=False))
-
-    # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
-    src_dir = "/app/temperature_classifier"
-    dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier")
-    if os.path.exists(dst_dir):
-        shutil.rmtree(dst_dir)
-    shutil.copytree(src_dir, dst_dir)
-
-    logger.info("=============== STARTING kapacitor ==============")
-    host_name = "localhost"
-    if not host_name:
-        error_log = ('Kapacitor hostname is not Set in the container. '
-                     'So exiting...')
-        kapacitor_classifier.exit_with_failure_message(error_log)
-
-    msg, status = kapacitor_classifier.check_config(config)
-    if status is FAILURE:
-        kapacitor_classifier.exit_with_failure_message(msg)
+        logger.info("=============== STARTING kapacitor ==============")
+        host_name = "localhost"
+        if not host_name:
+            error_log = ('Kapacitor hostname is not Set in the container. '
+                        'So exiting...')
+            kapacitor_classifier.exit_with_failure_message(error_log)
+        msg, status = kapacitor_classifier.check_config(config)
+        if status is FAILURE:
+            kapacitor_classifier.exit_with_failure_message(msg)
 
 
-    status = kapacitor_classifier.check_udf_package(config, dir_name)
-    if status is False:
-        error_log = ("UDF deployment package is not present in the container. "
-                    "Please check the UDF deployment package and try again. ")
-        logger.error(error_log)
+        status = kapacitor_classifier.check_udf_package(config, dir_name)
+        if status is False:
+            error_log = ("UDF deployment package is not present in the container. "
+                        "Please check the UDF deployment package and try again. ")
+            logger.error(error_log)
+            return FAILURE
+        kapacitor_classifier.install_udf_package(dir_name)
+        kapacitor_started = False
+
+
+        kapacitor_url_hostname = (os.environ["KAPACITOR_URL"].split("://")[1]).split(":")[0]
+        if(kapacitor_classifier.start_kapacitor(kapacitor_url_hostname,
+                                                secure_mode) is True):
+            kapacitor_started = True
+        else:
+            error_log = "Kapacitor is not starting. So Exiting..."
+            kapacitor_classifier.exit_with_failure_message(error_log)
+
+        msg, status = kapacitor_classifier.enable_tasks(config,
+                                                        kapacitor_started,
+                                                        kapacitor_url_hostname,
+                                                        dir_name)
+        if status is FAILURE:
+            kapacitor_classifier.exit_with_failure_message(msg)
+    except Exception as e:
+        logger.exception("Exception in starting kapacitor classifier: %s", e)
         return FAILURE
-    kapacitor_classifier.install_udf_package(dir_name)
-    kapacitor_started = False
-
-
-    kapacitor_url_hostname = (os.environ["KAPACITOR_URL"].split("://")[1]).split(":")[0]
-    if(kapacitor_classifier.start_kapacitor(kapacitor_url_hostname,
-                                            secure_mode) is True):
-        kapacitor_started = True
-    else:
-        error_log = "Kapacitor is not starting. So Exiting..."
-        kapacitor_classifier.exit_with_failure_message(error_log)
-
-
-    msg, status = kapacitor_classifier.enable_tasks(config,
-                                                    kapacitor_started,
-                                                    kapacitor_url_hostname,
-                                                    dir_name)
-    if status is FAILURE:
-        kapacitor_classifier.exit_with_failure_message(msg)
-
 kapacitor_classifier = KapacitorClassifier(logger)
 
 t1 = threading.Thread(target=kapacitor_daemon_logs, args=[logger])

@@ -5,7 +5,7 @@
 #
 
 # Use Python Debian image as the base image
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as builder
 
 # Install git to clone Kapacitor Python UDF agent files
@@ -20,16 +20,26 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSIO
     cd /tmp/kapacitor && \
     git sparse-checkout set udf/agent/py
 
+ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
+
+
+ARG INSTALL_DRIVER_VERSION="24.26.30049"
+ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install Kapacitor and other necessary packages
-ARG KAPACITOR_VERSION
+ARG KAPACITOR_DEBIAN_PACKAGE_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         wget intel-gpu-tools && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}_amd64.deb" && \
+    mkdir -p /etc/init.d && \
+    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_DEBIAN_PACKAGE_VERSION}.deb" || exit 1 && \
     dpkg -i /tmp/kapacitor.deb || true && \
     apt-get install -y -f --no-install-recommends && \
     rm -f /tmp/kapacitor.deb && \
@@ -38,14 +48,10 @@ RUN apt-get update && \
 # Copy kapacitor Python UDF agent files from builder image
 COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
-RUN apt-get update && apt-get install -y libnuma1 ocl-icd-libopencl1 --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
-    mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
-	wget https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb && \
-	wget https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb && \
-	wget https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb && \
-	wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb && \
-	wget https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb && \
-	dpkg -i *.deb && rm -Rf /tmp/gpu_deps
+COPY scripts/install_ubuntu_gpu_drivers.sh /tmp/install_gpu_drivers.sh
+RUN chmod +x /tmp/install_gpu_drivers.sh && \
+/tmp/install_gpu_drivers.sh && \
+apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
