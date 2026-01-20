@@ -23,7 +23,9 @@ const VideoXRawNode = () => (
       </div>
 
       {/* Description */}
-      <div className="text-xs text-gray-600">Raw video capabilities</div>
+      <div className="text-xs text-gray-600 dark:text-gray-300">
+        Raw video capabilities
+      </div>
     </div>
 
     {/* Input Handle */}
