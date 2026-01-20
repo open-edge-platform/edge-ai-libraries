@@ -67,7 +67,7 @@ such as Safety and Security, benefit from additional modality of information pro
 by audio transcription.
 from body worn cameras for example, benefit from additional modality of information that audio
 transcription provides.
-- **Use case 2**: Videos from class rooms are primarily analysed using their audio content.
+- **Use case 2**: Videos from classrooms are primarily analyzed using their audio content.
 Audio Analyzer microservice helps provide transcription which can be used to chapterize a
 class room session, for example.
 - **Use case 3**: Courtroom or Legal Proceedings with legal hearings or depositions are
