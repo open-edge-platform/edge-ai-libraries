@@ -516,7 +516,7 @@ convert_object_detection_models() {
     source ov_model_venv/bin/activate
 
     echo -e  "Installing required packages for model conversion..."
-    pip install -q "ultralytics==8.3.232" "openvino==2025.3.0" --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install -q "ultralytics==8.3.232" "openvino==2025.4.1" --extra-index-url https://download.pytorch.org/whl/cpu
     
     # Run script to convert the model to OpenVINO format and verify conversion
     echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
@@ -541,7 +541,7 @@ export_model_for_ovms() {
 
     # Download the OVMS model export script
     if [ ! -f export_model.py ]; then
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
+        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
     else
         echo -e  "${YELLOW}Model export script already exists, skipping download${NC}"
     fi
@@ -559,7 +559,7 @@ export_model_for_ovms() {
     source ovms_venv/bin/activate
     
     # Install requirements in the virtual environment
-    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
+    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt
     if [ "$GATED_MODEL" = true ]; then
         pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 # Install huggingface-hub for downloading gated models
         echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
