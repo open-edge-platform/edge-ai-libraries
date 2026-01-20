@@ -45,6 +45,7 @@ except ImportError as e:
     class DeviceType(str, Enum):
         CPU = "CPU"
         GPU = "GPU"
+        NPU = "NPU"
     
     class ModelHub(str, Enum):
         HUGGINGFACE = "huggingface"
