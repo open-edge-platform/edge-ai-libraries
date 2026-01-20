@@ -225,8 +225,8 @@ const DemoMode = () => {
         </div>
 
         {/* MAIN GRID */}
-        <div className="relative z-10 grid grid-cols-[340px_360px_1fr] gap-3 h-[calc(100vh-70px)] p-3">
-          {/* LEFT COLUMN - Configuration */}
+        <div className="relative z-10 grid grid-cols-[340px_360px_1fr] grid-rows-[auto_1fr] gap-3 h-[calc(100vh-70px)] p-3">
+          {/* TOP LEFT - Configuration */}
           <div className="rounded-xl bg-neutral-900/60 border border-neutral-700 p-3 space-y-3 overflow-y-auto">
             <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">
               Configuration
@@ -340,96 +340,64 @@ const DemoMode = () => {
             ))}
           </div>
 
-          {/* CENTER COLUMN - Test Controls & Preview */}
-          <div className="flex flex-col gap-3 w-full max-w-full overflow-hidden">
-            <div className="bg-neutral-900/60 rounded-xl p-3 space-y-2.5 border border-neutral-700">
-              <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">
-                Test
-              </p>
+          {/* TOP CENTER - Test Controls */}
+          <div className="bg-neutral-900/60 rounded-xl p-3 space-y-2.5 border border-neutral-700">
+            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">
+              Test
+            </p>
 
-              {/* FPS Floor */}
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
-                  Target FPS
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={fpsFloor}
-                    onChange={(e) => setFpsFloor(Number(e.target.value))}
-                    min={1}
-                    max={120}
-                    className="w-20 px-2 py-1.5 bg-neutral-950/80 border border-neutral-700 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="text-neutral-400 text-xs font-semibold">
-                    FPS
-                  </span>
-                </div>
-              </div>
-
-              {/* Video Output */}
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <Checkbox
-                    checked={videoOutputEnabled}
-                    onCheckedChange={(checked) =>
-                      setVideoOutputEnabled(checked === true)
-                    }
-                    className="w-4 h-4 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
-                  />
-                  <span className="text-[10px] font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-wider">
-                    Save Output
-                  </span>
-                </label>
-                {videoOutputEnabled && <SaveOutputWarning />}
-              </div>
-
-              {/* Run Button */}
-              <button
-                onClick={handleRunTest}
-                disabled={
-                  isRunning || pipelineSelections.length === 0 || !!jobId
-                }
-                className="relative w-full px-4 py-3 bg-classic-blue hover:bg-classic-blue-shade-1 text-white rounded-xl font-bold text-base shadow-lg shadow-classic-blue/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-energy-blue/30 overflow-hidden group"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/20 via-classic-blue-tint-1/20 to-energy-blue/20 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <span className="relative">
-                  {jobId ? "RUNNING" : isRunning ? "STARTING..." : "RUN TEST"}
+            {/* FPS Floor */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                Target FPS
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={fpsFloor}
+                  onChange={(e) => setFpsFloor(Number(e.target.value))}
+                  min={1}
+                  max={120}
+                  className="w-20 px-2 py-1.5 bg-neutral-950/80 border border-neutral-700 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-neutral-400 text-xs font-semibold">
+                  FPS
                 </span>
-              </button>
-            </div>
-
-            {/* Preview */}
-            <div className="bg-neutral-900/60 rounded-xl p-3 flex-1 border border-neutral-700 flex flex-col min-h-0">
-              <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider mb-2">
-                Preview
-              </p>
-              <div className="flex-1 bg-black rounded-lg flex items-center justify-center overflow-hidden">
-                <video
-                  autoPlay
-                  muted
-                  loop
-                  className="w-full h-full object-contain"
-                  src="/assets/preview-stream.mp4"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) {
-                      const msg = document.createElement("span");
-                      msg.className = "text-neutral-600 text-xs";
-                      msg.textContent = "No preview";
-                      parent.appendChild(msg);
-                    }
-                  }}
-                >
-                  Your browser does not support the video tag.
-                </video>
               </div>
             </div>
+
+            {/* Video Output */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <Checkbox
+                  checked={videoOutputEnabled}
+                  onCheckedChange={(checked) =>
+                    setVideoOutputEnabled(checked === true)
+                  }
+                  className="w-4 h-4 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                />
+                <span className="text-[10px] font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-wider">
+                  Save Output
+                </span>
+              </label>
+              {videoOutputEnabled && <SaveOutputWarning />}
+            </div>
+
+            {/* Run Button */}
+            <button
+              onClick={handleRunTest}
+              disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
+              className="relative w-full px-4 py-3 bg-classic-blue hover:bg-classic-blue-shade-1 text-white rounded-xl font-bold text-base shadow-lg shadow-classic-blue/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-energy-blue/30 overflow-hidden group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/20 via-classic-blue-tint-1/20 to-energy-blue/20 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <span className="relative">
+                {jobId ? "RUNNING" : isRunning ? "STARTING..." : "RUN TEST"}
+              </span>
+            </button>
           </div>
 
-          {/* RIGHT COLUMN - Results */}
-          <div className="bg-neutral-900/60 rounded-xl p-3 border border-neutral-700 flex flex-col min-h-0 overflow-y-auto w-full">
+          {/* RIGHT COLUMN - Results (spans both rows) */}
+          <div className="row-span-2 bg-neutral-900/60 rounded-xl p-3 border border-neutral-700 flex flex-col min-h-0 overflow-y-auto w-full">
             <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider mb-2">
               Results
             </p>
@@ -730,6 +698,34 @@ const DemoMode = () => {
                 Waiting for results…
               </div>
             )}
+          </div>
+
+          {/* BOTTOM LEFT - Preview (spans 2 columns) */}
+          <div className="col-span-2 bg-neutral-900/60 rounded-xl p-3 border border-neutral-700 flex flex-col min-h-0">
+            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider mb-2">
+              Preview
+            </p>
+            <div className="flex-1 bg-black rounded-lg flex items-center justify-center overflow-hidden">
+              <video
+                autoPlay
+                muted
+                loop
+                className="w-full h-full object-contain"
+                src="/assets/preview-stream.mp4"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    const msg = document.createElement("span");
+                    msg.className = "text-neutral-600 text-xs";
+                    msg.textContent = "No preview";
+                    parent.appendChild(msg);
+                  }
+                }}
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </div>
         </div>
       </div>
