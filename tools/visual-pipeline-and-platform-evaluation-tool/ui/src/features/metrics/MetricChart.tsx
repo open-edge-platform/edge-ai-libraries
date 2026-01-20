@@ -121,7 +121,7 @@ export const MetricChart = ({
           config={chartConfig}
           className={
             isCompact
-              ? "h-[135px] w-full"
+              ? "h-[80px] w-full"
               : showLegend
                 ? "h-[230px] w-full"
                 : "h-[200px] w-full"

@@ -494,7 +494,7 @@ const DemoMode = () => {
                 {/* Metric Charts - na żywo podczas testu i po zakończeniu */}
                 {((jobId && history.length > 0) ||
                   metricHistorySnapshot.length > 0) && (
-                  <div className="grid grid-cols-2 gap-2 w-full">
+                  <div className="grid grid-cols-2 gap-1.5 w-full">
                     <MetricChart
                       title="FPS"
                       data={(jobId ? history : metricHistorySnapshot).map(
@@ -517,7 +517,7 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["FPS"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -534,7 +534,7 @@ const DemoMode = () => {
                       yAxisDomain={[0, 100]}
                       showLegend={false}
                       labels={["CPU"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -554,7 +554,7 @@ const DemoMode = () => {
                       yAxisDomain={[0, 100]}
                       showLegend={false}
                       labels={["GPU"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -571,7 +571,7 @@ const DemoMode = () => {
                       yAxisDomain={[0, 100]}
                       showLegend={false}
                       labels={["Memory"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -596,7 +596,7 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["Temp"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -621,7 +621,7 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["Freq"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -646,7 +646,7 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["Freq"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
 
                     <MetricChart
@@ -671,7 +671,7 @@ const DemoMode = () => {
                       ]}
                       showLegend={false}
                       labels={["Power"]}
-                      className="!h-[180px] w-full"
+                      className="!h-[135px] w-full"
                     />
                   </div>
                 )}
