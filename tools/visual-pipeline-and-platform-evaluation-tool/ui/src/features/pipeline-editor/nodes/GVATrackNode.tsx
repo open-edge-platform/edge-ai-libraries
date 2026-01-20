@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 import type { GVA_TRACKING_TYPES } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 
 export type GvaTrackingType = (typeof GVA_TRACKING_TYPES)[number];
@@ -37,17 +38,17 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-yellow-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvatrack") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-yellow-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvatrack") }}
     />
   </div>
 );
