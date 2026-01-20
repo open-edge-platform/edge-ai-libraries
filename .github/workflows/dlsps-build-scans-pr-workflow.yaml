@@ -419,9 +419,9 @@ jobs:
           persist-credentials: false
 
       - name: Run pylint
-        uses: ./.github/actions/common/pylint
+        uses: open-edge-platform/dlstreamer/actions/common/pylint@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
         with:
-          path: microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
           name: DLSPS_pylint
           enable-reviewdog: true
@@ -438,23 +438,18 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
           fetch-depth: 0
 
       - name: Run shellcheck
-        uses: ./edge-ai-libraries-repo/.github/actions/common/shellcheck
+        uses: open-edge-platform/dlstreamer/actions/common/shellcheck@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
         with:
-          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: shellcheck-report.txt
           name: DLSPS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-findings: true
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dlsps-yamllint:
     permissions:
@@ -466,19 +461,14 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
 
       - name: Run yamlint
-        uses: ./edge-ai-libraries-repo/.github/actions/common/yamllint
+        uses: open-edge-platform/dlstreamer/actions/common/yamllint@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
         with:
-          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: yamllint-report.txt
           name: DLSPS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-findings: true
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
