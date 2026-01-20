@@ -11,12 +11,8 @@
 </div>
 hide_directive-->
 
-Audio Analyzer microservice is used to generate transcription of audio from video files.
-
-## Overview
-
 The Audio Analyzer microservice provides an automated solution for extracting and transcribing
-audio from video files. Designed for seamless integration into modern AI pipelines this
+audio from video files. Designed for seamless integration into modern AI pipelines, this
 microservice enables converting spoken content within videos into accurate, searchable text.
 By leveraging state-of-the-art speech-to-text models, the service supports a wide range of
 audio formats and languages, making it suitable for diverse applications such as video summary,
@@ -36,7 +32,7 @@ By automating the extraction and transcription of audio from video, the Audio An
 microservice streamlines content analysis, improves accessibility, and unlocks new possibilities
 for leveraging audio data in various video analytics use cases.
 
-### Key Benefits
+## Key Benefits
 
 - **Benefit 1**: Enables multimodal analysis of video data by extracting information from its
 audio track.
@@ -44,7 +40,7 @@ audio track.
 cases that benefit from audio processing.
 - **Benefit 3**: Flexibility to use different ASR models as per use case requirements.
 
-### Features
+## Features
 
 - **Feature 1**: Extract audio from video files.
 - **Feature 2**: Transcribe speech using Whispercpp (CPU).
@@ -55,7 +51,7 @@ cases that benefit from audio processing.
 - **Feature 7**: OpenVINO acceleration support for Intel hardware.
 - **Feature 8**: **MinIO integration** for video source and transcript storage.
 
-### Use Cases
+## Use Cases
 
 Audio Analyzer microservice can be applied to various real-world use cases and scenarios across
 different video analytics use cases cutting across different industry segments. The motivation
@@ -63,10 +59,8 @@ to provide the microservice primarily comes from enhancing the accuracy of the v
 pipeline. Here are some examples:
 
 - **Use case 1**: Egocentric videos recorded with body-worn cameras, common in industries
-such as Safety and Security, benefit from additional modality of information provided 
+such as Safety and Security, benefit from additional modality of information provided
 by audio transcription.
-from body worn cameras for example, benefit from additional modality of information that audio
-transcription provides.
 - **Use case 2**: Videos from classrooms are primarily analyzed using their audio content.
 Audio Analyzer microservice helps provide transcription which can be used to chapterize a
 class room session, for example.
@@ -75,7 +69,7 @@ primarily analysed using the spoken word.
 - **Use case 4**: Video podcasts or interview recordings where the value is in the conversation,
 discussions, or interviews, and visuals are secondary.
 - **Use case 5**: Events such as Panel Discussions and Debates, where multiple speakers discuss
-or debate topics, the audio contains the key arguments and insights.
+or debate topics, where the audio contains key arguments and insights.
 
 ## How It Works
 
@@ -129,8 +123,8 @@ formats):
 :::{toctree}
 :hidden:
 
-how-it-works
 get-started
+how-it-works
 how-to-build-from-source
 api-reference
 troubleshooting

@@ -6,7 +6,7 @@ The Audio Analyzer microservice provides capability to transcribe audio from inp
 
 ### High-Level Architecture Diagram
 
-![Architecture Diagram](./images/Audio_Int_HLA.png)
+![Architecture Diagram](./_assets/Audio_Int_HLA.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ### Inputs
