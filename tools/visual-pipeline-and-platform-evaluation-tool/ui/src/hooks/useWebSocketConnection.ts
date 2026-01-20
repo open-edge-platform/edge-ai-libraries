@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useAppDispatch } from "@/store/hooks";
 import {
   wsConnecting,
@@ -14,11 +14,59 @@ const getWebSocketUrl = () => {
   return `${protocol}//${host}/metrics/ws/clients`;
 };
 
+const WEB_SOCKET_NORMAL_CLOSURE = 1000;
+
+const RECONNECT_CONFIG = {
+  initialDelayMs: 1000,
+  maxDelayMs: 30000,
+  backoffMultiplier: 2,
+};
+
 export const useWebSocketConnection = () => {
   const dispatch = useAppDispatch();
   const webSocketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const reconnectAttemptRef = useRef(0);
+  const isIntentionalCloseRef = useRef(false);
 
-  const connectWebSocket = useCallback(() => {
+  const clearReconnectTimeout = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  };
+
+  const getReconnectDelay = () =>
+    Math.min(
+      RECONNECT_CONFIG.initialDelayMs *
+        Math.pow(
+          RECONNECT_CONFIG.backoffMultiplier,
+          reconnectAttemptRef.current,
+        ),
+      RECONNECT_CONFIG.maxDelayMs,
+    );
+
+  const scheduleReconnect = () => {
+    if (isIntentionalCloseRef.current) {
+      return;
+    }
+
+    clearReconnectTimeout();
+
+    const delay = getReconnectDelay();
+    console.debug(
+      `Scheduling reconnection attempt ${reconnectAttemptRef.current + 1} in ${delay}ms`,
+    );
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectAttemptRef.current += 1;
+      connectWebSocket();
+    }, delay);
+  };
+
+  const connectWebSocket = () => {
     if (
       webSocketRef.current?.readyState === WebSocket.CONNECTING ||
       webSocketRef.current?.readyState === WebSocket.OPEN
@@ -37,7 +85,8 @@ export const useWebSocketConnection = () => {
       webSocketRef.current = ws;
 
       ws.onopen = () => {
-        console.log("WebSocket connected");
+        console.debug("WebSocket connected");
+        reconnectAttemptRef.current = 0;
         dispatch(wsConnected());
       };
 
@@ -51,34 +100,51 @@ export const useWebSocketConnection = () => {
       };
 
       ws.onclose = (event) => {
-        console.log("WebSocket disconnected", event.code, event.reason);
+        console.debug("WebSocket disconnected", event.code, event.reason);
         dispatch(wsDisconnected());
         webSocketRef.current = null;
+
+        if (
+          !isIntentionalCloseRef.current &&
+          event.code !== WEB_SOCKET_NORMAL_CLOSURE
+        ) {
+          scheduleReconnect();
+        }
       };
     } catch (error) {
       dispatch(wsError(`Failed to create WebSocket: ${error}`));
+      scheduleReconnect();
     }
-  }, [dispatch]);
+  };
 
   useEffect(() => {
+    isIntentionalCloseRef.current = false;
     connectWebSocket();
 
     return () => {
+      isIntentionalCloseRef.current = true;
+      clearReconnectTimeout();
       if (webSocketRef.current) {
         webSocketRef.current.close();
         webSocketRef.current = null;
       }
     };
-  }, [connectWebSocket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     disconnect: () => {
+      isIntentionalCloseRef.current = true;
+      clearReconnectTimeout();
       if (webSocketRef.current) {
         webSocketRef.current.close();
         webSocketRef.current = null;
       }
     },
     reconnect: () => {
+      isIntentionalCloseRef.current = false;
+      reconnectAttemptRef.current = 0;
+      clearReconnectTimeout();
       connectWebSocket();
     },
   };

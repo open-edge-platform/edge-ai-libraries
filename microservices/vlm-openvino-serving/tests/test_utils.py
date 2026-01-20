@@ -30,6 +30,7 @@ from pathlib import Path
 import pytest
 from src.utils.common import ErrorMessages, ModelNames
 from src.utils.data_models import MessageContentVideoUrl
+from src.utils import utils as utils_module
 from src.utils.utils import load_images  # Add this import
 from src.utils.utils import (
     convert_model,
@@ -41,6 +42,25 @@ from src.utils.utils import (
     setup_seed,
     validate_video_inputs,
 )
+
+
+def _resolve_cache_key(config_path: Path) -> str:
+    return str(Path(config_path).expanduser().resolve(strict=False))
+
+
+def _clear_model_config_cache(config_path: Path | None = None):
+    cache = utils_module._MODEL_CONFIG_CACHE  # type: ignore[attr-defined]
+    if config_path is None:
+        cache.clear()
+        return
+    cache.pop(_resolve_cache_key(config_path), None)
+
+
+@pytest.fixture(autouse=True)
+def reset_model_config_cache():
+    _clear_model_config_cache()
+    yield
+    _clear_model_config_cache()
 
 
 def test_is_model_ready():
@@ -92,6 +112,7 @@ def test_load_model_config():
     config = load_model_config("mock_model", config_path)
     assert config == {"param": "value"}
 
+    _clear_model_config_cache(config_path)
     config_path.unlink()
     config = load_model_config("mock_model", config_path)
     assert config == {}

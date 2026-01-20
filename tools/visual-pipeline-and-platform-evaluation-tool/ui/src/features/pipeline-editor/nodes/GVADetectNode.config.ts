@@ -11,6 +11,9 @@ export const gvaDetectConfig = {
       type: "select" as const,
       defaultValue: "",
       description: "Path to inference model network file",
+      params: {
+        filter: "detection",
+      },
     },
     {
       key: "device",

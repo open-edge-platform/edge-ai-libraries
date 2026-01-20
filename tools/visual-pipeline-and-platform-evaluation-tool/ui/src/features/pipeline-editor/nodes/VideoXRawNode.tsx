@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VideoXRawNode = () => (
   <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-slate-400 min-w-40">
@@ -26,17 +27,17 @@ const VideoXRawNode = () => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-slate-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("video/x-raw(memory:VAMemory)") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-slate-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("video/x-raw(memory:VAMemory)") }}
     />
   </div>
 );

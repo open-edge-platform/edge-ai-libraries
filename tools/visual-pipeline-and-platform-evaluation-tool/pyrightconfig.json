@@ -9,5 +9,13 @@
     {
       "root": "video_generator"
     }
-  ]
+  ],
+  "exclude": [
+    ".venv",
+    "**/.venv",
+    "**/node_modules",
+    "**/__pycache__",
+    ".git",
+    "shared/scripts"
+  ],
 }

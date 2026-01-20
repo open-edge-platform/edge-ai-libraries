@@ -22,7 +22,7 @@
 - Removed encoded geti prediction from metadata
 
 ### Updates in v2.1.0
-- DLStreamer updated to 2024.2.0.
+- DL Streamer updated to 2024.2.0.
 - Removed deprecated pipeline size checks for client list size.
 - Updated documentation.
 
@@ -47,4 +47,4 @@
 ### Updates in v2.0.0
 - Enhanced ModelRegistryClient and simplified interactions with the Model Registry.
 - Geti SDK upgraded to version 2.2.0.
-- DLStreamer updated to 2024.1.0.
+- DL Streamer updated to 2024.1.0.

@@ -12,12 +12,14 @@ PROFILE options:
   vpp            - Install VPP components
   tfcc           - Install TFCC components
   magic9         - Install Magic9 components
+  vpro           - Install vPro components
 
 Examples:
   $0             # Install all components
   $0 vpp         # Install VPP components only
   $0 tfcc        # Install TFCC components only
-  $0 magic9     # Install Magic9 components only
+  $0 magic9      # Install Magic9 components only
+  $0 vpro        # Install vPro components only
 EOF
   exit 1
 }
@@ -36,6 +38,9 @@ elif [ $# -eq 1 ]; then
       ;;
     magic9)
       PROFILE="magic9"
+      ;;
+    vpro)
+      PROFILE="vpro"
       ;;
     -h|--help|help)
       usage
@@ -698,12 +703,16 @@ declare -i ffmpeg_build_status
 declare -i openvino_native_build_status
 declare -i dlstreamer_build_status
 declare -i discrete_tpm_build_status
-declare -i intel_xpu_manager_build_status
+declare -i intel_xpu_smi_build_status
 declare -i prometheus_build_status
 declare -i grafana_build_status
 declare -i node_exporter_build_status
 declare -i intel_xpum_container_build_status
 declare -i cadvisor_build_status
+declare -i socwatch_build_status
+declare -i emon_build_status
+declare -i lms_build_status
+declare -i rpc_build_status
 declare -i enable_restore_openssl_conf_build_status
 declare -i reboot_continue_build_status
 
@@ -718,7 +727,7 @@ if [ -e "$STATUS_DIR_FILE_PATH" ]; then
 else
   touch "$STATUS_DIR_FILE_PATH"
   {
-
+  
 echo "proxy_build_status=0"
 echo "disable_popup_build_status=0"
 echo "build_dependency_build_status=0"
@@ -736,12 +745,16 @@ echo "ffmpeg_build_status=0"
 echo "openvino_native_build_status=0"
 echo "dlstreamer_build_status=0"
 echo "discrete_tpm_build_status=0"
-echo "intel_xpu_manager_build_status=0"
+echo "intel_xpu_smi_build_status=0"
 echo "prometheus_build_status=0"
 echo "grafana_build_status=0"
 echo "node_exporter_build_status=0"
 echo "intel_xpum_container_build_status=0"
 echo "cadvisor_build_status=0"
+echo "socwatch_build_status=0"
+echo "emon_build_status=0"
+echo "lms_build_status=0"
+echo "rpc_build_status=0"
 echo "enable_restore_openssl_conf_build_status=0"
 echo "reboot_continue_build_status=0"
   }>> "$STATUS_DIR_FILE_PATH"
@@ -1438,7 +1451,7 @@ cd ..
 delete_folder_if_exists "$LIBVA_DIR"
 
 # Build and install oneVPL GPU runtime
-ONEVPL_VERSION="intel-onevpl-25.4.2"
+ONEVPL_VERSION="intel-onevpl-25.4.5"
 ONEVPL_REPO="https://github.com/intel/vpl-gpu-rt"
 ONEVPL_DIR="vpl-gpu-rt"
 
@@ -1993,7 +2006,7 @@ echo "*************************"
 echo "   Installing OpenVINO   "
 echo "*************************"
 cd "$STATUS_DIR"
-OPENVINO_VERSION="2025.3.0"
+OPENVINO_VERSION="2025.4.0"
 echo "*** installing openvino_$OPENVINO_VERSION ***"
 
 # Create and activate a Python virtual environment
@@ -2006,7 +2019,7 @@ python3 -m pip install --upgrade pip
 
 # Download and extract OpenVINO package
 echo "$SUDO_PASSWORD" | sudo -S apt-get install -y curl
-curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.3/linux/openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64.tgz --output openvino_$OPENVINO_VERSION.tgz
+curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.4/linux/openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64.tgz --output openvino_$OPENVINO_VERSION.tgz
 tar -xf openvino_$OPENVINO_VERSION.tgz
 rm -f openvino_$OPENVINO_VERSION.tgz
 
@@ -2017,12 +2030,12 @@ fi
 
 # Move extracted files to target directory and set up symlinks
 echo "$SUDO_PASSWORD" | sudo -S mkdir -p /opt/intel/openvino_$OPENVINO_VERSION
-echo "$SUDO_PASSWORD" | sudo -S mv -f openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64/* /opt/intel/openvino_$OPENVINO_VERSION
+echo "$SUDO_PASSWORD" | sudo -S mv -f openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64/* /opt/intel/openvino_$OPENVINO_VERSION
 echo "$SUDO_PASSWORD" | sudo -S ln -sf /opt/intel/openvino_$OPENVINO_VERSION /opt/intel/openvino_2025
 echo "$SUDO_PASSWORD" | sudo -S ln -sf /opt/intel/openvino_$OPENVINO_VERSION /opt/intel/openvino
 
 # Patch install script for non-interactive install
-echo "$SUDO_PASSWORD" | sudo -S sed -i 's/apt-get install/apt-get -y install/g' /opt/intel/openvino_2025.3.0/install_dependencies/install_openvino_dependencies.sh
+echo "$SUDO_PASSWORD" | sudo -S sed -i 's/apt-get install/apt-get -y install/g' /opt/intel/openvino_2025.4.0/install_dependencies/install_openvino_dependencies.sh
 
 # Install OpenVINO dependencies
 echo "$SUDO_PASSWORD" | sudo -S /opt/intel/openvino/install_dependencies/install_openvino_dependencies.sh
@@ -2034,12 +2047,12 @@ python3 -m pip install -r /opt/intel/openvino/python/requirements.txt
 # Temporarily disable strict error checking for the setupvars.sh script
 disable_strict_mode
 # shellcheck source=/dev/null
-source /opt/intel/openvino_2025.3.0/setupvars.sh
+source /opt/intel/openvino_2025.4.0/setupvars.sh
 # Re-enable strict error checking
 enable_strict_mode
 
 # Clean up extracted directory
-rm -rf openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64/
+rm -rf openvino_toolkit_ubuntu24_2025.4.0.20398.8fdad55727d_x86_64/
 
 sed -i 's/openvino_native_build_status=0/openvino_native_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
@@ -2167,7 +2180,7 @@ fi
 Observability_Stack_Baremetal_OS () {
 
 echo "Installing Observability_Stack_Baremetal_OS"
-if [ "$intel_xpu_manager_build_status" -ne 1 ]; then
+if [ "$intel_xpu_smi_build_status" -ne 1 ]; then
 SECONDS=0
 echo "*************************"
 echo "   Installing XPU SMI    "
@@ -2203,10 +2216,10 @@ else
   manage_igc_packages "install" "xpu"
 
   # Download and install XPU SMI
-  xpu_smi_url="https://github.com/intel/xpumanager/releases/download/v1.3.3/xpu-smi_1.3.3_20250926.101214.8a6b6526.u24.04_amd64.deb"
+  xpu_smi_url="https://github.com/intel/xpumanager/releases/download/v1.3.4/xpu-smi_1.3.4_20251105.132841.7410e65e.u24.04_amd64.deb"
   echo "Downloading and installing XPU SMI..."
 
-  if wget_from_github "$xpu_smi_url" "xpu-smi_1.3.3_20250926.101214.8a6b6526.u24.04_amd64.deb"; then
+  if wget_from_github "$xpu_smi_url" "xpu-smi_1.3.4_20251105.132841.7410e65e.u24.04_amd64.deb"; then
     echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb || {
       echo "$SUDO_PASSWORD" | sudo -S apt-get --fix-broken install -y
       echo "$SUDO_PASSWORD" | sudo -S dpkg -i ./*.deb
@@ -2229,10 +2242,10 @@ else
   fi
 fi
 
-sed -i 's/intel_xpu_manager_build_status=0/intel_xpu_manager_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+sed -i 's/intel_xpu_smi_build_status=0/intel_xpu_smi_build_status=1/g' "$STATUS_DIR_FILE_PATH"
 
 elapsedseconds=$SECONDS
-echo "intel_xpu_manager build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+echo "intel_xpu_smi build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
 
 fi
 if [ "$prometheus_build_status" -ne 1 ]; then
@@ -2979,6 +2992,451 @@ fi
 
 }
 
+Install_Magic9_Components () {
+
+echo "Installing Install_Magic9_Components"
+if [ "$socwatch_build_status" -ne 1 ]; then
+SECONDS=0
+cd "$STATUS_DIR"
+if [ "$PROFILE" != "magic9" ]; then
+  echo -e "\nSkipping socwatch installation as this is required only for 'magic9'....."
+  sed -i 's/socwatch_build_status=0/socwatch_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+  elapsedseconds=$SECONDS
+  echo "socwatch build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+else
+  echo "********************************************"
+  echo "  Installing Magic9 Component SOC Watch     "
+  echo "********************************************"
+
+  echo "SoC Watch is Intel internal tool, so the download link is not public. (For Intel Internal use only)"
+  SOCWATCH_VERSION="v2025.5"
+  SOCWATCH_INSTALLER="socwatch_linux_NDA_${SOCWATCH_VERSION}_x86_64.tar.gz"
+  # SOCWATCH_DOWNLOAD_URL="https://registrationcenter-ssl.intel.com/akdlm/NDA/e21ac007-81ad-4cdc-9277-0a065636c841/${SOCWATCH_INSTALLER}?__gda__=exp=1765031306~acl=/*~hmac=4df0f8a5e7f0849aaefc9db407b69adc8836626c6f378ef730513eb8fb8fa68a"
+  SOCWATCH_DOWNLOAD_URL="https://af01p-igk.devtools.intel.com/artifactory/platform_hero-igk-local/socwatch/socwatch_linux_INTERNAL_${SOCWATCH_VERSION}.PRE-RELEASE_x86_64.tar.gz"
+  SOCWATCH_INSTALL_DIR="/opt/intel/socwatch"
+
+  # Clean up any existing files in the SoC Watch directory
+  echo -e "\n Cleaning up existing files in SoC Watch directory..."
+  if [ -d "$SOCWATCH_INSTALL_DIR" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S rm -rf "$SOCWATCH_INSTALL_DIR"/*
+  fi
+  # Create SoC Watch installation directory
+  echo "$SUDO_PASSWORD" | sudo -S mkdir -p "$SOCWATCH_INSTALL_DIR"
+  # Download SoC Watch build
+  echo -e "\n Downloading SoC Watch build..."
+  if ! echo "$SUDO_PASSWORD" | sudo -S -E wget -q --show-progress "$SOCWATCH_DOWNLOAD_URL" -O "$SOCWATCH_INSTALL_DIR/$SOCWATCH_INSTALLER" --no-proxy; then
+    echo "Error: Failed to download SoC Watch installer from $SOCWATCH_DOWNLOAD_URL"
+    exit 1
+  fi
+
+  # Verify download file integrity
+  if [ ! -s "$SOCWATCH_INSTALL_DIR/$SOCWATCH_INSTALLER" ]; then
+    echo "Error: Downloaded file is empty or does not exist"
+    exit 1
+  fi
+  echo -e "\n Extracting SoC Watch build..."
+  if ! echo "$SUDO_PASSWORD" | sudo -S tar -xzf "$SOCWATCH_INSTALL_DIR/$SOCWATCH_INSTALLER" -C "$SOCWATCH_INSTALL_DIR"; then
+    echo "Error: Failed to extract SoC Watch installer. The downloaded file may be corrupted."
+    echo "$SUDO_PASSWORD" | sudo -S rm -f "$SOCWATCH_INSTALL_DIR/$SOCWATCH_INSTALLER"
+    exit 1
+  fi
+
+  # Before building the socwatch installer, install Kernel development packages
+  echo -e "\n Installing SoC Watch dependencies..."
+  # check for kernel headers, modules and tools
+  KERNEL_HEADERS_PACKAGE="linux-headers-$(uname -r)"
+  KERNEL_MODULES_PACKAGE="linux-modules-$(uname -r)"
+  KERNEL_TOOLS_PACKAGE="linux-tools-$(uname -r)"
+
+  # List of required kernel packages
+  REQUIRED_KERNEL_PKGS=("$KERNEL_MODULES_PACKAGE" "$KERNEL_TOOLS_PACKAGE" "$KERNEL_HEADERS_PACKAGE")
+  for pkg in "${REQUIRED_KERNEL_PKGS[@]}"; do
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+      echo "$pkg is already installed."
+    else
+      echo "Installing $pkg..."
+      echo "$SUDO_PASSWORD" | sudo -S apt-get install -y "$pkg"
+    fi
+  done
+
+  # Build the SoC Watch
+  echo -e "\n"
+  # Dynamically find the extracted SoC Watch directory
+  SOCWATCH_EXTRACTED_DIR=$(find "$SOCWATCH_INSTALL_DIR" -maxdepth 1 -type d -name "socwatch_linux_*_x86_64" -print -quit)
+  if [ -z "$SOCWATCH_EXTRACTED_DIR" ]; then
+    echo "Error: Could not find extracted SoC Watch directory in $SOCWATCH_INSTALL_DIR"
+    exit 1
+  fi
+  echo "Found SoC Watch directory: $SOCWATCH_EXTRACTED_DIR"
+
+  cd "$SOCWATCH_EXTRACTED_DIR" || { echo "Failed to change directory to $SOCWATCH_EXTRACTED_DIR"; exit 1; }
+  if [ -f "./setup_socwatch_env.sh" ]; then
+    source ./setup_socwatch_env.sh
+  else
+    echo "setup_socwatch_env.sh not found. Aborting."
+    exit 1
+  fi
+
+  if [ -x "./build_drivers.sh" ]; then
+    echo -e "\n Building SoC Watch drivers..."
+    echo "$SUDO_PASSWORD" | sudo -S -E ./build_drivers.sh -l || { echo "Driver build failed."; exit 1; }
+  else
+    echo "build_drivers.sh not found or not executable. Aborting."
+    exit 1
+  fi
+
+  # Insmod SocWatch driver into system:
+  DRIVER_PATH="drivers/socwatch2_16.ko"
+  if [ -f "$DRIVER_PATH" ]; then
+    echo -e "\n Inserting SoC Watch driver $DRIVER_PATH..."
+    echo "$SUDO_PASSWORD" | sudo -S insmod "$DRIVER_PATH" || { echo "Failed to insert $DRIVER_PATH"; exit 1; }
+  else
+    echo "Driver $DRIVER_PATH not found. Aborting."
+    exit 1
+  fi
+
+  # Verify SocWatch is working
+  echo "$SUDO_PASSWORD" | sudo -S mkdir -p "results"
+  if [ -x "./socwatch" ]; then
+    echo -e "\n Running SoC Watch to verify installation......."
+    echo "$SUDO_PASSWORD" | sudo -S ./socwatch -r vtune -m -f cpu-cstate -f cpu-pstate -t 5 -o "$SOCWATCH_INSTALL_DIR/results/test" || { echo "SocWatch run failed."; exit 1; }
+  else
+    echo "socwatch binary not found or not executable. Aborting."
+    exit 1
+  fi
+
+  # Confirm the output measurement results
+  echo -e "\n Verifying SoC Watch results......."
+  tail -n 50 "$SOCWATCH_INSTALL_DIR/results/test.csv" || { echo "Failed to read SocWatch results."; exit 1; }
+  echo "SoC Watch installation and verification completed successfully."
+fi
+
+sed -i 's/socwatch_build_status=0/socwatch_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+
+elapsedseconds=$SECONDS
+echo "socwatch build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+
+fi
+if [ "$emon_build_status" -ne 1 ]; then
+SECONDS=0
+cd "$STATUS_DIR"
+if [ "$PROFILE" != "magic9" ]; then
+  echo "Skipping emon installation as this is required only for 'magic9'."
+  sed -i 's/emon_build_status=0/emon_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+  elapsedseconds=$SECONDS
+  echo "emon build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+else
+  echo "***************************************"
+  echo "  Installing Magic9 Component EMON     "
+  echo "***************************************"
+
+  echo "EMON is Intel internal tool, so the download link is not public. (This is for Intel Internal use only)"
+  # Define variables
+  emon_install_dir="/opt/intel/emon"
+  emon_intel_version="private_5_55_linux_081406569d4b2325e"
+  emon_installer="emon_${emon_intel_version}.tar.bz2"
+  emon_download_url="https://af01p-igk.devtools.intel.com/artifactory/platform_hero-repos/emon/sep_${emon_intel_version}.tar.bz2"
+
+  # Clean up any existing files in the EMON directory
+  echo -e "\n Cleaning up existing files in EMON directory..."
+  if [ -d "$emon_install_dir" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S rm -rf "$emon_install_dir"/*
+  fi
+  # Create EMON installation directory
+  echo "$SUDO_PASSWORD" | sudo -S mkdir -p "$emon_install_dir"
+  # Download EMON
+  echo "Downloading EMON version ${emon_intel_version}..."
+  if ! echo "$SUDO_PASSWORD" | sudo -S -E wget -q --show-progress "$emon_download_url" -O "$emon_install_dir/$emon_installer" --no-proxy; then
+    echo "Error: Failed to download EMON installer from $emon_download_url"
+    exit 1
+  fi
+
+  # Verify download file integrity
+  if [ ! -s "$emon_install_dir/$emon_installer" ]; then
+    echo "Error: Downloaded file is empty or does not exist"
+    exit 1
+  fi
+  echo -e "\n Extracting EMON build..."
+  if ! echo "$SUDO_PASSWORD" | sudo -S tar -xvf "$emon_install_dir/$emon_installer" -C "$emon_install_dir"; then
+    echo "Error: Failed to extract EMON installer. The downloaded file may be corrupted."
+    echo "$SUDO_PASSWORD" | sudo -S rm -f "$emon_install_dir/$emon_installer"
+    exit 1
+  fi
+
+  # Before building the socwatch installer, install Kernel development packages
+  echo -e "\n Installing EMON dependencies..."
+  # check for kernel headers, modules and tools
+  KERNEL_HEADERS_PACKAGE="linux-headers-$(uname -r)"
+  KERNEL_MODULES_PACKAGE="linux-modules-$(uname -r)"
+  KERNEL_TOOLS_PACKAGE="linux-tools-$(uname -r)"
+
+  # List of required kernel packages
+  REQUIRED_KERNEL_PKGS=("$KERNEL_MODULES_PACKAGE" "$KERNEL_TOOLS_PACKAGE" "$KERNEL_HEADERS_PACKAGE")
+  for pkg in "${REQUIRED_KERNEL_PKGS[@]}"; do
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+      echo "$pkg is already installed."
+    else
+      echo "Installing $pkg..."
+      echo "$SUDO_PASSWORD" | sudo -S apt-get install -y "$pkg"
+    fi
+  done
+
+  # Install EMON
+  echo -e "\n Installing EMON with automated prompts..."
+  # Dynamically find the extracted EMON directory (could be sep_* or emon_*)
+  EMON_EXTRACTED_DIR=$(find "$emon_install_dir" -maxdepth 1 -type d \( -name "sep_*_linux_*" -o -name "emon_*_linux_*" \) -print -quit)
+  if [ -z "$EMON_EXTRACTED_DIR" ]; then
+    echo "Error: Could not find extracted EMON directory in $emon_install_dir"
+    exit 1
+  fi
+  echo "Found EMON directory: $EMON_EXTRACTED_DIR"
+
+  cd "$EMON_EXTRACTED_DIR" || { echo "Failed to change directory to $EMON_EXTRACTED_DIR"; exit 1; }
+  if [ -x "./sep-installer.sh" ]; then
+    echo -e "\n Running EMON install script with expect automation..."
+    expect <<EOF
+set timeout -1
+log_user 1
+
+spawn sudo -E ./sep-installer.sh
+
+# Handle sudo password prompt first
+expect {
+    "*password for*" {
+        send "$SUDO_PASSWORD\r"
+        exp_continue
+    }
+    "Please enter a value/option or press \"Enter\" to accept default value*" {
+        send "n\r"
+        exp_continue
+    }
+    "Please enter an option or press \"Enter\" to accept default value*" {
+        send "n\r"
+        exp_continue
+    }
+    "Press \"Enter\" to start installation*" {
+        send "1\r"
+        exp_continue
+    }
+    "*Press space to continue*" {
+        send " "
+        exp_continue
+    }
+    "*Type \"accept\" to continue or \"decline\" to exit*" {
+        send "accept\r"
+        exp_continue
+    }
+    "*Press \"Enter\" to exit installation*" {
+        send "\r"
+        exp_continue
+    }
+    eof
+}
+EOF
+
+    if [ $? -ne 0 ]; then
+      echo "EMON installation failed."
+      exit 1
+    fi
+  else
+    echo "sep-installer.sh not found or not executable. Aborting."
+    exit 1
+  fi
+
+  # Verify EMON installation
+  echo -e "\n Verifying EMON installation..."
+  # Temporarily disable nounset to allow sep_vars.sh to work with unbound variables
+  # The sep_vars.sh script references $1 and other potentially unbound variables
+  set +u
+  # shellcheck disable=SC1091
+  source /opt/intel/sep/sep_vars.sh "" 2>/dev/null || source /opt/intel/sep/sep_vars.sh
+  set -u
+
+  # Use full path to emon and preserve environment with sudo -E
+  if ! echo "$SUDO_PASSWORD" | sudo -S -E /opt/intel/sep/bin64/emon -C "CPU_CLK_UNHALTED.REF_TSC"; then
+    echo -e "\nEMON verification failed."
+    exit 1
+  else
+    echo -e "\nEMON installation and verification completed successfully."
+  fi
+
+fi
+
+sed -i 's/emon_build_status=0/emon_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+
+elapsedseconds=$SECONDS
+echo "emon build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+
+fi
+
+}
+
+Install_vPRO_Components () {
+
+echo "Installing Install_vPRO_Components"
+if [ "$lms_build_status" -ne 1 ]; then
+SECONDS=0
+cd "$STATUS_DIR"
+if [ "$PROFILE" != "vpro" ]; then
+  echo "Skipping lms installation as this is required only for 'vpro'."
+  sed -i 's/lms_build_status=0/lms_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+  elapsedseconds=$SECONDS
+  echo "lms build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+else
+  echo "***************************************"
+  echo "  Installing vPRO Component LMS        "
+  echo "***************************************"
+
+  # Install the dependencies for building LMS
+  echo "Installing LMS build dependencies..."
+  echo "$SUDO_PASSWORD" | sudo -S apt-get update
+  echo "$SUDO_PASSWORD" | sudo -S apt-get install -y \
+    libace-dev cmake python3 libglib2.0-dev libcurl4-openssl-dev libxerces-c-dev libnl-3-dev libnl-route-3-dev libxml2-dev libidn2-0-dev xsltproc docbook-xsl devscripts
+  # Download, build and install LMS
+  LMS_VERSION="2506.0.0.0"
+  # LMS_VERSION="2550.0.0.0"
+  expected_checksum="bfdcbfb6b2a739321998a0772767c1532ede70f4bd38cdbe48488b59d118a086"
+
+  curl -fsSL --connect-timeout 30 --max-time 300 \
+      "https://github.com/intel/lms/archive/refs/tags/v${LMS_VERSION}.tar.gz" \
+      -o "v${LMS_VERSION}.tar.gz"
+
+  if [ -f "v${LMS_VERSION}.tar.gz" ]; then
+    actual_checksum=$(sha256sum "v${LMS_VERSION}.tar.gz" | awk '{print $1}')
+    if [ "$actual_checksum" != "$expected_checksum" ]; then
+      echo "ERROR: Checksum mismatch. Expected: $expected_checksum, Got: $actual_checksum"
+      rm -f "v${LMS_VERSION}.tar.gz"
+      exit 1
+    fi
+    echo "Checksum verification successful."
+
+    tar -xzf "v${LMS_VERSION}.tar.gz"
+    rm -f "v${LMS_VERSION}.tar.gz"
+    cd "lms-${LMS_VERSION}" || exit 1
+
+    export LMS_ROOT="$PWD"
+    mkdir -p build && cd build || exit 1
+
+    cmake -Wno-dev -DBUILD_SHARED_LIBS=OFF -DNETWORK_NM=OFF \
+        -DNETWORK_CN=OFF -DCMAKE_INSTALL_PREFIX=/usr "$LMS_ROOT"
+
+    if ! make -j"$(($(nproc) / 2))"; then
+      echo "ERROR: LMS build failed"
+      exit 1
+    fi
+
+    # Create package without sudo, then install with sudo
+    if ! make package; then
+      echo "ERROR: LMS package creation failed"
+      exit 1
+    fi
+
+    if [ -f "./lms-2506.0.0-Linux.deb" ]; then
+      echo "Build LMS package....."
+      if echo "$SUDO_PASSWORD" | sudo -S apt-get install -y -o Dpkg::Options::="--force-confnew" "./lms-2506.0.0-Linux.deb"; then
+        echo "LMS package installed successfully"
+        rm -f "lms-2506.0.0-Linux.deb"
+
+        # Start and enable LMS service
+        echo "Starting LMS service..."
+        echo "$SUDO_PASSWORD" | sudo -S systemctl unmask lms.service 2>/dev/null || true
+        echo "$SUDO_PASSWORD" | sudo -S systemctl daemon-reload
+        echo "$SUDO_PASSWORD" | sudo -S systemctl enable lms.service
+        echo "$SUDO_PASSWORD" | sudo -S systemctl start lms.service
+
+        # Give the service a moment to start
+        sleep 2
+      else
+        echo "WARNING: Failed to install LMS package. Platform manageability features may not work properly."
+      fi
+    else
+      echo "ERROR: LMS package not found. Build failed."
+      exit 1
+    fi
+  else
+    echo "ERROR: Failed to download LMS source. Aborting installation."
+    exit 1
+  fi
+
+  # Verify LMS installation
+  echo -e "\n Verifying LMS installation..."
+  if echo "$SUDO_PASSWORD" | sudo -S systemctl is-active lms.service --quiet; then
+    echo "✓ LMS service is running successfully"
+    echo "$SUDO_PASSWORD" | sudo -S systemctl status lms.service --no-pager --lines=10
+  else
+    echo "✗ LMS service is not running"
+    echo "$SUDO_PASSWORD" | sudo -S systemctl status lms.service --no-pager --lines=10
+    echo ""
+    echo "Note: LMS service may fail if Intel ME/AMT is not available or properly configured on this system."
+    echo "      This does not affect other vPRO components like RPC."
+  fi
+  echo "LMS installation completed."
+fi
+
+sed -i 's/lms_build_status=0/lms_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+
+elapsedseconds=$SECONDS
+echo "lms build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+
+fi
+if [ "$rpc_build_status" -ne 1 ]; then
+SECONDS=0
+cd "$STATUS_DIR"
+if [ "$PROFILE" != "vpro" ]; then
+  echo "Skipping rpc installation as this is required only for 'vpro'."
+  sed -i 's/rpc_build_status=0/rpc_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+  elapsedseconds=$SECONDS
+  echo "rpc build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+  return
+else
+  echo "***************************************"
+  echo "     Installing vPRO Component RPC     "
+  echo "***************************************"
+
+  #Download RPC binary
+  echo "Downloading RPC binary...."
+  expected_checksum="01cf33b637631b6a27e20e46bfe046f6b1b3f3ac75d98825b7698488a287b557"
+  curl -LO "https://github.com/device-management-toolkit/rpc-go/releases/download/v2.48.10/rpc_linux_x64.tar.gz"
+
+  if [ -f "rpc_linux_x64.tar.gz" ]; then
+    actual_checksum=$(sha256sum "rpc_linux_x64.tar.gz" | awk '{print $1}')
+    if [ "$actual_checksum" != "$expected_checksum" ]; then
+      echo "Checksum mismatch. File may be corrupted."
+      exit 1
+    fi
+    echo "Checksum verification successful."
+    echo "$SUDO_PASSWORD" | sudo -S tar -xvf rpc_linux_x64.tar.gz -C /usr/bin
+    rm -rf rpc_linux_x64.tar.gz
+    echo "$SUDO_PASSWORD" | sudo -S mv /usr/bin/rpc_linux_x64 /usr/bin/rpc
+    echo "$SUDO_PASSWORD" | sudo -S chmod +x /usr/bin/rpc
+
+    # Verify RPC installation
+    echo -e "\n Verifying RPC installation..."
+    if echo "$SUDO_PASSWORD" | sudo -S /usr/bin/rpc amtinfo >/dev/null 2>&1; then
+      echo "✓ RPC installed and working successfully"
+      echo -e "\n AMT Information:"
+      # echo "$SUDO_PASSWORD" | sudo -S /usr/bin/rpc amtinfo | grep -E "Version|Build Number|SKU|Control Mode"
+      echo "$SUDO_PASSWORD" | sudo -S /usr/bin/rpc amtinfo
+    else
+      echo "✗ RPC verification failed. AMT may not be available or RPC binary not working correctly."
+      echo "Note: This is expected if AMT is not provisioned on this system."
+    fi
+  else
+    echo "Downloaded file does not exist. Aborting installation."
+    exit 1
+  fi
+  echo "RPC installation completed successfully."
+fi
+
+sed -i 's/rpc_build_status=0/rpc_build_status=1/g' "$STATUS_DIR_FILE_PATH"
+
+elapsedseconds=$SECONDS
+echo "rpc build time = $((elapsedseconds))" >> "$PACKAGE_BUILD_TIME_FILE"
+
+fi
+
+}
+
 Validation_Report_Generation () {
 
 echo "Installing Validation_Report_Generation"
@@ -3056,6 +3514,8 @@ Install_Media_Tools
 Install_AI_Tools
 Install_TPM
 Observability_Stack_Baremetal_OS
+Install_Magic9_Components
+Install_vPRO_Components
 Validation_Report_Generation
 HW_BOM
 Secure_Boot

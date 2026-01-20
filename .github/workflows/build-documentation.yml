@@ -62,7 +62,7 @@ on:  # yamllint disable-line rule:truthy rule:line-length
         default: ""
         type: string
     secrets:
-      SYS_ORCH_GITHUB:
+      SYS_EMF_GH_TOKEN:
         description: "PAT (contents: read) to clone private repos"
         required: true
       DOC_AWS_ACCESS_KEY_ID:
@@ -92,7 +92,7 @@ jobs:
       - name: Bootstrap CI environment
         uses: ./ci/.github/actions/bootstrap
         with:
-          gh_token: ${{ secrets.SYS_ORCH_GITHUB }}
+          gh_token: ${{ secrets.SYS_EMF_GH_TOKEN }}
           bootstrap_tools: "aws"
 
       - name: Configure AWS credentials

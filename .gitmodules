@@ -1,6 +1,3 @@
-[submodule "libraries/dl-streamer/thirdparty/spdlog"]
-	path = libraries/dl-streamer/thirdparty/spdlog
-	url = https://github.com/gabime/spdlog.git
 [submodule "libraries/anomalib"]
 	path = libraries/anomalib
 	url = https://github.com/open-edge-platform/anomalib
@@ -19,9 +16,6 @@
 [submodule "tools/geti"]
 	path = tools/geti
 	url = https://github.com/open-edge-platform/geti
-[submodule "libraries/dl-streamer/thirdparty/googletest"]
-	path = libraries/dl-streamer/thirdparty/googletest
-	url = https://github.com/google/googletest.git
 [submodule "libraries/robotics-ai-libraries/flann/flann"]
 	path = libraries/robotics-ai-libraries/flann/flann
 	url = https://github.com/flann-lib/flann.git
@@ -40,3 +34,12 @@
 [submodule "microservices/random-forest"]
 	path = microservices/random-forest
 	url = https://github.com/intel/random-forest-microservice
+[submodule "libraries/dlstreamer"]
+	path = libraries/dlstreamer
+	url = https://github.com/open-edge-platform/dlstreamer
+[submodule "libraries/dl-streamer/thirdparty/spdlog"]
+	path = libraries/dl-streamer/thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "libraries/dl-streamer/thirdparty/googletest"]
+	path = libraries/dl-streamer/thirdparty/googletest
+	url = https://github.com/google/googletest.git

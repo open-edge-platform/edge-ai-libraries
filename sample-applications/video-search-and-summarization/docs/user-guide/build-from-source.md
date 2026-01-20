@@ -2,15 +2,15 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
-> **Note:** 
+> **Note:**
 > - The dependent microservices can be built separately from their respective microservice folders which is recommended. There is an option provided to build dependencies along with sample application if required.
-> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). It is recommended to use prebuilt images on Edge Microvisor Toolkit.
 
 ## Prerequisites
 
 1. Follow the instructions given in the [Get Started](./get-started.md) section.
 2. Address all [prerequisites](./get-started.md#-prerequisites).
-3. Configure the required [environment variables](./get-started.md#️-setting-required-environment-variables). 
+3. Configure the required [environment variables](./get-started.md#️-setting-required-environment-variables).
 4. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
 
 ## Steps to Build from Source
@@ -48,12 +48,12 @@ This section shows how to build the Video Search and Summary sample application 
 
     ### 🔨 Building Images
 
-    The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The dependent microservices are the following microservices: [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/), [Audio Analyzer](../../../../microservices/audio-analyzer/), [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/), and [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
+    The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The dependent microservices are the following microservices: [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/), [Audio Analyzer](../../../../microservices/audio-analyzer/), [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/), and [VLM microservice](../../../../microservices/vlm-openvino-serving/).
 
     ```bash
 
     # Build the sample applications services
-    ./build.sh 
+    ./build.sh
 
     # Build the sample applications dependencies
     ./build.sh --dependencies

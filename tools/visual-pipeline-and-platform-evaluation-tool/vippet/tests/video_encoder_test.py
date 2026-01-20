@@ -3,10 +3,9 @@ from unittest.mock import Mock, patch
 
 from video_encoder import (
     VideoEncoder,
-    GPU_0,
-    OTHER,
+    ENCODER_DEVICE_CPU,
+    ENCODER_DEVICE_GPU,
 )
-from api.api_schemas import EncoderDeviceConfig
 
 
 class TestVideoEncoderClass(unittest.TestCase):
@@ -27,55 +26,18 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIn("h264", encoder.encoder_configs)
         mock_gst_inspector.assert_called_once()
 
-    def test_select_gpu_single_gpu(self):
-        """Test GPU device without index."""
-        gpu_id, vaapi_suffix = self.encoder.select_gpu("GPU")
-        self.assertEqual(gpu_id, 0)
-        self.assertIsNone(vaapi_suffix)
-
-    def test_select_gpu_first_with_index(self):
-        """Test GPU.0 device."""
-        gpu_id, vaapi_suffix = self.encoder.select_gpu("GPU.0")
-        self.assertEqual(gpu_id, 0)
-        self.assertIsNone(vaapi_suffix)
-
-    def test_select_gpu_second_gpu(self):
-        """Test GPU.1 device with vaapi suffix."""
-        gpu_id, vaapi_suffix = self.encoder.select_gpu("GPU.1")
-        self.assertEqual(gpu_id, 1)
-        self.assertEqual(vaapi_suffix, "129")
-
-    def test_select_gpu_cpu_device(self):
-        """Test non-GPU device (CPU)."""
-        gpu_id, vaapi_suffix = self.encoder.select_gpu("CPU")
-        self.assertEqual(gpu_id, -1)
-        self.assertIsNone(vaapi_suffix)
-
     def test_select_element_gpu_0(self):
         """Test selecting encoder for GPU 0."""
         self.encoder.gst_inspector.elements = [("elem1", "vah264enc")]
 
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
         encoder_dict = {
-            GPU_0: [("vah264enc", "vah264enc")],
-            OTHER: [("x264enc", "x264enc")],
+            ENCODER_DEVICE_GPU: [("vah264enc", "vah264enc")],
+            ENCODER_DEVICE_CPU: [("x264enc", "x264enc")],
         }
 
-        result = self.encoder.select_element(encoder_dict, encoder_device, None)
+        result = self.encoder.select_element(encoder_dict, encoder_device)
         self.assertEqual(result, "vah264enc")
-
-    def test_select_element_fallback_to_cpu(self):
-        """Test fallback to CPU encoder when GPU encoder not available."""
-        self.encoder.gst_inspector.elements = [("elem1", "x264enc")]
-
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
-        encoder_dict = {
-            GPU_0: [("vah264enc", "vah264enc")],
-            OTHER: [("x264enc", "x264enc bitrate=16000")],
-        }
-
-        result = self.encoder.select_element(encoder_dict, encoder_device, None)
-        self.assertEqual(result, "x264enc bitrate=16000")
 
     @patch("video_encoder.videos_manager")
     def test_detect_codec_from_input(self, mock_videos_manager):
@@ -123,7 +85,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         mock_videos_manager.get_video = Mock(return_value=mock_video)
 
         pipeline_str = "videotestsrc ! fakesink"
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
         pipeline_id = "test-pipeline-123"
 
         result, output_paths = self.encoder.replace_fakesink_with_video_output(
@@ -148,7 +110,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         mock_videos_manager.get_video = Mock(return_value=mock_video)
 
         pipeline_str = "videotestsrc ! fakesink"
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
         pipeline_id = "test-pipeline-456"
 
         result, output_paths = self.encoder.replace_fakesink_with_video_output(
@@ -170,7 +132,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_str = (
             "videotestsrc ! tee name=t t. ! queue ! fakesink t. ! queue ! fakesink"
         )
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
         pipeline_id = "test-pipeline-789"
 
         result, output_paths = self.encoder.replace_fakesink_with_video_output(
@@ -196,7 +158,7 @@ class TestVideoEncoderClass(unittest.TestCase):
     @patch("video_encoder.videos_manager")
     def test_replace_fakesink_unsupported_codec(self, mock_videos_manager):
         """Test that unsupported codec raises ValueError."""
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
 
         mock_video = Mock()
         mock_video.codec = "av1"  # Unsupported codec
@@ -221,7 +183,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         mock_video.codec = "h264"
         mock_videos_manager.get_video = Mock(return_value=mock_video)
 
-        encoder_device = EncoderDeviceConfig(device_name="GPU", gpu_id=0)
+        encoder_device = ENCODER_DEVICE_GPU
 
         with self.assertRaises(ValueError) as context:
             self.encoder.replace_fakesink_with_video_output(

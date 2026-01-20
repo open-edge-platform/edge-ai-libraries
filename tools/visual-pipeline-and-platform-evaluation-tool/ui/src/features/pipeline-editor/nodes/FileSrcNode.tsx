@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 export const FileSrcNodeWidth = 200;
 
@@ -31,9 +32,9 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => (
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-blue-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("filesrc") }}
     />
   </div>
 );
