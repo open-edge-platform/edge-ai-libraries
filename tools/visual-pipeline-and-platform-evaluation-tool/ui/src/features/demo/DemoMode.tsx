@@ -200,26 +200,26 @@ const DemoMode = () => {
 
   return (
     <>
-      <div className="h-screen overflow-hidden bg-gradient-to-br from-neutral-950 via-blue-950/30 to-neutral-950 text-white">
+      <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
         {/* Animated background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-br from-classic-blue/10 via-energy-blue/10 to-classic-blue/10 animate-[pulse_8s_ease-in-out_infinite]"></div>
-          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-classic-blue/10 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
-          <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-energy-blue/10 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-purple-500/5 to-blue-500/5 animate-[pulse_8s_ease-in-out_infinite]"></div>
+          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
+          <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-purple-500/10 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
         </div>
 
         {/* HEADER */}
-        <div className="relative z-10 h-[70px] px-4 flex items-center justify-between border-b border-neutral-800">
-          <h1 className="text-3xl font-black bg-gradient-to-r from-white via-energy-blue to-white bg-clip-text text-transparent">
+        <div className="relative z-10 h-[70px] px-4 flex items-center justify-between border-b border-cyan-500/30 bg-slate-950/80 backdrop-blur-md shadow-lg shadow-cyan-500/10">
+          <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
             ViPPET Demo
           </h1>
           <button
             onClick={() => navigate("/")}
-            className="group relative px-4 py-2 rounded-xl border border-classic-blue/50 bg-classic-blue/10 backdrop-blur-xl hover:bg-classic-blue/20 hover:border-energy-blue transition-all duration-300"
+            className="group relative px-4 py-2 rounded-xl border border-cyan-500/50 bg-slate-800/50 backdrop-blur-xl hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 transition-all duration-300"
           >
             <div className="flex items-center gap-2">
-              <Home className="w-4 h-4 text-energy-blue group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-semibold text-white">Exit</span>
+              <Home className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-semibold text-cyan-400">Exit</span>
             </div>
           </button>
         </div>
@@ -227,8 +227,8 @@ const DemoMode = () => {
         {/* MAIN GRID */}
         <div className="relative z-10 grid grid-cols-[340px_360px_1fr] grid-rows-[auto_1fr] gap-3 h-[calc(100vh-70px)] p-3">
           {/* TOP LEFT - Configuration */}
-          <div className="rounded-xl bg-neutral-900/60 border border-neutral-700 p-3 space-y-3 overflow-y-auto">
-            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">
+          <div className="rounded-xl bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 border border-cyan-500/30 p-3 space-y-3 overflow-y-auto backdrop-blur-sm shadow-lg shadow-cyan-500/10">
+            <p className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
               Configuration
             </p>
 
@@ -236,13 +236,13 @@ const DemoMode = () => {
               <div key={selection.pipelineId} className="space-y-3">
                 {/* Model Dropdown */}
                 <div className="space-y-1.5 relative z-30">
-                  <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
                     Model
                   </label>
                   <div className="relative">
                     <button
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="w-full px-3 py-2 bg-neutral-950/80 border border-neutral-700 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                      className="w-full px-3 py-2 bg-slate-950/80 border border-cyan-500/50 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
                     >
                       <span className="truncate text-xs">
                         {currentModel || "Select Model"}
@@ -278,7 +278,7 @@ const DemoMode = () => {
 
                 {/* Device Dropdown */}
                 <div className="space-y-1.5 relative z-20">
-                  <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
                     Device
                   </label>
                   <div className="relative">
@@ -286,7 +286,7 @@ const DemoMode = () => {
                       onClick={() =>
                         setIsDeviceDropdownOpen(!isDeviceDropdownOpen)
                       }
-                      className="w-full px-3 py-2 bg-neutral-950/80 border border-neutral-700 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+                      className="w-full px-3 py-2 bg-slate-950/80 border border-cyan-500/50 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
                     >
                       <span className="text-xs">
                         {currentDevice || "Select Device"}
@@ -322,10 +322,10 @@ const DemoMode = () => {
 
                 {/* Participation Rate */}
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                  <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
                     Participation Rate
                   </label>
-                  <div className="bg-neutral-950/50 rounded-lg p-2 border border-neutral-800/50">
+                  <div className="bg-slate-950/50 rounded-lg p-2 border border-cyan-500/30">
                     <ParticipationSlider
                       value={selection.stream_rate}
                       onChange={(val) =>
@@ -341,14 +341,14 @@ const DemoMode = () => {
           </div>
 
           {/* TOP CENTER - Test Controls */}
-          <div className="bg-neutral-900/60 rounded-xl p-3 space-y-2.5 border border-neutral-700">
-            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">
+          <div className="bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 space-y-2.5 border border-purple-500/30 backdrop-blur-sm shadow-lg shadow-purple-500/10">
+            <p className="text-[10px] uppercase text-purple-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]">
               Test
             </p>
 
             {/* FPS Floor */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+              <label className="block text-[10px] font-semibold text-purple-300/80 uppercase tracking-wider">
                 Target FPS
               </label>
               <div className="flex items-center gap-2">
@@ -358,9 +358,9 @@ const DemoMode = () => {
                   onChange={(e) => setFpsFloor(Number(e.target.value))}
                   min={1}
                   max={120}
-                  className="w-20 px-2 py-1.5 bg-neutral-950/80 border border-neutral-700 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-20 px-2 py-1.5 bg-slate-950/80 border border-purple-500/50 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400 transition-all shadow-lg shadow-purple-500/10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <span className="text-neutral-400 text-xs font-semibold">
+                <span className="text-purple-300/80 text-xs font-semibold">
                   FPS
                 </span>
               </div>
@@ -376,7 +376,7 @@ const DemoMode = () => {
                   }
                   className="w-4 h-4 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
                 />
-                <span className="text-[10px] font-semibold text-neutral-300 group-hover:text-white transition-colors uppercase tracking-wider">
+                <span className="text-[10px] font-semibold text-purple-300/80 group-hover:text-purple-200 transition-colors uppercase tracking-wider">
                   Save Output
                 </span>
               </label>
@@ -387,18 +387,18 @@ const DemoMode = () => {
             <button
               onClick={handleRunTest}
               disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-              className="relative w-full px-4 py-3 bg-classic-blue hover:bg-classic-blue-shade-1 text-white rounded-xl font-bold text-base shadow-lg shadow-classic-blue/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-energy-blue/30 overflow-hidden group"
+              className="relative w-full px-4 py-3 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-500 hover:via-blue-500 hover:to-cyan-500 text-white rounded-xl font-bold text-base shadow-lg shadow-purple-500/50 hover:shadow-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-purple-400/30 overflow-hidden group"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/20 via-classic-blue-tint-1/20 to-energy-blue/20 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <span className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-purple-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"></div>
+              <span className="relative drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
                 {jobId ? "RUNNING" : isRunning ? "STARTING..." : "RUN TEST"}
               </span>
             </button>
           </div>
 
           {/* RIGHT COLUMN - Results (spans both rows) */}
-          <div className="row-span-2 bg-neutral-900/60 rounded-xl p-3 border border-neutral-700 flex flex-col min-h-0 overflow-y-auto w-full">
-            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider mb-2">
+          <div className="row-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border border-blue-500/30 flex flex-col min-h-0 overflow-y-auto w-full backdrop-blur-sm shadow-lg shadow-blue-500/10">
+            <p className="text-[10px] uppercase text-blue-400 font-bold tracking-wider mb-2 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">
               Results
             </p>
 
@@ -701,8 +701,8 @@ const DemoMode = () => {
           </div>
 
           {/* BOTTOM LEFT - Preview (spans 2 columns) */}
-          <div className="col-span-2 bg-neutral-900/60 rounded-xl p-3 border border-neutral-700 flex flex-col min-h-0">
-            <p className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider mb-2">
+          <div className="col-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border border-emerald-500/30 flex flex-col min-h-0 backdrop-blur-sm shadow-lg shadow-emerald-500/10">
+            <p className="text-[10px] uppercase text-emerald-400 font-bold tracking-wider mb-2 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
               Preview
             </p>
             <div className="flex-1 bg-black rounded-lg flex items-center justify-center overflow-hidden">
