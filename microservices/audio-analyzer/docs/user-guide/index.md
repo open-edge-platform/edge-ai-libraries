@@ -74,7 +74,7 @@ class room session, for example.
 primarily analysed using the spoken word.
 - **Use case 4**: Video podcasts or interview recordings where the value is in the conversation,
 discussions, or interviews, and visuals are secondary.
-- **Use case 5**: Events like Panel Discussions and Debates, where multiple speakers discuss
+- **Use case 5**: Events such as Panel Discussions and Debates, where multiple speakers discuss
 or debate topics, the audio contains the key arguments and insights.
 
 ## How It Works
