@@ -35,7 +35,7 @@ sample application where this microservice is used.
 
 ### High-Level System View Diagram
 
-![system view diagram](./images/DataPrep_HL_Arch.png)
+![system view diagram](./_assets/DataPrep_HL_Arch.png)
 
    Figure 1: High-level system view demonstrating the microservice in a real-world use case.
 

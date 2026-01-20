@@ -49,7 +49,7 @@ Diagram Guidelines:
 3. Use clear labels and simple flows to make the diagram easy to interpret.
 -->
 ### High-Level System View Diagram
-![System View Diagram](./docs/user-guide/images/DataPrep_HL_Arch.png)
+![System View Diagram](./docs/user-guide/_assets/DataPrep_HL_Arch.png)
 
 *Figure 1: High-level system view demonstrating the microservice in a real-world use case.*
 

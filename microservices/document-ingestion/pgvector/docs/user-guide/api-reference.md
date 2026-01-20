@@ -1,5 +1,5 @@
 # API Reference
 
 <!--hide_directive```{eval-rst}
-.. swagger-plugin:: api-docs/dataprep-api.yml
+.. swagger-plugin:: _assets/dataprep-api.yml
 ```hide_directive-->
