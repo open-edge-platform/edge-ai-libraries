@@ -62,7 +62,9 @@ different video analytics use cases cutting across different industry segments. 
 to provide the microservice primarily comes from enhancing the accuracy of the video summary
 pipeline. Here are some examples:
 
-- **Use case 1**: Ego centric videos as captured in industry segments like Safety and Security,
+- **Use case 1**: Egocentric videos recorded with body-worn cameras, common in industries
+such as Safety and Security, benefit from additional modality of information provided 
+by audio transcription.
 from body worn cameras for example, benefit from additional modality of information that audio
 transcription provides.
 - **Use case 2**: Videos from class rooms are primarily analysed using their audio content.
