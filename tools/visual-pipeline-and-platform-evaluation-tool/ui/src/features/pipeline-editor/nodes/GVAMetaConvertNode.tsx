@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
 export const GVAMetaConvertNodeWidth = 270;
 
@@ -20,17 +21,17 @@ const GVAMetaConvertNode = () => (
     {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-cyan-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvametaconvert") }}
     />
 
     {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-cyan-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvametaconvert") }}
     />
   </div>
 );
