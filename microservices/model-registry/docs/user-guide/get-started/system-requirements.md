@@ -1,6 +1,7 @@
 # System Requirements
 
-This page provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
+This page provides detailed hardware, software, and platform requirements to help you set up
+and run the application efficiently.
 
 ## Supported Platforms
 
@@ -27,11 +28,11 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Validation
 
-- Ensure all required software is installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all required software is installed and configured before proceeding to [Get Started](../get-started.md).
 
 ## Supporting Resources
 
-- [Overview](./index.md)
-- [Architecture](./overview-architecture.md)
-- [Get Started Guide](./get-started.md)
-- [API Reference](./api-reference.md)
+- [Overview](../index.md)
+- [How It Works](../how-it-works.md)
+- [Get Started Guide](../get-started.md)
+- [API Reference](../api-reference.md)

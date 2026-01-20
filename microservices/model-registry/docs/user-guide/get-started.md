@@ -11,7 +11,7 @@ delete models. This section provides step-by-step instructions on how to:
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new
@@ -59,7 +59,7 @@ This method provides the fastest way to get started with the microservice.
     MR_MLFLOW_S3_ENDPOINT_URL=http://127.0.0.1:8000
     ```
 
-1. Enter the desired values for the REQUIRED [Environment Variables](environment-variables.md)
+1. Enter the desired values for the REQUIRED [Environment Variables](./environment-variables.md)
 in the `.env` file:
     1. MR_PSQL_PASSWORD
     2. MR_MINIO_ACCESS_KEY
@@ -356,6 +356,16 @@ For alternative ways to set up the microservice, see:
 ## Supporting Resources
 
 - [Overview](./index.md)
-- [Architecture](./overview-architecture.md)
-- [System Requirements](./system-requirements.md)
+- [How It Works](./how-it-works.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Environment Variables](./environment-variables.md)
 - [API Reference](./api-reference.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+
+:::
+hide_directive-->

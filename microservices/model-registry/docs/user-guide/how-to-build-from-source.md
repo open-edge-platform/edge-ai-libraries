@@ -1,7 +1,3 @@
-<!--hide_directive```{eval-rst}
-:orphan:
-```hide_directive-->
-
 # How to Build from Source
 
 Build the Model Registry from source to customize, debug, or extend its functionality. In
@@ -17,7 +13,7 @@ This guide is ideal for developers who want to work directly with the source cod
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Dependencies Installed**:
     - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
     - **Python 3.8 or higher**: [Python Installation Guide](https://www.python.org/downloads/)
@@ -124,5 +120,6 @@ if you are behind a proxy.
 ## Supporting Resources
 
 - [Overview](./index.md)
-- [System Requirements](./system-requirements.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Environment Variables](environment-variables.md)
 - [API Reference](./api-reference.md)

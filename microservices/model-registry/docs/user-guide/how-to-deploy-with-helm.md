@@ -13,7 +13,7 @@ and updates. For more details, see [Helm Documentation](https://helm.sh/docs/).
 
 Before You Begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Tools Installed**: Install the required tools:
     - Kubernetes CLI (kubectl)
     - Helm 3 or later

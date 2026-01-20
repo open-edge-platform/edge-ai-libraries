@@ -1,4 +1,4 @@
-# Overview and Architecture
+# How It Works
 
 The Model Registry microservice provides a centralized repository that facilitates the
 management of AI models.
@@ -32,7 +32,7 @@ enabling access to projects and models hosted on a remote Geti platform.
 
 ### High-Level Architecture Diagram
 
-![Architecture Diagram](images/Model_Registry_HLA.png)
+![Architecture Diagram](./_assets/Model_Registry_HLA.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ### Inputs
@@ -66,6 +66,6 @@ requirements.
 
 ## Supporting Resources
 
-- [System Requirements](system-requirements.md)
-- [Get Started Guide](get-started.md)
-- [API Reference](api-reference.md)
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
