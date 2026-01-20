@@ -201,30 +201,33 @@ const DemoMode = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-black text-white overflow-auto">
+      <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-blue-950/30 to-neutral-950 text-white overflow-auto">
         {/* Animated background */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-br from-magenta-chart/10 to-green-chart/10 animate-[pulse_8s_ease-in-out_infinite]"></div>
-          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-white/5 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
-          <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-white/3 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-classic-blue/10 via-energy-blue/10 to-classic-blue/10 animate-[pulse_8s_ease-in-out_infinite]"></div>
+          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-classic-blue/10 rounded-full blur-3xl animate-[spin_60s_linear_infinite]"></div>
+          <div className="absolute bottom-[-200px] right-[-200px] w-[700px] h-[700px] bg-energy-blue/10 rounded-full blur-3xl animate-[spin_80s_linear_infinite_reverse]"></div>
+          <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-classic-blue/5 to-energy-blue/5 rounded-full blur-3xl"></div>
         </div>
 
         <div className="relative z-10 container mx-auto py-8 px-6">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div className="space-y-2">
-              <h1 className="text-6xl font-black text-white/90">ViPPET</h1>
-              <p className="text-neutral-400 text-lg">
-                density testing platform
+              <h1 className="text-6xl font-black bg-gradient-to-r from-white via-energy-blue to-white bg-clip-text text-transparent">
+                ViPPET
+              </h1>
+              <p className="text-classi/80 text-lg font-semibold">
+                Intel Visual Pipeline Performance Evaluation Tool
               </p>
             </div>
             <button
               onClick={() => navigate("/")}
-              className="group relative px-6 py-3 rounded-xl border border-neutral-700 bg-neutral-900/60 backdrop-blur-xl hover:border-neutral-500 transition-all duration-300"
+              className="group relative px-6 py-3 rounded-xl border border-classic-blue/50 bg-classic-blue/10 backdrop-blur-xl hover:bg-classic-blue/20 hover:border-energy-blue transition-all duration-300"
             >
               <div className="flex items-center gap-2">
-                <Home className="w-5 h-5 text-neutral-300 group-hover:scale-110 transition-transform" />
-                <span className="font-semibold text-neutral-200">Exit</span>
+                <Home className="w-5 h-5 text-energy-blue group-hover:scale-110 transition-transform" />
+                <span className="font-semibold text-white">Exit</span>
               </div>
             </button>
           </div>
@@ -234,9 +237,9 @@ const DemoMode = () => {
             {pipelineSelections.map((selection) => (
               <div
                 key={selection.pipelineId}
-                className="relative rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-2xl overflow-visible"
+                className="relative rounded-2xl border border-classic-blue/30 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-2xl shadow-classic-blue/5 overflow-visible"
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-classic-blue/10 to-energy-blue/5 opacity-40 pointer-events-none rounded-2xl" />
                 <div className="relative grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1.3fr] gap-6 overflow-visible">
                   <div className="space-y-3 relative z-30">
                     <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
@@ -339,8 +342,8 @@ const DemoMode = () => {
           </div>
 
           {/* Test Configuration */}
-          <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900/50 backdrop-blur-xl p-6 shadow-2xl mb-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none rounded-2xl" />
+          <div className="relative rounded-2xl border border-classic-blue/30 bg-neutral-900/50 backdrop-blur-xl p-6 shadow-2xl shadow-classic-blue/5 mb-8">
+            <div className="absolute inset-0 bg-gradient-to-br from-classic-blue/10 to-energy-blue/5 opacity-40 pointer-events-none rounded-2xl" />
             <div className="relative space-y-6">
               <div className="space-y-3">
                 <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-widest">
@@ -384,9 +387,9 @@ const DemoMode = () => {
                 disabled={
                   isRunning || pipelineSelections.length === 0 || !!jobId
                 }
-                className="relative w-full px-8 py-4 bg-neutral-900 hover:bg-neutral-950 text-white rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-neutral-800 overflow-hidden group"
+                className="relative w-full px-8 py-4 bg-classic-blue hover:bg-classic-blue-shade-1 text-white rounded-xl font-bold text-lg shadow-lg shadow-classic-blue/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-energy-blue/30 overflow-hidden group"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 via-green-chart/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/20 via-classic-blue-tint-1/20 to-energy-blue/20 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <span className="relative">
                   {jobId
                     ? "Running Test..."
@@ -400,9 +403,9 @@ const DemoMode = () => {
 
           {/* Status Messages */}
           {jobId && jobStatus && (
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl mb-8">
+            <div className="rounded-2xl border border-classic-blue/30 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl shadow-classic-blue/5 mb-8">
               <div className="flex items-center gap-3 mb-4">
-                <div className="h-3 w-3 bg-white rounded-full animate-pulse"></div>
+                <div className="h-3 w-3 bg-energy-blue rounded-full animate-pulse shadow-lg shadow-energy-blue/50"></div>
                 <p className="text-lg font-bold text-white">
                   Test Status: {jobStatus.state}
                 </p>
@@ -468,19 +471,19 @@ const DemoMode = () => {
           )}
 
           {testResult && (
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl mb-8">
-              <p className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <div className="rounded-2xl border border-classic-blue/30 bg-neutral-900/60 backdrop-blur-xl p-6 shadow-xl shadow-classic-blue/5 mb-8">
+              <p className="text-xl font-bold bg-gradient-to-r from-energy-blue to-white bg-clip-text text-transparent mb-4 flex items-center gap-2">
                 ✓ Test Completed Successfully
               </p>
               <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 mb-6">
                 <div className="flex flex-col gap-4">
-                  <div className="bg-neutral-950/50 rounded-xl p-4 border border-magenta-chart/30 relative overflow-hidden flex-1">
-                    <div className="absolute inset-0 bg-gradient-to-r from-magenta-chart/10 via-purple-400/10 to-green-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                  <div className="bg-neutral-950/50 rounded-xl p-4 border border-energy-blue/40 relative overflow-hidden flex-1">
+                    <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/10 via-classic-blue/10 to-energy-blue/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
                     <div className="relative h-full flex flex-col justify-center items-center text-center">
-                      <p className="text-xs text-magenta-chart font-semibold uppercase tracking-widest mb-1">
+                      <p className="text-xs text-energy-blue font-semibold uppercase tracking-widest mb-1">
                         Per Stream FPS
                       </p>
-                      <p className="text-4xl font-bold text-magenta-chart">
+                      <p className="text-3xl font-bold text-energy-blue">
                         {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
                       </p>
                     </div>
