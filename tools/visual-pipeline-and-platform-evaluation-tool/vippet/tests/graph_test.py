@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 from graph import Graph, Node, Edge
 from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
+from typing import Optional
+
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
-mock_model_proc_manager = MagicMock()
 
 
 def _mock_get_video_filename(path: str) -> str:
@@ -18,7 +19,9 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_model_by_name(name: str):
+def _mock_find_installed_model_by_model_and_proc_path(
+    model_path: str, model_proc_path: Optional[str] = None
+):
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -37,9 +40,11 @@ def _mock_find_model_by_name(name: str):
         "${YOLO11n_POST_MODEL}",
     ]
 
-    if name in mapped_names:
+    base_name = os.path.splitext(os.path.basename(model_path))[0]
+
+    if base_name in mapped_names:
         mock_model = MagicMock()
-        mock_model.display_name = name
+        mock_model.display_name = base_name
         return mock_model
     else:
         return None
@@ -63,15 +68,14 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager.find_installed_model_by_name.side_effect = _mock_find_model_by_name
+mock_models_manager.find_installed_model_by_model_and_proc_path.side_effect = (
+    _mock_find_installed_model_by_model_and_proc_path
+)
 mock_models_manager.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
 )
 mock_videos_manager.get_video_filename.side_effect = _mock_get_video_filename
 mock_videos_manager.get_video_path.side_effect = _mock_get_video_path
-mock_model_proc_manager.get_path.side_effect = (
-    lambda configured_model_proc: os.path.join("/models/proc", configured_model_proc)
-)
 
 
 @dataclass
@@ -507,7 +511,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5s_416}+PROC",
-                        "model-proc": "${MODEL_YOLOv5s_416}",
                         "model-instance-id": "detect0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -528,7 +531,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "model-instance-id": "classify0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -604,7 +606,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5s_416}+PROC",
-                        "model-proc": "${MODEL_YOLOv5s_416}",
                         "model-instance-id": "detect0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -623,7 +624,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "model-instance-id": "classify0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -757,7 +757,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -783,7 +782,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -833,7 +831,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -857,7 +854,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -926,7 +922,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5m}+PROC",
-                        "model-proc": "${MODEL_YOLOv5m}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -952,7 +947,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -969,7 +963,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1021,7 +1014,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5m}+PROC",
-                        "model-proc": "${MODEL_YOLOv5m}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1045,7 +1037,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1061,7 +1052,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1127,7 +1117,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1153,7 +1142,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1170,7 +1158,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1216,7 +1203,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1240,7 +1226,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1256,7 +1241,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -2690,7 +2674,6 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
-    @patch("graph.model_proc_manager", mock_model_proc_manager)
     @patch("graph.models_manager", mock_models_manager)
     @patch("graph.videos_manager", mock_videos_manager)
     def test_graph_to_description(self):
