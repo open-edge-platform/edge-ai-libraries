@@ -304,7 +304,7 @@ jobs:
         fetch-depth: 0
 
     - name: Check license headers
-      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
+      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@6d50b990891fdbe14b7fe42e3d482cabf67ae815
       with:
         name: 'DLSPS_license-check-report'
         path: './microservices/dlstreamer-pipeline-server'
@@ -416,7 +416,7 @@ jobs:
           persist-credentials: false
 
       - name: Run pylint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
+        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
@@ -439,7 +439,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run shellcheck
-        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
+        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: shellcheck-report.txt
@@ -461,7 +461,7 @@ jobs:
           persist-credentials: false
 
       - name: Run yamlint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
+        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: yamllint-report.txt
