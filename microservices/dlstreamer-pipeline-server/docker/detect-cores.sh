@@ -1,4 +1,9 @@
 #!/bin/bash
+#
+# Apache v2 license
+# Copyright (C) 2024-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 
 # Detect core types with multi-tier redundancy:
 # Confirm Multi-Socker (Xeon, assume all P-Cores across all sockets)
