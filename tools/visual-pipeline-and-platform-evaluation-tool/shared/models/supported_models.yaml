@@ -143,11 +143,11 @@
   precision: FP16
   default: false
 - name: colorcls2
-  display_name: Color Classification 2 (FP16)
+  display_name: Color Classification (FP32)
   source: public
   type: classification
-  model_path: public/colorcls2/colorcls2.xml
+  model_path: public/colorcls2/FP32/colorcls2.xml
   model_proc: ""
   unsupported_devices: ""
-  precision: FP16
+  precision: FP32
   default: false
