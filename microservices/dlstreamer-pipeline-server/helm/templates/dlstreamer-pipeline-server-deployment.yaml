@@ -21,7 +21,7 @@ spec:
         supplementalGroups: [109, 110, 992]
       {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
       imagePullSecrets:
-      - name: registryauth
+        - name: registryauth
       {{- end }}
 
       initContainers:
