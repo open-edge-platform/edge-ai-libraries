@@ -49,22 +49,50 @@ install_dependencies() {
             # Additional setup can be added here if needed
             ;;
         ollama)
-            print_info "Installing Ollama binary..."            
-            # Install Ollama binary
-            if curl -LO https://ollama.com/download/ollama-linux-amd64.tgz && \
-               tar -xzf ollama-linux-amd64.tgz -C "/opt/" && \
-               rm ollama-linux-amd64.tgz && \
-               chmod +x "/opt/bin/ollama" ; then
-                print_success "Ollama binary installed successfully to /opt/bin/ollama"
+            print_info "Installing Ollama binary..."
+            OLLAMA_VERSION="v0.14.0"
+            OLLAMA_ARCHIVE="ollama-linux-amd64.tar.zst"
+            OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/${OLLAMA_ARCHIVE}"
+            
+            # Ensure zstd is available
+            if ! command -v zstd &> /dev/null && ! command -v unzstd &> /dev/null; then
+                print_error "zstd is not installed. Please install zstd package."
+                return 1
+            fi
+            
+            print_info "Downloading Ollama ${OLLAMA_VERSION}..."
+            if ! curl -fSL -o "${OLLAMA_ARCHIVE}" "${OLLAMA_URL}"; then
+                print_error "Failed to download Ollama binary from ${OLLAMA_URL}"
+                return 1
+            fi
+            
+            print_info "Extracting Ollama binary..."
+            if ! tar --use-compress-program=unzstd -xf "${OLLAMA_ARCHIVE}" -C "/opt/"; then
+                print_error "Failed to extract Ollama binary"
+                rm -f "${OLLAMA_ARCHIVE}"
+                return 1
+            fi
+            
+            rm "${OLLAMA_ARCHIVE}"
+            
+            # Make all binaries executable
+            if [ -d "/opt/bin" ]; then
+                chmod +x /opt/bin/* 2>/dev/null || true
+            fi
+            
+            # Verify ollama binary is present and executable
+            if [ -x "/opt/bin/ollama" ]; then
+                print_success "Ollama binary v0.14.0 installed successfully to /opt/bin/ollama"
+                /opt/bin/ollama --version 2>&1 | grep -i "version" || true
             else
-                print_error "Failed to install Ollama binary"
+                print_error "Ollama binary not found or not executable at /opt/bin/ollama"
                 return 1
             fi
             ;;
         ultralytics)
             print_info "Downloading Ultralytics public models script from GitHub"
             mkdir -p /opt/scripts
-            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/samples/download_public_models.sh; then
+            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2025.2.0/samples/download_public_models.sh; then
                 chmod +x /opt/scripts/download_public_models.sh
                 print_success "Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
