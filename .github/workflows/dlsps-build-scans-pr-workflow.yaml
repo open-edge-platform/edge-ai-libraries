@@ -307,7 +307,7 @@ jobs:
       uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@3843499b1cbbb16b19e61e2fac5f31cea204f2bf
       with:
         name: 'DLSPS_license-check-report'
-        path: ./microservices/dlstreamer-pipeline-server'
+        path: './microservices/dlstreamer-pipeline-server'
         fail-on-findings: true
 
   dlsps-clamav:
