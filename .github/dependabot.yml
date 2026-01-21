@@ -3,5 +3,19 @@ version: 2
 updates:
   - package-ecosystem: gitsubmodule
     directory: "/"
+    cooldown:
+      default-days: 7
     schedule:
       interval: "weekly"
+  # Update actions on a weekly interval
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions-dependency:
+        applies-to: version-updates
+        patterns:
+          - "*"

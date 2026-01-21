@@ -47,7 +47,7 @@ const NodeDataPanel = ({
 
   if (!selectedNode) {
     return (
-      <div className="absolute bottom-8 right-4 w-80 bg-background border border-gray-300 shadow-lg p-4 z-10 dark:shadow-[2px_2px_8px_0_rgba(255,255,255,0.08)]">
+      <div className="w-full h-full bg-background border-l border-gray-300 p-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
           Node Data
         </h3>
@@ -60,6 +60,7 @@ const NodeDataPanel = ({
 
   const handleInputChange = (key: string, value: string | unknown) => {
     const updatedData = { ...editableData, [key]: value };
+
     setEditableData(updatedData);
     onNodeDataUpdate(selectedNode.id, updatedData);
   };
@@ -98,7 +99,7 @@ const NodeDataPanel = ({
   const hasAdditionalParams = dataEntries.length > 0;
 
   return (
-    <div className="absolute bottom-4 right-4 w-80 bg-background border border-gray-300 shadow-lg p-4 z-10 max-h-96 overflow-y-auto">
+    <div className="w-full h-full bg-background border-l border-gray-300 p-4 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
           Node Data
