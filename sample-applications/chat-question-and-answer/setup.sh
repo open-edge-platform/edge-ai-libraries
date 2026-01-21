@@ -84,6 +84,11 @@ export MINIO_MOUNT_PATH=/opt/share/mnt/miniodata
 export MINIO_ROOT_USER=${MINIO_USER:-dummy_user}
 export MINIO_ROOT_PASSWORD=${MINIO_PASSWD:-dummy_321}
 
+# Check if required model download environment variables are set
+if [[ -z "$MODEL_DOWNLOAD_HOST" || -z "$MODEL_DOWNLOAD_PORT" ]]; then
+    echo -e "Error: MODEL_DOWNLOAD_HOST and MODEL_DOWNLOAD_PORT must be set before running this script.\n"
+    return 1
+fi
 
 # Model Download Service Configuration (configurable host/port)
 export MODEL_DOWNLOAD_BASE_URL="http://${MODEL_DOWNLOAD_HOST}:${MODEL_DOWNLOAD_PORT}/api/v1/"
@@ -131,28 +136,64 @@ fi
 #GPU Configuration
 # Check if render device exist
 if compgen -G "/dev/dri/render*" > /dev/null; then
-    echo "RENDER device exist. Getting the GID..."
+    echo -e "\nRENDER device exist. Getting the GID...\n"
     export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
 
 fi
 
+# Function to check the health of the model-download microservice
+check_model_download_service_health() {
+    local MAX_ATTEMPTS=5
+    local SLEEP_SECS=5
+    local attempt=1
 
-############################################
-# OVMS model downloader
-############################################
+    echo -e "Checking health of model-download microservice...\n"
+
+    while (( attempt <= MAX_ATTEMPTS )); do
+        local HEALTH_RESPONSE
+        HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "${MODEL_DOWNLOAD_BASE_URL}health")
+
+        if [[ "$HEALTH_RESPONSE" -eq 200 ]]; then
+            echo -e "Model-download microservice is up and running.\n"
+            return 0
+        fi
+
+        echo -e "Attempt $attempt/$MAX_ATTEMPTS: Model-download microservice not available. Retrying in $SLEEP_SECS seconds...\n"
+        sleep "$SLEEP_SECS"
+        ((attempt++))
+    done
+
+    echo -e "Model-download microservice not available even after $MAX_ATTEMPTS attempts.
+    \nBring up the model-download service and try again.\n"
+    return 1
+}
+
+# OVMS model downloader function
 download_ovms_model() {
     local MODEL_NAME=$1
-    local MODEL_TYPE=$2   # llm | embeddings | rerank
-    local HUB=${3:-openvino}          # set default to openvino.
+    local MODEL_TYPE=$2 # llm | embeddings | rerank
+    local HUB=${3:-openvino} # set default to openvino.
+    local DOWNLOAD_MODEL_DIR="downloaded_models/"
+    local TARGET_DIR="${VOLUME_OVMS}/models/"
 
-    echo "Downloading $MODEL_TYPE model '$MODEL_NAME' via model-download..."
 
-    mkdir -p downloaded_models
+    mkdir -p $DOWNLOAD_MODEL_DIR || {
+        echo -e "Error: Failed to create download directory: $DOWNLOAD_MODEL_DIR\n."
+        return 1
+    }
+
+    # Target directory mirrors downloaded model structure
+    mkdir -p "$TARGET_DIR" || {
+        echo -e "Error: Failed to create download directory: $TARGET_DIR\n."
+        return 1
+    }
+
+    echo -e "Downloading $MODEL_TYPE model '$MODEL_NAME' via model-download...\n"
 
     # Submit download request
     local POST_RESPONSE
     POST_RESPONSE=$(
-        curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=downloaded_models" \
+        curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
             -H "Content-Type: application/json" \
             -d "{
                 \"models\": [
@@ -171,11 +212,17 @@ download_ovms_model() {
             }"
     )
 
-    echo "Job submission response: $POST_RESPONSE"
+    # Check if POST_RESPONSE is empty or contains an error
+    if [[ -z "$POST_RESPONSE" || "$POST_RESPONSE" == *"error"* ]]; then
+        echo -e "Error: Failed to submit the model download job. Response: $POST_RESPONSE\n"
+        return 1
+    fi
+
+    echo -e "Job submission response: $POST_RESPONSE\n"
 
     # jq is mandatory
     if ! command -v jq >/dev/null 2>&1; then
-        echo "❌ jq is required but not installed."
+        echo -e "Error: jq is required but not installed.\n"
         return 1
     fi
 
@@ -184,7 +231,7 @@ download_ovms_model() {
     mapfile -t JOB_IDS < <(echo "$POST_RESPONSE" | jq -r '.job_ids[]')
 
     if [[ ${#JOB_IDS[@]} -eq 0 ]]; then
-        echo "❌ No job_ids returned by model-download API."
+        echo -e "Error: No job_ids returned by model-download API.\n"
         return 1
     fi
 
@@ -236,39 +283,39 @@ download_ovms_model() {
 
     # Timeout handling
     if (( attempt > MAX_ATTEMPTS )); then
-        echo "❌ Timed out waiting for model download jobs."
+        echo -e "Error: Timed out waiting for model download jobs.\n"
         return 1
     fi
 
-    # Target directory mirrors model name (Intel/neural-chat-7b-v3-3)
-    local TARGET_DIR="${VOLUME_OVMS}/models/"
-    mkdir -p "$TARGET_DIR"
-
-    echo "Copying model artifacts to $TARGET_DIR..."
-
     # Copy model files from each job's conversion_path
+    echo -e "Copying model artifacts to $TARGET_DIR...\n"
     for job_id in "${JOB_IDS[@]}"; do
         local conversion_path="${job_conversion_path[$job_id]}"
 
         if [[ ! -d "$conversion_path" ]]; then
-            echo "❌ Expected model directory not found: $conversion_path"
+            echo -e "Error: Expected model directory not found: $conversion_path\n"
             return 1
         fi
 
-        echo "Copying artifacts from job $job_id → $conversion_path"
+        echo -e "Copying artifacts from job $job_id → $conversion_path\n"
         local SRC_MODEL_DIR="$conversion_path"
         if [[ ! -d "$SRC_MODEL_DIR" ]]; then
-            echo "❌ Expected model directory not found: $SRC_MODEL_DIR"
+            echo -e "Error: Expected model directory not found: $SRC_MODEL_DIR\n"
             return 1
         fi
 
-        echo "Copying $SRC_MODEL_DIR to $TARGET_DIR"
-        cp -r "$SRC_MODEL_DIR/"* "$TARGET_DIR"
+        echo -e "Copying $SRC_MODEL_DIR to $TARGET_DIR\n"
+        
+        # Copy model files and catch any failure
+        if ! cp -r "$SRC_MODEL_DIR/"* "$TARGET_DIR"; then
+            echo -e "Error: Failed to copy files from $SRC_MODEL_DIR to $TARGET_DIR\n"
+            return 1
+        fi
+
     done
 
-    echo "All model artifacts copied to $TARGET_DIR."
+    echo -e "All model artifacts copied to $TARGET_DIR.\n"
 }
-
 
 setup_inference() {
         local service=$1
@@ -333,6 +380,12 @@ setup_embedding() {
 }
 
 if [[ -n "$1" && -n "$2" ]]; then
+        # Check model-download service health before proceeding
+        if ! check_model_download_service_health; then
+                echo "Error: Model-download service is not healthy. Exiting setup."
+                return 1
+        fi
+
         for arg in "$@"; do
                 case $arg in
                         llm=*)

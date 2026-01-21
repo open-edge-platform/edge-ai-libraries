@@ -25,7 +25,6 @@ Before you begin, ensure that you have the following prerequisites:
 2. **Bring Up the Model Download Microservice**:
   Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../microservices/model-download/docs/get_started.md).
 
-
 3. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
@@ -43,6 +42,10 @@ Before you begin, ensure that you have the following prerequisites:
     export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
     export RERANKER_MODEL=BAAI/bge-reranker-base
     export DEVICE="CPU" # Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
+
+    # Model-Download microservice configuration
+    export MODEL_DOWNLOAD_HOST=<your-model-download-host>
+    export MODEL_DOWNLOAD_PORT=<your-model-download-port>
     ```
     _Optional OTLP configuration_
 
@@ -51,15 +54,6 @@ Before you begin, ensure that you have the following prerequisites:
     export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
     export OTLP_ENDPOINT=<otlp-endpoint> 
     ```
-
-     _Optional: Model Download Microservice Host/Port_
-
-    ```bash
-    # If not set, the script will use `localhost` and port `8200` by default.
-    export MODEL_DOWNLOAD_HOST=<your-model-download-host>
-    export MODEL_DOWNLOAD_PORT=<your-model-download-port>
-    ```
-
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
     Refer to the supported model list in the [Get Started](./get-started.md) document.
