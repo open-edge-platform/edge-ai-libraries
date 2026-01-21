@@ -27,12 +27,12 @@ function BubbleBackground({
   interactive = false,
   transition = { stiffness: 100, damping: 20 },
   colors = {
-    first: "18,113,255",
-    second: "221,74,255",
-    third: "0,220,255",
-    fourth: "200,50,50",
-    fifth: "180,180,50",
-    sixth: "140,100,255",
+    first: "180,230,255",
+    second: "15,76,129",
+    third: "120,190,255",
+    fourth: "30,90,150",
+    fifth: "200,240,255",
+    sixth: "140,210,255",
   },
   ...props
 }: BubbleBackgroundProps) {
@@ -127,7 +127,7 @@ function BubbleBackground({
           animate={{ y: [-50, 50, -50] }}
           className="absolute rounded-full size-[80%] top-[10%] left-[10%] mix-blend-hard-light bg-[radial-gradient(circle_at_center,rgba(var(--first-color),0.8)_0%,rgba(var(--first-color),0)_50%)]"
           transition={{
-            duration: 30,
+            duration: 15,
             ease: "easeInOut",
             repeat: Number.POSITIVE_INFINITY,
           }}
@@ -137,7 +137,7 @@ function BubbleBackground({
           animate={{ rotate: 360 }}
           className="absolute inset-0 flex justify-center items-center origin-[calc(50%-400px)]"
           transition={{
-            duration: 20,
+            duration: 10,
             ease: "linear",
             repeat: Number.POSITIVE_INFINITY,
             repeatType: "loop",
@@ -150,7 +150,7 @@ function BubbleBackground({
           animate={{ rotate: 360 }}
           className="absolute inset-0 flex justify-center items-center origin-[calc(50%+400px)]"
           transition={{
-            duration: 40,
+            duration: 20,
             ease: "linear",
             repeat: Number.POSITIVE_INFINITY,
           }}
@@ -162,7 +162,7 @@ function BubbleBackground({
           animate={{ x: [-50, 50, -50] }}
           className="absolute rounded-full size-[80%] top-[10%] left-[10%] mix-blend-hard-light bg-[radial-gradient(circle_at_center,rgba(var(--fourth-color),0.8)_0%,rgba(var(--fourth-color),0)_50%)] opacity-70"
           transition={{
-            duration: 40,
+            duration: 20,
             ease: "easeInOut",
             repeat: Number.POSITIVE_INFINITY,
           }}
@@ -172,7 +172,7 @@ function BubbleBackground({
           animate={{ rotate: 360 }}
           className="absolute inset-0 flex justify-center items-center origin-[calc(50%_-_800px)_calc(50%_+_200px)]"
           transition={{
-            duration: 20,
+            duration: 10,
             ease: "linear",
             repeat: Number.POSITIVE_INFINITY,
           }}

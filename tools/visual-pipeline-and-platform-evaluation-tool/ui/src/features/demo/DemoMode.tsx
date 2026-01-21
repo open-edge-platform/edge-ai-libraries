@@ -53,6 +53,141 @@ const DemoMode = () => {
   const [metricHistorySnapshot, setMetricHistorySnapshot] = useState<
     typeof history
   >([]);
+  const [colorMode, setColorMode] = useState<1 | 2>(2);
+
+  // Color modes
+  const colorModes = {
+    1: {
+      first: "18,113,255",
+      second: "221,74,255",
+      third: "0,220,255",
+      fourth: "200,50,50",
+      fifth: "180,180,50",
+      sixth: "140,100,255",
+    },
+    2: {
+      first: "180,230,255",
+      second: "15,76,129",
+      third: "120,190,255",
+      fourth: "30,90,150",
+      fifth: "200,240,255",
+      sixth: "140,210,255",
+    },
+  };
+
+  // UI color styles based on mode
+  const getColorClasses = () => {
+    if (colorMode === 1) {
+      return {
+        headerTitle:
+          "bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent",
+        headerGradient: "from-cyan-400 via-blue-400 to-purple-400",
+        exitButton:
+          "border-cyan-500/50 hover:bg-cyan-500/20 hover:border-cyan-400",
+        exitIcon: "text-cyan-400",
+        configBorder: "border-cyan-500/40 shadow-2xl shadow-cyan-500/20",
+        configTitle:
+          "text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]",
+        label: "text-cyan-300/90",
+        dropdown:
+          "border-cyan-500/60 hover:border-cyan-400 focus:ring-cyan-400/50 focus:border-cyan-400",
+        dropdownIcon: "text-cyan-400",
+        dropdownBg: "bg-slate-900/95 border-cyan-500/50",
+        dropdownHover: "hover:bg-cyan-500/20",
+        dropdownActive: "bg-cyan-500/30",
+        participationBorder: "border-cyan-500/40",
+        testBorder: "border-purple-500/40 shadow-2xl shadow-purple-500/20",
+        testTitle:
+          "text-purple-400 drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]",
+        testLabel: "text-purple-300/90",
+        testInput:
+          "border-purple-500/60 focus:ring-purple-400/50 focus:border-purple-400 shadow-lg shadow-purple-500/20",
+        testInputText: "text-purple-300/90",
+        checkbox:
+          "border-purple-400/60 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-400",
+        checkboxLabel: "text-purple-300/90 group-hover:text-purple-200",
+        runButton:
+          "bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-500 hover:via-blue-500 hover:to-cyan-500 rounded-2xl shadow-2xl shadow-purple-500/60 hover:shadow-cyan-500/60 border border-purple-400/40",
+        runButtonOverlay:
+          "bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-purple-400/20 blur-xl",
+        runButtonText: "drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
+        gridConfigBorder: "border-cyan-500/30 shadow-lg shadow-cyan-500/10",
+        gridConfigTitle:
+          "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]",
+        gridTestBorder: "border-purple-500/30 shadow-lg shadow-purple-500/10",
+        gridTestTitle:
+          "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]",
+        gridResultsBorder: "border-blue-500/30 shadow-lg shadow-blue-500/10",
+        gridResultsTitle:
+          "text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]",
+        gridPreviewBorder:
+          "border-emerald-500/30 shadow-lg shadow-emerald-500/10",
+        gridPreviewTitle:
+          "text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]",
+        loadingDots: "bg-energy-blue",
+        summaryFpsBorder: "border-energy-blue/40",
+        summaryFpsGradient:
+          "bg-gradient-to-r from-energy-blue/10 via-classic-blue/10 to-energy-blue/10",
+        summaryFpsText: "text-energy-blue",
+        summaryStreamsBorder: "border-green-chart/30",
+        summaryStreamsGradient:
+          "bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10",
+        summaryStreamsText: "text-green-chart",
+        summaryStreamsValueText: "text-emerald-400",
+      };
+    } else {
+      return {
+        headerTitle: "text-blue-500",
+        headerGradient: "from-slate-600 via-blue-600 to-blue-500",
+        exitButton:
+          "border-slate-400/40 hover:bg-blue-600/10 hover:border-blue-500/50",
+        exitIcon: "text-blue-500",
+        configBorder: "border-slate-400/30 shadow-xl",
+        configTitle: "text-blue-600",
+        label: "text-slate-400",
+        dropdown:
+          "border-slate-400/40 hover:border-blue-500/60 focus:ring-blue-500/30 focus:border-blue-500",
+        dropdownIcon: "text-slate-400",
+        dropdownBg: "bg-slate-900/95 border-slate-400/40",
+        dropdownHover: "hover:bg-blue-600/20",
+        dropdownActive: "bg-blue-600/30",
+        participationBorder: "border-slate-400/30",
+        testBorder: "border-slate-400/30 shadow-xl",
+        testTitle: "text-slate-300",
+        testLabel: "text-slate-400",
+        testInput:
+          "border-slate-400/40 focus:ring-blue-500/30 focus:border-blue-500",
+        testInputText: "text-slate-400",
+        checkbox:
+          "border-slate-400/60 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600",
+        checkboxLabel: "text-slate-400 group-hover:text-slate-300",
+        runButton:
+          "bg-[#0F4C81] hover:bg-[#1565A6] rounded-xl shadow-lg shadow-blue-900/40 hover:shadow-blue-700/50",
+        runButtonOverlay: "bg-gradient-to-r from-blue-400/10 to-blue-300/10",
+        runButtonText: "",
+        gridConfigBorder: "border-slate-400/30 shadow-lg",
+        gridConfigTitle: "text-slate-300",
+        gridTestBorder: "border-slate-400/30 shadow-lg",
+        gridTestTitle: "text-slate-300",
+        gridResultsBorder: "border-slate-400/30 shadow-lg",
+        gridResultsTitle: "text-slate-300",
+        gridPreviewBorder: "border-slate-400/30 shadow-lg",
+        gridPreviewTitle: "text-slate-300",
+        loadingDots: "bg-blue-600",
+        summaryFpsBorder: "border-blue-600/40",
+        summaryFpsGradient:
+          "bg-gradient-to-r from-blue-600/10 via-blue-500/10 to-blue-600/10",
+        summaryFpsText: "text-blue-600",
+        summaryStreamsBorder: "border-slate-500/30",
+        summaryStreamsGradient:
+          "bg-gradient-to-r from-slate-600/10 via-slate-500/10 to-slate-600/10",
+        summaryStreamsText: "text-slate-400",
+        summaryStreamsValueText: "text-slate-300",
+      };
+    }
+  };
+
+  const colors = getColorClasses();
 
   // Parse pipeline names to extract model and device
   const parsePipelineName = (name: string) => {
@@ -120,7 +255,7 @@ const DemoMode = () => {
       setTestResult(null);
       setJobId(null);
     }
-  }, [jobStatus]);
+  }, [jobStatus, history]);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -204,24 +339,56 @@ const DemoMode = () => {
   return (
     <div className="relative h-screen overflow-hidden text-white">
       {/* Animated background */}
-      <BubbleBackground interactive={true} className="absolute inset-0 z-0" />
+      <BubbleBackground
+        interactive={true}
+        className="absolute inset-0 z-0"
+        colors={colorModes[colorMode]}
+      />
 
       {/* CONTENT */}
       <div className="relative z-10 h-full bg-slate-950/80">
         {/* HEADER */}
-        <div className="h-[70px] px-4 flex items-center justify-between border-b border-cyan-500/30 backdrop-blur-md shadow-lg shadow-cyan-500/10">
-          <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+        <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
+          <h1 className={`text-3xl font-black ${colors.headerTitle}`}>
             ViPPET Demo
           </h1>
-          <button
-            onClick={() => navigate("/")}
-            className="group relative px-4 py-2 rounded-xl border border-cyan-500/50 bg-slate-800/50 backdrop-blur-xl hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 transition-all duration-300"
-          >
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Home className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-semibold text-cyan-400">Exit</span>
+              <button
+                onClick={() => setColorMode(1)}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-300 ${
+                  colorMode === 1
+                    ? "bg-purple-600 border-purple-500 text-white shadow-lg"
+                    : "bg-slate-800/50 border-slate-400/40 text-slate-400 hover:bg-slate-700/50 hover:border-slate-400/60"
+                }`}
+              >
+                Mode 1
+              </button>
+              <button
+                onClick={() => setColorMode(2)}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-300 ${
+                  colorMode === 2
+                    ? "bg-blue-600 border-blue-500 text-white shadow-lg"
+                    : "bg-slate-800/50 border-slate-400/40 text-slate-400 hover:bg-slate-700/50 hover:border-slate-400/60"
+                }`}
+              >
+                Mode 2
+              </button>
             </div>
-          </button>
+            <button
+              onClick={() => navigate("/")}
+              className={`group relative px-4 py-2 rounded-lg border bg-slate-800/50 backdrop-blur-xl transition-all duration-300 ${colors.exitButton}`}
+            >
+              <div className="flex items-center gap-2">
+                <Home
+                  className={`w-4 h-4 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
+                />
+                <span className={`text-sm font-semibold ${colors.exitIcon}`}>
+                  Exit
+                </span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* MAIN CONTENT */}
@@ -230,33 +397,41 @@ const DemoMode = () => {
             /* CENTERED INITIAL VIEW */
             <div className="h-full flex items-center justify-center gap-6 animate-[fadeIn_0.6s_ease-out]">
               {/* Configuration - Larger */}
-              <div className="w-[450px] h-[400px] rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border border-cyan-500/40 p-6 space-y-4 overflow-y-auto backdrop-blur-md shadow-2xl shadow-cyan-500/20 animate-[slideInLeft_0.8s_ease-out]">
-                <p className="text-sm uppercase text-cyan-400 font-bold tracking-wider drop-shadow-[0_0_12px_rgba(34,211,238,0.4)] text-center">
+              <div
+                className={`w-[450px] h-[400px] rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-6 space-y-4 overflow-y-auto backdrop-blur-md animate-[slideInLeft_0.8s_ease-out] ${colors.configBorder}`}
+              >
+                <p
+                  className={`text-sm uppercase font-bold tracking-wider text-center ${colors.configTitle}`}
+                >
                   Configuration
                 </p>
                 {pipelineSelections.map((selection) => (
                   <div key={selection.pipelineId} className="space-y-4">
                     {/* Model Dropdown */}
                     <div className="space-y-2 relative z-30">
-                      <label className="block text-xs font-semibold text-cyan-300/90 uppercase tracking-wider">
+                      <label
+                        className={`block text-xs font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Model
                       </label>
                       <div className="relative">
                         <button
                           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                          className="w-full px-4 py-3 bg-slate-950/90 border border-cyan-500/60 rounded-xl text-white text-base text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          className={`w-full px-4 py-3 bg-slate-950/90 border rounded-lg text-white text-base text-left flex items-center justify-between hover:shadow-lg focus:outline-none focus:ring-2 transition-all ${colors.dropdown}`}
                         >
                           <span className="truncate">
                             {currentModel || "Select Model"}
                           </span>
                           <ChevronDown
-                            className={`w-5 h-5 text-cyan-400 transition-transform duration-200 flex-shrink-0 ${
+                            className={`w-5 h-5 transition-transform duration-200 flex-shrink-0 ${colors.dropdownIcon} ${
                               isDropdownOpen ? "rotate-180" : ""
                             }`}
                           />
                         </button>
                         {isDropdownOpen && (
-                          <div className="absolute z-[100] w-full mt-2 bg-slate-900/95 border border-cyan-500/50 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto backdrop-blur-md">
+                          <div
+                            className={`absolute z-[100] w-full mt-2 rounded-lg shadow-2xl overflow-hidden max-h-64 overflow-y-auto backdrop-blur-md ${colors.dropdownBg}`}
+                          >
                             {uniqueModels.map((model) => (
                               <button
                                 key={model}
@@ -264,9 +439,9 @@ const DemoMode = () => {
                                   handleModelChange(model);
                                   setIsDropdownOpen(false);
                                 }}
-                                className={`w-full px-4 py-3 text-left text-sm hover:bg-cyan-500/20 transition-colors ${
+                                className={`w-full px-4 py-3 text-left text-sm transition-colors ${colors.dropdownHover} ${
                                   model === currentModel
-                                    ? "bg-cyan-500/30 text-white font-semibold"
+                                    ? `${colors.dropdownActive} text-white font-semibold`
                                     : "text-neutral-300"
                                 }`}
                               >
@@ -280,7 +455,9 @@ const DemoMode = () => {
 
                     {/* Device Dropdown */}
                     <div className="space-y-2 relative z-20">
-                      <label className="block text-xs font-semibold text-cyan-300/90 uppercase tracking-wider">
+                      <label
+                        className={`block text-xs font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Device
                       </label>
                       <div className="relative">
@@ -288,17 +465,19 @@ const DemoMode = () => {
                           onClick={() =>
                             setIsDeviceDropdownOpen(!isDeviceDropdownOpen)
                           }
-                          className="w-full px-4 py-3 bg-slate-950/90 border border-cyan-500/60 rounded-xl text-white text-base text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          className={`w-full px-4 py-3 bg-slate-950/90 border rounded-lg text-white text-base text-left flex items-center justify-between hover:shadow-lg focus:outline-none focus:ring-2 transition-all ${colors.dropdown}`}
                         >
                           <span>{currentDevice || "Select Device"}</span>
                           <ChevronDown
-                            className={`w-5 h-5 text-cyan-400 transition-transform duration-200 ${
+                            className={`w-5 h-5 transition-transform duration-200 ${colors.dropdownIcon} ${
                               isDeviceDropdownOpen ? "rotate-180" : ""
                             }`}
                           />
                         </button>
                         {isDeviceDropdownOpen && (
-                          <div className="absolute z-[100] w-full mt-2 bg-slate-900/95 border border-cyan-500/50 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md">
+                          <div
+                            className={`absolute z-[100] w-full mt-2 rounded-lg shadow-2xl overflow-hidden backdrop-blur-md ${colors.dropdownBg}`}
+                          >
                             {availableDevices.map((item) => (
                               <button
                                 key={item.pipelineId}
@@ -306,9 +485,9 @@ const DemoMode = () => {
                                   handleDeviceChange(item.pipelineId);
                                   setIsDeviceDropdownOpen(false);
                                 }}
-                                className={`w-full px-4 py-3 text-left text-sm hover:bg-cyan-500/20 transition-colors ${
+                                className={`w-full px-4 py-3 text-left text-sm transition-colors ${colors.dropdownHover} ${
                                   item.pipelineId === selection.pipelineId
-                                    ? "bg-cyan-500/30 text-white font-semibold"
+                                    ? `${colors.dropdownActive} text-white font-semibold`
                                     : "text-neutral-300"
                                 }`}
                               >
@@ -322,10 +501,14 @@ const DemoMode = () => {
 
                     {/* Participation Rate */}
                     <div className="space-y-2">
-                      <label className="block text-xs font-semibold text-cyan-300/90 uppercase tracking-wider">
+                      <label
+                        className={`block text-xs font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Participation Rate
                       </label>
-                      <div className="bg-slate-950/60 rounded-xl p-3 border border-cyan-500/40">
+                      <div
+                        className={`bg-slate-950/60 rounded-lg p-3 border ${colors.participationBorder}`}
+                      >
                         <ParticipationSlider
                           value={selection.stream_rate}
                           onChange={(val) =>
@@ -341,15 +524,21 @@ const DemoMode = () => {
               </div>
 
               {/* Test - Larger */}
-              <div className="w-[450px] h-[400px] bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 rounded-2xl p-6 border border-purple-500/40 backdrop-blur-md shadow-2xl shadow-purple-500/20 flex flex-col animate-[slideInRight_0.8s_ease-out]">
+              <div
+                className={`w-[450px] h-[400px] bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 rounded-2xl p-6 border backdrop-blur-md flex flex-col animate-[slideInRight_0.8s_ease-out] ${colors.testBorder}`}
+              >
                 <div className="flex-1 overflow-y-auto space-y-4">
-                  <p className="text-sm uppercase text-purple-400 font-bold tracking-wider drop-shadow-[0_0_12px_rgba(168,85,247,0.4)] text-center">
+                  <p
+                    className={`text-sm uppercase font-bold tracking-wider text-center ${colors.testTitle}`}
+                  >
                     Test Configuration
                   </p>
 
                   {/* FPS Floor */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-purple-300/90 uppercase tracking-wider">
+                    <label
+                      className={`block text-xs font-semibold uppercase tracking-wider ${colors.testLabel}`}
+                    >
                       Target FPS
                     </label>
                     <div className="flex items-center gap-3">
@@ -359,9 +548,11 @@ const DemoMode = () => {
                         onChange={(e) => setFpsFloor(Number(e.target.value))}
                         min={1}
                         max={120}
-                        className="w-28 px-3 py-3 bg-slate-950/90 border border-purple-500/60 rounded-xl text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400 transition-all shadow-lg shadow-purple-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`w-28 px-3 py-3 bg-slate-950/90 border rounded-lg text-white text-lg font-bold focus:outline-none focus:ring-2 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${colors.testInput}`}
                       />
-                      <span className="text-purple-300/90 text-base font-semibold">
+                      <span
+                        className={`text-base font-semibold ${colors.testInputText}`}
+                      >
                         FPS
                       </span>
                     </div>
@@ -375,9 +566,11 @@ const DemoMode = () => {
                         onCheckedChange={(checked) =>
                           setVideoOutputEnabled(checked === true)
                         }
-                        className="w-5 h-5 border-purple-400/60 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-400"
+                        className={`w-5 h-5 ${colors.checkbox}`}
                       />
-                      <span className="text-sm font-semibold text-purple-300/90 group-hover:text-purple-200 transition-colors uppercase tracking-wider">
+                      <span
+                        className={`text-sm font-semibold transition-colors uppercase tracking-wider ${colors.checkboxLabel}`}
+                      >
                         Save Output
                       </span>
                     </label>
@@ -391,10 +584,12 @@ const DemoMode = () => {
                   disabled={
                     isRunning || pipelineSelections.length === 0 || !!jobId
                   }
-                  className="relative w-full px-6 py-5 mt-4 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-500 hover:via-blue-500 hover:to-cyan-500 text-white rounded-2xl font-bold text-xl shadow-2xl shadow-purple-500/60 hover:shadow-cyan-500/60 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] border border-purple-400/40 overflow-hidden group"
+                  className={`relative w-full px-6 py-5 mt-4 text-white font-bold text-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] overflow-hidden group ${colors.runButton}`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-purple-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"></div>
-                  <span className="relative drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]">
+                  <div
+                    className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
+                  ></div>
+                  <span className={`relative ${colors.runButtonText}`}>
                     {jobId
                       ? "RUNNING"
                       : isRunning
@@ -408,8 +603,12 @@ const DemoMode = () => {
             /* GRID VIEW AFTER TEST STARTS */
             <div className="grid grid-cols-[340px_360px_1fr] grid-rows-[auto_1fr] gap-3 h-full animate-[gridAppear_0.6s_ease-out]">
               {/* TOP LEFT - Configuration */}
-              <div className="rounded-xl bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 border border-cyan-500/30 p-3 space-y-3 overflow-y-auto backdrop-blur-sm shadow-lg shadow-cyan-500/10 animate-[slideToPosition_0.8s_ease-out]">
-                <p className="text-[10px] uppercase text-cyan-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
+              <div
+                className={`rounded-xl bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 border p-3 space-y-3 overflow-y-auto backdrop-blur-sm animate-[slideToPosition_0.8s_ease-out] ${colors.gridConfigBorder}`}
+              >
+                <p
+                  className={`text-[10px] uppercase font-bold tracking-wider ${colors.gridConfigTitle}`}
+                >
                   Configuration
                 </p>
 
@@ -417,25 +616,29 @@ const DemoMode = () => {
                   <div key={selection.pipelineId} className="space-y-3">
                     {/* Model Dropdown */}
                     <div className="space-y-1.5 relative z-30">
-                      <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
+                      <label
+                        className={`block text-[10px] font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Model
                       </label>
                       <div className="relative">
                         <button
                           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                          className="w-full px-3 py-2 bg-slate-950/80 border border-cyan-500/50 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          className={`w-full px-3 py-2 bg-slate-950/80 border rounded-lg text-white text-sm text-left flex items-center justify-between hover:shadow-lg focus:outline-none focus:ring-2 transition-all ${colors.dropdown}`}
                         >
                           <span className="truncate text-xs">
                             {currentModel || "Select Model"}
                           </span>
                           <ChevronDown
-                            className={`w-4 h-4 text-neutral-400 transition-transform duration-200 flex-shrink-0 ${
+                            className={`w-4 h-4 transition-transform duration-200 flex-shrink-0 ${colors.dropdownIcon} ${
                               isDropdownOpen ? "rotate-180" : ""
                             }`}
                           />
                         </button>
                         {isDropdownOpen && (
-                          <div className="absolute z-[100] w-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
+                          <div
+                            className={`absolute z-[100] w-full mt-1 rounded-lg shadow-2xl overflow-hidden max-h-48 overflow-y-auto backdrop-blur-md ${colors.dropdownBg}`}
+                          >
                             {uniqueModels.map((model) => (
                               <button
                                 key={model}
@@ -443,9 +646,9 @@ const DemoMode = () => {
                                   handleModelChange(model);
                                   setIsDropdownOpen(false);
                                 }}
-                                className={`w-full px-3 py-2 text-left text-xs hover:bg-neutral-800 transition-colors ${
+                                className={`w-full px-3 py-2 text-left text-xs transition-colors ${colors.dropdownHover} ${
                                   model === currentModel
-                                    ? "bg-neutral-800 text-white font-semibold"
+                                    ? `${colors.dropdownActive} text-white font-semibold`
                                     : "text-neutral-300"
                                 }`}
                               >
@@ -459,7 +662,9 @@ const DemoMode = () => {
 
                     {/* Device Dropdown */}
                     <div className="space-y-1.5 relative z-20">
-                      <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
+                      <label
+                        className={`block text-[10px] font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Device
                       </label>
                       <div className="relative">
@@ -467,19 +672,21 @@ const DemoMode = () => {
                           onClick={() =>
                             setIsDeviceDropdownOpen(!isDeviceDropdownOpen)
                           }
-                          className="w-full px-3 py-2 bg-slate-950/80 border border-cyan-500/50 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all"
+                          className={`w-full px-3 py-2 bg-slate-950/80 border rounded-lg text-white text-sm text-left flex items-center justify-between hover:shadow-lg focus:outline-none focus:ring-2 transition-all ${colors.dropdown}`}
                         >
                           <span className="text-xs">
                             {currentDevice || "Select Device"}
                           </span>
                           <ChevronDown
-                            className={`w-4 h-4 text-neutral-400 transition-transform duration-200 ${
+                            className={`w-4 h-4 transition-transform duration-200 ${colors.dropdownIcon} ${
                               isDeviceDropdownOpen ? "rotate-180" : ""
                             }`}
                           />
                         </button>
                         {isDeviceDropdownOpen && (
-                          <div className="absolute z-[100] w-full mt-1 bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl overflow-hidden">
+                          <div
+                            className={`absolute z-[100] w-full mt-1 rounded-lg shadow-2xl overflow-hidden backdrop-blur-md ${colors.dropdownBg}`}
+                          >
                             {availableDevices.map((item) => (
                               <button
                                 key={item.pipelineId}
@@ -487,9 +694,9 @@ const DemoMode = () => {
                                   handleDeviceChange(item.pipelineId);
                                   setIsDeviceDropdownOpen(false);
                                 }}
-                                className={`w-full px-3 py-2 text-left text-xs hover:bg-neutral-800 transition-colors ${
+                                className={`w-full px-3 py-2 text-left text-xs transition-colors ${colors.dropdownHover} ${
                                   item.pipelineId === selection.pipelineId
-                                    ? "bg-neutral-800 text-white font-semibold"
+                                    ? `${colors.dropdownActive} text-white font-semibold`
                                     : "text-neutral-300"
                                 }`}
                               >
@@ -503,10 +710,14 @@ const DemoMode = () => {
 
                     {/* Participation Rate */}
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-semibold text-cyan-300/80 uppercase tracking-wider">
+                      <label
+                        className={`block text-[10px] font-semibold uppercase tracking-wider ${colors.label}`}
+                      >
                         Participation Rate
                       </label>
-                      <div className="bg-slate-950/50 rounded-lg p-2 border border-cyan-500/30">
+                      <div
+                        className={`bg-slate-950/50 rounded-lg p-2 border ${colors.participationBorder}`}
+                      >
                         <ParticipationSlider
                           value={selection.stream_rate}
                           onChange={(val) =>
@@ -522,15 +733,21 @@ const DemoMode = () => {
               </div>
 
               {/* TOP CENTER - Test Controls */}
-              <div className="bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border border-purple-500/30 backdrop-blur-sm shadow-lg shadow-purple-500/10 flex flex-col">
+              <div
+                className={`bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border backdrop-blur-sm flex flex-col ${colors.gridTestBorder}`}
+              >
                 <div className="flex-1 overflow-y-auto space-y-2.5">
-                  <p className="text-[10px] uppercase text-purple-400 font-bold tracking-wider drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]">
+                  <p
+                    className={`text-[10px] uppercase font-bold tracking-wider ${colors.gridTestTitle}`}
+                  >
                     Test
                   </p>
 
                   {/* FPS Floor */}
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-semibold text-purple-300/80 uppercase tracking-wider">
+                    <label
+                      className={`block text-[10px] font-semibold uppercase tracking-wider ${colors.testLabel}`}
+                    >
                       Target FPS
                     </label>
                     <div className="flex items-center gap-2">
@@ -540,9 +757,11 @@ const DemoMode = () => {
                         onChange={(e) => setFpsFloor(Number(e.target.value))}
                         min={1}
                         max={120}
-                        className="w-20 px-2 py-1.5 bg-slate-950/80 border border-purple-500/50 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400 transition-all shadow-lg shadow-purple-500/10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className={`w-20 px-2 py-1.5 bg-slate-950/80 border rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${colors.testInput}`}
                       />
-                      <span className="text-purple-300/80 text-xs font-semibold">
+                      <span
+                        className={`text-xs font-semibold ${colors.testInputText}`}
+                      >
                         FPS
                       </span>
                     </div>
@@ -556,9 +775,11 @@ const DemoMode = () => {
                         onCheckedChange={(checked) =>
                           setVideoOutputEnabled(checked === true)
                         }
-                        className="w-4 h-4 border-neutral-600 data-[state=checked]:bg-white data-[state=checked]:border-white"
+                        className={`w-4 h-4 ${colors.checkbox}`}
                       />
-                      <span className="text-[10px] font-semibold text-purple-300/80 group-hover:text-purple-200 transition-colors uppercase tracking-wider">
+                      <span
+                        className={`text-[10px] font-semibold transition-colors uppercase tracking-wider ${colors.checkboxLabel}`}
+                      >
                         Save Output
                       </span>
                     </label>
@@ -572,31 +793,39 @@ const DemoMode = () => {
                   disabled={
                     isRunning || pipelineSelections.length === 0 || !!jobId
                   }
-                  className="relative w-full px-4 py-3 mt-2.5 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-500 hover:via-blue-500 hover:to-cyan-500 text-white rounded-xl font-bold text-base shadow-lg shadow-purple-500/50 hover:shadow-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] border border-purple-400/30 overflow-hidden group"
+                  className={`relative w-full px-4 py-3 mt-2.5 text-white font-bold text-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] overflow-hidden group ${colors.runButton}`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-purple-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"></div>
-                  <span className="relative drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                  <div
+                    className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
+                  ></div>
+                  <span className={`relative ${colors.runButtonText}`}>
                     {jobId ? "RUNNING" : isRunning ? "STARTING..." : "RUN TEST"}
                   </span>
                 </button>
               </div>
 
               {/* RIGHT COLUMN - Results (spans both rows) */}
-              <div className="row-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border border-blue-500/30 flex flex-col min-h-0 overflow-y-auto w-full backdrop-blur-sm shadow-lg shadow-blue-500/10 animate-[slideUp_0.8s_ease-out_0.3s_both]">
-                <p className="text-[10px] uppercase text-blue-400 font-bold tracking-wider mb-2 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">
+              <div
+                className={`row-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border flex flex-col min-h-0 overflow-y-auto w-full backdrop-blur-sm animate-[slideUp_0.8s_ease-out_0.3s_both] ${colors.gridResultsBorder}`}
+              >
+                <p
+                  className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${colors.gridResultsTitle}`}
+                >
                   Results
                 </p>
 
                 {jobId && jobStatus?.state === "RUNNING" && (
                   <div className="mb-3 flex items-center gap-2">
                     <div className="flex gap-1">
-                      <div className="h-2 w-2 bg-energy-blue rounded-full animate-bounce"></div>
                       <div
-                        className="h-2 w-2 bg-energy-blue rounded-full animate-bounce"
+                        className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                      ></div>
+                      <div
+                        className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
                         style={{ animationDelay: "0.1s" }}
                       ></div>
                       <div
-                        className="h-2 w-2 bg-energy-blue rounded-full animate-bounce"
+                        className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
                         style={{ animationDelay: "0.2s" }}
                       ></div>
                     </div>
@@ -621,24 +850,40 @@ const DemoMode = () => {
                     {/* Summary Stats - tylko po zakończeniu */}
                     {testResult && (
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-neutral-950/50 rounded-lg p-2.5 border border-energy-blue/40 relative overflow-hidden">
-                          <div className="absolute inset-0 bg-gradient-to-r from-energy-blue/10 via-classic-blue/10 to-energy-blue/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                        <div
+                          className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                        >
+                          <div
+                            className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                          ></div>
                           <div className="relative text-center">
-                            <p className="text-[9px] text-energy-blue font-semibold uppercase tracking-wider mb-0.5">
+                            <p
+                              className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                            >
                               Per Stream FPS
                             </p>
-                            <p className="text-xl font-bold text-energy-blue">
+                            <p
+                              className={`text-xl font-bold ${colors.summaryFpsText}`}
+                            >
                               {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
                             </p>
                           </div>
                         </div>
-                        <div className="bg-neutral-950/50 rounded-lg p-2.5 border border-green-chart/30 relative overflow-hidden">
-                          <div className="absolute inset-0 bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                        <div
+                          className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                        >
+                          <div
+                            className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                          ></div>
                           <div className="relative text-center">
-                            <p className="text-[9px] text-green-chart font-semibold uppercase tracking-wider mb-0.5">
+                            <p
+                              className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                            >
                               Total Streams
                             </p>
-                            <p className="text-2xl font-bold text-green-chart">
+                            <p
+                              className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                            >
                               {testResult.total_streams ?? "N/A"}
                             </p>
                           </div>
@@ -889,8 +1134,12 @@ const DemoMode = () => {
               </div>
 
               {/* BOTTOM LEFT - Preview (spans 2 columns) */}
-              <div className="col-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border border-emerald-500/30 flex flex-col min-h-0 backdrop-blur-sm shadow-lg shadow-emerald-500/10 animate-[slideUp_0.8s_ease-out_0.2s_both]">
-                <p className="text-[10px] uppercase text-emerald-400 font-bold tracking-wider mb-2 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+              <div
+                className={`col-span-2 bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/80 rounded-xl p-3 border flex flex-col min-h-0 backdrop-blur-sm animate-[slideUp_0.8s_ease-out_0.2s_both] ${colors.gridPreviewBorder}`}
+              >
+                <p
+                  className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${colors.gridPreviewTitle}`}
+                >
                   Preview
                 </p>
                 <div className="flex-1 bg-black rounded-lg flex items-center justify-center overflow-hidden">
