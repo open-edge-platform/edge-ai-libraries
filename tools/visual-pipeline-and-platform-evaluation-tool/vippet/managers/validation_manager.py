@@ -4,7 +4,6 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from api.api_schemas import (
     PipelineValidation,
@@ -18,7 +17,7 @@ from pipeline_runner import PipelineRunner, PipelineValidationResult
 logger = logging.getLogger("validation_manager")
 
 # Singleton instance for ValidationManager
-_validation_manager_instance: Optional["ValidationManager"] = None
+_validation_manager_instance: "ValidationManager | None" = None
 
 
 def get_validation_manager() -> "ValidationManager":
@@ -57,9 +56,9 @@ class ValidationJob:
     pipeline_description: str
     state: ValidationJobState
     start_time: int
-    end_time: Optional[int] = None
-    is_valid: Optional[bool] = None
-    error_message: Optional[List[str]] = None
+    end_time: int | None = None
+    is_valid: bool | None = None
+    error_message: list[str] | None = None
 
 
 class ValidationManager:
@@ -76,7 +75,7 @@ class ValidationManager:
 
     def __init__(self) -> None:
         # All known jobs keyed by job id
-        self.jobs: Dict[str, ValidationJob] = {}
+        self.jobs: dict[str, ValidationJob] = {}
         # Shared lock protecting access to ``jobs``
         self.lock = threading.Lock()
         self.logger = logging.getLogger("ValidationManager")
@@ -258,7 +257,7 @@ class ValidationManager:
             error_message=job.error_message,
         )
 
-    def get_all_job_statuses(self) -> List[ValidationJobStatus]:
+    def get_all_job_statuses(self) -> list[ValidationJobStatus]:
         """
         Return statuses for all known validation jobs.
 
@@ -272,7 +271,7 @@ class ValidationManager:
             )
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[ValidationJobStatus]:
+    def get_job_status(self, job_id: str) -> ValidationJobStatus | None:
         """
         Return the status for a single validation job.
 
@@ -286,7 +285,7 @@ class ValidationManager:
             self.logger.debug("Validation job status for %s: %s", job_id, status)
             return status
 
-    def get_job_summary(self, job_id: str) -> Optional[ValidationJobSummary]:
+    def get_job_summary(self, job_id: str) -> ValidationJobSummary | None:
         """
         Return a short summary for a single validation job.
 

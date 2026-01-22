@@ -18,7 +18,6 @@ import time
 import psutil as ps
 from dataclasses import dataclass
 from subprocess import PIPE, Popen
-from typing import List, Optional
 
 
 @dataclass
@@ -44,7 +43,7 @@ class PipelineValidationResult:
     """Result of a pipeline validation run."""
 
     is_valid: bool
-    errors: List[str]
+    errors: list[str]
 
     def __repr__(self):
         return (
@@ -74,9 +73,9 @@ class PipelineRunner:
         mode: str = "normal",
         max_runtime: float = 0.0,
         poll_interval: int = 1,
-        fps_file_path: Optional[str] = None,
+        fps_file_path: str | None = None,
         inactivity_timeout: int = 120,
-        hard_timeout: Optional[int] = None,
+        hard_timeout: int | None = None,
     ):
         """
         Initialize the PipelineRunner.
@@ -222,7 +221,7 @@ class PipelineRunner:
         is_valid = proc.returncode == 0 and len(errors) == 0
         return PipelineValidationResult(is_valid=is_valid, errors=errors)
 
-    def _parse_validation_stderr(self, raw_stderr: str) -> List[str]:
+    def _parse_validation_stderr(self, raw_stderr: str) -> list[str]:
         """
         Parse raw stderr from gst_runner.py into a list of error messages.
 
@@ -242,7 +241,7 @@ class PipelineRunner:
         if not raw_stderr:
             return []
 
-        messages: List[str] = []
+        messages: list[str] = []
         prefix = "gst_runner - ERROR - "
 
         for line in raw_stderr.splitlines():

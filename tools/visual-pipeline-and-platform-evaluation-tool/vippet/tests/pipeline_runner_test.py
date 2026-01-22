@@ -70,10 +70,8 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(cmd[5], "0")
         self.assertEqual(cmd[6], self.test_pipeline_command)
 
-        # Verify FPS extraction
-        self.assertIsInstance(result, PipelineRunResult)
-        # Type narrowing for accessing PipelineRunResult attributes
-        assert isinstance(result, PipelineRunResult)
+        # Verify FPS extraction with type narrowing
+        assert isinstance(result, PipelineRunResult)  # Type narrowing
         self.assertEqual(result.total_fps, expected_result.total_fps)
         self.assertEqual(result.per_stream_fps, expected_result.per_stream_fps)
         self.assertEqual(result.num_streams, expected_result.num_streams)

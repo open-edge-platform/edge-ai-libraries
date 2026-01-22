@@ -2,7 +2,6 @@ import logging
 import sys
 import threading
 import time
-from typing import Dict, Optional, List
 from dataclasses import dataclass
 import uuid
 
@@ -26,7 +25,7 @@ logger = logging.getLogger("tests_manager")
 pipeline_manager = get_pipeline_manager()
 
 # Singleton instance for TestsManager
-_tests_manager_instance: Optional["TestsManager"] = None
+_tests_manager_instance: "TestsManager | None" = None
 
 
 def get_tests_manager() -> "TestsManager":
@@ -59,13 +58,13 @@ class PerformanceJob:
     request: PerformanceTestSpec
     state: TestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[PipelinePerformanceSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -81,13 +80,13 @@ class DensityJob:
     request: DensityTestSpec
     state: TestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[PipelinePerformanceSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    error_message: str | None = None
 
 
 class TestsManager:
@@ -103,9 +102,9 @@ class TestsManager:
 
     def __init__(self):
         # All known jobs keyed by job id
-        self.jobs: Dict[str, PerformanceJob | DensityJob] = {}
+        self.jobs: dict[str, PerformanceJob | DensityJob] = {}
         # Currently running PipelineRunner or Benchmark jobs keyed by job id
-        self.runners: Dict[str, PipelineRunner | Benchmark] = {}
+        self.runners: dict[str, PipelineRunner | Benchmark] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
         self.lock = threading.Lock()
         self.logger = logging.getLogger("TestsManager")
@@ -438,7 +437,7 @@ class TestsManager:
             self.logger.debug(f"Current job statuses for type {job_type}: {statuses}")
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[TestsJobStatus]:
+    def get_job_status(self, job_id: str) -> TestsJobStatus | None:
         """
         Return the status for a single job.
 
@@ -459,7 +458,7 @@ class TestsManager:
 
     def get_job_summary(
         self, job_id: str
-    ) -> Optional[PerformanceJobSummary | DensityJobSummary]:
+    ) -> PerformanceJobSummary | DensityJobSummary | None:
         """
         Return a short summary for a single job.
 
