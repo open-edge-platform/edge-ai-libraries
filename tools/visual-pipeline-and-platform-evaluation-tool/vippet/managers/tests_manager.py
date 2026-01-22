@@ -17,7 +17,7 @@ from api.api_schemas import (
     DensityJobStatus,
     TestsJobStatus,
 )
-from pipeline_runner import PipelineRunner
+from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
 from managers.pipeline_manager import get_pipeline_manager
 
@@ -217,18 +217,26 @@ class TestsManager:
                 )
             )
 
-            # Initialize PipelineRunner
-            runner = PipelineRunner()
+            # Initialize PipelineRunner in normal mode with max_runtime=0 (run until EOS)
+            runner = PipelineRunner(mode="normal", max_runtime=0)
 
             # Store runner for this job so that a future extension could cancel it.
             with self.lock:
                 self.runners[job_id] = runner
 
             # Run the pipeline
-            results = runner.run(
+            result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
             )
+
+            # Type narrowing: PipelineRunner in normal mode returns PipelineRunResult
+            if not isinstance(result, PipelineRunResult):
+                self._update_job_error(
+                    job_id,
+                    "Unexpected result type from pipeline runner",
+                )
+                return
 
             # Update job with results
             with self.lock:
@@ -248,29 +256,28 @@ class TestsManager:
                         job.state = TestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
-                        if results is not None:
-                            # Build streams distribution per pipeline
-                            streams_per_pipeline = [
-                                PipelinePerformanceSpec(
-                                    id=spec.id,
-                                    streams=spec.streams,
-                                )
-                                for spec in performance_request.pipeline_performance_specs
-                            ]
-
-                            # Update performance metrics
-                            job.total_fps = results.total_fps
-                            job.per_stream_fps = results.per_stream_fps
-                            job.total_streams = results.num_streams
-                            job.streams_per_pipeline = streams_per_pipeline
-                            job.video_output_paths = video_output_paths
-
-                            self.logger.info(
-                                f"Performance test {job_id} completed successfully: "
-                                f"total_fps={results.total_fps}, "
-                                f"per_stream_fps={results.per_stream_fps}, "
-                                f"total_streams={results.num_streams}"
+                        # Build streams distribution per pipeline
+                        streams_per_pipeline = [
+                            PipelinePerformanceSpec(
+                                id=spec.id,
+                                streams=spec.streams,
                             )
+                            for spec in performance_request.pipeline_performance_specs
+                        ]
+
+                        # Update performance metrics
+                        job.total_fps = result.total_fps
+                        job.per_stream_fps = result.per_stream_fps
+                        job.total_streams = result.num_streams
+                        job.streams_per_pipeline = streams_per_pipeline
+                        job.video_output_paths = video_output_paths
+
+                        self.logger.info(
+                            f"Performance test {job_id} completed successfully: "
+                            f"total_fps={result.total_fps}, "
+                            f"per_stream_fps={result.per_stream_fps}, "
+                            f"total_streams={result.num_streams}"
+                        )
 
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
