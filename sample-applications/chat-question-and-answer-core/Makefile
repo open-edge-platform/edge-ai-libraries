@@ -110,7 +110,7 @@ test: $(TEST_TARGETS)
 
 test-frontend:
 	@echo "🧪 Running frontend tests..."
-	@cd $(frontend_CONTEXT_DIR) && npm install && npm run coverage || true
+	@cd $(frontend_CONTEXT_DIR) && npm install && npm run coverage
 
 test-backend:
 	@echo "🧪 Running backend tests ($(BACKEND_UPPER))..."
@@ -128,7 +128,7 @@ test-backend:
 		--cov-report=html:../coverage-backend \
 		--cov-report=xml:../coverage-backend.xml \
 		--cov-report=term-missing \
-		--cov-branch || true; \
+		--cov-branch && \
 	cd .. && \
 	deactivate && \
 	rm -rf chat-qna-core-venv
@@ -279,7 +279,7 @@ deploy-build:
 				echo "✅ Deployment complete!"; \
 			fi; \
 		fi; \
-	' || true
+	'
 
 undeploy:
 	@echo "══════════════════════════════════════════════════"
@@ -316,8 +316,8 @@ pylint:
 	@python3 -m venv pylint-venv && \
 	source pylint-venv/bin/activate && \
 	pip install poetry && \
-	poetry install --no-root --with dev || true && \
-	poetry add --group dev pylint || true && \
+	poetry install --no-root --with dev && \
+	poetry add --group dev pylint && \
 	mkdir -p security-results && \
 	echo "=== Pylint Report ===" > security-results/pylint-report-$(SERVICE_NAME).txt && \
 	echo "Date: $$(date)" >> security-results/pylint-report-$(SERVICE_NAME).txt && \
@@ -390,7 +390,7 @@ trivy-scan-config:
 clamav-scan:
 	@echo "🦠 Running ClamAV Antivirus Scan..."
 	@mkdir -p security-results
-	@sudo clamscan -r . \
+	@clamscan -r . \
 		--exclude-dir=.git \
 		--exclude-dir=node_modules \
 		--exclude-dir=venv \
