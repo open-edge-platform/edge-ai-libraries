@@ -22,14 +22,17 @@ Before you begin, ensure that you have the following prerequisites:
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
       ```
 
-2. **Navigate to the Directory**:
+2. **Bring Up the Model Download Microservice**:
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../microservices/model-download/docs/get_started.md).
+
+3. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
       cd edge-ai-libraries/sample-applications/chat-question-and-answer
       ```
       Adjust the repo link appropriately in case of forked repo.
-
-3. **Set Up Environment Variables**:
+   
+4. **Set Up Environment Variables**:
     Set up the environment variables based on the inference method you plan to use:
 
     _Common configuration_
@@ -38,9 +41,18 @@ Before you begin, ensure that you have the following prerequisites:
     export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
     export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
     export RERANKER_MODEL=BAAI/bge-reranker-base
-    export DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
-    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available
-    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available
+    export DEVICE="CPU" # Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
+
+    # Model-Download microservice configuration
+    export MODEL_DOWNLOAD_HOST=<your-model-download-host>
+    export MODEL_DOWNLOAD_PORT=<your-model-download-port>
+    ```
+    _Optional OTLP configuration_
+
+    ```bash
+    # Set only if there is an OTLP endpoint available
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
+    export OTLP_ENDPOINT=<otlp-endpoint> 
     ```
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
@@ -55,7 +67,7 @@ Before you begin, ensure that you have the following prerequisites:
     # embedding: OVMS, TEI
     ```
 
-4. **Build the Docker Image**:
+5. **Build the Docker Image**:
     - Build the Docker image for the ChatQ&A Sample Application:
       ```bash
       docker compose build
@@ -67,12 +79,12 @@ Before you begin, ensure that you have the following prerequisites:
     - Refer to [Overview](./overview.md#technical-architecture) for details on the built microservices.
     Note: `chatqna` and `ChatQnA backend` refer to the same microservice.
 
-5. **Run the Docker Container**:
+6. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
       docker compose up
       ```
-6. **Access the Application**:
+7. **Access the Application**:
     - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard.
 
 ## Verification

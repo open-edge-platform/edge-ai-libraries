@@ -127,8 +127,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Map model_type to export type
         export_type_map = {
             "llm": "text_generation",
-            "embeddings": "embeddings",
-            "rerank": "rerank"
+            "embeddings": "embeddings_ov",
+            "rerank": "rerank_ov"
         }
 
         # Validate model_type
@@ -154,7 +154,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         logger.info("Checking for export_model.py script...")
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
+        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py"
       
         if not os.path.exists("export_model.py"):
             logger.info(f"Downloading export_model.py script...")
@@ -176,7 +176,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             "python3", "export_model.py", export_type,
             "--source_model", model_name,
             "--weight-format", weight_format,
-            "--config_file_path", f"{model_directory}/config.json",
+            "--config_file_path", f"{model_directory}/config_all.json",
             "--model_repository_path", f"{model_directory}/",
             "--target_device", target_device
         ]

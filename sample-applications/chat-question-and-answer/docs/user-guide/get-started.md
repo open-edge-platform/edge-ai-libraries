@@ -83,41 +83,52 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```
    Note: Adjust the repo link appropriately in case of forked repo.
 
-2. **Navigate to the Directory**:
+2. **Bring Up the Model Download Microservice**:
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../microservices/model-download/docs/get_started.md).
+
+3. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
 
    ```bash
    cd edge-ai-libraries/sample-applications/chat-question-and-answer
    ```
 
-3. **Set Up Environment Variables**:
-   Set up the environment variables based on the inference method you plan to use:
+4. **Set Up Environment Variables**:
+    Set up the environment variables based on the inference method you plan to use:
 
-   _Common configuration_
+    _Common configuration_
+    ```bash
+    export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+    export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+    export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
+    export RERANKER_MODEL=BAAI/bge-reranker-base
+    export DEVICE="CPU" # Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
 
-   ```bash
-   export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-   export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-   export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
-   export RERANKER_MODEL=BAAI/bge-reranker-base
-   export DEVICE="CPU" #Options: GPU is enabled for openvino model server(OVMS) .
-   export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
-   export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available or can be ignored
-   ```
-   __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
+    # Model-Download microservice configuration
+    export MODEL_DOWNLOAD_HOST=<your-model-download-host>
+    export MODEL_DOWNLOAD_PORT=<your-model-download-port>
+    ```
+    _Optional OTLP configuration_
 
-   _Run the below script to set up the rest of the environment depending on the model server and embedding._
+    ```bash
+    # Set only if there is an OTLP endpoint available
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace>
+    export OTLP_ENDPOINT=<otlp-endpoint>
+    ```
+    __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
-   ```bash
-   export REGISTRY="intel/"
-   export TAG=2.0.1
-   source setup.sh llm=<model-server> embed=<embedding>
-   # Below are the options
-   # model-server: VLLM (deprecated), OVMS, TGI (deprecated)
-   # embedding: OVMS, TEI
-   ```
+    Refer to the supported model list in the [Get Started](./get-started.md) document.
 
-4. **Start the Application**:
+    _Run the below script to set up the rest of the environment depending on the model server and embedding._
+    ```bash
+    export REGISTRY="intel/"
+    source setup.sh llm=<model-server> embed=<embedding>
+    # Below are the options
+    # model-server: VLLM , OVMS, TGI
+    # embedding: OVMS, TEI
+    ```
+
+5. **Start the Application**:
    Start the application using Docker Compose:
 
    ```bash
@@ -125,14 +136,14 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```
    - Refer to the application architecture diagram [here](./overview-architecture.md#technical-architecture-diagram) .
 
-5. **Verify the Application**:
+6. **Verify the Application**:
    Check that the application is running:
 
    ```bash
    docker ps
    ```
 
-6. **Access the Application**:
+7. **Access the Application**:
    Open a browser and go to `http://<host-ip>:8101` to access the application dashboard. The application dashboard allows the user to,
     - Create and manage context by adding documents (pdf, docx, etc.) and web links. Note: There are restrictions on the max size of the document allowed.
     - Start Q&A session with the created context.
