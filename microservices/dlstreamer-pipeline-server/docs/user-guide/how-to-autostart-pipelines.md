@@ -56,7 +56,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
                     "name": "pallet_defect_detection",
                     "source": "gstreamer",
                     "queue_maxsize": 50,
-                    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                    "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
                     "parameters": {
                         "type": "object",
                         "properties": {
