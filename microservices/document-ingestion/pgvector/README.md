@@ -9,7 +9,7 @@
 1. A concise description of the microservice’s purpose.
 2. A summary of its technical value and benefits.
 -->
-## Overview
+
 Document ingestion service loads, parses, and creates embeddings for popular document types like pdf, docx, and txt files. The document ingestion is implemented as a microservice which in trun interacts with other microservices, namely vectorDB, data store, and embedding to achieve the functionality. The ingested documentes are converted to embeddings, embeddings stored in the vectorDB, and source documents stored in the data store. PGVector is used as the vectorDB and minIO is used as the data store.
 
 **Key Benefits**:
@@ -36,7 +36,7 @@ Guidance for Authors:
 -->
 ## Example Use Case
 
-- **Use Case 1**: Refer to the [ChatQnA](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer) sample application where this microservice is used.
+- **Use Case 1**: Refer to the [ChatQnA](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html) sample application where this microservice is used.
 
 
 <!--
@@ -49,7 +49,7 @@ Diagram Guidelines:
 3. Use clear labels and simple flows to make the diagram easy to interpret.
 -->
 ### High-Level System View Diagram
-![System View Diagram](./docs/images/DataPrep_HL_Arch.png)
+![System View Diagram](./docs/user-guide/_assets/DataPrep_HL_Arch.png)
 
 *Figure 1: High-level system view demonstrating the microservice in a real-world use case.*
 
@@ -84,7 +84,8 @@ Guidance for Authors:
 2. Easy navigation to developer resources.
 -->
 ## Supporting Resources
-- [**Get Started Guide**](./docs/get-started.md)
-- [**API Reference**](./docs/dataprep-api.yml)
-- [**System Requirements**](./docs/system-requirements.md)
+
+- [**Get Started Guide**](./docs/user-guide/get-started.md)
+- [**API Reference**](./docs/user-guide/api-reference.md)
+- [**System Requirements**](./docs/user-guide/get-started/system-requirements.md)
 <!-- - **Developer Forum** -->

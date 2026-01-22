@@ -1,7 +1,7 @@
 
 # System Requirements
-This page provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
 
+This page provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
 
 <!--
 ## User Stories Addressed
@@ -35,7 +35,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 | **Component**      | **Minimum Requirement**   | **Recommended**         |
 |---------------------|---------------------------|--------------------------|
-| **Processor**       | Intel® Xeon 4th Gen    | Intel® Xeon 5th Gen     |
+| **Processor**       | Intel® Xeon® 4th Gen    | Intel® Xeon® 5th Gen     |
 | **Memory**          | 64 GB                     | 128 GB+                   |
 | **Disk Space**      | 128 GB SSD               | 256 GB SSD              |
 | **GPU/Accelerator** | NA           | NA    |
@@ -61,8 +61,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 - Include any limitations or known issues with supported platforms.
 -->
 **Known Limitations**:
-- Validation is pending on any hardware configuration other than Xeons.
-
+- Validation is pending on any hardware configuration other than Intel® Xeon® processors.
 
 ## Validation
-- Ensure all dependencies are installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all dependencies are installed and configured before proceeding to [Get Started](../get-started.md).

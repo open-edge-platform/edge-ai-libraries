@@ -1,5 +1,16 @@
 # EtherCAT Master Stack
 
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/edge-control-libraries/fieldbus/ethercat-masterstack">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/ethercat-masterstack/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
 ## Introduction
 
 The EtherCAT master stack by IgH* is used for open source projects for automation of systems such as Robot Operating System (ROS) and Linux* CNC. Applications of an open source–based EtherCAT master system reduces cost and makes application program development flexible.
@@ -55,7 +66,7 @@ Run the script ``install_etherlab_patched.sh`` to apply optimizated patches in `
 
 ### Building EtherCAT Stack
 
-EtherCAT Master Stack includes master and device modules and support to build as out-of-tree kernel modules that are not part of the linux kenrel source tree. It requires to specific kernel source dir with ``--with-linux-dir`` to be compatible with the specific kernel version and configuration of the kernel, ensure that the module interfaces correctly with the kernel's internal APIs and data structures. 
+EtherCAT Master Stack includes master and device modules and support to build as out-of-tree kernel modules that are not part of the linux kenrel source tree. It requires to specific kernel source dir with ``--with-linux-dir`` to be compatible with the specific kernel version and configuration of the kernel, ensure that the module interfaces correctly with the kernel's internal APIs and data structures.
 
 So that, linux kernel source need to be compiled with configuation of the kernel, and use ``--with-linux-dir`` to specific kernel directory.
 Recommend using environment variables ``kernel_source_dir`` to configure it.
@@ -98,7 +109,7 @@ The below commands have to entered as root, which will install the EtherCAT head
 
 ### Configuring EtherCAT Device
 
-A mandatory ``ethercat`` file installed in ``/etc/sysconfig/``. The ``ethercat`` file contains the configuration variables needed to operate one or more masters. 
+A mandatory ``ethercat`` file installed in ``/etc/sysconfig/``. The ``ethercat`` file contains the configuration variables needed to operate one or more masters.
 Do the following to configure it:
 
 ![Ethernet SysConfig](./docs/images/ethercat_sysconfig.png)
@@ -142,7 +153,7 @@ Get the MAC address of the Network Interface Controllers (NICs) selected for Eth
 
 ### Start Master as Service
 
-After the ``init`` script and the ``sysconfig`` file are ready to configure, and are placed in the right location, the EtherCAT master can be inserted as a service. You can use the ``init`` script to manually start and stop the EtherCAT master. Execute the ``init`` script with one of the following parameters: 
+After the ``init`` script and the ``sysconfig`` file are ready to configure, and are placed in the right location, the EtherCAT master can be inserted as a service. You can use the ``init`` script to manually start and stop the EtherCAT master. Execute the ``init`` script with one of the following parameters:
 
 | Operation                  | Command                                      |
 |----------------------------|----------------------------------------------|
@@ -161,18 +172,18 @@ Provided below are some Makefile templates for EtherCAT application. These templ
       CC     = gcc
       CFLAGS = -Wall -O3 -g -D_GNU_SOURCE -D_REENTRANT -fasynchronous-unwind-tables
       LIBS   = -lm -lrt -lpthread -lethercat -Wl,--no-as-needed -L/usr/lib
-      
+
       TARGET = test
       SRCS   = $(wildcard *.c)
-      
+
       OBJS   = $(SRCS:.c=.o)
-      
+
       $(TARGET):$(OBJS)
               $(CC) -o $@ $^ $(LIBS)
-      
+
       clean:
               rm -rf $(TARGET) $(OBJS)
-      
+
       %.o:%.c
               $(CC) $(CFLAGS) -o $@ -c $<
 ```
@@ -183,18 +194,18 @@ Provided below are some Makefile templates for EtherCAT application. These templ
       CC     = gcc
       CFLAGS = -Wall -O3 -g -I/usr/include/xenomai/cobalt -I/usr/include/xenomai -D_GNU_SOURCE -D_REENTRANT -fasynchronous-unwind-tables -D__COBALT__ -D__COBALT_WRAP__
       LIBS   = -lm -lrt -lpthread -lethercat_rtdm -Wl,--no-as-needed -Wl,@/usr/lib/cobalt.wrappers -Wl,@/usr/lib/modechk.wrappers  /usr/lib/xenomai/bootstrap.o -Wl,--wrap=main -Wl,--dynamic-list=/usr/lib/dynlist.ld -L/usr/lib -lcobalt -lmodechk
-      
+
       TARGET = test
       SRCS   = $(wildcard *.c)
-      
+
       OBJS   = $(SRCS:.c=.o)
-      
+
       $(TARGET):$(OBJS)
               $(CC) -o $@ $^ $(LIBS)
-      
+
       clean:
               rm -rf $(TARGET) $(OBJS)
-      
+
       %.o:%.c
               $(CC) $(CFLAGS) -o $@ -c $<
 ```
