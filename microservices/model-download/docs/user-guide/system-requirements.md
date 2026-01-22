@@ -2,7 +2,7 @@
 This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
 
 ## Supported Platforms
-This microservice currently supports CPU and GPU-based runs. This microservice is intended to run as a prerequisite to a GenAI Sample application. Hence, supported platform, OS configuration, etc. are as per the documentation in the sample application. The documentation here, therefore, does not provide separate requirements.
+This microservice currently supports CPU, GPU and NPU -based runs. This microservice is intended to run as a prerequisite to a GenAI Sample application. Hence, supported platform, OS configuration, etc. are as per the documentation in the sample application. The documentation here, therefore, does not provide separate requirements.
 
 **Operating Systems**
 - As per sample application documentation.

@@ -62,9 +62,9 @@ README.md           @xwu2intel
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni
-/microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni  @open-edge-platform/open-edge-platform-docs-write
-/microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni  @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat
+/microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @oonyshch @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
 /microservices/document-ingestion/docs/                @bharagha @madhuri-rai07 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write

@@ -42,6 +42,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     libsm6 \
     curl \
     git \
+    zstd \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 RUN groupadd -g ${GID} appuser && \

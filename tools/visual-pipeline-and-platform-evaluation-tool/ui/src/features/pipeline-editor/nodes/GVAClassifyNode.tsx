@@ -2,6 +2,8 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 import type { DeviceType } from "@/features/pipeline-editor/nodes/shared-types.ts";
 
+export const GVAClassifyNodeWidth = 242;
+
 type GVAClassifyNodeProps = {
   data: {
     model?: string;
@@ -10,37 +12,39 @@ type GVAClassifyNodeProps = {
 };
 
 const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => (
-  <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-purple-400 min-w-40">
+  <div className="px-4 py-2 shadow-md bg-background border-2 border-purple-400 min-w-[220px]">
     <div className="flex flex-col">
       {/* Node Header */}
       <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-purple-700">GVAClassify</div>
-        <div className="text-xs text-gray-500 px-2 py-1 bg-purple-100 rounded">
+        <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+          GVAClassify
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-purple-100 dark:bg-purple-900">
           Classification
         </div>
       </div>
 
       {/* Model Property */}
       {data.model && (
-        <div className="text-xs text-gray-600 mb-2">
+        <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
           <span className="font-medium">Model:</span>
-          <div className="mt-1 p-2 bg-purple-50 rounded text-xs font-mono">
+          <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
             {data.model.split("/").pop() || data.model}
           </div>
         </div>
       )}
 
       {data.device && (
-        <div className="text-xs text-gray-600 mb-2">
+        <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
           <span className="font-medium">Device:</span>
-          <div className="mt-1 p-2 bg-purple-50 rounded text-xs font-mono">
+          <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
             {data.device}
           </div>
         </div>
       )}
 
       {/* Description */}
-      <div className="text-xs text-gray-600">
+      <div className="text-xs text-gray-600 dark:text-gray-300">
         Intel DL Streamer classification
       </div>
     </div>
