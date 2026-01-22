@@ -15,10 +15,7 @@ README.md           @xwu2intel
 # ============================================================================
 # Libraries
 # ============================================================================
-/libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208
-/libraries/dl-streamer/docs/                           @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208 @open-edge-platform/open-edge-platform-docs-write
-/libraries/dl-streamer/README.md                       @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208 @open-edge-platform/open-edge-platform-docs-write
-
+ 
 /libraries/edge-control-libraries/                                                                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/edge-control-libraries/README.md                                                                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/                                            @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
