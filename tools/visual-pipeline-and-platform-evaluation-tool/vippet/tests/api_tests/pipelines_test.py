@@ -54,6 +54,9 @@ class TestPipelinesAPI(unittest.TestCase):
                 pipeline_graph=schemas.PipelineGraph.model_validate_json(
                     self.test_graph
                 ),
+                pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                    self.test_graph
+                ),
                 parameters=None,
             ),
             schemas.Pipeline(
@@ -64,6 +67,9 @@ class TestPipelinesAPI(unittest.TestCase):
                 source=schemas.PipelineSource.USER_CREATED,
                 type=schemas.PipelineType.GSTREAMER,
                 pipeline_graph=schemas.PipelineGraph.model_validate_json(
+                    self.test_graph
+                ),
+                pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
                     self.test_graph
                 ),
                 parameters=None,
@@ -111,6 +117,9 @@ class TestPipelinesAPI(unittest.TestCase):
             source=schemas.PipelineSource.USER_CREATED,
             type=schemas.PipelineType.GSTREAMER,
             pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
             parameters=None,
         )
         mock_pipeline_manager.add_pipeline.return_value = mock_pipeline
@@ -188,6 +197,9 @@ class TestPipelinesAPI(unittest.TestCase):
             source=schemas.PipelineSource.USER_CREATED,
             type=schemas.PipelineType.GSTREAMER,
             pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
             parameters=None,
         )
 
@@ -245,6 +257,9 @@ class TestPipelinesAPI(unittest.TestCase):
             source=schemas.PipelineSource.USER_CREATED,
             type=schemas.PipelineType.GSTREAMER,
             pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
             parameters=None,
         )
         mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
@@ -262,6 +277,7 @@ class TestPipelinesAPI(unittest.TestCase):
             name="updated-name",
             description="Updated description",
             pipeline_graph=None,
+            pipeline_graph_simple=None,
             parameters=None,
         )
 
@@ -275,6 +291,9 @@ class TestPipelinesAPI(unittest.TestCase):
             source=schemas.PipelineSource.USER_CREATED,
             type=schemas.PipelineType.GSTREAMER,
             pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
             parameters=None,
         )
         mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
@@ -294,6 +313,7 @@ class TestPipelinesAPI(unittest.TestCase):
             name=None,
             description=None,
             pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=None,
             parameters=None,
         )
 
@@ -305,7 +325,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(
             response.json(),
             schemas.MessageResponse(
-                message="At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided."
+                message="At least one of 'name', 'description', 'parameters', 'pipeline_graph' or 'pipeline_graph_simple' must be provided."
             ).model_dump(),
         )
         mock_pipeline_manager.update_pipeline.assert_not_called()
@@ -353,37 +373,453 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_pipeline_manager.update_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_not_found(self, mock_pipeline_manager):
-        mock_pipeline_manager.update_pipeline.side_effect = ValueError(
-            "Pipeline with id 'nonexistent-id' not found."
-        )
+    def test_update_pipeline_empty_pipeline_graph_simple_rejected(
+        self, mock_pipeline_manager
+    ):
+        """
+        Test that updating with empty pipeline_graph_simple is rejected with 400.
 
-        payload = {"description": "Updated description"}
-        response = self.client.patch("/pipelines/nonexistent-id", json=payload)
+        This validates the endpoint check for at least one node and one edge
+        in the simple view graph.
+        """
+        payload = {"pipeline_graph_simple": {"nodes": [], "edges": []}}
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(
             response.json(),
             schemas.MessageResponse(
-                message="Pipeline with id 'nonexistent-id' not found."
+                message="Field 'pipeline_graph_simple' must contain at least one node and one edge."
             ).model_dump(),
+        )
+        mock_pipeline_manager.update_pipeline.assert_not_called()
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_both_graphs_provided_rejected(self, mock_pipeline_manager):
+        """
+        Test that providing both pipeline_graph and pipeline_graph_simple is rejected.
+
+        This validates the mutual exclusivity requirement - only one graph type
+        should be provided at a time.
+        """
+        payload = {
+            "pipeline_graph": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump(),
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump(),
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            schemas.MessageResponse(
+                message="Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
+            ).model_dump(),
+        )
+        mock_pipeline_manager.update_pipeline.assert_not_called()
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_simple_view_success(self, mock_pipeline_manager):
+        """
+        Test successful update using pipeline_graph_simple.
+
+        This validates that when only pipeline_graph_simple is provided,
+        the endpoint correctly passes it to the manager and returns the
+        updated pipeline with both views.
+        """
+        updated_pipeline = schemas.Pipeline(
+            id="pipeline-ghi789",
+            name="user-defined-pipelines",
+            version=1,
+            description="A custom test pipeline",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
+        )
+        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+
+        payload = {
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump()
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["id"], "pipeline-ghi789")
+        # Verify both graph views are present in response
+        self.assertIn("pipeline_graph", data)
+        self.assertIn("pipeline_graph_simple", data)
+        mock_pipeline_manager.update_pipeline.assert_called_once_with(
+            pipeline_id="pipeline-ghi789",
+            name=None,
+            description=None,
+            pipeline_graph=None,
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
         )
 
     @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_server_error(self, mock_pipeline_manager):
-        mock_pipeline_manager.update_pipeline.side_effect = Exception(
-            "Unexpected error"
+    def test_update_pipeline_simple_view_structural_change_rejected(
+        self, mock_pipeline_manager
+    ):
+        """
+        Test that structural changes in simple view are rejected with 400.
+
+        This validates that the manager correctly detects and rejects
+        unsupported operations like adding/removing nodes or edges in
+        simple view, and the endpoint returns appropriate error message.
+        """
+        mock_pipeline_manager.update_pipeline.side_effect = ValueError(
+            "Node additions are not supported in simple view. Added nodes: 5. "
+            "Please use advanced view to add new nodes."
         )
 
-        payload = {"description": "Updated description"}
+        payload = {
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump()
+        }
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Node additions are not supported", response.json()["message"])
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_simple_view_edge_change_rejected(
+        self, mock_pipeline_manager
+    ):
+        """
+        Test that edge changes in simple view are rejected with 400.
+
+        This validates that when a user tries to modify edges in simple view,
+        the manager correctly rejects it and the endpoint returns appropriate
+        error message.
+        """
+        mock_pipeline_manager.update_pipeline.side_effect = ValueError(
+            "Edge modifications are not supported in simple view. Modified edges: "
+            "id=1 changed from (0 -> 2) to (0 -> 3). Please use advanced view to "
+            "modify graph structure."
+        )
+
+        payload = {
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump()
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Edge modifications are not supported", response.json()["message"]
+        )
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_advanced_view_success(self, mock_pipeline_manager):
+        """
+        Test successful update using pipeline_graph (advanced view).
+
+        This validates that when pipeline_graph is provided, the endpoint
+        correctly passes it to the manager, which generates a new simple view,
+        and returns the updated pipeline with both views.
+        """
+        updated_pipeline = schemas.Pipeline(
+            id="pipeline-ghi789",
+            name="user-defined-pipelines",
+            version=1,
+            description="Updated with new advanced graph",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
+        )
+        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+
+        payload = {
+            "description": "Updated with new advanced graph",
+            "pipeline_graph": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump(),
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["id"], "pipeline-ghi789")
+        self.assertEqual(data["description"], "Updated with new advanced graph")
+        # Verify both graph views are present in response
+        self.assertIn("pipeline_graph", data)
+        self.assertIn("pipeline_graph_simple", data)
+        mock_pipeline_manager.update_pipeline.assert_called_once()
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_validation_error_returns_400(self, mock_pipeline_manager):
+        """
+        Test that validation errors from manager result in 400 response.
+
+        This validates that when the manager raises ValueError for validation
+        issues (not "not found"), the endpoint returns 400 with the error message.
+        """
+        mock_pipeline_manager.update_pipeline.side_effect = ValueError(
+            "Invalid graph: circular graph detected or no start nodes found"
+        )
+
+        payload = {
+            "pipeline_graph": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ).model_dump()
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid graph", response.json()["message"])
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_get_pipelines_includes_both_views(self, mock_pipeline_manager):
+        """
+        Test that GET /pipelines returns pipelines with both graph views.
+
+        This validates that the list endpoint includes both pipeline_graph
+        (advanced view) and pipeline_graph_simple (simple view) for each pipeline.
+        """
+        mock_pipeline_manager.get_pipelines.return_value = [
+            schemas.Pipeline(
+                id="pipeline-abc123",
+                name="test-pipeline",
+                version=1,
+                description="Test pipeline with both views",
+                source=schemas.PipelineSource.USER_CREATED,
+                type=schemas.PipelineType.GSTREAMER,
+                pipeline_graph=schemas.PipelineGraph.model_validate_json(
+                    self.test_graph
+                ),
+                pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                    self.test_graph
+                ),
+                parameters=None,
+            ),
+        ]
+
+        response = self.client.get("/pipelines")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+
+        # Verify both graph views are present
+        pipeline = data[0]
+        self.assertIn("pipeline_graph", pipeline)
+        self.assertIn("pipeline_graph_simple", pipeline)
+        self.assertIsNotNone(pipeline["pipeline_graph"])
+        self.assertIsNotNone(pipeline["pipeline_graph_simple"])
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_get_pipeline_by_id_includes_both_views(self, mock_pipeline_manager):
+        """
+        Test that GET /pipelines/{id} returns pipeline with both graph views.
+
+        This validates that the single pipeline endpoint includes both
+        pipeline_graph (advanced view) and pipeline_graph_simple (simple view).
+        """
+        mock_pipeline_manager.get_pipeline_by_id.return_value = schemas.Pipeline(
+            id="pipeline-ghi789",
+            name="test-pipeline",
+            version=1,
+            description="Test pipeline with both views",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
+        )
+
+        response = self.client.get("/pipelines/pipeline-ghi789")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # Verify both graph views are present
+        self.assertIn("pipeline_graph", data)
+        self.assertIn("pipeline_graph_simple", data)
+        self.assertIsNotNone(data["pipeline_graph"])
+        self.assertIsNotNone(data["pipeline_graph_simple"])
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_create_pipeline_generates_both_views(self, mock_pipeline_manager):
+        """
+        Test that POST /pipelines creates pipeline with both graph views.
+
+        This validates that when a pipeline is created from a GStreamer
+        pipeline string, the manager generates both advanced and simple
+        views, and the ID is returned in the response.
+        """
+        mock_pipeline = schemas.Pipeline(
+            id="pipeline-newtest",
+            name="new-pipeline",
+            version=1,
+            description="New pipeline with both views",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
+        )
+        mock_pipeline_manager.add_pipeline.return_value = mock_pipeline
+
+        new_pipeline = {
+            "name": "new-pipeline",
+            "version": 1,
+            "description": "New pipeline with both views",
+            "type": schemas.PipelineType.GSTREAMER,
+            "pipeline_description": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
+            "parameters": None,
+        }
+
+        response = self.client.post("/pipelines", json=new_pipeline)
+
+        self.assertEqual(response.status_code, 201)
         self.assertEqual(
             response.json(),
-            schemas.MessageResponse(
-                message="Unexpected error: Unexpected error"
+            schemas.PipelineCreationResponse(id="pipeline-newtest").model_dump(),
+        )
+        # Verify add_pipeline was called (which should generate both views)
+        mock_pipeline_manager.add_pipeline.assert_called_once()
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_property_changes_only_in_simple_view(
+        self, mock_pipeline_manager
+    ):
+        """
+        Test that property-only changes in simple view are accepted.
+
+        This validates that when only node properties are modified in simple view
+        (no structural changes), the update succeeds and both views are returned.
+        """
+        # Create a modified test graph with changed property
+        modified_graph_json = """
+        {
+            "nodes": [
+                {
+                    "id": "0",
+                    "type": "filesrc",
+                    "data": {
+                        "location": "/tmp/different-file.mp4"
+                    }
+                },
+                {
+                    "id": "1",
+                    "type": "autovideosink",
+                    "data": {}
+                }
+            ],
+            "edges": [
+                {
+                    "id": "0",
+                    "source": "0",
+                    "target": "1"
+                }
+            ]
+        }
+        """
+
+        updated_pipeline = schemas.Pipeline(
+            id="pipeline-ghi789",
+            name="user-defined-pipelines",
+            version=1,
+            description="Pipeline with property changes",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(
+                modified_graph_json
+            ),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                modified_graph_json
+            ),
+            parameters=None,
+        )
+        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+
+        payload = {
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                modified_graph_json
+            ).model_dump()
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["id"], "pipeline-ghi789")
+        # Verify the property change was applied
+        self.assertEqual(
+            data["pipeline_graph"]["nodes"][0]["data"]["location"],
+            "/tmp/different-file.mp4",
+        )
+
+    @patch("api.routes.pipelines.pipeline_manager")
+    def test_update_pipeline_combined_fields_with_simple_view(
+        self, mock_pipeline_manager
+    ):
+        """
+        Test updating multiple fields including simple view at once.
+
+        This validates that name, description, and pipeline_graph_simple
+        can be updated together in a single request.
+        """
+        updated_pipeline = schemas.Pipeline(
+            id="pipeline-ghi789",
+            name="updated-pipeline-name",
+            version=1,
+            description="Updated description with simple view",
+            source=schemas.PipelineSource.USER_CREATED,
+            type=schemas.PipelineType.GSTREAMER,
+            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
+        )
+        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+
+        payload = {
+            "name": "updated-pipeline-name",
+            "description": "Updated description with simple view",
+            "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
+                self.test_graph
             ).model_dump(),
+        }
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["name"], "updated-pipeline-name")
+        self.assertEqual(data["description"], "Updated description with simple view")
+        mock_pipeline_manager.update_pipeline.assert_called_once_with(
+            pipeline_id="pipeline-ghi789",
+            name="updated-pipeline-name",
+            description="Updated description with simple view",
+            pipeline_graph=None,
+            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
+                self.test_graph
+            ),
+            parameters=None,
         )
 
     # ------------------------------------------------------------------

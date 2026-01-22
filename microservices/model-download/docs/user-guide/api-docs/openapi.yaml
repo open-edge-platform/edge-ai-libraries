@@ -62,6 +62,7 @@ components:
       enum:
         - CPU
         - GPU
+        - NPU
       description: The target device type for model deployment
 
     Config:

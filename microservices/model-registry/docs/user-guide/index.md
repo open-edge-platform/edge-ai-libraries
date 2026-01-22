@@ -11,11 +11,6 @@
 </div>
 hide_directive-->
 
-The Model Registry microservice provides a centralized repository that facilitates the
-management of AI models.
-
-## Overview
-
 The Model Registry plays a crucial role in the machine learning life cycle, providing a
 structured storage environment for models and their metadata. It stores each model's
 details, such as its version, precision, target device, score and more. This allows for
@@ -63,7 +58,7 @@ The software fulfills the promise described in the Overview via its various comp
 
 ### High-Level System View Diagram
 
-![architecture diagram](images/Model_Registry_HLA.png)
+![architecture diagram](./_assets/Model_Registry_HLA.png)
 
    Figure 1: High-level system view demonstrating the microservice.
 
@@ -101,21 +96,22 @@ hosted within a remote Geti platform.
 
 ## Supporting Resources
 
-- [Get Started Guide](./get-started)
-- [API Reference](./api-reference)
-- [System Requirements](./system-requirements)
+- [How It Works](./how-it-works.md)
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-overview-architecture
-system-requirements
+how-it-works
 get-started
+environment-variables
+how-to-build-from-source
 how-to-deploy-with-helm
 how-to-interface-with-intel-geti-platform
 api-reference
-environment-variables
 release-notes
 
 :::

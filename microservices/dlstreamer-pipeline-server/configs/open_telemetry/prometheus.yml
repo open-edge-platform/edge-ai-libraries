@@ -5,4 +5,3 @@ scrape_configs:
   - job_name: 'otel-log-collector'
     static_configs:
       - targets: ['otel-collector:9464']
-
