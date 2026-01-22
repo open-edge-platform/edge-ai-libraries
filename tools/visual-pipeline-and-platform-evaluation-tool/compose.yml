@@ -10,8 +10,6 @@ x-vippet: &vippet
       http_proxy:
       https_proxy:
       no_proxy:
-  ports:
-    - "7860:7860"
   healthcheck:
     test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/pipelines"]
     interval: 10s
@@ -30,7 +28,7 @@ x-vippet: &vippet
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: ${no_proxy}
+    no_proxy: ${no_proxy},mediamtx
   volumes:
     - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
@@ -57,7 +55,7 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy}
+      no_proxy: ${no_proxy},mediamtx
     volumes:
       - ./shared/videos/:/videos
   models:
@@ -114,7 +112,19 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy}
+      no_proxy: ${no_proxy},mediamtx
+  mediamtx:
+    image: bluenviron/mediamtx:1.15.6
+    container_name: mediamtx
+    environment:
+      - MTX_LOGLEVEL=info
+      - MTX_WEBRTCADDRESS=:8889
+      - MTX_RTSPADDRESS=:8554
+      - MTX_WEBRTCADDITIONALHOSTS=${HOST_IP}
+    ports:
+      - "8554:8554"     # RTSP
+      - "8889:8889"     # WebRTC signaling/HTTP
+      - "8189:8189/udp" # WebRTC/ICE UDP 
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
