@@ -34,6 +34,7 @@ The runner script in root of project `run.sh` sets default values for most of th
 ```bash
 # User MUST set all these! An error is thrown by docker compose if they are not set.
 export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
+export ALLOWED_HOSTS=<list_of_trusted_domains> # Needs to be set to mitigate SSRF attacks during ULR ingestion
 
 # vectorDB and object store configuration
 export MINIO_USER=<minio_user_or_s3_access_token>
