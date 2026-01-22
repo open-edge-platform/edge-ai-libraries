@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -10,7 +10,7 @@ info:
   title: DL Streamer Pipeline Server REST API
   version: 2025.2.0
 servers:
-- url: /
+  - url: /
 paths:
   /models:
     get:
@@ -45,20 +45,20 @@ paths:
       description: Return pipeline description.
       operationId: pipelines_name_version_get
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
       responses:
         200:
           content:
@@ -71,20 +71,20 @@ paths:
       description: Start new pipeline instance.
       operationId: pipelines_name_version_post
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
       requestBody:
         content:
           application/json:
@@ -111,31 +111,31 @@ paths:
       x-openapi-router-controller: src.rest_api.endpoints.Endpoints
   /pipelines/{name}/{version}/{instance_id}:
     post:
-      description: Send new request to a already queued pipeline 
+      description: Send new request to a already queued pipeline
       operationId: pipelines_name_version_instance_id_post
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-          format: uuid
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          style: simple
       requestBody:
         content:
           application/json:
@@ -150,28 +150,28 @@ paths:
       description: Stop pipeline instance.
       operationId: pipelines_name_version_instance_id_delete
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-          format: uuid
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          style: simple
       responses:
         200:
           description: Success
@@ -180,28 +180,28 @@ paths:
       description: Return pipeline instance summary.
       operationId: pipelines_name_version_instance_id_get
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-          format: uuid
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          style: simple
       responses:
         200:
           content:
@@ -212,9 +212,9 @@ paths:
       x-openapi-router-controller: src.rest_api.endpoints.Endpoints
   /pipelines/{name}/{version}/{instance_id}/models:
     post:
-        description: Download files from the model registry microservice associated with a specific model.
-        operationId: pipelines_name_version_instance_id_models_files_post
-        parameters:
+      description: Download files from the model registry microservice associated with a specific model.
+      operationId: pipelines_name_version_instance_id_models_files_post
+      parameters:
         - explode: false
           in: path
           name: name
@@ -236,29 +236,29 @@ paths:
           schema:
             type: string
           style: simple
-        requestBody:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ModelQueryParams'
-          required: true
-        responses:
-          200:
-            description: Success
-        x-openapi-router-controller: src.rest_api.endpoints.Endpoints
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelQueryParams'
+        required: true
+      responses:
+        200:
+          description: Success
+      x-openapi-router-controller: src.rest_api.endpoints.Endpoints
   /pipelines/{instance_id}:
     delete:
       description: Stop pipeline instance.
       operationId: pipelines_instance_id_delete
       parameters:
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-          format: uuid
-        style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          style: simple
       responses:
         200:
           description: Success
@@ -267,13 +267,13 @@ paths:
       description: Return pipeline instance summary.
       operationId: pipelines_instance_id_get
       parameters:
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-        style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+          style: simple
       responses:
         200:
           content:
@@ -287,13 +287,13 @@ paths:
       description: Return pipeline instance status.
       operationId: pipelines_instance_id_status_get
       parameters:
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-        style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+          style: simple
       responses:
         200:
           content:
@@ -307,27 +307,27 @@ paths:
       description: Return pipeline instance status.
       operationId: pipelines_name_version_instance_id_status_get
       parameters:
-      - explode: false
-        in: path
-        name: name
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: version
-        required: true
-        schema:
-          type: string
-        style: simple
-      - explode: false
-        in: path
-        name: instance_id
-        required: true
-        schema:
-          type: string
-        style: simple
+        - explode: false
+          in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: version
+          required: true
+          schema:
+            type: string
+          style: simple
+        - explode: false
+          in: path
+          name: instance_id
+          required: true
+          schema:
+            type: string
+          style: simple
       responses:
         200:
           content:
@@ -349,8 +349,8 @@ components:
       properties:
         type:
           enum:
-          - GStreamer
-          - FFmpeg
+            - GStreamer
+            - FFmpeg
           type: string
         description:
           type: string
@@ -359,8 +359,8 @@ components:
             $ref: '#/components/schemas/Pipeline_parameters'
           type: object
       required:
-      - description
-      - type
+        - description
+        - type
       type: object
     PipelineInstanceStatus:
       example:
@@ -375,10 +375,10 @@ components:
           type: integer
         state:
           enum:
-          - RUNNING
-          - COMPLETED
-          - ERROR
-          - ABORTED
+            - RUNNING
+            - COMPLETED
+            - ERROR
+            - ABORTED
           type: string
         avg_fps:
           type: number
@@ -391,10 +391,10 @@ components:
           format: int32
           type: integer
       required:
-      - elapsed_time
-      - id
-      - start_time
-      - state
+        - elapsed_time
+        - id
+        - start_time
+        - state
       type: object
     PipelineInstanceSummary:
       example:
@@ -414,15 +414,15 @@ components:
         type:
           type: string
       required:
-      - id
-      - request
-      - type
+        - id
+        - request
+        - type
       type: object
     URISource:
       properties:
         type:
           enum:
-          - uri
+            - uri
           type: string
         uri:
           format: uri
@@ -434,14 +434,14 @@ components:
         postproc:
           type: string
       required:
-      - type
-      - uri
+        - type
+        - uri
       type: object
     WebcamSource:
       properties:
         type:
           enum:
-          - webcam
+            - webcam
           type: string
         device:
           type: string
@@ -453,14 +453,14 @@ components:
         postproc:
           type: string
       required:
-      - type
-      - device
+        - type
+        - device
       type: object
     GstSource:
       properties:
         type:
           enum:
-          - gst
+            - gst
           type: string
         element:
           type: string
@@ -471,47 +471,47 @@ components:
         postproc:
           type: string
       required:
-      - type
-      - element
+        - type
+        - element
       type: object
     FileSource:
       properties:
         type:
           enum:
-          - file
+            - file
           type: string
         path:
           format: path
           type: string
       required:
-      - type
-      - path
+        - type
+        - path
       type: object
     Base64Source:
       properties:
         type:
           enum:
-          - base64_image
+            - base64_image
           type: string
         data:
           type: string
           format: binary
       required:
-      - type
-      - data
+        - type
+        - data
       type: object
     FileDestination:
       properties:
         type:
           enum:
-          - file
+            - file
           type: string
         path:
           format: path
           type: string
       required:
-      - type
-      - path
+        - type
+        - path
       type: object
     KafkaDestination:
       properties:
@@ -522,7 +522,7 @@ components:
           type: string
         type:
           enum:
-          - kafka
+            - kafka
           type: string
       required:
         - host
@@ -532,15 +532,15 @@ components:
       properties:
         type:
           enum:
-          - opcua
+            - opcua
           type: string
         variable:
           type: string
         publish_frame:
           type: boolean
       required:
-      - type
-      - variable
+        - type
+        - variable
       type: object
     MQTTDestination:
       anyOf:
@@ -553,7 +553,7 @@ components:
               type: string
             type:
               enum:
-              - mqtt
+                - mqtt
               type: string
           required:
             - host
@@ -567,7 +567,7 @@ components:
               type: string
             type:
               enum:
-              - mqtt
+                - mqtt
               type: string
           required:
             - topic
@@ -576,7 +576,7 @@ components:
       properties:
         type:
           enum:
-          - rtsp
+            - rtsp
           type: string
         path:
           type: string
@@ -590,7 +590,7 @@ components:
       properties:
         type:
           enum:
-          - webrtc
+            - webrtc
           type: string
         peer-id:
           type: string
@@ -604,7 +604,7 @@ components:
       properties:
         type:
           enum:
-          - s3_write
+            - s3_write
           type: string
         bucket:
           type: string
@@ -621,7 +621,7 @@ components:
       properties:
         type:
           enum:
-          - influx_write
+            - influx_write
           type: string
         bucket:
           type: string
@@ -642,7 +642,7 @@ components:
               type: string
             type:
               enum:
-              - ros2
+                - ros2
               type: string
           required:
             - topic
@@ -655,7 +655,7 @@ components:
               type: string
             type:
               enum:
-              - ros2
+                - ros2
               type: string
           required:
             - topic
@@ -743,9 +743,9 @@ components:
           discriminator:
             propertyName: type
           oneOf:
-           - $ref: '#/components/schemas/URISource'
-           - $ref: '#/components/schemas/GstSource'
-           - $ref: '#/components/schemas/WebcamSource'
+            - $ref: '#/components/schemas/URISource'
+            - $ref: '#/components/schemas/GstSource'
+            - $ref: '#/components/schemas/WebcamSource'
           type: object
         destination:
           oneOf:
@@ -767,9 +767,9 @@ components:
     PipelineInstanceRequest:
       example:
         timeout: 2
-        source: 
+        source:
           type: file
-          path: file:///root/image-examples/example.jpg          
+          path: file:///root/image-examples/example.jpg
         additional_meta_data: {}
       properties:
         timeout:
@@ -779,8 +779,8 @@ components:
           discriminator:
             propertyName: type
           oneOf:
-           - $ref: '#/components/schemas/FileSource'
-           - $ref: '#/components/schemas/Base64Source'
+            - $ref: '#/components/schemas/FileSource'
+            - $ref: '#/components/schemas/Base64Source'
           type: object
         destination:
           oneOf:
@@ -789,7 +789,7 @@ components:
         additional_meta_data:
           description: User defined meta data supplemented to pipeline generated metadata.
           type: object
-      type: object    
+      type: object
     Model:
       example:
         name: name
@@ -803,14 +803,14 @@ components:
           type: string
         type:
           enum:
-          - IntelDLDT
+            - IntelDLDT
           type: string
         description:
           type: string
       required:
-      - name
-      - type
-      - version
+        - name
+        - type
+        - version
       type: object
     ModelQueryParams:
       example:

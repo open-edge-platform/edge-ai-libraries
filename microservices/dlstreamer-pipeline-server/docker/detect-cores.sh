@@ -1,4 +1,9 @@
 #!/bin/bash
+#
+# Apache v2 license
+# Copyright (C) 2024-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 
 # Detect core types with multi-tier redundancy:
 # Confirm Multi-Socker (Xeon, assume all P-Cores across all sockets)
@@ -479,6 +484,6 @@ detect_cores() {
 }
 
 detect_cores "$1"
-[ ${#p_cores[@]} -eq 0 ] || echo "p-cores:  ${p_cores[@]}"
-[ ${#e_cores[@]} -eq 0 ] || echo "e-cores:  ${e_cores[@]}"
-[ ${#lpe_cores[@]} -eq 0 ] || echo "lpe-cores:  ${lpe_cores[@]}"
+[ ${#p_cores[@]} -eq 0 ] || echo "p-cores:" "${p_cores[@]}"
+[ ${#e_cores[@]} -eq 0 ] || echo "e-cores:" "${e_cores[@]}"
+[ ${#lpe_cores[@]} -eq 0 ] || echo "lpe-cores:" "${lpe_cores[@]}"

@@ -1,0 +1,15 @@
+extends: default
+
+rules:
+  line-length:
+    max: 80
+    level: warning
+    ignore:
+      - ".github/workflows/*.yml"
+      - ".github/workflows/*.yaml"
+      - ".github/actions/common/*.yml"
+      - ".github/actions/common/*.yaml"
+
+ignore: |
+  microservices/dlstreamer-pipeline-server/helm/templates/dlstreamer-pipeline-server-deployment.yaml
+  microservices/dlstreamer-pipeline-server/helm/templates/provision-configmap.yaml
