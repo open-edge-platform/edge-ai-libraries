@@ -35,6 +35,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -52,14 +53,14 @@ const Pipelines = () => {
   >(null);
   const [currentNodes, setCurrentNodes] = useState<ReactFlowNode[]>([]);
   const [currentEdges, setCurrentEdges] = useState<ReactFlowEdge[]>([]);
-  const [currentViewport, setCurrentViewport] = useState<Viewport>({
-    x: 0,
-    y: 0,
-    zoom: 1,
-  });
+  const [currentViewport, setCurrentViewport] = useState<Viewport | undefined>(
+    undefined,
+  );
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
@@ -185,7 +186,7 @@ const Pipelines = () => {
             pipeline_graph: {
               nodes: pendingOptimizationNodes.map((node) => ({
                 id: node.id,
-                type: node.type || "",
+                type: node.type ?? "",
                 data: node.data as { [key: string]: string },
               })),
               edges: pendingOptimizationEdges.map((edge) => ({
@@ -401,22 +402,24 @@ const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const graphData = {
+        nodes: currentNodes.map((node) => ({
+          id: node.id,
+          type: node.type ?? "",
+          data: node.data as { [key: string]: string },
+        })),
+        edges: currentEdges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        })),
+      };
+
       await updatePipeline({
         pipelineId: id,
-        pipelineUpdate: {
-          pipeline_graph: {
-            nodes: currentNodes.map((node) => ({
-              id: node.id,
-              type: node.type || "",
-              data: node.data as { [key: string]: string },
-            })),
-            edges: currentEdges.map((edge) => ({
-              id: edge.id,
-              source: edge.source,
-              target: edge.target,
-            })),
-          },
-        },
+        pipelineUpdate: isSimpleMode
+          ? { pipeline_graph_simple: graphData }
+          : { pipeline_graph: graphData },
       }).unwrap();
 
       const response = await runPerformanceTest({
@@ -536,7 +539,7 @@ const Pipelines = () => {
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
           id: node.id,
-          type: node.type || "",
+          type: node.type ?? "",
           data: node.data as { [key: string]: string },
         })),
         edges: currentEdges.map((edge) => ({
@@ -573,21 +576,25 @@ const Pipelines = () => {
   if (isSuccess && data) {
     const editorContent = (
       <div className="w-full h-full relative">
-        <PipelineEditor
-          ref={pipelineEditorRef}
-          key={editorKey}
-          pipelineData={data}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onViewportChange={handleViewportChange}
-          onNodeSelect={handleNodeSelect}
-          initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
-          initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
-          initialViewport={
-            currentNodes.length > 0 ? currentViewport : undefined
-          }
-          shouldFitView={shouldFitView}
-        />
+        <div
+          className="w-full h-full transition-opacity duration-100"
+          style={{ opacity: isTransitioning ? 0 : 1 }}
+        >
+          <PipelineEditor
+            ref={pipelineEditorRef}
+            key={editorKey}
+            pipelineData={data}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
+            onViewportChange={handleViewportChange}
+            onNodeSelect={handleNodeSelect}
+            initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
+            initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
+            initialViewport={currentViewport}
+            shouldFitView={shouldFitView}
+            useSimpleGraph={isSimpleMode}
+          />
+        </div>
 
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
@@ -625,6 +632,68 @@ const Pipelines = () => {
             {id && (
               <DeletePipelineButton pipelineId={id} pipelineName={data.name} />
             )}
+          </div>
+
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
+                  <Switch
+                    checked={!isSimpleMode}
+                    onCheckedChange={async (checked) => {
+                      if (!id) return;
+
+                      setIsTransitioning(true);
+
+                      try {
+                        // Update the current graph before switching
+                        const graphData = {
+                          nodes: currentNodes.map((node) => ({
+                            id: node.id,
+                            type: node.type ?? "",
+                            data: node.data as { [key: string]: string },
+                          })),
+                          edges: currentEdges.map((edge) => ({
+                            id: edge.id,
+                            source: edge.source,
+                            target: edge.target,
+                          })),
+                        };
+
+                        await updatePipeline({
+                          pipelineId: id,
+                          pipelineUpdate: isSimpleMode
+                            ? { pipeline_graph_simple: graphData }
+                            : { pipeline_graph: graphData },
+                        }).unwrap();
+
+                        // Switch mode and clear current nodes/edges to reload from backend
+                        setTimeout(() => {
+                          setIsSimpleMode(!checked);
+                          setCurrentNodes([]);
+                          setCurrentEdges([]);
+                          setEditorKey((prev) => prev + 1);
+                          setTimeout(() => setIsTransitioning(false), 100);
+                        }, 50);
+                      } catch (error) {
+                        const errorMessage = isApiError(error)
+                          ? error.data.message
+                          : "Unknown error";
+                        toast.error("Failed to update pipeline", {
+                          description: errorMessage,
+                        });
+                        setIsTransitioning(false);
+                        console.error("Failed to update pipeline:", error);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">Advanced View</span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Display all DLStreamer pipeline elements</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="flex gap-2">

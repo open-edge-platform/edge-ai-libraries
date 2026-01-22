@@ -21,9 +21,6 @@ export const LayoutDirection = {
 export type LayoutDirectionType =
   (typeof LayoutDirection)[keyof typeof LayoutDirection];
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
 const getNodeWidth = (nodeType: string): number =>
   nodeWidths[nodeType] ?? defaultNodeWidth;
 
@@ -35,20 +32,11 @@ export const createGraphLayout = (
   edges: ReactFlowEdge[],
   direction: LayoutDirectionType = LayoutDirection.LeftToRight,
 ) => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+
   const isHorizontal = direction === "LR" || direction === "RL";
   dagreGraph.setGraph({ rankdir: direction });
-
-  nodes.forEach((node) => {
-    if (dagreGraph.hasNode(node.id)) {
-      dagreGraph.removeNode(node.id);
-    }
-  });
-
-  edges.forEach((edge) => {
-    if (dagreGraph.hasEdge(edge.source, edge.target)) {
-      dagreGraph.removeEdge(edge.source, edge.target);
-    }
-  });
 
   nodes.forEach((node) => {
     const currentNodeWidth = getNodeWidth(node.type || "default");
