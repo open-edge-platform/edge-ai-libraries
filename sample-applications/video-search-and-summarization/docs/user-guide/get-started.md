@@ -1,27 +1,21 @@
-# 🚀 Get Started
+# Get Started
 
-<!--
-**Sample Description**: Provide a brief overview of the application and its purpose.
--->
 The Video Search and Summarization (VSS) sample application helps developers create a summary of long form video, search for the right video, and combine both search and summarization pipelines. This guide will help you set up, run, and modify the sample application on local and Edge AI systems.
 
-<!--
-**What You Can Do**: Highlight the developer workflows supported by the guide.
--->
 This guide shows how to:
 
 - **Set up the sample application**: Use Setup script to quickly deploy the application in your environment.
 - **Run different application modes**: Execute different application modes available in the application to perform video search and summarization.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
-## ✅ Prerequisites
+## Prerequisites
 
-- Verify that your system meets the [minimum requirements](./system-requirements.md).
+- Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - Install Docker tool: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose tool: [Installation Guide](https://docs.docker.com/compose/install/).
 - Install Python programming language v3.11
 
-## 📂 Project Structure
+## Project Structure
 
 The repository is organized as follows:
 
@@ -45,68 +39,66 @@ sample-applications/video-search-and-summarization/
 └── README.md                  # Project documentation
 ```
 
-## ⚙️ Set Required Environment Variables
-
-<a name="required-env"></a>
+## Set Required Environment Variables
 
 Before running the application, you need to set several environment variables:
 
 1. **Configure the registry**:
    The application uses registry URL and tag to pull the required images.
 
-    ```bash
-    export REGISTRY_URL=intel
-    export TAG=1.3.1
-    ```
+   ```bash
+   export REGISTRY_URL=intel
+   export TAG=1.3.1
+   ```
 
 2. **Set required credentials for some services**:
    Following variables **MUST** be set on your current shell before running the setup script:
 
-    ```bash
-    # MinIO credentials (object storage)
-    export MINIO_ROOT_USER=<your-minio-username>
-    export MINIO_ROOT_PASSWORD=<your-minio-password>
+   ```bash
+   # MinIO credentials (object storage)
+   export MINIO_ROOT_USER=<your-minio-username>
+   export MINIO_ROOT_PASSWORD=<your-minio-password>
 
-    # PostgreSQL credentials (database)
-    export POSTGRES_USER=<your-postgres-username>
-    export POSTGRES_PASSWORD=<your-postgres-password>
+   # PostgreSQL credentials (database)
+   export POSTGRES_USER=<your-postgres-username>
+   export POSTGRES_PASSWORD=<your-postgres-password>
 
-    # RabbitMQ credentials (message broker)
-    export RABBITMQ_USER=<your-rabbitmq-username>
-    export RABBITMQ_PASSWORD=<your-rabbitmq-password>
-    ```
+   # RabbitMQ credentials (message broker)
+   export RABBITMQ_USER=<your-rabbitmq-username>
+   export RABBITMQ_PASSWORD=<your-rabbitmq-password>
+   ```
 
 3. **Set environment variables for customizing model selection**:
 
-    You **must** set these environment variables on your current shell. Setting these variables help you customize the models used for deployment.
+   You **must** set these environment variables on your current shell. Setting these variables help you customize the models used for deployment.
 
-    ```bash
-    # For VLM-based chunk captioning and video summarization on CPU
-    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"  # or any other supported VLM model on CPU
+   ```bash
+   # For VLM-based chunk captioning and video summarization on CPU
+   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"  # or any other supported VLM model on CPU
 
-    # For VLM-based chunk captioning and video summarization on GPU
-    export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
+   # For VLM-based chunk captioning and video summarization on GPU
+   export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
 
-    # (Optional) For OVMS-based video summarization (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
-    export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
+   # (Optional) For OVMS-based video summarization (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
+   export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
-    # Model used by Audio Analyzer service. Only Whisper models variants are supported.
-    # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
-    # You can provide just one or comma-separated list of models.
-    export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
+   # Model used by Audio Analyzer service. Only Whisper models variants are supported.
+   # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
+   # You can provide just one or comma-separated list of models.
+   export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
 
-    # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
-    export OD_MODEL_NAME="yolov8l-worldv2"
+   # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
+   export OD_MODEL_NAME="yolov8l-worldv2"
 
-    # --search : use any multimodal embedding model for video-only search flows
-    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   # --search : use any multimodal embedding model for video-only search flows
+   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 
-    # --all    : configure both the multimodal embedding model and a dedicated text embedding model
-    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
-    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
-    ```
+   # --all    : configure both the multimodal embedding model and a dedicated text embedding model
+   export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+   ```
 
-    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 
@@ -147,20 +139,20 @@ Before running the application, you need to set several environment variables:
     > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
     > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
 
-**🔐 Work with Gated Models**
+## Work with Gated Models
 
-   To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
+To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
 
-   Go to <https://huggingface.co/settings/tokens> to get your token.
+Go to <https://huggingface.co/settings/tokens> to get your token.
 
-   ```bash
-   export GATED_MODEL=true
-   export HUGGINGFACE_TOKEN=<your_huggingface_token>
-   ```
+```bash
+export GATED_MODEL=true
+export HUGGINGFACE_TOKEN=<your_huggingface_token>
+```
 
 Once exported, run the setup script as mentioned [here](#running-the-application). Switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you no longer use gated models. This avoids unnecessary authentication step during setup.
 
-## 📊 Application Mode Overview
+## Application Mode Overview
 
 The Video Summarization application offers multiple modes and deployment options:
 
@@ -170,9 +162,9 @@ The Video Summarization application offers multiple modes and deployment options
 | Video Search | Video indexing and semantic search | `--search` |
 | Video Search + Summarization | Both search and summarization capabilities | `--all` |
 
-> **📁 Automated Video Ingestion**: The Video Search mode includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details on setting up automatic video monitoring and ingestion.
+> **Automated Video Ingestion**: The Video Search mode includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details on setting up automatic video monitoring and ingestion.
 
-### 🧩 Deployment Options for Video Summarization
+### Deployment Options for Video Summarization
 
 | Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
@@ -182,52 +174,52 @@ The Video Summarization application offers multiple modes and deployment options
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 | VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 
-> **Notes:**
+> **Note:**
 >
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
 
-## ℹ️ Using Edge Microvisor Toolkit
+## Using Edge Microvisor Toolkit
 
 If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit** — an Azure Linux-based build pipeline for Intel® platforms — follow the below listed guidelines. The guidelines vary based on the flavor of Edge Microvisor Toolkit used and the user is encouraged to refer to detailed documentation for [EMT-D](https://github.com/open-edge-platform/edge-microvisor-toolkit/blob/3.0/docs/developer-guide/emt-architecture-overview.md#developer-node-mutable-iso-image) and [EMT-S](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node). A few specific dependencies are called out below.
 
 Install the `mesa-libGL` package. Installing `mesa-libGL` provides the OpenGL library which is needed by the `Audio Analyzer service`. Depending on `EMT-D` or `EMT-S`, the steps vary.
 
 For `EMT-D`, the following steps should work.
-> ```bash
-> sudo dnf install mesa-libGL
-> # If you are using TDNF, you can use the following command to install:
-> sudo tdnf search mesa-libGL
-> sudo tdnf install mesa-libGL
-> ```
+
+```bash
+sudo dnf install mesa-libGL
+# If you are using TDNF, you can use the following command to install:
+sudo tdnf search mesa-libGL
+sudo tdnf install mesa-libGL
+```
 
 For `EMT-S`,
-> ```bash
-> sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
-> export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
-> ```
+
+```bash
+sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
+```
 
 Additional tools and packages that should be installed includes `git` and `wget`. The instructions for the same is available in the detailed `EMT-S` and `EMT-D` documentations. The instructions work for any other required packages too.
 
-## ▶️ Run the Application
-
-<a name="running-app"></a>
+## Run the Application
 
 Follow these steps to run the application:
 
 1. Clone the repository and navigate to the project directory:
 
-    ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   ```bash
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 
-    cd edge-ai-libraries/sample-applications/video-search-and-summarization
-    ```
+   cd edge-ai-libraries/sample-applications/video-search-and-summarization
+   ```
 
-2. Set the required environment variables as described [here](#required-env).
+2. [Set the required environment variables](#set-required-environment-variables).
 
 3. Run the setup script with the appropriate flag, depending on your use case.
 
@@ -239,60 +231,60 @@ Follow these steps to run the application:
 
    > **💡 Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
-- **To run Video Summarization only:**
+   - **To run Video Summarization only:**
 
-    ```bash
-    source setup.sh --summary
-    ```
+       ```bash
+       source setup.sh --summary
+       ```
 
-- **To run Video Search only:**
+   - **To run Video Search only:**
 
-    ```bash
-    source setup.sh --search
-    ```
+       ```bash
+       source setup.sh --search
+       ```
 
-    > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
+       > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to    learn how to set up automatic monitoring and processing of video files from a specified directory.
 
-- **To run a unified Video Search and Summarization :**
+   - **To run a unified Video Search and Summarization :**
 
-    ```bash
-    source setup.sh --all
-    ```
+       ```bash
+       source setup.sh --all
+       ```
 
-- **To run Video Summarization with OpenVINO model server microservice for a final summary :**
+   - **To run Video Summarization with OpenVINO model server microservice for a final summary :**
 
-    ```bash
-    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
-    ```
+       ```bash
+       ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+       ```
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
-    ```bash
-    # To just set environment variables without starting containers
-    source setup.sh --setenv
+   ```bash
+   # To just set environment variables without starting containers
+   source setup.sh --setenv
 
-    # To see resolved configurations for summarization services without starting containers
-    source setup.sh --summary config
+   # To see resolved configurations for summarization services without starting containers
+   source setup.sh --summary config
 
-    # To see resolved configurations for search services without starting containers
-    source setup.sh --search config
+   # To see resolved configurations for search services without starting containers
+   source setup.sh --search config
 
-    # To see resolved configurations for both search and summarization services combined without starting containers
-    source setup.sh --all config
+   # To see resolved configurations for both search and summarization services combined without starting containers
+   source setup.sh --all config
 
-    # To see resolved configurations for summarization services with OpenVINO model server setup on CPU without starting containers
-    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
-    ```
+   # To see resolved configurations for summarization services with OpenVINO model server setup on CPU without starting containers
+   ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
+   ```
 
-### ⚡ Use GPU Acceleration
+### Use GPU Acceleration
 
 To use GPU acceleration for VLM inference:
 
-   > Note: Before switching to a different mode, always stop the current application mode by running:
-
-   ```bash
-   source setup.sh --down
-   ```
+> **Note:** Before switching to a different mode, always stop the current application mode by running:
+>
+> ```bash
+> source setup.sh --down
+> ```
 
 ```bash
 ENABLE_VLM_GPU=true source setup.sh --summary
@@ -327,132 +319,35 @@ ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ENABLE_EMBEDDING_GPU=true source setup.sh --search config
 ```
 
-> Note: Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
+> **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
 
-## 🌐 Access the Application
+## Access the Application
 
 After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
-## 💻 CLI Usage
+## CLI Usage
 
 Refer to [CLI Usage](../../cli/README.md) for details on using the application from a text user interface (terminal-based UI).
 
-## ☸️ Running in Kubernetes Cluster
+## Running in Kubernetes Cluster
 
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm chart.
 
-## 🔍 Advanced Setup Options
+## Advanced Setup Options
 
-For alternative ways to set up the sample application, see:
+For alternative ways to set up the sample application, see [How to Build from Source](./build-from-source.md)
 
-- [How to Build from Source](./build-from-source.md)
+## Supporting Resources
 
-## 📚 Supporting Resources
-
+- [How it works](./how-it-works.md)
+- [Troubleshooting](./troubleshooting.md)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 
-## Troubleshooting
+<!--hide_directive
+:::{toctree}
+:hidden:
 
-### Containers have started but the application is not working
+get-started/system-requirements
 
-- You can try resetting the volume storage by deleting the previously created volumes:
-
-  > Note: This step does not apply when you are setting up the application for the first time.
-
-  ```bash
-  source setup.sh --clean-data
-  ```
-
-### Search returns no results after changing embedding model
-
-**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested in `--search` or `--all` mode.
-
-**Cause**: Either no videos have been processed yet, or the embedding model was switched to one with a different embedding dimension. Previously indexed vectors stay in the database, and their dimensions must match the active model. A mismatch prevents similarity lookups from returning any results.
-
-**Solution**:
-
-1. Verify at least one video has been uploaded or a summary run completed after the model change.
-2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
-3. Review the supported embedding models and their dimensions in [microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before switching models.
-
-### VLM Microservice Model Loading Issues
-
-**Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
-
-**Cause**: This issue occurs when the `ov-models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
-
-**Symptoms**:
-
-- VLM microservice container fails to start or crashes during model loading
-- Permission denied errors in VLM service logs
-- Model conversion or caching failures
-- Error messages mentioning `/home/appuser/.cache/huggingface` or `/app/ov-model` access issues
-
-**Solution**:
-
-1. Stop the running application:
-
-   ```bash
-   source setup.sh --down
-   ```
-
-2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
-
-   ```bash
-   docker volume rm ov-models docker_ov-models
-   ```
-
-3. Restart the application (the volume will be recreated with correct permissions):
-
-   ```bash
-   # For Video Summarization
-   source setup.sh --summary
-
-   # Or for Video Search
-   source setup.sh --search
-   ```
-
-> Note: Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
-
-**Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
-
-### VLM Final Summary Hallucination Issues
-
-**Problem**: The final summary generated by the VLM microservice contains hallucinated or inaccurate information that doesn't reflect the actual video content.
-
-**Cause**: This issue can occur when using smaller VLM models that may not have sufficient capacity to accurately process and summarize complex video content, leading to generation of plausible but incorrect information.
-
-**Symptoms**:
-
-- The final summary contains information not present in the video
-- The Summary describes events, objects, or activities that don't actually occur in the video
-- Inconsistent or contradictory information in the generated summary
-- The Summary quality is poor despite chunk-wise summaries being accurate
-
-**Solution**:
-Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` environment variable:
-
-1. Stop the running application:
-
-   ```bash
-   source setup.sh --down
-   ```
-
-2. Set a larger VLM model (e.g., upgrade from 3B to 7B parameters):
-
-   ```bash
-   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
-   ```
-
-3. Restart the application:
-
-   ```bash
-   source setup.sh --summary
-   ```
-
-**Alternative Models to Try**:
-
-- For CPU: `Qwen/Qwen2.5-VL-7B-Instruct` (larger version)
-- For GPU: Consider other supported VLM models with higher parameter counts
-
-> Note: Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
+:::
+hide_directive-->

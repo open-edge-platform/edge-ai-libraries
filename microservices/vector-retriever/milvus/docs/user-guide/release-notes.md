@@ -3,23 +3,22 @@
 ## Current Release
 
 **Version**: 2025.2.0 \
-**Release Date**: 10 Dec 2025   
+**Release Date**: 10 Dec 2025
 
 **Features**:
 
 - Microservices Architecture:
 
-    - Retriever Service: Retrieves data from Milvus based on text queries.
-    - Multimodal Embedding Service: Generates embeddings for multimodal data.
-
+  - Retriever Service: Retrieves data from Milvus based on text queries.
+  - Multimodal Embedding Service: Generates embeddings for multimodal data.
 
 - Milvus Integration: Seamless vector database support for high-performance retrieval.
 
 - Model Support:
 
-    - Configurable embedding models (e.g., CLIP/clip-vit-h-14).
+  - Configurable embedding models (e.g., CLIP/clip-vit-h-14).
 
 **HW used for validation**:
 
--    Intel® Core™ processors (13th Gen, i7 recommended)
--    Intel® Arc™ A-Series Graphics (Intel® Arc™ A770 recommended)
+- Intel® Core™ processors (13th Gen, i7 recommended)
+- Intel® Arc™ A-Series Graphics (Intel® Arc™ A770 recommended)

@@ -1,0 +1,41 @@
+# This workflow scans repo with Zizmor (static analysis tool for GitHub Actions),
+# comments PR and outputs results into GitHub security tab
+
+name: Zizmor scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - edited
+      - opened
+      - ready_for_review
+      - synchronize
+  schedule:
+    # Run security checks every day at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  zizmor-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # Needed to upload the results to code-scanning dashboard
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Run Zizmor scan
+        uses: open-edge-platform/geti-ci/actions/zizmor@cdb7239fe84ee55b8d3640fa6177da1ff3f97d02
+        with:
+          scan-scope: ${{ github.event_name == 'pull_request' && 'changed' || 'all' }}
+          severity-level: ${{ github.event_name == 'pull_request' && 'HIGH' || 'LOW' }}
+          fail-on-findings: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}

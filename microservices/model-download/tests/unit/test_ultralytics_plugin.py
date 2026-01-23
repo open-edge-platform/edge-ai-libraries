@@ -213,7 +213,7 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
         assert result["model_name"] == "yolov8n.pt"
         assert result["source"] == "ultralytics"
-        assert result["return_code"] == 0
+        assert result["success"] == True
         assert "ultralytics" in result["download_path"]
 
     @patch.object(UltralyticsDownloader, '_call_bash_script')
@@ -246,7 +246,7 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
         assert result["model_name"] == "yolov8n.pt"
         assert result["source"] == "ultralytics"
-        assert result["return_code"] == 0
+        assert result["success"] == True
 
     @patch.object(UltralyticsDownloader, '_call_bash_script')
     @patch('os.getenv')
@@ -327,7 +327,7 @@ SUPPORTED_QUANTIZATION_DATASETS=(
         assert mock_call_script.call_count == expected_calls
         assert result["model_name"] == model_name
         assert result["source"] == "ultralytics"
-        assert result["return_code"] == 0
+        assert result["success"] == True
 
     @patch('os.path.exists')
     @patch('subprocess.Popen')
@@ -444,7 +444,7 @@ class TestUltralyticsPluginIntegration:
             # Verify results
             assert result["model_name"] == "yolov8n.pt"
             assert result["source"] == "ultralytics"
-            assert result["return_code"] == 0
+            assert result["success"] == True
             assert "ultralytics" in result["download_path"]
             
             # Test post-processing

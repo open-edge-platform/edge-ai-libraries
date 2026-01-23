@@ -1,30 +1,33 @@
 # How to Build from Source
 
-Build the Audio Analyzer microservice from source to customize, debug, or extend its functionality. In this guide, you will:
+Build the Audio Analyzer microservice from source to customize, debug, or extend its
+functionality. In this guide, you will:
+
 - Set up your development environment.
 - Compile the source code and resolve dependencies.
 - Generate a runnable build for local testing or deployment.
 
 This guide is ideal for developers who want to work directly with the source code.
 
-
-# Prerequisites
+## Prerequisites
 
 Before you begin, ensure the following:
-- **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
-- This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
+
+- **System Requirements**: Verify your system meets the [minimum requirements](./get-started/system-requirements.md).
+- This guide assumes basic familiarity with Git commands, Python virtual environments, and
+terminal usage. If you are new to these concepts, see:
   - [Git Documentation](https://git-scm.com/doc)
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
-- Follow all the steps provided in [get started](./get-started.md) documentation with respect to [environment variables](./get-started.md#environment-variables) configuration, setting up of [storage backends](./get-started.md#setup-the-storage-backends) and [model selection](./get-started.md#models-selection).
+- Follow all the steps provided in [get started](./get-started.md) documentation with respect to [environment variables](./get-started.md#environment-variables) configuration, setting up of [storage backends](./get-started.md#setup-the-storage-backends) and [model selection](./get-started.md#model-selection).
 
-# Steps to Build
+## Steps to Build
 
-Following options are provided to build the microservice.
+The following options are provided to build the microservice:
 
-- [Build and run application with required dependencies using Docker Script](#build-and-run-using-docker-script).
-- [Build and run on host using Setup Script](#setup-and-run-on-host-using-setup-script).
+- [Build and run application with required dependencies using Docker Script](#build-and-run-in-container-using-docker-script).
+- [Build and run on host using Setup Script](#build-and-run-on-host-using-setup-script).
 
-## Build and run in container using Docker script
+### Build and run in container using Docker script
 
 1. Clone the repository:
     ```bash
@@ -53,14 +56,14 @@ Following options are provided to build the microservice.
     export TAG=<your-tag>
     ```
 
-    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`  
+    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`
     If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-analyzer:${TAG}`
 
 4. Set the required environment variables:
 
     ```bash
     # (Required) Comma-separated list of models to download
-    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  
+    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
     ```
 
 5. **(OPTIONAL)** You can customize the setup with these additional environment variables:
@@ -78,7 +81,7 @@ Following options are provided to build the microservice.
     export MAX_FILE_SIZE=314572800
     ```
 
-3. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
+6. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
 
     ```bash
     cd edge-ai-libraries/microservices/audio-analyzer
@@ -86,9 +89,9 @@ Following options are provided to build the microservice.
     ./setup_docker.sh
     ```
 
-4. If above step is successful, it will print the complete URL of API endpoint along with URL of Swagger API docs. Please refer the API docs to learn how to send request to Audio-Analyzer when running with Minio.
+7. If above step is successful, it will print the complete URL of API endpoint along with URL of Swagger API docs. Please refer the API docs to learn how to send request to Audio-Analyzer when running with Minio.
 
-### Docker Setup Options
+#### Docker Setup Options
 
 The `setup_docker.sh` script when run without any parameters builds and runs the production docker images. It additionally supports the following options:
 
@@ -96,13 +99,14 @@ The `setup_docker.sh` script when run without any parameters builds and runs the
 Options:
   --dev                 Build and run development environment
   --build               Only build production Docker image
-  --build-dev           Only build development Docker image  
-  --down                Stop and remove all containers, networks, 
-                        and volumes  
+  --build-dev           Only build development Docker image
+  --down                Stop and remove all containers, networks,
+                        and volumes
   -h, --help            Show this help message
 ```
 
 Examples:
+
 - Production setup: `./setup_docker.sh`
 - Development setup: `./setup_docker.sh --dev`
 - Build production image only: `./setup_docker.sh --build`
@@ -110,17 +114,18 @@ Examples:
 - Stop and remove all containers: `./setup_docker.sh --down`
 
 The development environment provides:
+
 - Hot-reloading of code changes
 - Mounting of local code directory into container
 - Debug logging enabled
 
 The production environment uses:
+
 - Gunicorn with multiple worker processes
 - Optimized container without development dependencies
 - No source code mounting (code is copied at build time)
 
-
-## Build and run on host using Setup Script
+### Build and run on host using Setup Script
 
 1. Clone the repository:
     ```bash
@@ -138,10 +143,12 @@ The production environment uses:
     ```
 
 Available options:
+
 - `--debug`, `-d`: Enable debug mode
 - `--reload`, `-r`: Enable auto-reload on code changes
 
 The setup script will:
+
 - Install all required system dependencies
 - Create directories for model storage. **For host setup using script, only storage backend available is local filesystem.**
 - Install Poetry and project dependencies
@@ -152,10 +159,9 @@ The setup script will:
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
-## Troubleshooting
-
-
 ## Supporting Resources
-* [Overview](Overview.md)
-* [System Requirements](system-requirements.md)
-* [API Reference](api-reference.md)
+
+- [Get Started Guide](./get-started.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
+- [Troubleshooting](./troubleshooting.md)

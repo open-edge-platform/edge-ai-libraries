@@ -1,5 +1,13 @@
 # Retriever Microservice
 
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vector-retriever/milvus">
+     GitHub project
+  </a>
+</div>
+hide_directive-->
+
 Retrieves embeddings based on vector similarity. Usually it is used along with a
 `dataprep` microservice.
 
@@ -14,13 +22,13 @@ Key Features:
 
 - Text-Based Image/Video Retrieval:
 
-    Accepts text queries and retrieves the top-k most relevant results based on vector
-    similarity. Supports optional filters to refine search results.
+  Accepts text queries and retrieves the top-k most relevant results based on vector
+  similarity. Supports optional filters to refine search results.
 
 - Integration with Milvus:
 
-    Utilizes the Milvus vector database for efficient storage and retrieval of embeddings.
-    Ensures high performance and scalability for large datasets.
+  Utilizes the Milvus vector database for efficient storage and retrieval of embeddings.
+  Ensures high performance and scalability for large datasets.
 
 **Programming Language:** Python
 
@@ -46,14 +54,13 @@ Key Features:
 
 ## Learn More
 
-- Begin with the [Get Started Guide](./get-started)
+- Begin with the [Get Started Guide](./get-started).
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
 get-started
-system-requirements
 api-reference
 release-notes
 

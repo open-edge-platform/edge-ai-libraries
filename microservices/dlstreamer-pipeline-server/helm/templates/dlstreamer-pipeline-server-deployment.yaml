@@ -1,10 +1,11 @@
+# yamllint disable
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: dlstreamer-pipeline-server
   name: dlstreamer-pipeline-server-deployment
-  namespace: {{ $.Values.namespace }}
+  namespace: {{$.Values.namespace}}
 spec:
   replicas: 1
   selector:
@@ -18,10 +19,10 @@ spec:
         app: dlstreamer-pipeline-server
     spec:
       securityContext:
-        supplementalGroups: [109,110,992]
+        supplementalGroups: [109, 110, 992]
       {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
       imagePullSecrets:
-      - name: registryauth
+        - name: registryauth
       {{- end }}
 
       initContainers:
