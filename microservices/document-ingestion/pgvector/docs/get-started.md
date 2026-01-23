@@ -34,7 +34,6 @@ The runner script in root of project `run.sh` sets default values for most of th
 ```bash
 # User MUST set all these! An error is thrown by docker compose if they are not set.
 export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
-export ALLOWED_HOSTS=<list_of_trusted_domains> # Needs to be set to mitigate SSRF attacks during ULR ingestion
 
 # vectorDB and object store configuration
 export MINIO_USER=<minio_user_or_s3_access_token>
@@ -55,6 +54,30 @@ export USER_AGENT_HEADER=<your_user_agent_string>
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 ```
+
+## ALLOWED_HOSTS Configuration
+
+The `ALLOWED_HOSTS` environment variable is critical for security as it restricts which domains the microservice can access during URL ingestion. Configure this based on your deployment scenario:
+
+```bash
+export ALLOWED_HOSTS=<list_of_trusted_domains> # To mitigate SSRF attacks during URL ingestion
+```
+
+- **Enterprise Setup**: For environments within an organization firewall with access to intranet and internal wikis
+
+    Example: Allow access to internal Intel domains and public Wikipedia
+
+    export ALLOWED_HOSTS="\*.intel.com,en.wikipedia.org,\*.wikipedia.org,\*.github.com"
+
+
+- **Public Setup**: For public deployments with access to general internet resources:
+
+    Example: Allow access to public wikis and common websites
+
+    export ALLOWED_HOSTS="en.wikipedia.org,\*.wikipedia.org,craigslist.org,\*.craigslist.org,\*.medium.com"
+
+**Note**: Use comma-separated domain patterns. Wildcards (*) are supported for subdomains. Be as specific as possible to minimize security risks from SSRF attacks.
+
 Refer to [manually customize](./how-to-customize.md) for customization options for the microservice.
 
 ## Proxy Configuration
