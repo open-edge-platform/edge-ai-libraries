@@ -261,6 +261,10 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
+  deploy:
+  resources:
+    limits:
+      memory: 4g
 
   ovms-service-gpu:
     image: openvino/model_server:2025.4.1-gpu
