@@ -27,7 +27,7 @@ data:
     fi
     curl https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
     
-    # Add add_servable_to_config call to export_embeddings_model_ov function
+    # Add add_servable_to_config call to export_embeddings_model_ov function as it missing in the original script in the latest OVMS release
     python3 -c "
     import re
     with open('export_model.py', 'r') as f:
