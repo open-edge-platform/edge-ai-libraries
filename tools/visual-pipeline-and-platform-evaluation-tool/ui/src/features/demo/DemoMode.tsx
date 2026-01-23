@@ -10,7 +10,20 @@ import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Home, ChevronDown } from "lucide-react";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Home, ChevronDown, ChevronRight } from "lucide-react";
+import pipeline0 from "@/assets/pipeline_0.png";
+import pipeline1 from "@/assets/pipeline_1.png";
+import pipeline2 from "@/assets/pipeline_2.png";
+import pipeline3 from "@/assets/pipeline_3.png";
+import pipeline4 from "@/assets/pipeline_4.png";
+import pipeline5 from "@/assets/pipeline_5.png";
+import type { Pipeline } from "@/api/api.generated";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 import { useNavigate } from "react-router";
@@ -19,6 +32,15 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
+
+const pipelineImages = [
+  pipeline0,
+  pipeline1,
+  pipeline2,
+  pipeline3,
+  pipeline4,
+  pipeline5,
+];
 
 interface PipelineSelection {
   pipelineId: string;
@@ -53,141 +75,72 @@ const DemoMode = () => {
   const [metricHistorySnapshot, setMetricHistorySnapshot] = useState<
     typeof history
   >([]);
-  const [colorMode, setColorMode] = useState<1 | 2>(2);
+  const [selectedModels, setSelectedModels] = useState<Map<string, string>>(
+    new Map(),
+  ); // Map<baseName, selectedPipelineId>
+  const [demoStep, setDemoStep] = useState<"selection" | "configuration">(
+    "selection",
+  );
 
-  // Color modes
+  // Color mode 2 only
   const colorModes = {
-    1: {
-      first: "18,113,255",
-      second: "221,74,255",
-      third: "0,220,255",
-      fourth: "200,50,50",
-      fifth: "180,180,50",
-      sixth: "140,100,255",
-    },
-    2: {
-      first: "180,230,255",
-      second: "15,76,129",
-      third: "120,190,255",
-      fourth: "30,90,150",
-      fifth: "200,240,255",
-      sixth: "140,210,255",
-    },
+    first: "180,230,255",
+    second: "15,76,129",
+    third: "120,190,255",
+    fourth: "30,90,150",
+    fifth: "200,240,255",
+    sixth: "140,210,255",
   };
 
-  // UI color styles based on mode
-  const getColorClasses = () => {
-    if (colorMode === 1) {
-      return {
-        headerTitle:
-          "bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent",
-        headerGradient: "from-cyan-400 via-blue-400 to-purple-400",
-        exitButton:
-          "border-cyan-500/50 hover:bg-cyan-500/20 hover:border-cyan-400",
-        exitIcon: "text-cyan-400",
-        configBorder: "border-cyan-500/40 shadow-2xl shadow-cyan-500/20",
-        configTitle:
-          "text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]",
-        label: "text-cyan-300/90",
-        dropdown:
-          "border-cyan-500/60 hover:border-cyan-400 focus:ring-cyan-400/50 focus:border-cyan-400",
-        dropdownIcon: "text-cyan-400",
-        dropdownBg: "bg-slate-900/95 border-cyan-500/50",
-        dropdownHover: "hover:bg-cyan-500/20",
-        dropdownActive: "bg-cyan-500/30",
-        participationBorder: "border-cyan-500/40",
-        testBorder: "border-purple-500/40 shadow-2xl shadow-purple-500/20",
-        testTitle:
-          "text-purple-400 drop-shadow-[0_0_12px_rgba(168,85,247,0.4)]",
-        testLabel: "text-purple-300/90",
-        testInput:
-          "border-purple-500/60 focus:ring-purple-400/50 focus:border-purple-400 shadow-lg shadow-purple-500/20",
-        testInputText: "text-purple-300/90",
-        checkbox:
-          "border-purple-400/60 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-400",
-        checkboxLabel: "text-purple-300/90 group-hover:text-purple-200",
-        runButton:
-          "bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-500 hover:via-blue-500 hover:to-cyan-500 rounded-2xl shadow-2xl shadow-purple-500/60 hover:shadow-cyan-500/60 border border-purple-400/40",
-        runButtonOverlay:
-          "bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-purple-400/20 blur-xl",
-        runButtonText: "drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]",
-        gridConfigBorder: "border-cyan-500/30 shadow-lg shadow-cyan-500/10",
-        gridConfigTitle:
-          "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]",
-        gridTestBorder: "border-purple-500/30 shadow-lg shadow-purple-500/10",
-        gridTestTitle:
-          "text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]",
-        gridResultsBorder: "border-blue-500/30 shadow-lg shadow-blue-500/10",
-        gridResultsTitle:
-          "text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]",
-        gridPreviewBorder:
-          "border-emerald-500/30 shadow-lg shadow-emerald-500/10",
-        gridPreviewTitle:
-          "text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]",
-        loadingDots: "bg-energy-blue",
-        summaryFpsBorder: "border-energy-blue/40",
-        summaryFpsGradient:
-          "bg-gradient-to-r from-energy-blue/10 via-classic-blue/10 to-energy-blue/10",
-        summaryFpsText: "text-energy-blue",
-        summaryStreamsBorder: "border-green-chart/30",
-        summaryStreamsGradient:
-          "bg-gradient-to-r from-green-chart/10 via-cyan-400/10 to-magenta-chart/10",
-        summaryStreamsText: "text-green-chart",
-        summaryStreamsValueText: "text-emerald-400",
-      };
-    } else {
-      return {
-        headerTitle: "text-blue-500",
-        headerGradient: "from-slate-600 via-blue-600 to-blue-500",
-        exitButton:
-          "border-slate-400/40 hover:bg-blue-600/10 hover:border-blue-500/50",
-        exitIcon: "text-blue-500",
-        configBorder: "border-slate-400/30 shadow-xl",
-        configTitle: "text-blue-600",
-        label: "text-slate-400",
-        dropdown:
-          "border-slate-400/40 hover:border-blue-500/60 focus:ring-blue-500/30 focus:border-blue-500",
-        dropdownIcon: "text-slate-400",
-        dropdownBg: "bg-slate-900/95 border-slate-400/40",
-        dropdownHover: "hover:bg-blue-600/20",
-        dropdownActive: "bg-blue-600/30",
-        participationBorder: "border-slate-400/30",
-        testBorder: "border-slate-400/30 shadow-xl",
-        testTitle: "text-slate-300",
-        testLabel: "text-slate-400",
-        testInput:
-          "border-slate-400/40 focus:ring-blue-500/30 focus:border-blue-500",
-        testInputText: "text-slate-400",
-        checkbox:
-          "border-slate-400/60 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600",
-        checkboxLabel: "text-slate-400 group-hover:text-slate-300",
-        runButton:
-          "bg-[#0F4C81] hover:bg-[#1565A6] rounded-xl shadow-lg shadow-blue-900/40 hover:shadow-blue-700/50",
-        runButtonOverlay: "bg-gradient-to-r from-blue-400/10 to-blue-300/10",
-        runButtonText: "",
-        gridConfigBorder: "border-slate-400/30 shadow-lg",
-        gridConfigTitle: "text-slate-300",
-        gridTestBorder: "border-slate-400/30 shadow-lg",
-        gridTestTitle: "text-slate-300",
-        gridResultsBorder: "border-slate-400/30 shadow-lg",
-        gridResultsTitle: "text-slate-300",
-        gridPreviewBorder: "border-slate-400/30 shadow-lg",
-        gridPreviewTitle: "text-slate-300",
-        loadingDots: "bg-blue-600",
-        summaryFpsBorder: "border-blue-600/40",
-        summaryFpsGradient:
-          "bg-gradient-to-r from-blue-600/10 via-blue-500/10 to-blue-600/10",
-        summaryFpsText: "text-blue-600",
-        summaryStreamsBorder: "border-slate-500/30",
-        summaryStreamsGradient:
-          "bg-gradient-to-r from-slate-600/10 via-slate-500/10 to-slate-600/10",
-        summaryStreamsText: "text-slate-400",
-        summaryStreamsValueText: "text-slate-300",
-      };
-    }
+  // UI color styles - mode 2 only
+  const colors = {
+    headerTitle: "text-blue-500",
+    headerGradient: "from-slate-600 via-blue-600 to-blue-500",
+    exitButton:
+      "border-slate-400/40 hover:bg-blue-600/10 hover:border-blue-500/50",
+    exitIcon: "text-blue-500",
+    configBorder: "border-slate-400/30 shadow-xl",
+    configTitle: "text-blue-600",
+    label: "text-slate-400",
+    dropdown:
+      "border-slate-400/40 hover:border-blue-500/60 focus:ring-blue-500/30 focus:border-blue-500",
+    dropdownIcon: "text-slate-400",
+    dropdownBg: "bg-slate-900/95 border-slate-400/40",
+    dropdownHover: "hover:bg-blue-600/20",
+    dropdownActive: "bg-blue-600/30",
+    participationBorder: "border-slate-400/30",
+    testBorder: "border-slate-400/30 shadow-xl",
+    testTitle: "text-slate-300",
+    testLabel: "text-slate-400",
+    testInput:
+      "border-slate-400/40 focus:ring-blue-500/30 focus:border-blue-500",
+    testInputText: "text-slate-400",
+    checkbox:
+      "border-slate-400/60 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600",
+    checkboxLabel: "text-slate-400 group-hover:text-slate-300",
+    runButton:
+      "bg-[#0F4C81] hover:bg-[#1565A6] rounded-xl shadow-lg shadow-blue-900/40 hover:shadow-blue-700/50",
+    runButtonOverlay: "bg-gradient-to-r from-blue-400/10 to-blue-300/10",
+    runButtonText: "",
+    gridConfigBorder: "border-slate-400/30 shadow-lg",
+    gridConfigTitle: "text-slate-300",
+    gridTestBorder: "border-slate-400/30 shadow-lg",
+    gridTestTitle: "text-slate-300",
+    gridResultsBorder: "border-slate-400/30 shadow-lg",
+    gridResultsTitle: "text-slate-300",
+    gridPreviewBorder: "border-slate-400/30 shadow-lg",
+    gridPreviewTitle: "text-slate-300",
+    loadingDots: "bg-blue-600",
+    summaryFpsBorder: "border-blue-600/40",
+    summaryFpsGradient:
+      "bg-gradient-to-r from-blue-600/10 via-blue-500/10 to-blue-600/10",
+    summaryFpsText: "text-blue-600",
+    summaryStreamsBorder: "border-slate-500/30",
+    summaryStreamsGradient:
+      "bg-gradient-to-r from-slate-600/10 via-slate-500/10 to-slate-600/10",
+    summaryStreamsText: "text-slate-400",
+    summaryStreamsValueText: "text-slate-300",
   };
-
-  const colors = getColorClasses();
 
   // Parse pipeline names to extract model and device
   const parsePipelineName = (name: string) => {
@@ -202,6 +155,36 @@ const DemoMode = () => {
 
     return { model: name, device: "" };
   };
+
+  // Group pipelines by base name
+  const groupedPipelines = pipelines.reduce(
+    (acc, pipeline) => {
+      const match = pipeline.name.match(/^(.+?)\s*(\[.+?\])?$/);
+      const baseName = match ? match[1].trim() : pipeline.name;
+      const tag = match && match[2] ? match[2].replace(/[\[\]]/g, "") : null;
+
+      const existing = acc.find((group) => group.baseName === baseName);
+      if (existing) {
+        if (tag) {
+          existing.pipelines[tag] = pipeline;
+        }
+      } else {
+        acc.push({
+          baseName,
+          pipelines: tag ? { [tag]: pipeline } : {},
+          id: pipeline.id,
+          description: pipeline.description,
+        });
+      }
+      return acc;
+    },
+    [] as Array<{
+      baseName: string;
+      pipelines: Record<string, Pipeline>;
+      id: string;
+      description: string;
+    }>,
+  );
 
   // Get unique models and devices
   const uniqueModels = Array.from(
@@ -342,39 +325,17 @@ const DemoMode = () => {
       <BubbleBackground
         interactive={true}
         className="absolute inset-0 z-0"
-        colors={colorModes[colorMode]}
+        colors={colorModes}
       />
 
       {/* CONTENT */}
       <div className="relative z-10 h-full bg-slate-950/80">
         {/* HEADER */}
         <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
-          <h1 className={`text-3xl font-black ${colors.headerTitle}`}>
-            ViPPET Demo
+          <h1 className={`text-xl font-bold ${colors.headerTitle}`}>
+            Intel® Visual Pipeline and Platform Evaluation Tool (ViPPET)
           </h1>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setColorMode(1)}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-300 ${
-                  colorMode === 1
-                    ? "bg-purple-600 border-purple-500 text-white shadow-lg"
-                    : "bg-slate-800/50 border-slate-400/40 text-slate-400 hover:bg-slate-700/50 hover:border-slate-400/60"
-                }`}
-              >
-                Mode 1
-              </button>
-              <button
-                onClick={() => setColorMode(2)}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-300 ${
-                  colorMode === 2
-                    ? "bg-blue-600 border-blue-500 text-white shadow-lg"
-                    : "bg-slate-800/50 border-slate-400/40 text-slate-400 hover:bg-slate-700/50 hover:border-slate-400/60"
-                }`}
-              >
-                Mode 2
-              </button>
-            </div>
             <button
               onClick={() => navigate("/")}
               className={`group relative px-4 py-2 rounded-lg border bg-slate-800/50 backdrop-blur-xl transition-all duration-300 ${colors.exitButton}`}
@@ -393,8 +354,143 @@ const DemoMode = () => {
 
         {/* MAIN CONTENT */}
         <div className="relative z-10 h-[calc(100vh-70px)] p-3">
-          {!testStarted ? (
-            /* CENTERED INITIAL VIEW */
+          {demoStep === "selection" ? (
+            /* PIPELINE SELECTION VIEW */
+            <div className="h-full flex flex-col animate-[fadeIn_0.6s_ease-out]">
+              {/* Pipeline Cards Grid */}
+              <div className="flex-1 overflow-auto p-6 pt-8">
+                <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {groupedPipelines.map((group, idx) => {
+                    const isSelected = selectedModels.has(group.baseName);
+                    const availableDevices = Object.keys(group.pipelines);
+                    const currentSelectedId = selectedModels.get(
+                      group.baseName,
+                    );
+                    const currentDevice =
+                      availableDevices.find(
+                        (dev) => group.pipelines[dev].id === currentSelectedId,
+                      ) ||
+                      availableDevices[0] ||
+                      "";
+
+                    return (
+                      <Card
+                        key={group.id}
+                        className={`flex flex-col transition-all duration-300 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md ${
+                          isSelected
+                            ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[1.02]"
+                            : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[1.02]"
+                        }`}
+                      >
+                        <CardHeader className="flex-1">
+                          <CardTitle className="min-h-8 text-slate-200">
+                            {group.baseName}
+                          </CardTitle>
+                          {pipelineImages[idx % pipelineImages.length] && (
+                            <img
+                              src={pipelineImages[idx % pipelineImages.length]}
+                              alt={group.baseName}
+                              className="w-full h-auto rounded-md"
+                            />
+                          )}
+                          <CardDescription className="line-clamp-4 min-h-18 text-slate-400">
+                            {group.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <div className="px-6 pb-4 flex items-center gap-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              const newSelected = new Map(selectedModels);
+                              if (checked) {
+                                // Select first available device by default
+                                const firstDevice = availableDevices[0];
+                                if (firstDevice) {
+                                  newSelected.set(
+                                    group.baseName,
+                                    group.pipelines[firstDevice].id,
+                                  );
+                                }
+                              } else {
+                                newSelected.delete(group.baseName);
+                              }
+                              setSelectedModels(newSelected);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`w-5 h-5 ${colors.checkbox}`}
+                          />
+                          {availableDevices.length > 0 ? (
+                            <div className="relative flex-1">
+                              <select
+                                value={currentDevice}
+                                onChange={(e) => {
+                                  const newDevice = e.target.value;
+                                  const newSelected = new Map(selectedModels);
+                                  newSelected.set(
+                                    group.baseName,
+                                    group.pipelines[newDevice].id,
+                                  );
+                                  setSelectedModels(newSelected);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`w-full px-3 py-2 bg-slate-950/90 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer ${colors.dropdown}`}
+                                disabled={!isSelected}
+                              >
+                                {availableDevices.map((device) => (
+                                  <option key={device} value={device}>
+                                    {device}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${colors.dropdownIcon}`}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-sm text-slate-400">
+                              Select pipeline
+                            </span>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Next Button */}
+              <div className="flex justify-end p-3 pt-5">
+                <button
+                  onClick={() => {
+                    if (selectedModels.size > 0) {
+                      // Initialize pipeline selections with selected pipelines
+                      setPipelineSelections(
+                        Array.from(selectedModels.values()).map((id) => ({
+                          pipelineId: id,
+                          stream_rate: 50,
+                        })),
+                      );
+                      setDemoStep("configuration");
+                    }
+                  }}
+                  disabled={selectedModels.size === 0}
+                  className={`group relative px-4 py-2 rounded-lg border bg-slate-800/50 backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ${colors.exitButton}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-sm font-semibold ${colors.exitIcon}`}
+                    >
+                      Next
+                    </span>
+                    <ChevronRight
+                      className={`w-4 h-4 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
+                    />
+                  </div>
+                </button>
+              </div>
+            </div>
+          ) : demoStep === "configuration" && !testStarted ? (
+            /* CONFIGURATION VIEW */
             <div className="h-full flex items-center justify-center gap-6 animate-[fadeIn_0.6s_ease-out]">
               {/* Configuration - Larger */}
               <div
