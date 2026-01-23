@@ -58,7 +58,7 @@ openvino = [
     "timm==1.0.22",
     "torchvision==0.23.0+cpu",
     "torch==2.8.0+cpu",
-    "transformers==4.55.4",
+    "transformers==4.53.3",
 ]
 
 ollama = [

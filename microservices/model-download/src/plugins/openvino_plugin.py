@@ -119,8 +119,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Map model_type to export type
         export_type_map = {
             "llm": "text_generation",
-            "embeddings": "embeddings",
-            "rerank": "rerank",
+            "embeddings": "embeddings_ov",
+            "rerank": "rerank_ov",
             "vlm": "vlm",
         }
 
@@ -138,25 +138,37 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "Hugging Face token is required for OVMS conversion"
             )
 
-        # Step 1: Log in to Hugging Face
+        # Step 1: Log in to Hugging Face,
         logger.info("Logging in to Hugging Face...")
-        result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
-        if result.returncode != 0:
-            raise RuntimeError(
-                "Failed to authenticate with Hugging Face. Please check your token."
-            )
+        check_login = subprocess.run(
+            ["hf", "auth", "whoami"],
+            capture_output=True,
+            text=True
+        )
+        
+        if check_login.returncode != 0:
+            # Not logged in, proceed with login
+            logger.info("Not logged in, authenticating with Hugging Face...")
+            result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
+            if result.returncode != 0:
+                raise RuntimeError(
+                    "Failed to authenticate with Hugging Face. Please check your token."
+                )
+        else:
+            logger.info(f"Already logged in to Hugging Face as: {check_login.stdout.strip()}")
 
         logger.info("Checking for export_model.py script...")
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
+        # THIS IS COMMENTED FOR FUTURE UPDATES
+        # export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/4/demos/common/export_models/export_model.py"
       
-        if not os.path.exists("export_model.py"):
-            logger.info(f"Downloading export_model.py script...")
-            try:
-                subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to download export script: {str(e)}")
-        else:
-            logger.info("export_model.py already exists, skipping download.")
+        # if not os.path.exists("export_model.py"):
+        #     logger.info(f"Downloading export_model.py script...")
+        #     try:
+        #         subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
+        #     except subprocess.CalledProcessError as e:
+        #         raise RuntimeError(f"Failed to download export script: {str(e)}")
+        # else:
+        #     logger.info("export_model.py already exists, skipping download.")
 
         # Step 4: Export the model using the virtual environment's Python
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
@@ -166,16 +178,18 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         if model_type == "vlm":
             command = [
-                "bash", "scripts/vlm_compress_model.sh", 
-                model_name, 
-                weight_format,
-                huggingface_token if huggingface_token is not None else "" ,
-                model_directory
+                "python3", "scripts/export_model.py", "text_generation",
+                "--source_model", model_name,
+                "--weight-format", weight_format,
+                "--pipeline_type", "VLM",
+                "--config_file_path", f"{model_directory}/config.json",
+                "--model_repository_path", f"{model_directory}/",
+                "--target_device", target_device
             ]
         else:    
             # Build command with Python from the virtual environment
             command = [
-                "python3", "export_model.py", export_type,
+                "python3", "scripts/export_model.py", export_type,
                 "--source_model", model_name,
                 "--weight-format", weight_format,
                 "--config_file_path", f"{model_directory}/config.json",
@@ -213,7 +227,29 @@ class OpenVINOConverter(ModelDownloadPlugin):
             if return_code is None:
                 return_code = 0  # If process is still running, assume success
             if return_code != 0:
-                logger.error(f"Script execution failed with return code {return_code}")
+                #If model_type is vlm and the conversion fails, use the direct PyTorch to OpenVINO converter as fallback
+                if model_type == "vlm":
+                    logger.info("VLM model conversion failed with export_model.py, attempting fallback conversion using direct PyTorch to OpenVINO converter...")
+                    command = [
+                        "python3", "scripts/convert_model_vlm.py", 
+                        "--model-name", model_name,
+                        "--download-path", model_directory,
+                        "--precision", weight_format,
+                        "--device", target_device.lower()
+                    ]                    
+                    logger.info(f"Executing fallback command: {' '.join(command)}")
+                    result = subprocess.run(command, capture_output=True, text=True)
+                    
+                    if result.returncode != 0:
+                        logger.error(f"Fallback VLM conversion failed: {result.stderr}")
+                        logger.error(f"Fallback stdout: {result.stdout}")
+                        return_code = result.returncode
+                    else:
+                        logger.info("Fallback VLM conversion succeeded.")
+                        logger.info(f"Conversion output: {result.stdout}")
+                        return_code = 0
+                else:
+                    logger.error(f"Script execution failed with return code {return_code}")
 
             return return_code
            
