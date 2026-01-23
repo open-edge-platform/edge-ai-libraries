@@ -129,9 +129,9 @@ const PipelineEditorContent = forwardRef<
           pipelineData?.pipeline_graph_simple
         ) {
           const graphToUse =
-            useSimpleGraph === false
-              ? pipelineData.pipeline_graph
-              : pipelineData.pipeline_graph_simple;
+            useSimpleGraph === true
+              ? pipelineData.pipeline_graph_simple
+              : pipelineData.pipeline_graph;
           const nodes = graphToUse?.nodes ?? [];
           const edges = graphToUse?.edges ?? [];
 
