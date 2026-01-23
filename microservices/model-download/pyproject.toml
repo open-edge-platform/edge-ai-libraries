@@ -29,7 +29,7 @@ dev = [
 
 cpu = [
     "torch==2.9.1+cpu",
-    "torchvision",
+    "torchvision==0.24.1+cpu",
 ]
 
 huggingface = [
@@ -40,7 +40,7 @@ ultralytics = [
     "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "ultralytics==8.2.3",
     "torch==2.9.1+cpu",
-    "torchvision",
+    "torchvision==0.24.1+cpu",
 ]
 
 openvino = [
@@ -58,7 +58,7 @@ openvino = [
     "sentencepiece==0.2.1",  # Required by: transformers
     "timm==1.0.22",
     "torch==2.9.1+cpu",
-    "torchvision",
+    "torchvision==0.24.1+cpu",
     "transformers==4.53.3",
 ]
 
