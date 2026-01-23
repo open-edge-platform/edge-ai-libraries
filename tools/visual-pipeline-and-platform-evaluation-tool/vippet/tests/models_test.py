@@ -113,12 +113,6 @@ class TestModels(unittest.TestCase):
             self.assertEqual(len(installed_models), 1)
             self.assertEqual(installed_models[0].name, "inst")
 
-            # find by internal name
-            found_by_name = manager.find_installed_model_by_name("inst")
-            self.assertIsNotNone(found_by_name)
-            self.assertEqual(found_by_name.display_name, "Installed Model")
-            self.assertIsNone(manager.find_installed_model_by_name("miss"))
-
             # find by display name
             found_by_disp = manager.find_installed_model_by_display_name(
                 "Installed Model"
@@ -126,9 +120,9 @@ class TestModels(unittest.TestCase):
             self.assertIsNotNone(found_by_disp)
             self.assertEqual(found_by_disp.name, "inst")
 
-            # find by model_path_full
-            found_by_path = manager.find_installed_model_by_model_path_full(
-                str(installed)
+            # find by model_path and model_proc_path
+            found_by_path = manager.find_installed_model_by_model_and_proc_path(
+                str(installed), ""
             )
             self.assertIsNotNone(found_by_path)
             self.assertEqual(found_by_path.name, "inst")
@@ -244,6 +238,56 @@ class TestModels(unittest.TestCase):
             self.assertTrue(manager.is_model_supported_on_device("Model2", "GPU"))
             # model not found should return False
             self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
+
+    def test_find_installed_model_by_model_and_proc_path_with_extra_model_procs(self):
+        """Test matching when extra_model_procs provides full-path model-proc variants."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            models_dir.mkdir()
+
+            model_file = models_dir / "shared.xml"
+            model_file.write_text("model")
+
+            base_proc = models_dir / "base.json"
+            extra_proc = models_dir / "extra.json"
+            base_proc.write_text("a")
+            extra_proc.write_text("b")
+
+            yaml_content = f"""
+- name: m1
+  display_name: Model Base
+  source: public
+  type: detection
+  model_path: shared.xml
+  model_proc: {base_proc.name}
+  extra_model_procs:
+    - {str(extra_proc)}
+  unsupported_devices: ""
+  precision: FP32
+  default: false
+"""
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text(yaml_content)
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+            manager = m.SupportedModelsManager()
+
+            # Find by base model_proc
+            found_base = manager.find_installed_model_by_model_and_proc_path(
+                str(model_file), str(base_proc)
+            )
+            self.assertIsNotNone(found_base)
+            self.assertIn("model-proc: base", found_base.display_name)
+
+            # Find by extra model_proc
+            found_extra = manager.find_installed_model_by_model_and_proc_path(
+                str(model_file), str(extra_proc)
+            )
+            self.assertIsNotNone(found_extra)
+            self.assertIn("model-proc: extra", found_extra.display_name)
 
     def test_init_errors_invalid_yaml_and_empty_list(self):
         """Test that invalid YAML formats and empty lists raise RuntimeError during manager init."""
