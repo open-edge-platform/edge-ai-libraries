@@ -27,6 +27,7 @@ einops = "^0.8.0"
 minio = "^7.1.15"
 requests = "^2.31.0"
 httpcore = "^1.0.9"
+urllib3 = ">=2.6.3"
 
 # Multimodal Embedding Service as wheel dependency
 multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}

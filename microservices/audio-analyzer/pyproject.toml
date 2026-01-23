@@ -27,6 +27,7 @@ huggingface-hub = {version = "^0.30.2", extras = ["hf_xet"]}
 scipy = "^1.15.3"
 torch = { version = "^2.7.0", source = "pytorch-cpu" }
 torchvision = { version = "^0.22.0", source = "pytorch-cpu" }
+urllib3 = ">=2.6.3"
 
 
 [tool.poetry.group.dev.dependencies]

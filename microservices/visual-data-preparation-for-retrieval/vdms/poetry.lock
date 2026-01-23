@@ -4541,14 +4541,14 @@ devenv = ["check-manifest", "pytest (>=4.3)", "pytest-cov", "pytest-mock (>=3.3)
 
 [[package]]
 name = "urllib3"
-version = "2.5.0"
+version = "2.6.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc"},
-    {file = "urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"},
+    {file = "urllib3-2.6.3-py3-none-any.whl", hash = "sha256:f8e4007357f41db4a3b5cd4a0e0c2e72ecfba74bf75b0fa8a3d79ce3e7b29ffc"},
+    {file = "urllib3-2.6.3.tar.gz", hash = "sha256:c0d13d2e3073c4e9f36fc72ab4ee2aed03d7f0f1cc2e65a5c83dd596ec77873b"},
 ]
 
 [package.extras]
