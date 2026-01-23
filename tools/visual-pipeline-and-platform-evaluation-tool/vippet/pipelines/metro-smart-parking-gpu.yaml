@@ -1,3 +1,5 @@
+# Reference: This is the official reference for Smart Parking pipeline
+# https://github.com/open-edge-platform/edge-ai-suites/tree/main/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking
 name: Metro - Smart Parking [GPU]
 version: 1
 definition: >
