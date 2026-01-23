@@ -303,7 +303,7 @@ download_ovms_model() {
             return 1
         fi
 
-        echo -e "${BLUE}\nJob $job_id saved model files at $JOB_CONVERSION_DIR\n${NC}"
+        echo -e "${BLUE}\nJob $job_id saved model files at JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR\n${NC}"
 
         echo -e "${BLUE}\nCopying JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR  to TARGET_DIR: $TARGET_DIR\n${NC}"
         if ! cp -r "$JOB_CONVERSION_DIR/"* "$TARGET_DIR"; then
