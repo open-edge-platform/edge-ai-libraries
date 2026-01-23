@@ -1,3 +1,4 @@
+#!/bin/sh
 echo "Copying GenICam runtime binaries to /usr/lib/x86_64-linux-gnu/"
 cp plugins/genicam-core/genicam/bin/*.so /usr/lib/x86_64-linux-gnu/
 echo "GenICam runtime copied to /usr/lib/x86_64-linux-gnu/"

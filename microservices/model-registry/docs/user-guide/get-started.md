@@ -1,6 +1,7 @@
 # Get Started
 
-The **Model Registry microservice** enables developers to register, update, retrieve, and delete models. This section provides step-by-step instructions to:
+The **Model Registry microservice** enables developers to register, update, retrieve, and
+delete models. This section provides step-by-step instructions on how to:
 
 - Set up the microservice using a pre-built Docker image for quick deployment.
 - Run predefined tasks to explore its functionality.
@@ -10,10 +11,11 @@ The **Model Registry microservice** enables developers to register, update, retr
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
-This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
+This guide assumes basic familiarity with Docker commands and terminal usage. If you are new
+to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
 ## Quick Start with Docker
 
@@ -57,7 +59,8 @@ This method provides the fastest way to get started with the microservice.
     MR_MLFLOW_S3_ENDPOINT_URL=http://127.0.0.1:8000
     ```
 
-1. Enter the desired values for the REQUIRED [Environment Variables](environment-variables.md) in the `.env` file:
+1. Enter the desired values for the REQUIRED [Environment Variables](./environment-variables.md)
+in the `.env` file:
     1. MR_PSQL_PASSWORD
     2. MR_MINIO_ACCESS_KEY
     3. MR_MINIO_SECRET_KEY
@@ -65,11 +68,11 @@ This method provides the fastest way to get started with the microservice.
 1. Create directories to be used for persistent storage by the Postgres* and MinIO* Docker containers
     ```sh
     set -a
-    
+
     source .env
-    
+
     set +a
-    
+
     mkdir -p $MR_INSTALL_PATH/data/mr_postgres
 
     mkdir -p $MR_INSTALL_PATH/data/mr_minio
@@ -78,8 +81,10 @@ This method provides the fastest way to get started with the microservice.
 
     chown -R $MR_USER_NAME:$MR_USER_NAME $MR_INSTALL_PATH/data/mr_postgres $MR_INSTALL_PATH/data/mr_minio
     ```
-    * **Note**: The data in these directories will persist after the containers are removed. If you would like to subsequently start the containers with no pre-existing data, delete the contents in the directories before starting the containers.
- 
+    > **Note**: The data in these directories will persist after the containers are removed.
+    If you would like to subsequently start the containers with no pre-existing data, delete
+    the contents in the directories before starting the containers.
+
 1. Create a `docker-compose.yml` file with the following configurations:
     ```yaml
     services:
@@ -171,7 +176,7 @@ This method provides the fastest way to get started with the microservice.
       mr:
         driver: bridge
     ```
-      
+
 1. Start and run the defined services in the `docker-compose.yml` file as Docker* containers
     ```sh
     docker compose up -d
@@ -184,10 +189,11 @@ This method provides the fastest way to get started with the microservice.
     ```
     - **Expected output**: The container appears in the list with the status “Up.”
 
-
 ## Storing a Model in the Registry
+
 1. **Send a POST request to store a model.**
-   * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
+   - Use the following `curl` command to send a POST request with FormData fields corresponding
+   to the model's properties.
 
     ```bash
     curl -X POST 'PROTOCOL://HOSTNAME:32002/models' \
@@ -197,68 +203,75 @@ This method provides the fastest way to get started with the microservice.
     --form 'version="MODEL_VERSION"'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_NAME` with the name of the model to be stored.
-    * Replace `MODEL_ARTIFACTS_ZIP_FILE_PATH` with the file path to the zip file containing the model's artifacts.
-    * Replace `MODEL_VERSION` with the version of the model to be stored.
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
+    - Replace `MODEL_NAME` with the name of the model to be stored.
+    - Replace `MODEL_ARTIFACTS_ZIP_FILE_PATH` with the file path to the zip file containing
+    the model's artifacts.
+    - Replace `MODEL_VERSION` with the version of the model to be stored.
 
     For the complete list of supported model properties, visit `PROTOCOL://HOSTNAME:32002/docs`.
 
 1. **Parse the response.**
-    * The response will include the ID of the newly stored model.
+    - The response will include the ID of the newly stored model.
 
 ## Fetching a List of Models in the Registry
 
 1. **Send a GET request to retrieve a list of models.**
-    * Use the following `curl` command to send a GET request to the `/models` endpoint. 
+    - Use the following `curl` command to send a GET request to the `/models` endpoint.
 
     ```bash
     curl -X GET 'PROTOCOL://HOSTNAME:32002/models'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
 
 1. **Include query parameters (optional).**
-    * If you want to filter the list, you can include query parameters in the URL. 
+    - If you want to filter the list, you can include query parameters in the URL.
 
-    * For example, to filter by `project_name`:
+    - For example, to filter by `project_name`:
 
     ```bash
     curl -X GET 'PROTOCOL://HOSTNAME:32002/models?project_name=PROJECT_NAME'
     ```
 
-    * Replace `PROJECT_NAME` with the project_name associated to a model stored in the registry.
+    - Replace `PROJECT_NAME` with the project_name associated to a model stored in the registry.
 
-    * For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
+    - For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
 
 1. **Parse the response.**
-    * The response will be a list containing the metadata of models stored in the registry.
+    - The response will be a list containing the metadata of models stored in the registry.
 
 ## Getting a specific model in the Registry
 
 1. **Send a GET request to get a model.**
-    * Use the following `curl` command to send a GET request to the `/models/MODEL_ID` endpoint.
+    - Use the following `curl` command to send a GET request to the `/models/MODEL_ID` endpoint.
 
     ```bash
     curl -L -X GET 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
+    - Replace `MODEL_ID` with the `id` of the desired model.
 
 1. **Parse the response.**
-    * The response will have a `200 OK` status code and the metadata for a model.
+    - The response will have a `200 OK` status code and the metadata for a model.
 
 ## Updating 1 or more properties for a specific model in the Registry
 
 1. **Send a PUT request to update properties of a model.**
-    * Use the following `curl` command to send a PUT request to the `/models` endpoint.
+    - Use the following `curl` command to send a PUT request to the `/models` endpoint.
 
     ```bash
     curl -L -X PUT 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID' \
@@ -266,59 +279,62 @@ This method provides the fastest way to get started with the microservice.
     --form 'format="NEW_MODEL_FORMAT"'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
-    * Replace`NEW_MODEL_SCORE`, and `NEW_MODEL_FORMAT` with the desired new values to be stored.
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
+    - Replace `MODEL_ID` with the `id` of the desired model.
+    - Replace`NEW_MODEL_SCORE`, and `NEW_MODEL_FORMAT` with the desired new values to be stored.
 
-    * For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
+    - For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
 
 1. **Parse the response.**
-    * The response will be a JSON object containing a status of the operation and a message.
+    - The response will be a JSON object containing a status of the operation and a message.
 
 ## Downloading files for a specific model in the Registry
 
 1. **Send a GET request to download files associated with a model in the Registry.**
-    * Use the following `curl` command to send a GET request to the `/models/MODEL_ID/files` endpoint.
+    - Use the following `curl` command to send a GET request to the `/models/MODEL_ID/files` endpoint.
 
     ```bash
     curl -X GET 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID/files'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
-
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
+    - Replace `MODEL_ID` with the `id` of the desired model.
 
 1. **Parse the Response.**
-    * The response will be a Zip file.
+    - The response will be a Zip file.
 
 ## Deleting a Model in the Registry
 
 1. **Send a DELETE request to delete a model.**
-    * Use the following `curl` command to send a DELETE request to the `/models/MODEL_ID` endpoint.
+    - Use the following `curl` command to send a DELETE request to the `/models/MODEL_ID` endpoint.
 
     ```bash
     curl -L -X DELETE 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
+    - Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+      - If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k`
+      option to your `curl` command to ignore SSL certificate verification.
+    - Replace `HOSTNAME` with the actual host name or IP address of the host system where the
+    service is running.
+    - Replace `MODEL_ID` with the `id` of the desired model.
 
 1. **Parse the response.**
-    * The response will have a `200 OK` status code and an empty body.
-
-
+    - The response will have a `200 OK` status code and an empty body.
 
 ## Advanced Setup Options
 
 For alternative ways to set up the microservice, see:
 
-<!-- - [How to Build from Source](./how-to-build-from-source.md) -->
+- [How to Build from Source](./how-to-build-from-source.md)
 - [How to Deploy with Helm](./how-to-deploy-with-helm.md)
 
 ## Next Steps
@@ -331,7 +347,6 @@ For alternative ways to set up the microservice, see:
     - Run `docker logs {{container-name}}` to identify the issue.
     - Check if the required port is available.
 
-
 2. **Cannot Access the Microservice**:
     - Confirm the container is running:
       ```bash
@@ -340,6 +355,17 @@ For alternative ways to set up the microservice, see:
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](./index.md)
+- [How It Works](./how-it-works.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Environment Variables](./environment-variables.md)
+- [API Reference](./api-reference.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+
+:::
+hide_directive-->

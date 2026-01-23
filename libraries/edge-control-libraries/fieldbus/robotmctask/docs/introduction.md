@@ -1,4 +1,16 @@
 # Robot Motion Control Task
+
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
 ## Overview
 
 **Robotmctask** is a comprehensive C++ library designed for robot motion control task development. It provides APIs that enable robot developers to build sophisticated robot applications with integrated AI inference engines and EtherCAT protocol support.
@@ -34,7 +46,7 @@ Two key blocks have been introduced to support the core architecture:
 
 ## Network Topology
 
-The following diagram illustrates a typical fieldbus topology for humanoid robot applications: 
+The following diagram illustrates a typical fieldbus topology for humanoid robot applications:
 
 ![Humanoid Robot Network Topology](images/Humanoid_Robot_Topology.png)
 
@@ -44,7 +56,7 @@ The following diagram illustrates a typical fieldbus topology for humanoid robot
 ### Requirements
 The software runs on standard PCs or servers. Since it is primarily developed in C++, porting to other operating systems is straightforward.
 
-### Running 
+### Running
 
 Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
@@ -66,4 +78,4 @@ A comprehensive demonstration showcasing:
 
 ## License
 
-The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details. 
+The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details.

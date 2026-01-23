@@ -1,8 +1,7 @@
 #!/bin/bash
-
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -61,7 +60,7 @@ e-cores|p-cores|lp-cores)
     [ ${#CORE_PINNING[@]} -eq 0 ] || taskset_cmds=(taskset -c ${CORE_PINNING// /,})
     ;;
 esac
-${taskset_cmds[@]} python3 -m src
+"${taskset_cmds[@]}" python3 -m src
 
 wait
 

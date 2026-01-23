@@ -1289,28 +1289,28 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
-        path = node.data.get("model")
-        if path is None:
+        model_path = node.data.get("model")
+        if model_path is None:
             continue
 
-        for part in Path(path).with_suffix("").parts:
-            if model := models_manager.find_installed_model_by_name(part):
-                node.data["model"] = model.display_name
-                logger.debug(
-                    f"Converted model path to display name: {path} -> {model.display_name}"
-                )
+        model_proc_path = node.data.get("model-proc", None)
+        model = models_manager.find_installed_model_by_model_and_proc_path(
+            model_path, model_proc_path
+        )
 
-                # Also convert model-proc if present
-                model_proc_path = node.data.get("model-proc")
-                if model_proc_path is not None:
-                    node.data["model-proc"] = model_proc_manager.get_filename(
-                        model_proc_path
-                    )
-                break
+        if model is not None:
+            node.data["model"] = model.display_name
+            logger.debug(
+                f"Converted model path to display name: {model_path} -> {model.display_name}"
+            )
         else:
             node.data["model"] = ""
-            node.data["model-proc"] = ""
-            logger.debug(f"Model path not found in installed models: {path}")
+            logger.debug(
+                f"Model not found in installed models: model_path='{model_path}', model_proc_path='{model_proc_path}'"
+            )
+
+        # Remove model-proc to avoid leaking internal filesystem layout.
+        node.data.pop("model-proc", None)
 
 
 def _model_display_name_to_path(nodes: list[Node]) -> None:
@@ -1329,11 +1329,10 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
     Raises:
         ValueError: If model display name is not found in installed models
-        ValueError: If configured model-proc file is not found
 
     Side effects:
         - Modifies node.data["model"] to contain full path instead of display name
-        - Injects or updates node.data["model-proc"] with appropriate model-proc file path
+        - Injects node.data["model-proc"] with the model-proc file path if available
         - Logs debug messages for each conversion
 
     Example:
@@ -1355,33 +1354,9 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
         node.data["model"] = model.model_path_full
 
-        # model-proc handling
-        configured_model_proc = node.data.get("model-proc")
-        default_model_proc = (
-            model_proc_manager.get_filename(model.model_proc)
-            if model.model_proc is not None
-            else None
-        )
+        if model.model_proc_full:
+            _insert_model_proc_after_model(node, model.model_proc_full)
 
-        # If a model-proc was explicitly configured and is different from
-        # the default, use it. Otherwise, inject the default if available.
-        if (
-            configured_model_proc is not None
-            and configured_model_proc != default_model_proc
-        ):
-            # Use the user-specified model-proc
-            model_proc_path = model_proc_manager.get_path(configured_model_proc)
-            if model_proc_path is None:
-                raise ValueError(
-                    f"Model-proc file '{configured_model_proc}' not found for {node.type} element. "
-                    f"Please verify the file name is correct or leave it empty to use the default."
-                )
-
-            _insert_model_proc_after_model(node, model_proc_path)
-        else:
-            # Use the default model-proc if available
-            if model.model_proc_full:
-                _insert_model_proc_after_model(node, model.model_proc_full)
         logger.debug(
             f"Converted model display name to path: {name} -> {model.model_path_full}"
         )
