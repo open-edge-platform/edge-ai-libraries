@@ -77,6 +77,7 @@ const Pipelines = () => {
   >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const detailsPanelSizeRef = useRef(30);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
@@ -680,8 +681,22 @@ const Pipelines = () => {
     );
 
     return (
-      <ResizablePanelGroup orientation="horizontal" className="w-full h-full">
-        <ResizablePanel defaultSize={showDetailsPanel ? 70 : 100} minSize={30}>
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="w-full h-full"
+        onLayoutChange={(sizes) => {
+          const sizeValues = Object.values(sizes);
+          if (sizeValues.length === 2) {
+            detailsPanelSizeRef.current = sizeValues[1];
+          }
+        }}
+      >
+        <ResizablePanel
+          defaultSize={
+            showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
+          }
+          minSize={30}
+        >
           {editorContent}
         </ResizablePanel>
 
@@ -689,7 +704,10 @@ const Pipelines = () => {
           <>
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={30} minSize={20}>
+            <ResizablePanel
+              defaultSize={detailsPanelSizeRef.current}
+              minSize={20}
+            >
               <div
                 ref={detailsPanelRef}
                 className="w-full h-full bg-background overflow-auto relative"
