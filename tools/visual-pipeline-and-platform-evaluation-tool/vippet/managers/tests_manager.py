@@ -2,7 +2,6 @@ import logging
 import sys
 import threading
 import time
-from typing import Dict, Optional, List
 from dataclasses import dataclass
 import uuid
 
@@ -17,7 +16,7 @@ from api.api_schemas import (
     DensityJobStatus,
     TestsJobStatus,
 )
-from pipeline_runner import PipelineRunner
+from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
 from managers.pipeline_manager import get_pipeline_manager
 
@@ -26,7 +25,7 @@ logger = logging.getLogger("tests_manager")
 pipeline_manager = get_pipeline_manager()
 
 # Singleton instance for TestsManager
-_tests_manager_instance: Optional["TestsManager"] = None
+_tests_manager_instance: "TestsManager | None" = None
 
 
 def get_tests_manager() -> "TestsManager":
@@ -59,13 +58,13 @@ class PerformanceJob:
     request: PerformanceTestSpec
     state: TestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[PipelinePerformanceSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -81,13 +80,13 @@ class DensityJob:
     request: DensityTestSpec
     state: TestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[PipelinePerformanceSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    error_message: str | None = None
 
 
 class TestsManager:
@@ -103,9 +102,9 @@ class TestsManager:
 
     def __init__(self):
         # All known jobs keyed by job id
-        self.jobs: Dict[str, PerformanceJob | DensityJob] = {}
+        self.jobs: dict[str, PerformanceJob | DensityJob] = {}
         # Currently running PipelineRunner or Benchmark jobs keyed by job id
-        self.runners: Dict[str, PipelineRunner | Benchmark] = {}
+        self.runners: dict[str, PipelineRunner | Benchmark] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
         self.lock = threading.Lock()
         self.logger = logging.getLogger("TestsManager")
@@ -217,18 +216,26 @@ class TestsManager:
                 )
             )
 
-            # Initialize PipelineRunner
-            runner = PipelineRunner()
+            # Initialize PipelineRunner in normal mode with max_runtime=0 (run until EOS)
+            runner = PipelineRunner(mode="normal", max_runtime=0)
 
             # Store runner for this job so that a future extension could cancel it.
             with self.lock:
                 self.runners[job_id] = runner
 
             # Run the pipeline
-            results = runner.run(
+            result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
             )
+
+            # Type narrowing: PipelineRunner in normal mode returns PipelineRunResult
+            if not isinstance(result, PipelineRunResult):
+                self._update_job_error(
+                    job_id,
+                    "Unexpected result type from pipeline runner",
+                )
+                return
 
             # Update job with results
             with self.lock:
@@ -248,29 +255,28 @@ class TestsManager:
                         job.state = TestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
-                        if results is not None:
-                            # Build streams distribution per pipeline
-                            streams_per_pipeline = [
-                                PipelinePerformanceSpec(
-                                    id=spec.id,
-                                    streams=spec.streams,
-                                )
-                                for spec in performance_request.pipeline_performance_specs
-                            ]
-
-                            # Update performance metrics
-                            job.total_fps = results.total_fps
-                            job.per_stream_fps = results.per_stream_fps
-                            job.total_streams = results.num_streams
-                            job.streams_per_pipeline = streams_per_pipeline
-                            job.video_output_paths = video_output_paths
-
-                            self.logger.info(
-                                f"Performance test {job_id} completed successfully: "
-                                f"total_fps={results.total_fps}, "
-                                f"per_stream_fps={results.per_stream_fps}, "
-                                f"total_streams={results.num_streams}"
+                        # Build streams distribution per pipeline
+                        streams_per_pipeline = [
+                            PipelinePerformanceSpec(
+                                id=spec.id,
+                                streams=spec.streams,
                             )
+                            for spec in performance_request.pipeline_performance_specs
+                        ]
+
+                        # Update performance metrics
+                        job.total_fps = result.total_fps
+                        job.per_stream_fps = result.per_stream_fps
+                        job.total_streams = result.num_streams
+                        job.streams_per_pipeline = streams_per_pipeline
+                        job.video_output_paths = video_output_paths
+
+                        self.logger.info(
+                            f"Performance test {job_id} completed successfully: "
+                            f"total_fps={result.total_fps}, "
+                            f"per_stream_fps={result.per_stream_fps}, "
+                            f"total_streams={result.num_streams}"
+                        )
 
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
@@ -431,7 +437,7 @@ class TestsManager:
             self.logger.debug(f"Current job statuses for type {job_type}: {statuses}")
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[TestsJobStatus]:
+    def get_job_status(self, job_id: str) -> TestsJobStatus | None:
         """
         Return the status for a single job.
 
@@ -452,7 +458,7 @@ class TestsManager:
 
     def get_job_summary(
         self, job_id: str
-    ) -> Optional[PerformanceJobSummary | DensityJobSummary]:
+    ) -> PerformanceJobSummary | DensityJobSummary | None:
         """
         Return a short summary for a single job.
 

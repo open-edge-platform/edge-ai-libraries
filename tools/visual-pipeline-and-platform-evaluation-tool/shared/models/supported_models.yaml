@@ -4,6 +4,7 @@
   type: classification
   model_path: public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
   model_proc: ""
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP32
   default: true
@@ -13,6 +14,8 @@
   type: classification
   model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
   model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
+  extra_model_procs:
+    - /home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
   unsupported_devices: ""
   precision: INT8
   default: true
@@ -22,6 +25,7 @@
   type: classification
   model_path: omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
   model_proc: omz/mobilenet-v2-pytorch/mobilenet-v2.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: false
@@ -31,6 +35,7 @@
   type: classification
   model_path: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
   model_proc: pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: INT8
   default: true
@@ -40,6 +45,7 @@
   type: detection
   model_path: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml
   model_proc: pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: INT8
   default: true
@@ -49,6 +55,7 @@
   type: classification
   model_path: omz/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml
   model_proc: omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: true
@@ -58,6 +65,7 @@
   type: detection
   model_path: pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml
   model_proc: pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: INT8
   default: true
@@ -67,6 +75,7 @@
   type: detection
   model_path: pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml
   model_proc: pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: INT8
   default: false
@@ -76,6 +85,7 @@
   type: detection
   model_path: pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
   model_proc: pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: INT8
   default: true
@@ -85,6 +95,7 @@
   type: detection
   model_path: public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
   model_proc: ""
+  extra_model_procs: []
   unsupported_devices: "NPU"
   precision: FP32
   default: true
@@ -94,6 +105,7 @@
   type: detection
   model_path: public/yolov10m/FP16/yolov10m.xml
   model_proc: ""
+  extra_model_procs: []
   unsupported_devices: "NPU"
   precision: FP16
   default: false
@@ -103,6 +115,7 @@
   type: detection
   model_path: public/yolov10s/FP16/yolov10s.xml
   model_proc: ""
+  extra_model_procs: []
   unsupported_devices: "NPU"
   precision: FP16
   default: false
@@ -112,6 +125,7 @@
   type: classification
   model_path: omz/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
   model_proc: omz/human-pose-estimation-0001/human-pose-estimation-0001.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: false
@@ -121,6 +135,7 @@
   type: detection
   model_path: public/yolo11n/FP16/yolo11n.xml
   model_proc: ""
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: false
@@ -130,6 +145,7 @@
   type: detection
   model_path: omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
   model_proc: omz/face-detection-retail-0004/face-detection-retail-0004.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: false
@@ -139,6 +155,7 @@
   type: classification
   model_path: omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
   model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
+  extra_model_procs: []
   unsupported_devices: ""
   precision: FP16
   default: false

@@ -15,7 +15,7 @@ Document Summarization Sample Application is a cutting-edge solution designed to
 This application leverages the power of LlamaIndex Document Summary Index, integrated with a microservices architecture that utilizes
 advanced language models (LLMs) to deliver high-quality summaries.
 
-![Document Summarization web interface](./images/docSum-web.png)
+![Document Summarization web interface](./_assets/docSum-web.png)
 
 ## Key Features
 
@@ -50,15 +50,15 @@ The Document Summarization Sample Application includes the following components:
 :::{toctree}
 :hidden:
 
-overview-architecture
-system-requirements
 get-started
+how-it-works
 build-from-source
 deploy-with-helm
 how-to-performance
 api-reference
+troubleshooting
 release-notes
-faq
+
 
 :::
 hide_directive-->

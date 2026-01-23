@@ -17,6 +17,7 @@
 - Package Vulnerability Fixes. Upgraded dependencies to latest versions.
 
 ## Known Issues/Behavior (Consolidated):
+
 - Validation on the latest version of Edge Manageability Framework has not been done. Hence, Edge Manageability Framework should be considered as not supported. - Open
 
 **Version**: 1.2.2 \
@@ -70,4 +71,3 @@
 ## Known limitations
 
 - The load time for the application is ~10mins during the first run as the models needs to be downloaded and converted to OpenVINO IR format. Subsequent run with the same model configuration will not have this overhead. However, if the model configuration is changed, it will lead to the download and convert requirement resulting in the load time limitation.
-

@@ -29,9 +29,9 @@ exporters:
 service:
   pipelines:
     logs:
-      receivers: [ otlp ]
-      processors: [ batch ]
-      exporters: [ loki, logging ] # Replace with your service name
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [loki, logging] # Replace with your service name
     metrics:
-      receivers: [ otlp ]  # Collect metrics using OTLP receiver
-      exporters: [ prometheus ]  # Export to Prometheus
+      receivers: [otlp]  # Collect metrics using OTLP receiver
+      exporters: [prometheus]  # Export to Prometheus

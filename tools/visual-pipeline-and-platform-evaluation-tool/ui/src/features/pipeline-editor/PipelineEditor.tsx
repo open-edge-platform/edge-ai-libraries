@@ -14,13 +14,13 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  useEffect,
-  useState,
-  useCallback,
   forwardRef,
+  useCallback,
+  useEffect,
   useImperativeHandle,
+  useState,
 } from "react";
-import { nodeTypes } from "@/features/pipeline-editor/nodes";
+import { defaultNodeWidth, nodeTypes } from "@/features/pipeline-editor/nodes";
 import { type Pipeline } from "@/api/api.generated";
 import {
   createGraphLayout,
@@ -138,6 +138,12 @@ const PipelineEditorContent = forwardRef<
 
           setNodes(nodesWithPositions);
           setEdges(edges);
+
+          setTimeout(() => {
+            const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
+            setViewport({ x: viewportX, y: 50, zoom: 1 });
+          }, 0);
+
           setHasInitialized(true);
         }
       }
@@ -171,7 +177,7 @@ const PipelineEditorContent = forwardRef<
           nodesDraggable={true}
           colorMode={theme === "dark" ? "dark" : "light"}
           className="h-full w-full"
-          fitView
+          defaultViewport={{ x: 0, y: 50, zoom: 1 }}
         >
           <Controls />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
