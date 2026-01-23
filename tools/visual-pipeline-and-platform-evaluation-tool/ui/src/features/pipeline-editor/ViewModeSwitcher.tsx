@@ -66,7 +66,7 @@ const ViewModeSwitcher = ({
       // Force refetch pipeline data
       await onRefetch();
 
-      onModeChange(!checked);
+      onModeChange(checked);
       onClearGraph();
       onEditorKeyChange();
 
