@@ -48,7 +48,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
             weight_format = "int4"
             if model_type != "llm" and model_type != "vlm":
-                raise RuntimeError("NPU target device is only supported for 'llm' model types.")
+                raise RuntimeError("NPU target device is only supported for 'llm' and 'vlm' model types.")
             if output_dir.endswith("/fp16") or output_dir.endswith("/int8") or output_dir.endswith("/int4"):
                 output_dir = output_dir.rsplit("/", 1)[0] + "/int4"
         

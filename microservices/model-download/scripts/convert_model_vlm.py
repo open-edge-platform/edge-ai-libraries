@@ -53,8 +53,8 @@ core = ov.Core()
 class ModelConverter:
     """Unified model converter for PyTorch to OpenVINO IR conversion"""
     
-    SUPPORTED_PRECISIONS = ["fp32", "fp16", "int8"]
-    SUPPORTED_DEVICES = ["cpu", "gpu", "auto"]
+    SUPPORTED_PRECISIONS = ["fp32", "fp16", "int8","int4"]
+    SUPPORTED_DEVICES = ["cpu", "gpu","npu", "auto"]
     FLORENCE2_IDENTIFIERS = ["florence", "Florence"]
     
     def __init__(

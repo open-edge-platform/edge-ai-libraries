@@ -13,7 +13,6 @@ dependencies = [
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
-    "aiohttp>=3.9.0",
 ]
 
 [project.optional-dependencies]
@@ -38,9 +37,10 @@ huggingface = [
 ]
 
 ultralytics = [
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "ultralytics==8.2.3",
-    "torchvision",
-    "torch==2.9.1+cpu",
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
 ]
 
 openvino = [
