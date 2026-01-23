@@ -22,6 +22,7 @@ By following this guide, you will learn how to:
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
+- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
