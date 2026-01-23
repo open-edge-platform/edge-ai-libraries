@@ -27,7 +27,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../microservices/model-download/docs/get_started.md).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 3. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
