@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -99,7 +99,8 @@ class dlsps_utils():
         print('\n********** Updating docker-compose.yml **********')
         os.chdir(self.dlsps_path)
         for key, value in {'RTSP_CAMERA_IP': hostIP}.items():
-            subprocess.run("sed -i 's#{Key}=.*#{Key}={Value}#g' .env".format(Key=key, Value=value), shell=True, executable='/bin/bash', check=True)
+            command = ["sed", "-i", f"s#{key}=.*#{key}={value}#g", ".env"]
+            subprocess.run(command, check=True)
         with open("docker-compose.yml", 'r') as file:
             data = yaml.safe_load(file)
         service = data.get('services', {}).get('dlstreamer-pipeline-server', {})
@@ -136,9 +137,9 @@ class dlsps_utils():
                 pipeline_config = data[config_path]["pipelines"][0]
                 pipeline_config["source"] = value["source_conifg"]
                 if value.get("type_r")=="autosource":
-                    pipeline_config["pipeline"] = "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink"
+                    pipeline_config["pipeline"] = "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink"
                 elif value.get("type_r")=="autosource_destination":
-                    pipeline_config["pipeline"] = "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination"            
+                    pipeline_config["pipeline"] = "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination"            
             with open(self.dlsps_config, "w") as jsonFile:
                 json.dump(data, jsonFile, indent=4)
 
@@ -202,7 +203,15 @@ class dlsps_utils():
         for container in containers:
             log_file = f"logs_{container}_{tc}.txt"
             print(f"================== {container} ==================")
-            subprocess.run(f"docker compose logs --tail=1000 {container} | tee {log_file}", shell=True, executable='/bin/bash', check=True)
+            result = subprocess.run(
+                ["docker", "compose", "logs", "--tail=1000", container],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            with open(log_file, "w") as f:
+                f.write(result.stdout)
+            print(result.stdout)
             keywords = value.get({'dlstreamer-pipeline-server': "dlsps_log_param"}.get(container, ""), [])
             log_present[container] = all(self.search_element(log_file, keyword) for keyword in keywords)
             if not log_present[container]:

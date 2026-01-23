@@ -11,25 +11,43 @@
 3. Verification steps to ensure successful setup.
 -->
 
-The following microservices will be deployed with each dedicated to providing a specific capability. The dataprep microservice is essentially the orchestrating microservice providing the ingestion capability and interacting with other microservices to manage the supported capabilities.
-- **dataprep microservice**: This acts as the backend application, offering REST APIs which the user can use to interact with the other microservices. It provides interfaces for uploading documents to object storage, creating and storing embeddings, and managing them.
-- **vectorDB microservice**: This microservice is based on selected 3rd party vectorDB solution used. In this implementation, PGVector is used as the vectorDB.
-- **Embedding microservice**: This provides the embedding service, optimizing the model used for creating and storing embeddings in the vectorDB. OpenAI API is used for creating the embeddings.
-- **data store microservice**: This microservice is essentially the 3rd party solution provider. In this implementation, minIO is used as the data store. Standard API provided by minIO (AWS S3) is used for interacting with the microservice.
+The following microservices will be deployed, with each one dedicated to providing a specific
+capability. The dataprep microservice is essentially the orchestrating microservice providing
+the ingestion capability and interacting with other microservices to manage the supported
+capabilities.
+
+- **dataprep microservice**: This acts as the backend application, offering REST APIs which
+the user can use to interact with the other microservices. It provides interfaces for uploading
+documents to object storage, creating and storing embeddings, and managing them.
+- **vectorDB microservice**: This microservice is based on selected 3rd party vectorDB solution
+used. In this implementation, PGVector is used as the vectorDB.
+- **Embedding microservice**: This provides the embedding service, optimizing the model used for
+creating and storing embeddings in the vectorDB. OpenAI API is used for creating the embeddings.
+- **data store microservice**: This microservice is essentially the 3rd party solution provider.
+In this implementation, minIO is used as the data store. Standard API provided by minIO (AWS S3)
+is used for interacting with the microservice.
 
 ## Prerequisites
 
-Before you begin, ensure the following prerequisites are addressed. Note that these pre-requisites are superceded by the prerequisites listed in respective application using this microservice.
+Before you begin, ensure the following prerequisites are addressed. Note that these
+prerequisites are superceded by the prerequisites listed in the respective application using
+this microservice.
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
-- **Docker compose installed**: Refer [Install docker compose](https://docs.docker.com/compose/install/).
-- **Proxy Configuration (if applicable)**: If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell before starting the services.
+- **Docker compose installed**: See [Install docker compose](https://docs.docker.com/compose/install/).
+- **Proxy Configuration (if applicable)**: If the setup is behind a proxy, ensure `http_proxy`,
+`https_proxy`, and `no_proxy` are properly set on the shell before starting the services.
 
-This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
+This guide assumes basic familiarity with Docker commands and terminal usage. If you are new
+to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
 ## Quick start with environment variables
-The runner script in root of project `run.sh` sets default values for most of the required environment variables when executed. For sensitive values like `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWD`, `HUGGINGFACEHUB_API_TOKEN` etc. user can export following environment variables in their shell before running the script.
+
+The runner script in root of project, `run.sh`, sets default values for most of the required
+environment variables when executed. For sensitive values, like `MINIO_ROOT_USER`,
+`MINIO_ROOT_PASSWD`, `HUGGINGFACEHUB_API_TOKEN`, etc., the user can export the following
+environment variables in their shell before running the script.
 
 ```bash
 # User MUST set all these! An error is thrown by docker compose if they are not set.
@@ -54,11 +72,13 @@ export USER_AGENT_HEADER=<your_user_agent_string>
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 ```
-Refer to [manually customize](./how-to-customize.md) for customization options for the microservice.
+Refer to instructions on [manual customization](./how-to-customize.md) for the customization
+options for the microservice.
 
 ## Proxy Configuration
 
-If your environment requires proxy settings, configure the following environment variables before starting the services:
+If your environment requires proxy settings, configure the following environment variables
+before starting the services:
 
 ```bash
 # Set proxy environment variables
@@ -68,8 +88,11 @@ export no_proxy=localhost,127.0.0.1,your-internal-hosts
 ```
 
 **Important Notes:**
-- These proxy settings will be automatically passed to all services including the dataprep microservice during build time
-- The `no_proxy` variable should include localhost and any internal services that should bypass the proxy
+
+- These proxy settings will be automatically passed to all services including the dataprep
+microservice during build time
+- The `no_proxy` variable should include localhost and any internal services that should bypass
+the proxy
 - Ensure these variables are set in the same shell session where you run the `run.sh` script
 
 ## Quick Start with Docker
@@ -92,7 +115,10 @@ This method provides the fastest way to get started with the microservice.
     ```
 
 3. **Configure the environment variables**:
-    Set the required and optional environment variables as mentioned in [quick start with environment variables](#Quick-start-with-environment-variables). Optionally, user can edit the `run.sh` script to add further environment variables as required in their setup.
+    Set the required and optional environment variables as mentioned in
+    [quick start with environment variables](#Quick-start-with-environment-variables).
+    Optionally, the user can edit the `run.sh` script to add further environment variables as
+    required in their setup.
 
 4. **Verify the configuration**
     ```bash
@@ -102,22 +128,22 @@ This method provides the fastest way to get started with the microservice.
     The valid configuration will ensure the latest prebuilt image from `intel` registry is downloaded. The scripts take care of this.
 
 5. **Start the Microservices**:
-    The user is required to configure the registry and tag params before starting the microservices. 
+    The user is required to configure the registry and tag params before starting the microservices.
     ```bash
     export CONTAINER_REGISTRY_URL=<preferred-registry-url> #defaults to "intel/" if not set
     export CONTAINER_TAG=<preferred-tag> #defaults to "latest" if not set
-    
+
     # Run the production environment for all services in daemon mode
     source ./run.sh
 
     # Run the production environment for all services in non-daemon mode
     source ./run.sh --nd
     ```
-    If the user prefers to build and run the `dataprep` in dev mode: 
+    If the user prefers to build and run the `dataprep` in dev mode:
     ```bash
     # Run the development environment (only for DataStore) and prod environment for all other services in daemon mode
     source ./run.sh --dev
-    
+
     # Run the development environment (only for DataStore) and prod environment for all other services in non-daemon mode
     source ./run.sh --dev --nd
     ```
@@ -127,7 +153,11 @@ This method provides the fastest way to get started with the microservice.
     ```
     http://${host_ip}:${DATAPREP_HOST_PORT}/docs
     ```
-    **Expected result**: Access to Data Store API Docs should now be available. Go through the DataPrep Service API docs to **upload**, **get** and **delete** documents to create/store/delete embeddings and upload/delete document sources for embeddings. Ensure that access to the DataPrep microservice is done from the same shell where `run.sh` was run. If not, run the script to only set the variables with a *--nosetup* flag: `source ./run.sh --nosetup`
+    **Expected result**: Access to Data Store API Docs should now be available. Go through the
+    DataPrep Service API docs to **upload**, **get** and **delete** documents to
+    create/store/delete embeddings and upload/delete document sources for embeddings. Ensure
+    that access to the DataPrep microservice is done from the same shell where `run.sh` was run.
+    If not, run the script to only set the variables with a *--nosetup* flag: `source ./run.sh --nosetup`
 
 ## Cleanup and Management
 
@@ -154,7 +184,8 @@ source ./run.sh --clean dataprep
 source ./run.sh --purge
 ```
 
-**Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
+>**Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that
+custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
 
 <!--
 **User Story US-2: Running and Exploring the Microservice**
@@ -165,11 +196,12 @@ source ./run.sh --purge
 2. Examples of expected outputs for validation.
 -->
 
-## Application Usage:
+## Application Usage
 
-## Type 1: Upload Files
+### Type 1: Upload Files
 
-Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the commands from the same shell as where the environment variables are set.
+Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the
+commands from the same shell as where the environment variables are set.
 
 1. **Download a sample PDF file**:
    Download a sample PDF document to test the file upload and embedding creation process.
@@ -205,12 +237,16 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
    rm -rf ./minimal-document.pdf
    ```
 
-## Type 2: Upload URLs
+### Type 2: Upload URLs
 
-Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
+Try uploading web page URLs and verify that the embeddings are created and stored. Run the
+commands from the same shell as where the environment variables are set.
 
- > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
- 
+ > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant
+ on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive
+ pages (social media feeds, Single Page Applications), the API may indicate a successful request
+ but the actual content might not be captured. Such pages should be avoided or handled separately.
+
 1. **Upload URLs to create and store embeddings**:
    Submit one or more URLs to be processed for embedding creation.
    ```bash
@@ -254,7 +290,13 @@ Try uploading web page URLs and verify that the embeddings are created and store
 To customize the microservice, refer to [customization documentation](./how-to-customize.md).
 <!--- [How to Deploy with Helm](./deploy-with-helm.md)-->
 
-
 ## Supporting Resources
 
-- [API Reference](dataprep-api.yml)
+- [API Reference](./api-reference.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+get-started/system-requirements
+:::
+hide_directive-->

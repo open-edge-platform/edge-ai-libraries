@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Define color codes for messages
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
 #Volume mount paths
 export model_cache_path=~/.cache/huggingface
 export SSL_CERTIFICATES_PATH=/etc/ssl/certs
@@ -84,8 +90,18 @@ export MINIO_MOUNT_PATH=/opt/share/mnt/miniodata
 export MINIO_ROOT_USER=${MINIO_USER:-dummy_user}
 export MINIO_ROOT_PASSWORD=${MINIO_PASSWD:-dummy_321}
 
+# Check if required model download environment variables are set
+if [[ -z "$MODEL_DOWNLOAD_HOST" || -z "$MODEL_DOWNLOAD_PORT" ]]; then
+    echo -e "${RED}Error: MODEL_DOWNLOAD_HOST and MODEL_DOWNLOAD_PORT must be set before running this script\n${NC}"
+    return 1
+fi
+
+# Model Download Service Configuration (configurable host/port)
+export MODEL_DOWNLOAD_BASE_URL="http://${MODEL_DOWNLOAD_HOST}:${MODEL_DOWNLOAD_PORT}/api/v1/"
+export MODEL_DOWNLOAD_API_URL="${MODEL_DOWNLOAD_BASE_URL}models/download"
+
 # Setup no_proxy
-export no_proxy=${no_proxy},minio-server,data-store,vllm-service,text-generation,tei-embedding-service,ovms-service,reranker,openvino-embedding
+export no_proxy=${no_proxy},minio-server,data-store,vllm-service,text-generation,tei-embedding-service,ovms-service,reranker,openvino-embedding,model-download,${MODEL_DOWNLOAD_HOST},pgvector_db
 
 # ReRanker Config
 export RERANKER_ENDPOINT=http://reranker/rerank
@@ -126,50 +142,185 @@ fi
 #GPU Configuration
 # Check if render device exist
 if compgen -G "/dev/dri/render*" > /dev/null; then
-    echo "RENDER device exist. Getting the GID..."
+    echo -e "\nRENDER device exist. Getting the GID...\n"
     export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
 
 fi
 
-#Create virtual env and install dependencies
-if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
-        # Check for Python first
-        if ! command -v python3 >/dev/null 2>&1; then
-                echo "Error: Python 3 is required but not found"
-                exit 1
+# Function to check the health of the model-download microservice
+check_model_download_service_health() {
+    local MAX_ATTEMPTS=5
+    local SLEEP_SECS=5
+    local attempt=1
+
+    echo -e "${BLUE}Checking health of model-download microservice...${NC}\n"
+
+    while (( attempt <= MAX_ATTEMPTS )); do
+        local HEALTH_RESPONSE
+        HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "${MODEL_DOWNLOAD_BASE_URL}health")
+
+        if [[ "$HEALTH_RESPONSE" -eq 200 ]]; then
+            echo -e "${GREEN}Model-download microservice is up and running${NC}\n"
+            return 0
         fi
-        
-        # Check if we need to create or recreate the venv
-        if [ ! -d .venv ] || [ "${REBUILD_VENV:-false}" = "true" ]; then
-                # Deactivate if there's an active venv (works in both bash and sh)
-                command -v deactivate >/dev/null 2>&1 && deactivate
-                # Remove old venv if exists
-                [ -d .venv ] && rm -rf .venv
-                echo "Creating new virtual environment..."
-                python3 -m venv .venv || { echo "Failed to create virtual environment"; exit 1; }
+
+        echo -e "Attempt $attempt/$MAX_ATTEMPTS: Model-download microservice not available.
+        Retrying in $SLEEP_SECS seconds...\n"
+        sleep "$SLEEP_SECS"
+        ((attempt++))
+    done
+
+    echo -e "${RED}Error: Model-download service is not healthy. Please restart the service 
+    and try again${NC}"
+    return 1
+}
+
+# OVMS model downloader function
+download_ovms_model() {
+    local MODEL_NAME=$1
+    local MODEL_TYPE=$2 # llm | embeddings | rerank
+    local HUB=${3:-openvino} # set default to openvino.
+    local DOWNLOAD_MODEL_DIR="downloaded_models/"
+    local TARGET_DIR="${VOLUME_OVMS}/models/"
+
+
+    mkdir -p $DOWNLOAD_MODEL_DIR || {
+        echo -e "${RED}Error: Failed to create download directory: $DOWNLOAD_MODEL_DIR\n${NC}"
+        return 1
+    }
+
+    # Target directory mirrors downloaded model structure
+    mkdir -p "$TARGET_DIR" || {
+        echo -e "${RED}Error: Failed to create download directory: $TARGET_DIR\n${NC}"
+        return 1
+    }
+
+    echo -e "${BLUE}Downloading $MODEL_TYPE model '$MODEL_NAME' via model-download...\n${NC}"
+
+    # Submit download request
+    local POST_RESPONSE
+    POST_RESPONSE=$(
+        curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"models\": [
+                    {
+                        \"name\": \"${MODEL_NAME}\",
+                        \"hub\": \"${HUB}\",
+                        \"type\": \"${MODEL_TYPE}\",
+                        \"is_ovms\": true,
+                        \"config\": {
+                            \"precision\": \"${WEIGHT_FORMAT}\",
+                            \"device\": \"${DEVICE}\",
+                            \"cache_size\": \"${OVMS_CACHE_SIZE}\"
+                        }
+                    }
+                ]
+            }"
+    )
+
+    # Check if POST_RESPONSE is empty or contains an error
+    if [[ -z "$POST_RESPONSE" || "$POST_RESPONSE" == *"error"* ]]; then
+        echo -e "${RED}Error: Failed to submit the model download job. Response: $POST_RESPONSE\n${NC}"
+        return 1
+    fi
+
+    echo -e "Job submission response: $POST_RESPONSE\n"
+
+    # jq is mandatory
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${RED}Error: jq is required but not installed\n${NC}"
+        return 1
+    fi
+
+    # Extract job IDs
+    local JOB_IDS
+    mapfile -t JOB_IDS < <(echo "$POST_RESPONSE" | jq -r '.job_ids[]')
+
+    if [[ ${#JOB_IDS[@]} -eq 0 ]]; then
+        echo -e "${RED}Error: No job_ids returned by model-download API\n${NC}"
+        return 1
+    fi
+
+    echo "Jobs submitted: ${JOB_IDS[*]}"
+
+    local MAX_ATTEMPTS=60
+    local SLEEP_SECS=5
+    local attempt=1
+
+    declare -A job_done
+    declare -A job_conversion_path
+
+    # Poll all jobs in parallel
+    while (( attempt <= MAX_ATTEMPTS )); do
+        local all_done=1
+
+        for job_id in "${JOB_IDS[@]}"; do
+            # Skip already finished jobs
+            if [[ "${job_done[$job_id]}" == "1" ]]; then
+                continue
+            fi
+
+            local JOB_URL="${MODEL_DOWNLOAD_BASE_URL%/}/jobs/${job_id}"
+            local JOB_RESPONSE
+            JOB_RESPONSE=$(curl -s "$JOB_URL")
+
+            local status conversion_path
+            status=$(echo "$JOB_RESPONSE" | jq -r '.status')
+            conversion_path=$(echo "$JOB_RESPONSE" | jq -r '.result.conversion_path // empty')
+
+            echo "Job $job_id → $status"
+
+            if [[ "$status" == "completed" || "$status" == "failed" ]]; then
+                job_done[$job_id]=1
+                job_conversion_path[$job_id]="$conversion_path"
+            else
+                all_done=0
+            fi
+        done
+
+        if (( all_done )); then
+            break
         fi
-        
-        # Activate the virtual environment - compatible with different shells
-        if [ -f .venv/bin/activate ]; then
-                . .venv/bin/activate || { echo "Failed to activate virtual environment"; exit 1; }
-        else
-                echo "Virtual environment activation script not found"; exit 1
+
+        echo "Waiting for jobs to finish (attempt $attempt/$MAX_ATTEMPTS)..."
+        sleep "$SLEEP_SECS"
+        ((attempt++))
+    done
+
+    # Timeout handling
+    if (( attempt > MAX_ATTEMPTS )); then
+        echo -e "${RED}Error: Timed out waiting for model download jobs\n${NC}"
+        return 1
+    fi
+
+    # Copy model files from each job's conversion_path
+    for job_id in "${JOB_IDS[@]}"; do
+        local JOB_CONVERSION_DIR="${job_conversion_path[$job_id]}"
+
+        if [[ ! -d "$JOB_CONVERSION_DIR" ]]; then
+            echo -e "${RED}Error: Expected model directory not found: $JOB_CONVERSION_DIR\n${NC}"
+            return 1
         fi
-        
-        if ! python3 -m pip show openvino >/dev/null 2>&1; then
-                echo "Installing OpenVINO and required dependencies..."
-                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
-		python3 -m pip install -U "huggingface_hub[hf_xet]==0.36.0"
+
+        echo -e "\n${BLUE}Copying artifacts from JOB_ID → JOB_CONVERSION_DIR\n${NC}"
+        echo -e "$job_id → $JOB_CONVERSION_DIR\n"
+        if [[ ! -d "$JOB_CONVERSION_DIR" ]]; then
+            echo -e "${RED}Error: Expected model directory not found: $JOB_CONVERSION_DIR\n${NC}"
+            return 1
         fi
-        mkdir -p ./ovms/models
-        cd ovms || { echo "Failed to change to ovms directory"; exit 1; }
-        if [ -n "$HUGGINGFACEHUB_API_TOKEN" ]; then
-                hf auth login --token "$HUGGINGFACEHUB_API_TOKEN"
+
+        echo -e "${BLUE}Copying JOB_CONVERSION_DIR to TARGET_DIR\n${NC}"
+        echo -e "Copying $JOB_CONVERSION_DIR to $TARGET_DIR\n"
+        if ! cp -r "$JOB_CONVERSION_DIR/"* "$TARGET_DIR"; then
+            echo -e "${RED}Error: Failed to copy files from $JOB_CONVERSION_DIR to $TARGET_DIR\n${NC}"
+            return 1
         fi
-        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
-        echo "OpenVINO and required dependencies installed."
-        cd ..
-fi
+
+    done
+
+    echo -e "${GREEN}$MODEL_NAME model artifacts successfully copied to $TARGET_DIR/$MODEL_NAME\n${NC}"
+}
 
 setup_inference() {
         local service=$1
@@ -191,9 +342,9 @@ setup_inference() {
                                 export COMPOSE_PROFILES=OVMS
 
                         fi
-                        cd ./ovms
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
-                        cd ..
+                        
+                        # download_ovms_model MODEL_NAME MODEL_TYPE HUB via model-download service
+                        download_ovms_model "$LLM_MODEL" "llm" "openvino"
                         ;;
                 tgi)
                         echo "Error: TGI support is deprecated and no longer available."
@@ -202,7 +353,7 @@ setup_inference() {
                         #exit 1
                         ;;
                 *)
-                        echo "Invalid Model Server option: $service"
+                        echo -e "${RED}Invalid Model Server option: $service${NC}"
                         ;;
         esac
 }
@@ -223,17 +374,22 @@ setup_embedding() {
                                 export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS
 
                         fi
-                        cd ./ovms
-                        python3 export_model.py embeddings_ov --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
-                        cd ..
+                        
+                        # download_ovms_model MODEL_NAME MODEL_TYPE HUB via model-download service
+                        download_ovms_model "$EMBEDDING_MODEL_NAME" "embeddings" "openvino"
                         ;;
                 *)
-                        echo "Invalid Embedding Service option: $service"
+                        echo -e "${RED}Invalid Embedding Service option: $service${NC}"
                         ;;
         esac
 }
 
 if [[ -n "$1" && -n "$2" ]]; then
+        # Check model-download service health before proceeding
+        if ! check_model_download_service_health; then
+                return 1
+        fi
+
         for arg in "$@"; do
                 case $arg in
                         llm=*)
