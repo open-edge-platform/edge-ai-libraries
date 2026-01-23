@@ -18,6 +18,10 @@ DEFAULT_CODEC = "h264"
 # Placeholder for vaapi_suffix to be replaced at runtime
 VAAPI_SUFFIX_PLACEHOLDER = "{vaapi_suffix}"
 
+# Live stream server configuration
+LIVE_STREAM_SERVER_HOST = "mediamtx"  # TODO: should be defined in env in compose.yaml
+LIVE_STREAM_SERVER_PORT = "8554"  # TODO: should be defined in env in compose.yaml
+
 
 logger = logging.getLogger("video_encoder")
 videos_manager = get_videos_manager()
@@ -47,7 +51,7 @@ class VideoEncoder:
 
     This class handles video encoding operations including:
     - Selecting appropriate encoders based on device capabilities
-    - Replacing fakesink elements with video output
+    - Replacing fakesink elements with video output or live-streaming
     - Managing encoder configurations for different codecs
     """
 
@@ -57,6 +61,7 @@ class VideoEncoder:
         self.gst_inspector = GstInspector()
 
         # Define encoder configurations for different codecs
+        # Standard encoders for file output (no looping support needed)
         self.encoder_configs = {
             "h264": {
                 ENCODER_DEVICE_GPU: [
@@ -74,6 +79,46 @@ class VideoEncoder:
                 ],
                 ENCODER_DEVICE_CPU: [
                     ("x265enc", "x265enc bitrate=16000 speed-preset=superfast"),
+                ],
+            },
+        }
+
+        # TODO: Only `"x264enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25 bframes=0"` has been checked for low-latency live streaming
+        # TODO: Other encoders need to be verified for low-latency performance
+        # Low-latency encoders for live-streaming (used only for live_stream output mode)
+        self.streaming_encoder_configs = {
+            "h264": {
+                ENCODER_DEVICE_GPU: [
+                    # vah264lpenc doesn't support tune property
+                    (
+                        "vah264lpenc",
+                        "vah264lpenc bitrate=16000 target-usage=4 max-qp=30",
+                    ),
+                    # vah264enc doesn't support tune property
+                    ("vah264enc", "vah264enc bitrate=16000 target-usage=4 max-qp=30"),
+                ],
+                ENCODER_DEVICE_CPU: [
+                    (
+                        "x264enc",
+                        "x264enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25 bframes=0",
+                    ),
+                ],
+            },
+            "h265": {
+                ENCODER_DEVICE_GPU: [
+                    # vah265lpenc doesn't support tune property
+                    (
+                        "vah265lpenc",
+                        "vah265lpenc bitrate=16000 target-usage=4 max-qp=30",
+                    ),
+                    # vah265enc doesn't support tune property
+                    ("vah265enc", "vah265enc bitrate=16000 target-usage=4 max-qp=30"),
+                ],
+                ENCODER_DEVICE_CPU: [
+                    (
+                        "x265enc",
+                        "x265enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25",
+                    ),
                 ],
             },
         }
@@ -133,7 +178,7 @@ class VideoEncoder:
             input_video_filenames: List of input video filenames
 
         Returns:
-            Detected codec name, defaults to "h264" if cannot be determined
+            Detected codec name, defaults to "h264" if it cannot be determined
         """
         if not input_video_filenames:
             self.logger.warning(
@@ -174,6 +219,9 @@ class VideoEncoder:
         """
         Replace all fakesink instances in pipeline string with video encoder and file sink.
 
+        Note: This method is only used for file output (output_mode=file), which does not
+        support looping. Standard encoders are always used.
+
         Args:
             pipeline_id: Pipeline ID used to generate unique output filenames
             pipeline_str: GStreamer pipeline string containing fakesink(s)
@@ -193,7 +241,7 @@ class VideoEncoder:
         codec = self._detect_codec_from_input(input_video_filenames)
         self._validate_codec(codec)
 
-        # Get encoder configuration for the detected codec (GPU/CPU variants)
+        # Get encoder configuration for the detected codec (GPU/CPU variants) for file output (no looping support)
         encoder_config = self.encoder_configs[codec]
 
         # Select the best available encoder element based on device type and
@@ -236,6 +284,91 @@ class VideoEncoder:
             result = re.sub(fakesink_pattern, video_output_str, result, count=1)
 
         self.logger.info(
-            f"Replaced {fakesink_count} fakesink(s) with video output(s): {output_paths} using codec: {codec}"
+            f"Replaced {fakesink_count} fakesink(s) with video file output(s): "
+            f"{output_paths} (codec: {codec})"
         )
         return result, output_paths
+
+    def replace_fakesink_with_live_stream_output(
+        self,
+        pipeline_id: str,
+        pipeline_str: str,
+        needs_looping: bool = False,
+    ) -> Tuple[str, str]:
+        """
+        Replace first fakesink instance with live-streaming output.
+
+        This method is used when output_mode is LIVE_STREAM. It replaces only
+        the first fakesink with an RTSP client sink that streams to media server.
+
+        Args:
+            pipeline_id: Pipeline ID used to generate unique stream name
+            pipeline_str: GStreamer pipeline string containing fakesink(s)
+            needs_looping: If True, use low-latency streaming encoder optimized for looping
+
+        Returns:
+            Tuple of (modified pipeline string, live stream URL)
+
+        Raises:
+            ValueError: If no fakesink is found in pipeline
+        """
+        # TODO: Seems that splitmuxsink doesn't produce valid output from *.ts video
+        # TODO: It needs to be tested if it is possible with looping (maybe with muxer=tsmux ?)
+        # TODO: If not, splitmuxsink should be changed to fakesink (for every pipeline that uses looping)
+
+        # Count fakesink instances
+        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink(?=(?:[\s!]|$))"
+        fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
+
+        if fakesink_count == 0:
+            raise ValueError("No fakesink found in pipeline string for live streaming")
+
+        # Generate stream name from pipeline ID
+        stream_name = f"stream_{pipeline_id}"
+
+        # Build live stream URL
+        stream_url = (
+            f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/{stream_name}"
+        )
+
+        # Detect codec to select appropriate streaming encoder
+        # For live-streaming, we detect codec from the pipeline context
+        # Default to h264 if detection fails
+        codec = DEFAULT_CODEC
+
+        # Select streaming encoder configuration
+        encoder_config = self.streaming_encoder_configs.get(codec, {})
+        if not encoder_config:
+            self.logger.warning(
+                f"No streaming encoder config for codec {codec}, falling back to standard encoder"
+            )
+            encoder_config = self.encoder_configs[codec]
+
+        # For live-streaming, prefer CPU encoder for better compatibility
+        # GPU encoders can be used if available
+        encoder_element = self.select_element(encoder_config, ENCODER_DEVICE_CPU)
+
+        # Fallback to GPU if CPU encoder not found
+        if encoder_element is None:
+            self.logger.warning(
+                f"CPU streaming encoder not found for codec {codec}, trying GPU encoder"
+            )
+            encoder_element = self.select_element(encoder_config, ENCODER_DEVICE_GPU)
+
+        if encoder_element is None:
+            raise ValueError(f"No suitable streaming encoder found for codec {codec}")
+
+        # Build live stream output element string with low-latency encoder
+        live_stream_output_str = (
+            f"{encoder_element} ! {codec}parse ! "
+            f"rtspclientsink protocols=tcp location={stream_url}"
+        )
+
+        # Replace only first fakesink
+        result = re.sub(fakesink_pattern, live_stream_output_str, pipeline_str, count=1)
+
+        encoder_type = "low-latency streaming" if needs_looping else "streaming"
+        self.logger.info(
+            f"Replaced fakesink with live stream output using {encoder_type} encoder: {stream_url}"
+        )
+        return result, stream_url

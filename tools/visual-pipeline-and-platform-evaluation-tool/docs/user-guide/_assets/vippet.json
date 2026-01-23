@@ -959,7 +959,7 @@
           "pipelines"
         ],
         "summary": "Validate Pipeline",
-        "description": "Start an asynchronous validation job for an ad-hoc pipeline graph.\n\nOperation:\n    * Convert the provided PipelineGraph to a GStreamer launch string.\n    * Extract validation parameters (for example ``max-runtime``).\n    * Create a new validation job and run ``validator.py`` in a\n      background thread.\n    * Return the generated job id.\n\nRequest body:\n    body: PipelineValidation\n        * type \u2013 pipeline type (currently GStreamer).\n        * pipeline_graph \u2013 nodes and edges representation of the pipeline.\n        * parameters \u2013 optional dict, e.g. ``{\"max-runtime\": 10}``.\n\nReturns:\n    202 Accepted:\n        ValidationJobResponse with job_id of created validation job.\n    400 Bad Request:\n        MessageResponse when request parameters are invalid, e.g.:\n        * ``max-runtime`` is not an integer,\n        * ``max-runtime`` is < 1.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors (e.g. Graph conversion).\n\nSuccess conditions:\n    * Graph can be converted to a valid launch string.\n    * Parameters pass ValidationManager checks.\n    * Background validation job is successfully started.\n\nFailure conditions:\n    * Parameter validation error (ValueError) \u2192 400.\n    * Any other unexpected exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"val001\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n        }",
+        "description": "Start an asynchronous validation job for an ad-hoc pipeline graph.\n\nOperation:\n    * Convert the provided PipelineGraph to a GStreamer launch string.\n    * Extract validation parameters (for example ``max-runtime``).\n    * Create a new validation job and run ``gst_runner.py`` in validation\n      mode in a background thread.\n    * Return the generated job id.\n\nRequest body:\n    body: PipelineValidation\n        * type \u2013 pipeline type (currently GStreamer).\n        * pipeline_graph \u2013 nodes and edges representation of the pipeline.\n        * parameters \u2013 optional dict, e.g. ``{\"max-runtime\": 10}``.\n          Note: max-runtime must be greater than 0 for validation mode.\n\nReturns:\n    202 Accepted:\n        ValidationJobResponse with job_id of created validation job.\n    400 Bad Request:\n        MessageResponse when request parameters are invalid, e.g.:\n        * ``max-runtime`` is not an integer,\n        * ``max-runtime`` is < 1.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors (e.g. Graph conversion).\n\nSuccess conditions:\n    * Graph can be converted to a valid launch string.\n    * Parameters pass ValidationManager checks.\n    * Background validation job is successfully started.\n\nFailure conditions:\n    * Parameter validation error (ValueError) \u2192 400.\n    * Any other unexpected exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"val001\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n        }",
         "operationId": "validate_pipeline",
         "requestBody": {
           "content": {
@@ -1311,7 +1311,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PerformanceTestSpec"
+                "$ref": "#/components/schemas/PerformanceTestSpec-Input"
               }
             }
           },
@@ -1373,7 +1373,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DensityTestSpec"
+                "$ref": "#/components/schemas/DensityTestSpec-Input"
               }
             }
           },
@@ -1559,7 +1559,7 @@
           "error_message"
         ],
         "title": "DensityJobStatus",
-        "description": "Status of a density test job.\n\nInherits all fields from TestsJobStatus without changes."
+        "description": "Status of a density test job.\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed)."
       },
       "DensityJobSummary": {
         "properties": {
@@ -1568,7 +1568,7 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/DensityTestSpec"
+            "$ref": "#/components/schemas/DensityTestSpec-Output"
           }
         },
         "type": "object",
@@ -1579,7 +1579,7 @@
         "title": "DensityJobSummary",
         "description": "Short summary for a density test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original DensityTestSpec used to start the job."
       },
-      "DensityTestSpec": {
+      "DensityTestSpec-Input": {
         "properties": {
           "fps_floor": {
             "type": "integer",
@@ -1610,15 +1610,17 @@
               ]
             ]
           },
-          "video_output": {
-            "$ref": "#/components/schemas/VideoOutputConfig",
-            "description": "Video output configuration.",
+          "execution_config": {
+            "$ref": "#/components/schemas/ExecutionConfig",
+            "description": "Execution configuration for output and runtime.",
             "default": {
-              "enabled": false
+              "output_mode": "disabled",
+              "max_runtime": 0.0
             },
             "examples": [
               {
-                "enabled": false
+                "max_runtime": 0,
+                "output_mode": "disabled"
               }
             ]
           }
@@ -1629,7 +1631,61 @@
           "pipeline_density_specs"
         ],
         "title": "DensityTestSpec",
-        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    video_output: Optional configuration for storing encoded video outputs."
+        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    execution_config: Configuration for output generation and runtime limits."
+      },
+      "DensityTestSpec-Output": {
+        "properties": {
+          "fps_floor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fps Floor",
+            "description": "Minimum acceptable FPS per stream.",
+            "examples": [
+              30
+            ]
+          },
+          "pipeline_density_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineDensitySpec"
+            },
+            "type": "array",
+            "title": "Pipeline Density Specs",
+            "description": "List of pipelines with relative stream_rate percentages that must sum to 100.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "stream_rate": 50
+                },
+                {
+                  "id": "pipeline-2",
+                  "stream_rate": 50
+                }
+              ]
+            ]
+          },
+          "execution_config": {
+            "$ref": "#/components/schemas/ExecutionConfig",
+            "description": "Execution configuration for output and runtime.",
+            "default": {
+              "output_mode": "disabled",
+              "max_runtime": 0.0
+            },
+            "examples": [
+              {
+                "max_runtime": 0,
+                "output_mode": "disabled"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "fps_floor",
+          "pipeline_density_specs"
+        ],
+        "title": "DensityTestSpec",
+        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    execution_config: Configuration for output generation and runtime limits."
       },
       "Device": {
         "properties": {
@@ -1712,6 +1768,25 @@
         ],
         "title": "Edge",
         "description": "Directed connection between two nodes in a generic pipeline graph.\n\nAttributes:\n    id: Edge identifier, unique within a single graph.\n    source: ID of the source node.\n    target: ID of the target node."
+      },
+      "ExecutionConfig": {
+        "properties": {
+          "output_mode": {
+            "$ref": "#/components/schemas/OutputMode",
+            "description": "Mode for pipeline output generation.",
+            "default": "disabled"
+          },
+          "max_runtime": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Runtime",
+            "description": "Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "ExecutionConfig",
+        "description": "Configuration for pipeline execution behavior.\n\nThis configuration controls both output generation and runtime limits\nfor test pipelines.\n\nAttributes:\n    output_mode: Mode for pipeline output generation.\n        - disabled: No output (fakesink remains, default)\n        - file: Save video to file (only allowed with max_runtime=0)\n        - live_stream: Stream output live to media server\n    max_runtime: Maximum runtime in seconds for the pipeline.\n        - 0: Run until natural completion (EOS), no time limit (default)\n        - >0: Stop pipeline after this duration, with looping if EOS comes early\n              (only allowed with output_mode=disabled or output_mode=live_stream)\n        - <0: Not allowed (will be rejected)\n\nExample (disabled output, no runtime limit):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"disabled\",\n          \"max_runtime\": 0\n        }\n\nExample (save to file, run until EOS):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"file\",\n          \"max_runtime\": 0\n        }\n\nExample (live streaming with 60 second limit):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"live_stream\",\n          \"max_runtime\": 60\n        }"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1987,6 +2062,16 @@
         ],
         "title": "OptimizationType"
       },
+      "OutputMode": {
+        "type": "string",
+        "enum": [
+          "disabled",
+          "file",
+          "live_stream"
+        ],
+        "title": "OutputMode",
+        "description": "Mode for pipeline output generation.\n\nValues:\n    DISABLED: No output generation (default).\n    FILE: Save output to file.\n    LIVE_STREAM: Stream output live to media server."
+      },
       "PerformanceJobStatus": {
         "properties": {
           "id": {
@@ -2078,6 +2163,20 @@
               }
             ],
             "title": "Error Message"
+          },
+          "live_stream_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Stream Urls"
           }
         },
         "type": "object",
@@ -2091,10 +2190,11 @@
           "total_streams",
           "streams_per_pipeline",
           "video_output_paths",
-          "error_message"
+          "error_message",
+          "live_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "Status of a performance test job.\n\nInherits all fields from TestsJobStatus without changes."
+        "description": "Status of a performance test job.\n\nInherits all fields from TestsJobStatus and adds live_stream_urls\nfor live-streaming output mode support.\n\nAttributes:\n    live_stream_urls: Mapping from pipeline id to live stream URL\n        when using live_stream output mode. Only available for\n        performance tests."
       },
       "PerformanceJobSummary": {
         "properties": {
@@ -2103,7 +2203,7 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/PerformanceTestSpec"
+            "$ref": "#/components/schemas/PerformanceTestSpec-Output"
           }
         },
         "type": "object",
@@ -2114,7 +2214,7 @@
         "title": "PerformanceJobSummary",
         "description": "Short summary for a performance test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PerformanceTestSpec used to start the job."
       },
-      "PerformanceTestSpec": {
+      "PerformanceTestSpec-Input": {
         "properties": {
           "pipeline_performance_specs": {
             "items": {
@@ -2136,15 +2236,17 @@
               ]
             ]
           },
-          "video_output": {
-            "$ref": "#/components/schemas/VideoOutputConfig",
-            "description": "Video output configuration.",
+          "execution_config": {
+            "$ref": "#/components/schemas/ExecutionConfig",
+            "description": "Execution configuration for output and runtime.",
             "default": {
-              "enabled": false
+              "output_mode": "disabled",
+              "max_runtime": 0.0
             },
             "examples": [
               {
-                "enabled": false
+                "max_runtime": 0,
+                "output_mode": "disabled"
               }
             ]
           }
@@ -2154,7 +2256,51 @@
           "pipeline_performance_specs"
         ],
         "title": "PerformanceTestSpec",
-        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    video_output: Optional configuration for storing encoded video outputs."
+        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    execution_config: Configuration for output generation and runtime limits."
+      },
+      "PerformanceTestSpec-Output": {
+        "properties": {
+          "pipeline_performance_specs": {
+            "items": {
+              "$ref": "#/components/schemas/PipelinePerformanceSpec"
+            },
+            "type": "array",
+            "title": "Pipeline Performance Specs",
+            "description": "List of pipelines with number of streams for each.",
+            "examples": [
+              [
+                {
+                  "id": "pipeline-1",
+                  "streams": 8
+                },
+                {
+                  "id": "pipeline-2",
+                  "streams": 8
+                }
+              ]
+            ]
+          },
+          "execution_config": {
+            "$ref": "#/components/schemas/ExecutionConfig",
+            "description": "Execution configuration for output and runtime.",
+            "default": {
+              "output_mode": "disabled",
+              "max_runtime": 0.0
+            },
+            "examples": [
+              {
+                "max_runtime": 0,
+                "output_mode": "disabled"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_performance_specs"
+        ],
+        "title": "PerformanceTestSpec",
+        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    execution_config: Configuration for output generation and runtime limits."
       },
       "Pipeline": {
         "properties": {
@@ -2835,19 +2981,6 @@
         ],
         "title": "Video",
         "description": "Metadata for a single input video file.\n\nAttributes:\n    filename: Base name of the video file located under RECORDINGS_PATH.\n    width: Frame width in pixels.\n    height: Frame height in pixels.\n    fps: Frames per second for the stream.\n    frame_count: Total number of frames in the file.\n    codec: Normalized codec name (for example ``\"h264\"`` or ``\"h265\"``).\n    duration: Approximate duration in seconds.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"filename\": \"traffic_1080p_h264.mp4\",\n          \"width\": 1920,\n          \"height\": 1080,\n          \"fps\": 30.0,\n          \"frame_count\": 900,\n          \"codec\": \"h264\",\n          \"duration\": 30.0\n        }"
-      },
-      "VideoOutputConfig": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "description": "Flag to enable or disable video output generation.",
-            "default": false
-          }
-        },
-        "type": "object",
-        "title": "VideoOutputConfig",
-        "description": "Generic configuration of optional encoded video output.\n\nAttributes:\n    enabled: Flag to enable or disable video output generation.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"enabled\": false\n        }"
       }
     }
   }
