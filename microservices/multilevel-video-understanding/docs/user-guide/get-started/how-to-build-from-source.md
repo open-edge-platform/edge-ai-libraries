@@ -13,7 +13,7 @@ This guide is ideal for developers who want to work directly with the source cod
 Before you begin, ensure the following:
 
 - **System Requirements**: Verify your system meets the [system requirements](./system-requirements.md).
-- Follow all the steps provided in [get started](./get-started.md) documentation with respect to [Setup GenAI Model Servings for VLM and LLM](./get-started.md#setup-genai-model-servings-for-vlm-and-llm), setting up dependent VLM and LLM model serving services.
+- Follow all the steps provided in [Get Started](../get-started.md) with respect to [Setup GenAI Model Servings for VLM and LLM](../get-started.md#setup-genai-model-servings-for-vlm-and-llm), setting up dependent VLM and LLM model serving services.
 - This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
   - [Git Documentation](https://git-scm.com/doc)
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
@@ -82,12 +82,12 @@ Examples:
 
 Host setup by default uses local filesystem storage backend.
 
-Please refer to [Manual Host Setup using Poetry](./get-started.md#manual-host-setup-using-poetry)
+Please refer to [Manual Host Setup using Poetry](../get-started.md#manual-host-setup-using-poetry)
 
 <!-- ## Troubleshooting -->
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [System Requirements](system-requirements.md)
-- [API Reference](api-reference.md)
+- [Overview](../index.md)
+- [System Requirements](../get-started/system-requirements.md)
+- [API Reference](../api-reference.md)

@@ -31,11 +31,13 @@ helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <v
 #### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
+
 ```bash
 tar -xvf chat-question-and-answer-<version-no>.tgz
 ```
 
 This will create a directory named `chat-question-and-answer` containing the chart files. Navigate to the extracted directory.
+
 ```bash
 cd chat-question-and-answer
 ```
@@ -87,6 +89,7 @@ NOTE: GPU is only enabled for openvino model server (OVMS)
 #### Step 1: Clone the Repository
 
 Clone the repository containing the Helm chart:
+
 ```bash
 # Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
@@ -97,6 +100,7 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-li
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
+
 ```bash
 cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart
 ```
@@ -105,7 +109,6 @@ cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart
 
 Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
-
 #### Step 4: Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
@@ -113,6 +116,7 @@ Navigate to the chart directory and build the Helm dependencies using the follow
 ```bash
 helm dependency build
 ```
+
 ## Common Steps after configuration
 
 ### Step 5: Deploy the Helm Chart
@@ -122,6 +126,7 @@ Deploy the OVMS Helm chart:
 ```bash
 helm install chatqna . -f values_ovms.yaml -n <your-namespace>
 ```
+
 **Note:** (1) If deploying from cloned repo, using `values.yaml` also works as it points to `values_ovms.yaml` file as default option. (2) When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
 
 Deploy the vLLM Helm chart:
@@ -156,6 +161,7 @@ If any changes are made to the subcharts, update the Helm dependencies using the
 ```bash
 helm dependency update
 ```
+
 ### Step 9: Uninstall Helm chart
 
 To uninstall helm charts deployed, use the following command:
@@ -172,10 +178,13 @@ helm uninstall <name> -n <your-namespace>
 ## Troubleshooting
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
+
   ```bash
   kubectl logs <pod-name>
   ```
+
 - If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, it must be deleted manually using the following commands:
+
   ```bash
   # List the PVCs present in the given namespace
   kubectl get pvc -n <namespace>

@@ -18,10 +18,11 @@ By following this guide, you will learn how to:
 
 ## Prerequisites
 
-- Verify that your system meets the [minimum requirements](./system-requirements.md).
+- Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
+- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
@@ -84,7 +85,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../microservices/model-download/docs/get_started.md).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 3. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
@@ -134,7 +135,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    docker compose up
    ```
-   - Refer to the application architecture diagram [here](./overview-architecture.md#technical-architecture-diagram) .
+   - Refer to [the application architecture diagram](./how-it-works.md#technical-architecture-diagram) .
 
 6. **Verify the Application**:
    Check that the application is running:
@@ -176,3 +177,12 @@ For alternative ways to set up the sample application, see:
 ## Supporting Resources
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+
+:::
+hide_directive-->

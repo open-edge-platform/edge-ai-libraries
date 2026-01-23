@@ -64,7 +64,7 @@ services:
       - my_network
 
   reranker:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8.3
     container_name: reranker_tei
     ports:
       - "8090:80"
@@ -245,7 +245,7 @@ services:
 
   #Embedding Services
   tei-embedding-service:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8.3
     profiles:
       - TEI
     container_name: tei-embedding-service
@@ -261,6 +261,9 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
+    mem_limit: 4g
+    mem_reservation: 4g
+
 
   ovms-service-gpu:
     image: openvino/model_server:2025.4.1-gpu
