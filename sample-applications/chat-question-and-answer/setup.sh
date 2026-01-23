@@ -303,15 +303,9 @@ download_ovms_model() {
             return 1
         fi
 
-        echo -e "\n${BLUE}Copying artifacts from JOB_ID → JOB_CONVERSION_DIR\n${NC}"
-        echo -e "$job_id → $JOB_CONVERSION_DIR\n"
-        if [[ ! -d "$JOB_CONVERSION_DIR" ]]; then
-            echo -e "${RED}Error: Expected model directory not found: $JOB_CONVERSION_DIR\n${NC}"
-            return 1
-        fi
+        echo -e "${BLUE}\nJob $job_id saved model files at JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR\n${NC}"
 
-        echo -e "${BLUE}Copying JOB_CONVERSION_DIR to TARGET_DIR\n${NC}"
-        echo -e "Copying $JOB_CONVERSION_DIR to $TARGET_DIR\n"
+        echo -e "${BLUE}\nCopying JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR  to TARGET_DIR: $TARGET_DIR\n${NC}"
         if ! cp -r "$JOB_CONVERSION_DIR/"* "$TARGET_DIR"; then
             echo -e "${RED}Error: Failed to copy files from $JOB_CONVERSION_DIR to $TARGET_DIR\n${NC}"
             return 1
