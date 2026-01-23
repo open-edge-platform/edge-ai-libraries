@@ -905,14 +905,14 @@ standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[stand
 
 [[package]]
 name = "filelock"
-version = "3.20.1"
+version = "3.20.3"
 description = "A platform independent file lock."
 optional = false
 python-versions = ">=3.10"
 groups = ["main", "cpu"]
 files = [
-    {file = "filelock-3.20.1-py3-none-any.whl", hash = "sha256:6c98b29f6e2fa9ff2e24f863ba9bfd705e3c2c3d77a0f4a07e2ccf0e84d1b5ea"},
-    {file = "filelock-3.20.1.tar.gz", hash = "sha256:38dff4f1cff7e98827f60f20b1da73d97fc73d03e2f18ccbc5a0b58a34e0d5a8"},
+    {file = "filelock-3.20.3-py3-none-any.whl", hash = "sha256:5f8882c115e7d7797c0ddad88ea4a036f2ea8ec9fd0aa166c6e2a0c31f18c6bf"},
+    {file = "filelock-3.20.3.tar.gz", hash = "sha256:66eb85ed7f0d60e8d8236b80e62b52d03345f4c2b862926e61cd76d8a8c4fb0e"},
 ]
 
 [[package]]
