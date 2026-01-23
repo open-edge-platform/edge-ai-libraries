@@ -3,15 +3,6 @@ revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
-name = "about-time"
-version = "4.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1c/3f/ccb16bdc53ebb81c1bf837c1ee4b5b0b69584fd2e4a802a2a79936691c0a/about-time-4.2.1.tar.gz", hash = "sha256:6a538862d33ce67d997429d14998310e1dbfda6cb7d9bbfbf799c4709847fece", size = 15380, upload-time = "2022-12-21T04:15:54.991Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/cd/7ee00d6aa023b1d0551da0da5fee3bc23c3eeea632fbfc5126d1fec52b7e/about_time-4.2.1-py3-none-any.whl", hash = "sha256:8bbf4c75fe13cbd3d72f49a03b02c5c7dca32169b6d49117c257e7eb3eaee341", size = 13295, upload-time = "2022-12-21T04:15:53.613Z" },
-]
-
-[[package]]
 name = "accelerate"
 version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -30,16 +21,21 @@ wheels = [
 ]
 
 [[package]]
-name = "alive-progress"
-version = "3.3.0"
+name = "accelerate"
+version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "about-time" },
-    { name = "graphemeu" },
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/26/d43128764a6f8fe1668c4f87aba6b1fe52bea81d05a35c84a70d3c70b6f7/alive-progress-3.3.0.tar.gz", hash = "sha256:457dd2428b48dacd49854022a46448d236a48f1b7277874071c39395307e830c", size = 116281, upload-time = "2025-07-20T02:10:39.07Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/60/2757c4f03a8705dbf80b1268b03881927878dca5ed07d74f733fb6c219e0/accelerate-1.11.0.tar.gz", hash = "sha256:bb1caf2597b4cd632b917b5000c591d10730bb024a79746f1ee205bba80bd229", size = 393715, upload-time = "2025-10-20T14:42:25.025Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/85/ec72f6c885703d18f3b09769645e950e14c7d0cc0a0e35d94127983f666f/alive_progress-3.3.0-py3-none-any.whl", hash = "sha256:63dd33bb94cde15ad9e5b666dbba8fedf71b72a4935d6fb9a92931e69402c9ff", size = 78403, upload-time = "2025-07-20T02:10:37.318Z" },
+    { url = "https://files.pythonhosted.org/packages/77/85/85951bc0f9843e2c10baaa1b6657227056095de08f4d1eea7d8b423a6832/accelerate-1.11.0-py3-none-any.whl", hash = "sha256:a628fa6beb069b8e549460fc449135d5bd8d73e7a11fd09f0bc9fc4ace7f06f1", size = 375777, upload-time = "2025-10-20T14:42:23.256Z" },
 ]
 
 [[package]]
@@ -80,18 +76,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/685e6633917e101e5dcb62b9dd76946cbb57c26e133bae9e0cd36033c0a9/attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11", size = 934251, upload-time = "2025-10-06T13:54:44.725Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373", size = 67615, upload-time = "2025-10-06T13:54:43.17Z" },
-]
-
-[[package]]
-name = "autograd"
-version = "1.8.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/67/1c/3c24ec03c8ba4decc742b1df5a10c52f98c84ca8797757f313e7bdcdf276/autograd-1.8.0.tar.gz", hash = "sha256:107374ded5b09fc8643ac925348c0369e7b0e73bbed9565ffd61b8fd04425683", size = 2562146, upload-time = "2025-05-05T12:49:02.502Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/ea/e16f0c423f7d83cf8b79cae9452040fb7b2e020c7439a167ee7c317de448/autograd-1.8.0-py3-none-any.whl", hash = "sha256:4ab9084294f814cf56c280adbe19612546a35574d67c574b04933c7d2ecb7d78", size = 51478, upload-time = "2025-05-05T12:49:00.585Z" },
 ]
 
 [[package]]
@@ -650,6 +634,7 @@ name = "model-download"
 version = "1.0.1"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -658,13 +643,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-cpu = [
-    { name = "torch" },
-    { name = "torchvision" },
-]
 dev = [
     { name = "freezegun" },
     { name = "httpx" },
+    { name = "huggingface-hub", extra = ["cli", "hf-transfer", "hf-xet"] },
+    { name = "openvino" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -690,12 +673,14 @@ openvino = [
     { name = "sentencepiece" },
     { name = "timm" },
     { name = "torch" },
-    { name = "torchvision" },
+    { name = "torchvision", version = "0.24.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "torchvision", version = "0.24.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
     { name = "transformers" },
 ]
 ultralytics = [
     { name = "torch" },
-    { name = "torchvision" },
+    { name = "torchvision", version = "0.24.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "torchvision", version = "0.24.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
     { name = "ultralytics" },
 ]
 
@@ -707,6 +692,7 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.121.3" },
     { name = "freezegun", marker = "extra == 'dev'", specifier = ">=1.5.0,<2.0.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.1,<1.0.0" },
+    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'dev'", specifier = "==0.36.0" },
     { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'huggingface'", specifier = "==0.36.0" },
     { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'openvino'", specifier = "==0.36.0" },
     { name = "nncf", marker = "extra == 'openvino'", specifier = "==2.19.0" },
@@ -737,7 +723,7 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'ultralytics'", specifier = "==8.2.3" },
     { name = "uvicorn", specifier = "==0.38.0" },
 ]
-provides-extras = ["dev", "cpu", "huggingface", "ultralytics", "openvino", "ollama"]
+provides-extras = ["dev", "huggingface", "ultralytics", "openvino", "ollama"]
 
 [[package]]
 name = "moocore"
@@ -818,7 +804,6 @@ version = "2.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
-    { name = "natsort" },
     { name = "networkx" },
     { name = "ninja" },
     { name = "numpy" },
@@ -827,7 +812,6 @@ dependencies = [
     { name = "pandas" },
     { name = "psutil" },
     { name = "pydot" },
-    { name = "pymoo" },
     { name = "rich" },
     { name = "safetensors" },
     { name = "scikit-learn" },
@@ -1617,7 +1601,8 @@ dependencies = [
     { name = "pyyaml" },
     { name = "safetensors" },
     { name = "torch" },
-    { name = "torchvision" },
+    { name = "torchvision", version = "0.24.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "torchvision", version = "0.24.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c5/9d/e4670765d1c033f97096c760b3b907eeb659cf80f3678640e5f060b04c6c/timm-1.0.22.tar.gz", hash = "sha256:14fd74bcc17db3856b1a47d26fb305576c98579ab9d02b36714a5e6b25cde422", size = 2382998, upload-time = "2025-11-05T04:06:09.377Z" }
 wheels = [
@@ -1651,7 +1636,7 @@ wheels = [
 
 [[package]]
 name = "torch"
-version = "2.8.0+cpu"
+version = "2.9.1+cpu"
 source = { registry = "https://download.pytorch.org/whl/cpu" }
 dependencies = [
     { name = "filelock" },
@@ -1672,12 +1657,15 @@ wheels = [
 
 [[package]]
 name = "torchvision"
-version = "0.23.0+cpu"
+version = "0.24.1"
 source = { registry = "https://download.pytorch.org/whl/cpu" }
+resolution-markers = [
+    "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'",
+]
 dependencies = [
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "torch" },
+    { name = "numpy", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "pillow", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "torch", marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
 ]
 wheels = [
     { url = "https://download.pytorch.org/whl/cpu/torchvision-0.23.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:ae459d4509d3b837b978dc6c66106601f916b6d2cda75c137e3f5f48324ce1da" },
@@ -1764,7 +1752,8 @@ dependencies = [
     { name = "seaborn" },
     { name = "thop" },
     { name = "torch" },
-    { name = "torchvision" },
+    { name = "torchvision", version = "0.24.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "torchvision", version = "0.24.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bc/0c/abe8b6e644fdeec57da41e765ceeee4684aa7c1b34c958c34d881266c9c2/ultralytics-8.2.3.tar.gz", hash = "sha256:320da3042e3e57933751c793105280242bbb6e8ee16624aaa57b788b1e9e4ed1", size = 664478, upload-time = "2024-04-26T15:55:40.307Z" }

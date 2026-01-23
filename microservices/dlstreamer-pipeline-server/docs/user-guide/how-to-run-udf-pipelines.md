@@ -15,7 +15,7 @@ DL Streamer Pipeline Server supports udfloader element which allow user to write
 - replace `"pipeline"` section with  
 
     ```sh
-    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! appsink name=destination",
+    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! gvametapublish file-path=/tmp/results.jsonl ! appsink name=destination",
     ```
 
 - replace `"properties"` section with  

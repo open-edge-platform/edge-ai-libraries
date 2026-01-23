@@ -64,7 +64,7 @@ The service's functionality is extended through a modular plugin system that han
 - **Format Conversion**: Convert models to OpenVINO format for optimization
 - **Parallel Downloads**: Optional concurrent model downloads
 - **Precision Control**: Support for various model precisions (INT8, FP16, FP32)
-- **Device Targeting**: Optimization for different compute devices (CPU, GPU)
+- **Device Targeting**: Optimization for different compute devices (CPU, GPU & NPU)
 - **Caching**: Configurable model caching for improved performance
 
 ## Integration

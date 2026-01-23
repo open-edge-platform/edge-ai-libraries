@@ -98,6 +98,10 @@ export const enTranslations = {
   SummaryInProgress: '{{count}} summaries are using frames from this chunk',
   FramesOverlap: 'Frames Overlap',
   MultiFrame: 'Batch size',
+  downloadChunkSummary: 'Download Summary',
+  downloadFinalSummary: 'Download Summary',
+  downloadFrameSummary: 'Download Summary',
+  close: 'Close',
   AdvancedSettings: 'Advanced Settings',
   frameOverlapWarning:
     'Frames Overlap + Sample Frames per Chunk = {{frames}} should be less than or equal to maximum Frames batch size  {{maxFrames}}.',
@@ -106,7 +110,7 @@ export const enTranslations = {
   warning: 'warning',
   info: 'info',
 
-  FrameSummaries: 'Frame Summaries',
+  FrameSummaries: 'Video Timeline',
 
   ResetDefault: 'Reset to default',
   editPrompt: 'Edit prompt',
@@ -183,4 +187,13 @@ export const enTranslations = {
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',
+
+  // Video selector translations
+  orSelectExisting: 'Or select from recent uploads',
+  recentUploads: 'Recent Uploads',
+  noRecentVideos: 'No recent videos available',
+  uploadNew: 'Upload New Video',
+  selectFromRecent: 'select from recent uploads',
+  selectedVideo: 'Selected Video',
+  uploadedOn: 'Uploaded on',
 };

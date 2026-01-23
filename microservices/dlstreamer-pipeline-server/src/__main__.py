@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -19,7 +19,7 @@ from src.rest_api.server import RestServer
 from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
-VERSION = "3.1.0"
+VERSION = "2025.2.0"
 
 rest_server = None
 pipeline_server_mgr = None
