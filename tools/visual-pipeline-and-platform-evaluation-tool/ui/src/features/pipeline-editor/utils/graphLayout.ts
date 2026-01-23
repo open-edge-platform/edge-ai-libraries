@@ -30,7 +30,7 @@ const getNodeHeight = (nodeType: string): number =>
 export const createGraphLayout = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
-  direction: LayoutDirectionType = LayoutDirection.LeftToRight,
+  direction: LayoutDirectionType = LayoutDirection.TopToBottom,
 ) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));

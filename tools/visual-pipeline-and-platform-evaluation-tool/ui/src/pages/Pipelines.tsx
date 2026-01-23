@@ -15,7 +15,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
+import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { Zap } from "lucide-react";
 import { isApiError } from "@/lib/apiUtils";
 import {
@@ -35,11 +36,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
   ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
 } from "@/components/ui/resizable";
 
 type UrlParams = {
@@ -81,7 +81,7 @@ const Pipelines = () => {
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
 
-  const { data, isSuccess } = useGetPipelineQuery(
+  const { data, isSuccess, refetch } = useGetPipelineQuery(
     {
       pipelineId: id ?? "",
     },
@@ -635,65 +635,23 @@ const Pipelines = () => {
           </div>
 
           <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
-                  <Switch
-                    checked={!isSimpleMode}
-                    onCheckedChange={async (checked) => {
-                      if (!id) return;
-
-                      setIsTransitioning(true);
-
-                      try {
-                        // Update the current graph before switching
-                        const graphData = {
-                          nodes: currentNodes.map((node) => ({
-                            id: node.id,
-                            type: node.type ?? "",
-                            data: node.data as { [key: string]: string },
-                          })),
-                          edges: currentEdges.map((edge) => ({
-                            id: edge.id,
-                            source: edge.source,
-                            target: edge.target,
-                          })),
-                        };
-
-                        await updatePipeline({
-                          pipelineId: id,
-                          pipelineUpdate: isSimpleMode
-                            ? { pipeline_graph_simple: graphData }
-                            : { pipeline_graph: graphData },
-                        }).unwrap();
-
-                        // Switch mode and clear current nodes/edges to reload from backend
-                        setTimeout(() => {
-                          setIsSimpleMode(!checked);
-                          setCurrentNodes([]);
-                          setCurrentEdges([]);
-                          setEditorKey((prev) => prev + 1);
-                          setTimeout(() => setIsTransitioning(false), 100);
-                        }, 50);
-                      } catch (error) {
-                        const errorMessage = isApiError(error)
-                          ? error.data.message
-                          : "Unknown error";
-                        toast.error("Failed to update pipeline", {
-                          description: errorMessage,
-                        });
-                        setIsTransitioning(false);
-                        console.error("Failed to update pipeline:", error);
-                      }
-                    }}
-                  />
-                  <span className="text-sm font-medium">Advanced View</span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Display all DLStreamer pipeline elements</p>
-              </TooltipContent>
-            </Tooltip>
+            {id && (
+              <ViewModeSwitcher
+                pipelineId={id}
+                isSimpleMode={isSimpleMode}
+                currentNodes={currentNodes}
+                currentEdges={currentEdges}
+                onModeChange={setIsSimpleMode}
+                onTransitionStart={() => setIsTransitioning(true)}
+                onTransitionEnd={() => setIsTransitioning(false)}
+                onClearGraph={() => {
+                  setCurrentNodes([]);
+                  setCurrentEdges([]);
+                }}
+                onRefetch={refetch}
+                onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+              />
+            )}
           </div>
 
           <div className="flex gap-2">
