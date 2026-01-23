@@ -47,6 +47,8 @@ components:
         - llm
         - embeddings
         - reranker
+        - vlm
+        - vision
       description: The type of model (determines conversion behavior)
 
     ModelPrecision:
@@ -325,7 +327,7 @@ paths:
         **Conversion Behavior:**
         Models will be converted to OpenVINO format if:
         1. `is_ovms` is set to `true` in the request
-        2. `type` can be set to 'llm,embeddings,reranker or vision' in the request
+        2. `type` can be set to 'llm,embeddings,reranker, vlm or vision' in the request
 
         **Authentication:**
         - HUGGINGFACEHUB_API_TOKEN is optional for public HuggingFace models
