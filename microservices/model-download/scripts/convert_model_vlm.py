@@ -74,7 +74,7 @@ class ModelConverter:
             device: Target device (cpu, gpu, auto)
         """
         self.model_name = model_name
-        self.download_path = Path(download_path) / model_name.replace("/", "_")
+        self.download_path = Path(download_path) / model_name
         self.precision = self._validate_precision(precision)
         self.device = self._validate_device(device)
         self.orig_model_dir = self.download_path / "chkpt"
