@@ -1,3 +1,5 @@
+# Reference: This is the official reference for Pallet Defect Detection pipeline
+# https://github.com/open-edge-platform/edge-ai-suites/blob/main/manufacturing-ai-suite/industrial-edge-insights-vision/apps/pallet-defect-detection
 name: Manufacturing - Pallet Defect Detection [NPU]
 version: 1
 definition: >
