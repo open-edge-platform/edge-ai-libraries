@@ -12,7 +12,7 @@ data:
     weight_format=$1
     gpu_enabled=$3
     # FLATTENED_MODEL_NAME=$(echo ${model} | tr '/' '-')
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/requirements.txt
     
     pip3 install -U huggingface_hub[hf_xet]==0.36.0
 
@@ -25,14 +25,30 @@ data:
     else
         echo "Failed to log in to Hugging Face. Please check your token and try again."
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
+    
+    # Add add_servable_to_config call to export_embeddings_model_ov function as it missing in the original script in the latest OVMS release
+    python3 -c "
+    import re
+    with open('export_model.py', 'r') as f:
+        content = f.read()
+    
+    # Find the export_embeddings_model_ov function and add the line after the print statement
+    pattern = r'(def export_embeddings_model_ov.*?print\(\"Created graph.*?\)\n)'
+    replacement = r'\1    add_servable_to_config(config_file_path, model_name, os.path.relpath( os.path.join(model_repository_path, model_name), os.path.dirname(config_file_path)))\n'
+    content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+    
+    with open('export_model.py', 'w') as f:
+        f.write(content)
+    "
+    
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"
-        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }}
+        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }} --extra_quantization_params "--library sentence_transformers"
     else
         echo "GPU is not enabled, using CPU model"
-        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device CPU
+        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device CPU --extra_quantization_params "--library sentence_transformers"
         
     fi
 

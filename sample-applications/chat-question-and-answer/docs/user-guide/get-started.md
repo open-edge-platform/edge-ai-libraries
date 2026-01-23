@@ -18,10 +18,11 @@ By following this guide, you will learn how to:
 
 ## Prerequisites
 
-- Verify that your system meets the [minimum requirements](./system-requirements.md).
+- Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
+- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
@@ -134,7 +135,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    docker compose up
    ```
-   - Refer to the application architecture diagram [here](./overview-architecture.md#technical-architecture-diagram) .
+   - Refer to [the application architecture diagram](./how-it-works.md#technical-architecture-diagram) .
 
 6. **Verify the Application**:
    Check that the application is running:
@@ -176,3 +177,12 @@ For alternative ways to set up the sample application, see:
 ## Supporting Resources
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+
+:::
+hide_directive-->

@@ -154,16 +154,16 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         logger.info("Checking for export_model.py script...")
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py"
+        # export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py"
       
-        if not os.path.exists("export_model.py"):
-            logger.info(f"Downloading export_model.py script...")
-            try:
-                subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to download export script: {str(e)}")
-        else:
-            logger.info("export_model.py already exists, skipping download.")
+        # if not os.path.exists("export_model.py"):
+        #     logger.info(f"Downloading export_model.py script...")
+        #     try:
+        #         subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
+        #     except subprocess.CalledProcessError as e:
+        #         raise RuntimeError(f"Failed to download export script: {str(e)}")
+        # else:
+        #     logger.info("export_model.py already exists, skipping download.")
 
         # Step 4: Export the model using the virtual environment's Python
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
@@ -173,7 +173,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Build command with Python from the virtual environment
         command = [
-            "python3", "export_model.py", export_type,
+            "python3", "scripts/export_model.py", export_type,
             "--source_model", model_name,
             "--weight-format", weight_format,
             "--config_file_path", f"{model_directory}/config_all.json",
@@ -185,6 +185,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
             command += ["--version", version]
         if export_type == "text_generation" and cache_size is not None:
             command += ["--cache_size", f"{cache_size}"]
+        if export_type == "embeddings_ov":
+            command += ["--extra_quantization_params", f"--library sentence_transformers"]
 
         logger.info(f"Executing command with virtual environment: {command}")
         try:
