@@ -49,7 +49,7 @@ Once the mqtt broker is configured and up, connect to the mqtt broker and subscr
 
     Please make sure to update the `<topic_name>` and `<mqtt broker address>` in the script before running.
 
-    Make sure to install the python packages:
+    Make sure to install the Python packages:
     ```sh
     pip install paho-mqtt opencv-python numpy
     ```
@@ -101,7 +101,7 @@ MQTT_PORT=1883
   - `host` mqtt broker hostname or IP address
   - `port` port to connect to the broker
 
-Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
+Add below configuration in appropriate `config.json` file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
   ```json
     "mqtt_publisher": {
       "publish_frame": false
@@ -263,7 +263,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
       Please make sure to update the `<topic_name>`, `<mqtt broker address>`, `<path to ca.rt>`, `<path to client.crt>`, `<path to client.key`> in the script before running.
 
-      Make sure to install the python packages:
+      Make sure to install the Python packages:
       ```sh
       pip install paho-mqtt opencv-python numpy
       ```
@@ -311,7 +311,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
     MQTT_PORT=1883
     ```
 
-   Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
+   Add below configuration in appropriate `config.json` file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
 
     ```json
       "mqtt_publisher": {

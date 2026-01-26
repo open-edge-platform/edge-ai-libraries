@@ -1,7 +1,8 @@
 
 # System Requirements
 
-This page provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
+This page provides detailed hardware, software, and platform requirements to help you set up
+and run the application efficiently.
 
 ## Supported Platforms
 
@@ -13,11 +14,11 @@ This page provides detailed hardware, software, and platform requirements to hel
 - 11th Generation Intel® Core™ processor or above with Intel® HD Graphics or  Intel® Xeon® processor
 
 ## Minimum Requirements
-| **Component**      | **Minimum Requirement**   | **Recommended**         |
+| **Component**       | **Minimum Requirement**   | **Recommended**          |
 |---------------------|---------------------------|--------------------------|
 | **Processor**       | 11th Generation Intel® Core™ processor and above with Intel® HD Graphics  | Intel® Core™ Ultra Processors (Series 2) also known as Arrow Lake |
-| **Memory**          | 16 GB                     | 16 GB                   |
-| **Disk Space**      | 64 GB                | 128 GB               |
+| **Memory**          | 16 GB                     | 16 GB                    |
+| **Disk Space**      | 64 GB                     | 128 GB                   |
 
 ## Software Requirements
 
@@ -34,6 +35,6 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Supporting Resources
 
-- [Overview](index.md)
-- [Get Started Guide](get-started.md)
-- [API Reference](api-reference.md)
+- [Overview](../index.md)
+- [Get Started Guide](../get-started.md)
+- [API Reference](../api-reference.md)

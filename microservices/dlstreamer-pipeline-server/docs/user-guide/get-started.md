@@ -1,11 +1,11 @@
 # Get Started
 
--   **Time to Complete:** 5 - 15 minutes
--   **Programming Language:** Python 3
+- **Time to Complete:** 5 - 15 minutes
+- **Programming Language:** Python 3
 
 ## Prerequisites
 
-- [System Requirements](./system-requirements.md)
+- [System Requirements](./get-started/system-requirements.md)
 
 ## Quick try out
 
@@ -13,7 +13,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 ### Pull the image and start container
 
-- Clone the Edge-AI-Libraries repository from Open Edge Platform and change to the docker directory inside DL Streamer Pipeline Server project.
+- Clone the `Edge-AI-Libraries` repository from Open Edge Platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
   ```sh
     cd [WORKDIR]
@@ -39,7 +39,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 Once the container is up, we will send a pipeline request to DL Streamer Pipeline Server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
 
 We will send the below curl request to run the inference.
-It comprises of a source file path which is `warehouse.avi`, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl` and frames streamed over RTSP with id `pallet_defect_detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
+It comprises of a source file path, which is `warehouse.avi` in this case, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl`, and frames streamed over RTSP with the ID `pallet_defect_detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
 
 Open another terminal and send the following curl request
 ``` sh
@@ -79,7 +79,7 @@ pipeline status or stop the pipeline instance.
 
 - RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection`. Users can view this on any media player, e.g. vlc (as a network stream), ffplay, etc.
 
-  ![sample frame RTSP stream](./images/sample-pallet-defect-detection.png)
+  ![sample frame RTSP stream](./_assets/sample-pallet-defect-detection.png)
 
 To check the pipeline status and stop the pipeline send the following requests,
 
@@ -111,13 +111,7 @@ For alternative ways to set up the microservice, see:
 
 ## Troubleshooting
 
-- [Troubleshooting Guide](./troubleshooting-guide.md)
-
-## Known Issues
-
-- **Running DL Streamer Pipeline Server on Ubuntu 24.04**
-
-    User has to install `docker compose v2` to run DL Streamer Pipeline Server on Ubuntu 24.04.
+- For troubleshooting, known issues and limitations, refer to the [Troubleshooting](./troubleshooting.md) article.
 
 ## Contact Us
 
@@ -125,6 +119,7 @@ Please contact us at dlsps_support[at]intel[dot]com for more details or any supp
 
 ## Supporting Resources
 
-- [Overview](index.md)
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+- [Overview](./index.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [API Reference](./api-reference.md)
+- [Environment Variables](./environment-variables.md)
