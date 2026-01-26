@@ -1,14 +1,18 @@
-# Video Search and Summarization Architecture Overview
+# Video Search and Summarization
 
-The Video Search and Summarization architecture is built on top of the Video Search and Video Summary architectures. This sections show how the components are reused to realize the combined mode.
+The combined Video Search and Summarization mode uses all the components of the Video Search and Summarization application.
 
-## Architecture
+![System Architecture Diagram](../_assets/TEAI_VideoSearchSumm.drawio.svg)\
+\*Figure 1: Architecture of Video Search and Summarization sample application
 
-The following figure shows the system architecture:
+The combined sample application:
 
-![System Architecture Diagram](./images/TEAI_VideoSearchSumm.drawio.svg)
+- Demonstrates how Intel’s Edge AI catalog of inference microservices can be used to build Video Search and Summarization pipelines quickly. The inference microservices are optimized for Intel’s Edge AI systems.
+- Serves as a blueprint for building similar scalable and modular solutions that can be deployed on Intel’s Edge AI systems.
+- Showcases the competitiveness of Intel’s Edge AI systems to address varied deployment scenario requirements, from the edge to the cloud.
+- Provides reference sample microservices for capabilities like video ingestion, embedding generation, vector search, and UI front end that reduces the effort to customize the application.
 
-*Figure 1: Architecture of Video Search and Summarization sample application
+## Pipeline Components
 
 The following are the components of the Video Search and Summarization pipeline. The combined mode uses components across the Video Search mode and the Video Summarization mode:
 
@@ -28,9 +32,7 @@ The following are the components of the Video Search and Summarization pipeline.
 
 8. **Video Search backend microservice**: The Video Search backend microservice embeds user queries and generates responses based on the search result. The vector database is queried for a best match in the embedding space.
 
-See details on the system architecture and customizable options [here](./overview-architecture-summary.md).
-
-Note: Although the reranker is shown in the figure, support for the reranker depends on the vector database used. The default Video Search and Summarization pipeline uses the VDMS vector database, where there is no support for the reranker.
+> ****Note:** Although the reranker is shown in the figure, support for the reranker depends on the vector database used. The default Video Search and Summarization pipeline uses the VDMS vector database, where there is no support for the reranker.
 
 ## Detailed Architecture
 <!--
@@ -44,18 +46,14 @@ Note: Although the reranker is shown in the figure, support for the reranker dep
 3. How components interact and support extensibility.
 -->
 
-The following figure shows the architecture:
-
-### Architecture Diagram
-![Video Search and Summarization technical architecture](./images/TEAI_VideoSearchSumm_Arch.png)
-
-*Video Search and Summarization technical architecture
+![Video Search and Summarization technical architecture](../_assets/TEAI_VideoSearchSumm_Arch.png)\
+\*Video Search and Summarization technical architecture
 
 You can configure both the Video Search and Video Summarization pipelines, upload videos for processing, search semantically across videos, and view summaries through the Video Search and Summarization UI. The UI will then communicate with the pipeline manager.
 
-The VLM, LLM, and Embedding microservices are provided as part of Intel's Edge AI inference microservices catalog, supporting open-source models that can be downloaded from model hubs, for example, [Hugging Face Hub models that integrate with OpenVINO™ toolkit](https://huggingface.co/OpenVINO). 
+The VLM, LLM, and Embedding microservices are provided as part of Intel's Edge AI inference microservices catalog, supporting open-source models that can be downloaded from model hubs, for example, [Hugging Face Hub models that integrate with OpenVINO™ toolkit](https://huggingface.co/OpenVINO).
 
-The video ingestion microservice ingests common video formats, chunks the videos, and feeds the extracted frames into configurable capabilities, such as object detection. It then provides the outputs to the VLM microservice for captioning and to the embedding microservice for search indexing. 
+The video ingestion microservice ingests common video formats, chunks the videos, and feeds the extracted frames into configurable capabilities, such as object detection. It then provides the outputs to the VLM microservice for captioning and to the embedding microservice for search indexing.
 
 The LLM microservice provides final summaries of videos by summarizing the individual captions, while simultaneously converting the captions to embeddings and storing them in a vector database for semantic search. The audio transcription microservice uses the Whisper model to transcribe audio for search and summarization purposes. The raw videos, frames, and generated metadata are saved in the object store. The embeddings are stored in a vector database for a fast semantic search.
 
@@ -64,9 +62,9 @@ The LLM microservice provides final summaries of videos by summarizing the indiv
 The application flow involves the following steps for both search indexing and summarization:
 
 1. **Create the Video Search and Summarization pipeline**
-   - **Configure the pipeline**: The Video Search and Summarization UI microservice allows you to configure capabilities on the Video Search and Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
+   - **Configure the pipeline**: The Video Search and Summarization UI microservice allows you to configure capabilities on the Video Search and Summarization pipeline. You can see [configuration examples for the Video Summarization pipeline](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
 
-   - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.  
+   - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 
 2. **Input Video Sources**:
    - **Provide video**: You will provide the video to be summarized and searched. You can also configure the video through the UI. Currently, only offline video processing is supported through reading from local storage. In the future, live camera-streaming will be supported. The pipeline manager stores the video in a local object store.
@@ -94,12 +92,12 @@ The application flow involves the following steps for both search indexing and s
 
    - **Unified interface**: The UI provides summary viewing and search capabilities, allowing you to discover relevant videos through search, and then view their summaries.
 
-6. **Observability dashboard**: 
+6. **Observability dashboard**:
 
    - If set up, the dashboard displays real-time logs, metrics, and traces that provide a view of the application's performance, accuracy, and resource consumption.
 
 <!-- The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both Video Search and Video Summarization capabilities.
-![Data flow diagram](./images/VideoSummary-request.jpg)
+![Data flow diagram](./_assets/VideoSummary-request.jpg)
 *Figure 3: Dataflow for Video Search and Summarization sample application
 -->
 
@@ -113,14 +111,14 @@ The application flow involves the following steps for both search indexing and s
 The key components of Video Search and Summarization mode are as follows:
 
 1. **Intel's Edge AI Inference microservices**:
-   - **What it is**: Inference microservices are the VLM, LLM, audio transcription, and multimodal embedding microservices that run the chosen models optimally on the hardware. 
+   - **What it is**: Inference microservices are the VLM, LLM, audio transcription, and multimodal embedding microservices that run the chosen models optimally on the hardware.
    - **How it is used**: Each microservice uses OpenAI APIs to support its functionality. The microservices are configured to use the required models and are ready. The video pipeline manager accesses these microservices through the APIs for summary generation and search indexing.
    - **Benefits**: Intel guarantees that the sample application's default microservices configuration is optimal for the chosen models and the target deployment hardware.  Standard OpenAI APIs ensure easy portability of different inference microservices.
 
 2. **Video Ingestion microservice**:
    - **What it is**: Video Ingestion microservice, which reuses DL Streamer pipeline server, can ingest videos, extract audio, create chunks, detect objects, classify audio, and feed extracted raw information and generated metadata to Video Search and Video Summarization indexing stages.
    - **How it is used**:  This microservice provides a REST API endpoint that can be used to manage the contents. The Video Pipeline manager uses this API to create summaries and embeddings.
-- **Benefits**: DL Streamer pipeline server is a standard offering by Intel, which is optimized for media- and vision analytics-based inference tasks. See the DL Streamer pipeline server documentation for details.
+   - **Benefits**: DL Streamer pipeline server is a standard offering by Intel, which is optimized for media- and vision analytics-based inference tasks. See the DL Streamer pipeline server documentation for details.
 
 3. **Video Summarization pipeline manager microservice**:
    - **What it is**: This microservice orchestrates the pipeline per user configuration. The pipeline manager uses a message bus to coordinate across different microservices and also provides performance-motivated capabilities like batching and parallel handling of multiple operations.
@@ -137,19 +135,19 @@ The key components of Video Search and Summarization mode are as follows:
 
    **Inference microservices**:
 
-    - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/) - Creates vector embeddings for semantic search.
+    - [Multimodal Embedding](../../../../../microservices/multimodal-embedding-serving/) - Creates vector embeddings for semantic search.
 
-    - [Audio Analyzer](../../../../microservices/audio-analyzer/) - Provides audio transcription capabilities.
- 
-    - [VLM microservice](../../../../microservices/vlm-openvino-serving/) - Generates captions for video content.
-   
+    - [Audio Analyzer](../../../../../microservices/audio-analyzer/) - Provides audio transcription capabilities.
+
+    - [VLM microservice](../../../../../microservices/vlm-openvino-serving/) - Generates captions for video content.
+
    **Data-handling microservices**
 
-    - [VDMS-based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) - Handles vector database storage and retrieval.
+    - [VDMS-based data preparation](../../../../../microservices/visual-data-preparation-for-retrieval/vdms/) - Handles vector database storage and retrieval.
 
-    - [Vector Retriever](../../../../microservices/vector-retriever/) - Enables semantic search across the video collection.
-   
-   See the respective documentation for details. 
+    - [Vector Retriever](../../../../../microservices/vector-retriever/) - Enables semantic search across the video collection.
+
+   See the respective documentation for details.
 
 ## Extensibility
 
@@ -168,7 +166,7 @@ The Video Search and Summarization mode is modular and allows you to:
    - You can swap embedding models to optimize for different types of content or search requirements.
 
 3. **Configure different capabilities on Video Search and Video Summarization pipelines**:
- 
+
    - In addition to available capabilities, you can enable new capabilities if they make search results and summaries more accurate.
 
    -  You can configure the UI, pipeline manager, and required microservices easily for such extensions.
@@ -184,4 +182,6 @@ The Video Search and Summarization mode is modular and allows you to:
    - Follow the system requirements guidelines on the options available for Video Search and Video Summarization workloads.
 
 ## Next Steps
-- [Get Started](./get-started.md)
+
+- [System requirements](../get-started/system-requirements.md)
+- [Get Started](../get-started.md)
