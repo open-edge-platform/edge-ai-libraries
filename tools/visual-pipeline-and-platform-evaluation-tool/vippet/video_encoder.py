@@ -301,6 +301,8 @@ class VideoEncoder:
         self,
         pipeline_id: str,
         pipeline_str: str,
+        encoder_device: str,
+        input_video_filenames: list[str],
         needs_looping: bool = False,
     ) -> Tuple[str, str]:
         """
@@ -312,6 +314,10 @@ class VideoEncoder:
         Args:
             pipeline_id: Pipeline ID used to generate unique stream name
             pipeline_str: GStreamer pipeline string containing fakesink(s)
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
+            input_video_filenames: List of input video filenames to detect codec
             needs_looping: If True, use low-latency streaming encoder optimized for looping
 
         Returns:
@@ -320,10 +326,6 @@ class VideoEncoder:
         Raises:
             ValueError: If no fakesink is found in pipeline
         """
-        # TODO: Seems that splitmuxsink doesn't produce valid output from *.ts video
-        # TODO: It needs to be tested if it is possible with looping (maybe with muxer=tsmux ?)
-        # TODO: If not, splitmuxsink should be changed to fakesink (for every pipeline that uses looping)
-
         # Count fakesink instances
         fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink(?=(?:[\s!]|$))"
         fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
@@ -339,10 +341,9 @@ class VideoEncoder:
             f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/{stream_name}"
         )
 
-        # Detect codec to select appropriate streaming encoder
-        # For live-streaming, we detect codec from the pipeline context
-        # Default to h264 if detection fails
-        codec = DEFAULT_CODEC
+        # Detect codec from input video files (h264, h265, etc.)
+        codec = self._detect_codec_from_input(input_video_filenames)
+        self._validate_codec(codec)
 
         # Select streaming encoder configuration
         encoder_config = self.streaming_encoder_configs.get(codec, {})
@@ -352,19 +353,17 @@ class VideoEncoder:
             )
             encoder_config = self.encoder_configs[codec]
 
-        # For live-streaming, prefer CPU encoder for better compatibility
-        # GPU encoders can be used if available
-        encoder_element = self.select_element(encoder_config, ENCODER_DEVICE_CPU)
+        # Select the best available encoder element based on device type and
+        # installed GStreamer plugins (e.g., vah264enc for GPU, x264enc for CPU)
+        encoder_element = self.select_element(encoder_config, encoder_device)
 
-        # Fallback to GPU if CPU encoder not found
         if encoder_element is None:
-            self.logger.warning(
-                f"CPU streaming encoder not found for codec {codec}, trying GPU encoder"
+            self.logger.error(
+                f"Failed to select encoder element for codec: {codec} and encoder_device: {encoder_device}"
             )
-            encoder_element = self.select_element(encoder_config, ENCODER_DEVICE_GPU)
-
-        if encoder_element is None:
-            raise ValueError(f"No suitable streaming encoder found for codec {codec}")
+            raise ValueError(
+                f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
+            )
 
         # Build live stream output element string with low-latency encoder
         live_stream_output_str = (

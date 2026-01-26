@@ -472,10 +472,10 @@ class PipelineManager:
                 # Handle output replacement based on output_mode (only for first stream of each pipeline type)
                 if stream_index == 0:
                     output_mode = execution_config.output_mode
+                    encoder_device = graph.get_recommended_encoder_device()
 
                     if output_mode == OutputMode.FILE:
                         # Replace fakesink with file output
-                        encoder_device = graph.get_recommended_encoder_device()
                         unique_pipeline_str, generated_paths = (
                             self.video_encoder.replace_fakesink_with_video_output(
                                 pipeline.id,
@@ -493,6 +493,8 @@ class PipelineManager:
                                 self.video_encoder.replace_fakesink_with_live_stream_output(
                                     pipeline.id,
                                     unique_pipeline_str,
+                                    encoder_device,
+                                    input_video_filenames,
                                     needs_looping=needs_looping,
                                 )
                             )
