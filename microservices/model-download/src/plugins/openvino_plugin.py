@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+from collections import deque
 from typing import Dict, Any, Optional, List
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
@@ -70,8 +71,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 host_prefix = os.getenv("MODEL_PATH", "models")
                 host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
             #Check the result of conversion
-            if result != 0:
-                raise RuntimeError(f"Model conversion failed with return code {result}, Check if the model is compatible to be converted with Openvino and the configuration provided. ")
+            if result["returncode"] != 0:
+                raise RuntimeError(f"Model conversion failed due to {result['stderr']}! Also, Check if the model is compatible to be converted with Openvino and the configuration provided. ")
             
             return {
                 "model_name": model_name,
@@ -215,20 +216,23 @@ class OpenVINOConverter(ModelDownloadPlugin):
             result = subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 universal_newlines=True,
                 text=True
             )
+            stderr_logs = deque(maxlen=3)
+            stdout_logs = deque(maxlen=3)
             # Stream output in real-time
             while True:
                 stdout_line = result.stdout.readline() if result.stdout else ""
                 stderr_line = result.stderr.readline() if result.stderr else ""
 
                 if stdout_line:
-                    logger.info(stdout_line.strip())
+                    stdout_logs.append(stdout_line.strip())
+                    logger.info(stdout_logs[-1])
                 if stderr_line:
-                    logger.error(stderr_line.strip())
-
+                    stderr_logs.append(stderr_line.strip())
+                    logger.error(stderr_logs[-1])
                 if not stdout_line and not stderr_line and result.poll() is not None:
                     break
             return_code = result.poll()
@@ -246,20 +250,48 @@ class OpenVINOConverter(ModelDownloadPlugin):
                         "--device", target_device.lower()
                     ]                    
                     logger.info(f"Executing fallback command: {' '.join(command)}")
-                    result = subprocess.run(command, capture_output=True, text=True)
+                    result = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, text=True)
+
+                    # Stream output in real-time
+                    while True:
+                        stdout_line = result.stdout.readline() if result.stdout else ""
+                        stderr_line = result.stderr.readline() if result.stderr else ""
+
+                        if stdout_line:
+                            stdout_logs.append(stdout_line.strip())
+                            logger.info(stdout_line.strip())
+                        if stderr_line:
+                            stderr_logs.append(stderr_line.strip())
+                            logger.error(stderr_line.strip())
+
+                        if not stdout_line and not stderr_line and result.poll() is not None:
+                            break
+                    return_code = result.poll()
                     
                     if result.returncode != 0:
-                        logger.error(f"Fallback VLM conversion failed: {result.stderr}")
-                        logger.error(f"Fallback stdout: {result.stdout}")
+                        last_error = list(stderr_logs)[-1] if len(stderr_logs) > 0 else "Unknown error"
+                        last_output = list(stdout_logs)[-1] if len(stdout_logs) > 0 else ""
+                        logger.error(f"Fallback VLM conversion failed: {last_error}")
+                        if last_output:
+                            logger.error(f"Fallback stdout: {last_output}")
                         return_code = result.returncode
                     else:
                         logger.info("Fallback VLM conversion succeeded.")
-                        logger.info(f"Conversion output: {result.stdout}")
+                        last_output = list(stdout_logs)[-1] if len(stdout_logs) > 0 else ""
+                        if last_output:
+                            logger.info(f"Conversion output: {last_output}")
                         return_code = 0
                 else:
-                    logger.error(f"Script execution failed with return code {return_code}")
+                    last_error = list(stderr_logs)[-1] if len(stderr_logs) > 0 else "Unknown error"
+                    logger.error(f"Script execution failed with return code {last_error}")
+        
+            final_output = {
+                "stdout": list(stdout_logs)[-1] if len(stdout_logs) > 0 else "",
+                "stderr": list(stderr_logs)[-1] if len(stderr_logs) > 0 else "",
+                "returncode": return_code
+            }
 
-            return return_code
+            return final_output
            
         except subprocess.CalledProcessError as e:
             raise RuntimeError(

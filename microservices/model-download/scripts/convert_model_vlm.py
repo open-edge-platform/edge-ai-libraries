@@ -183,7 +183,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Failed to convert {model_name}: {e}")
-            return False
+            raise RuntimeError(f"Conversion failed: {e}")
     
     def _apply_precision(self, ov_model: ov.Model) -> ov.Model:
         """Apply precision transformations"""
@@ -224,7 +224,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Conversion failed: {e}")
-            return False
+            raise RuntimeError(f"Conversion failed: {e}")
     
     def convert_florence2(self) -> bool:
         """Convert Florence-2 vision-language model"""
@@ -298,7 +298,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Conversion failed: {e}", exc_info=True)
-            return False
+            raise RuntimeError(f"Conversion failed: {e}")
     
     def _convert_florence2_image_embedding(self, model, processor) -> bool:
         """Convert image embedding component"""
@@ -334,7 +334,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Image embedding conversion failed: {e}")
-            return False
+            raise RuntimeError(f"Image embedding conversion failed: {e}")
     
     def _convert_florence2_text_embedding(self, model) -> bool:
         """Convert text embedding component"""
@@ -362,7 +362,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Text embedding conversion failed: {e}")
-            return False
+            raise RuntimeError(f"Text embedding conversion failed: {e}")
     
     def _convert_florence2_encoder(self, model) -> bool:
         """Convert encoder component"""
@@ -393,7 +393,7 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Encoder conversion failed: {e}")
-            return False
+            raise RuntimeError(f"Encoder conversion failed: {e}")
     
     def _convert_florence2_decoder(self, model) -> bool:
         """Convert decoder component"""
@@ -450,20 +450,17 @@ class ModelConverter:
             
         except Exception as e:
             logger.error(f"Decoder conversion failed: {e}")
-            return False
+            raise RuntimeError(f"Decoder conversion failed: {e}")
     
     def convert(self) -> bool:
         """Perform model conversion"""
-        try:
-            logger.info("=" * 70)
-            
+        try:            
             if self.is_florence2:
                 success = self.convert_florence2()
             else:
                 success = self.convert_generic_model()
             
             if success:
-                logger.info("=" * 70)
                 logger.info("Conversion completed successfully!")
                 logger.info(f"Output directory: {self.download_path}")
                 
@@ -477,17 +474,14 @@ class ModelConverter:
                     except Exception as e:
                         logger.warning(f"Could not remove checkpoint directory: {e}")
                 
-                logger.info("=" * 70)
             else:
-                logger.error("=" * 70)
-                logger.error("Conversion failed!")
-                logger.error("=" * 70)
+                logger.error(f"Conversion failed! {success}")
             
             return success
             
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
-            return False
+            raise RuntimeError(f"Conversion failed: {e}")
 
 
 def parse_arguments() -> argparse.Namespace:

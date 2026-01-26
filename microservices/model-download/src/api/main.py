@@ -116,7 +116,7 @@ async def download_models(
                 )
             
             extra_kwargs = model.dict()
-            needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
+            needs_conversion = model.is_ovms
 
             model_download_path = os.path.join(models_dir, download_path)
             
