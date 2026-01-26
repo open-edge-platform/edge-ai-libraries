@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 import re
+import os
 import sys
 from typing import Dict, List, Optional, Tuple
 
@@ -18,10 +19,17 @@ DEFAULT_CODEC = "h264"
 # Placeholder for vaapi_suffix to be replaced at runtime
 VAAPI_SUFFIX_PLACEHOLDER = "{vaapi_suffix}"
 
-# Live stream server configuration
-LIVE_STREAM_SERVER_HOST = "mediamtx"  # TODO: should be defined in env in compose.yaml
-LIVE_STREAM_SERVER_PORT = "8554"  # TODO: should be defined in env in compose.yaml
+# Default live stream server configuration
+DEFAULT_LIVE_STREAM_SERVER_HOST = "mediamtx"
+DEFAULT_LIVE_STREAM_SERVER_PORT = "8554"
 
+# Read live stream server config from environment variables
+LIVE_STREAM_SERVER_HOST: str = os.environ.get(
+    "LIVE_STREAM_SERVER_HOST", DEFAULT_LIVE_STREAM_SERVER_HOST
+)
+LIVE_STREAM_SERVER_PORT: str = os.environ.get(
+    "LIVE_STREAM_SERVER_PORT", DEFAULT_LIVE_STREAM_SERVER_PORT
+)
 
 logger = logging.getLogger("video_encoder")
 videos_manager = get_videos_manager()
