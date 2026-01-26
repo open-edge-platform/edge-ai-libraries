@@ -297,20 +297,17 @@ jobs:
     name: "DLSPS SCAN: check license headers"
     runs-on: ubuntu-latest
     steps:
-    - name: Check out edge-ai-libraries repository (sparse)
+    - name: Check out edge-ai-libraries repository
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         persist-credentials: false
-        sparse-checkout: |
-          microservices/dlstreamer-pipeline-server
-          .github
         fetch-depth: 0
 
     - name: Check license headers
-      uses: ./.github/actions/common/license-namespace-checker
+      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@6d50b990891fdbe14b7fe42e3d482cabf67ae815
       with:
         name: 'DLSPS_license-check-report'
-        path: '.'
+        path: './microservices/dlstreamer-pipeline-server'
         fail-on-findings: true
 
   dlsps-clamav:
@@ -419,9 +416,9 @@ jobs:
           persist-credentials: false
 
       - name: Run pylint
-        uses: ./.github/actions/common/pylint
+        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
-          path: microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
           name: DLSPS_pylint
           enable-reviewdog: true
@@ -438,23 +435,18 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
           fetch-depth: 0
 
       - name: Run shellcheck
-        uses: ./edge-ai-libraries-repo/.github/actions/common/shellcheck
+        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
-          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: shellcheck-report.txt
           name: DLSPS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-findings: true
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dlsps-yamllint:
     permissions:
@@ -466,19 +458,14 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
 
       - name: Run yamlint
-        uses: ./edge-ai-libraries-repo/.github/actions/common/yamllint
+        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
         with:
-          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          path: ./microservices/dlstreamer-pipeline-server
           output-file: yamllint-report.txt
           name: DLSPS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-findings: true
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo

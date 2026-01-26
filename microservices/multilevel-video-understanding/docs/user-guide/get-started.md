@@ -11,7 +11,7 @@ The **Multi-level Video Understanding Microservice** enables developers to creat
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
@@ -42,51 +42,55 @@ cd GenAIComps
 
 1. Pull the official docker image first.
 
-```bash
-docker pull intel/llm-scaler-vllm:0.10.0-b4
-```
+   ```bash
+   docker pull intel/llm-scaler-vllm:0.10.0-b4
+   ```
 
 2. Export the required environment variables.
 
-```bash
-# Use image: intel/llm-scaler-vllm:0.10.0-b4
-export REGISTRY=intel
-export TAG=0.10.0-b4
+   ```bash
+   # Use image: intel/llm-scaler-vllm:0.10.0-b4
+   export REGISTRY=intel
+   export TAG=0.10.0-b4
 
-export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
-export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+   export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
+   export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
-HF_HOME=${HF_HOME:=~/.cache/huggingface}
-export HF_HOME
+   HF_HOME=${HF_HOME:=~/.cache/huggingface}
+   export HF_HOME
 
-export MAX_MODEL_LEN=20000
-export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
-export LOAD_QUANTIZATION=fp8
-export VLLM_PORT=41091
-export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
-export TENSOR_PARALLEL_SIZE=2
-```
+   export MAX_MODEL_LEN=20000
+   export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
+   export LOAD_QUANTIZATION=fp8
+   export VLLM_PORT=41091
+   export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
+   export TENSOR_PARALLEL_SIZE=2
+   ```
 
 3. Navigate to the Docker Compose directory and start the services:
-```bash
-cd comps/lvms/deployment/docker_compose/
-docker compose up lvm-vllm-ipex-service -d
-```
 
-Then, check existence of serving:
+   ```bash
+   cd comps/lvms/deployment/docker_compose/
+   docker compose up lvm-vllm-ipex-service -d
+   ```
 
-```bash
-docker logs -f lvm-vllm-ipex-service
+   Then, verify the service:
 
-...
-INFO:     Started server process [411]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
+   ```bash
+   docker logs -f lvm-vllm-ipex-service
+   ```
 
-```
-> Note: Please wait for a while since it takes some time to load models, especially for the first time deploying a new model. Resources will be downloaded from huggingface endpoint.
+   ```text
+   ...
+   INFO:     Started server process [411]
+   INFO:     Waiting for application startup.
+   INFO:     Application startup complete.
+   ```
+
+> **Note:** It may take some time to load the models, especially when deploying a new model for the first time. The resources will be downloaded from a Hugging Face endpoint.
 
 If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
+
 ```bash
 docker compose down lvm-vllm-ipex-service
 ```
@@ -108,51 +112,53 @@ More details can be found in [LVM Microservice with vLLM on Intel XPU](https://o
 
 1. Pull the official docker image first.
 
-```bash
-docker pull intel/llm-scaler-vllm:0.10.0-b4
-```
+   ```bash
+   docker pull intel/llm-scaler-vllm:0.10.0-b4
+   ```
 
 2. Export the required environment variables.
 
-```bash
-# Use image: intel/llm-scaler-vllm:0.10.0-b4
-export REGISTRY=intel
-export TAG=0.10.0-b4
+   ```bash
+   # Use image: intel/llm-scaler-vllm:0.10.0-b4
+   export REGISTRY=intel
+   export TAG=0.10.0-b4
 
-export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
-export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+   export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
+   export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
-HF_HOME=${HF_HOME:=~/.cache/huggingface}
-export HF_HOME
+   HF_HOME=${HF_HOME:=~/.cache/huggingface}
+   export HF_HOME
 
-export MAX_MODEL_LEN=20000
-export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
-export LOAD_QUANTIZATION=awq
-export VLLM_PORT=41090
-export ONEAPI_DEVICE_SELECTOR="level_zero:2;level_zero:3"
-export TENSOR_PARALLEL_SIZE=2
-```
+   export MAX_MODEL_LEN=20000
+   export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
+   export LOAD_QUANTIZATION=awq
+   export VLLM_PORT=41090
+   export ONEAPI_DEVICE_SELECTOR="level_zero:2;level_zero:3"
+   export TENSOR_PARALLEL_SIZE=2
+   ```
 
 3. Navigate to the Docker Compose directory and start the services:
-```bash
-cd comps/llms/deployment/docker_compose/
-docker compose -f compose_text-generation.yaml up textgen-vllm-ipex-service -d
-```
 
-Then, check existence of serving:
+   ```bash
+   cd comps/llms/deployment/docker_compose/
+   docker compose -f compose_text-generation.yaml up textgen-vllm-ipex-service -d
+   ```
 
-```bash
-docker logs -f textgen-vllm-ipex-service
+   Then, verify the service:
 
-...
-INFO:     Started server process [411]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-```
+   ```bash
+   docker logs -f textgen-vllm-ipex-service
 
-> Note: Please refer to [validated models](./Overview.md#validated-models) for the list of models that can has been verified in video summarization.
+   ...
+   INFO:     Started server process [411]
+   INFO:     Waiting for application startup.
+   INFO:     Application startup complete.
+   ```
+
+> **Note:** Please refer to [validated models](./index.md#validated-models) for the list of models that has been verified in video summarization.
 
 If you would like to uninstall the model serving, run the following command in the same environment where you performed the installation:
+
 ```bash
 docker compose -f compose_text-generation.yaml down textgen-vllm-ipex-service
 ```
@@ -161,18 +167,20 @@ More details can be found in  [LLM Microservice with vLLM on Intel XPU](https://
 
 ## Quick Start with Docker
 
-**step1.** Prepare docker image
-Before lauching the service as documented below, users need to prepare the docker images:
+### Step 1. Prepare docker image
 
-- **Option1.** [Build the docker images](./how-to-build-from-source.md#steps-to-build)
+Before launching the service as documented below, users need to prepare the docker images:
+
+- **Option1.** [Build the docker images](./get-started/how-to-build-from-source.md#steps-to-build)
 - **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
-   ```bash
-   docker pull intel/multilevel-video-understanding:latest
-   ```
+
+  ```bash
+  docker pull intel/multilevel-video-understanding:latest
+  ```
 
 Then, use the following commands to set up the `multilevel-video-understanding` microservice.
 
-**step2.** Set up environment variables
+### Step 2. Set up environment variables
 
 The following environment variables can be configured:
 
@@ -186,7 +194,7 @@ The following environment variables can be configured:
 
 **Model configuration**
 
-- `VLM_MODEL_NAME`: Vison-Language model(VLM), this should comply with model serving's `model` field.
+- `VLM_MODEL_NAME`: Vision-Language model(VLM), this should comply with model serving's `model` field.
 - `VLM_BASE_URL`: Model serving's base url for VLM. (e.g., `http://localhost:41091/v1`)
 - `LLM_MODEL_NAME`: Large Language model(LLM), this should comply with model serving's `model` field.
 - `LLM_BASE_URL`: Model serving's base url for LLM. (e.g., `http://localhost:41090/v1`)
@@ -211,7 +219,7 @@ export SERVICE_PORT=8192
 > - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
 > - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
-**step3.** Launch the microservice
+### Step 3. Launch the microservice
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
@@ -223,19 +231,24 @@ chmod +x ./setup_docker.sh
 Once the service is up, you can check the log:
 
 ```bash
-$ docker ps
+docker ps
+```
 
+```text
 CONTAINER ID   IMAGE                                         PORTS                                         NAMES
 6f00712bf4b6   intel/multilevel-video-understanding:latest   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+```
 
+```bash
 # the container name may change depend to your runtime
-$ docker logs -f docker-multilevel-video-understanding-1
+docker logs -f docker-multilevel-video-understanding-1
+```
 
+```text
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-
 ```
 
 > **Note**: Please ensure that the dependent VLM and LLM model services have been successfully set up, and the `VLM_MODEL_NAME`, `LLM_MODEL_NAME`, `VLM_BASE_URL`, `LLM_BASE_URL` variables are correctly set. Users can refer to [Setting up GenAI model services to support VLM and LLM](#setup-genai-model-servings-for-vlm-and-llm)
@@ -320,7 +333,9 @@ http://localhost:8192/docs
    poetry lock --no-update
    poetry install
    ```
-   > Note: sometimes the `poetry install` may take long time, in this case, another option to install packages could be:
+
+   > **Note:** sometimes `poetry install` may take a long time; in that case, an alternative option to install packages could be:
+   >
    > ```bash
    > poetry export -f requirements.txt > requirements.txt
    > pip install -r requirements.txt
@@ -342,20 +357,31 @@ http://localhost:8192/docs
    export SERVICE_PORT=8192
    ```
 
-> **Note:**
-> - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
-> - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
+   > **Note:**
+   >
+   > - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
+   > - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
 6. Run the service:
 
-```bash
-DEBUG=True poetry run uvicorn video_analyzer.main:app --host 0.0.0.0 --port ${SERVICE_PORT} --reload
-```
+   ```bash
+   DEBUG=True poetry run uvicorn video_analyzer.main:app --host 0.0.0.0 --port ${SERVICE_PORT} --reload
+   ```
 
 <!-- ## Troubleshooting -->
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+- [Overview](./index.md)
+- [API Reference](./api-reference.md)
+- [System Requirements](./get-started/system-requirements.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+get-started/how-to-build-from-source
+
+:::
+hide_directive-->

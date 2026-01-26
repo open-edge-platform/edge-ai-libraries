@@ -15,7 +15,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
 import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
 import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
+import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { Zap } from "lucide-react";
 import { isApiError } from "@/lib/apiUtils";
 import {
@@ -36,9 +37,9 @@ import {
 } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
   ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
 } from "@/components/ui/resizable";
 
 type UrlParams = {
@@ -52,14 +53,14 @@ const Pipelines = () => {
   >(null);
   const [currentNodes, setCurrentNodes] = useState<ReactFlowNode[]>([]);
   const [currentEdges, setCurrentEdges] = useState<ReactFlowEdge[]>([]);
-  const [currentViewport, setCurrentViewport] = useState<Viewport>({
-    x: 0,
-    y: 0,
-    zoom: 1,
-  });
+  const [currentViewport, setCurrentViewport] = useState<Viewport | undefined>(
+    undefined,
+  );
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
@@ -76,11 +77,12 @@ const Pipelines = () => {
   >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const detailsPanelSizeRef = useRef(30);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
 
-  const { data, isSuccess } = useGetPipelineQuery(
+  const { data, isSuccess, refetch } = useGetPipelineQuery(
     {
       pipelineId: id ?? "",
     },
@@ -185,7 +187,7 @@ const Pipelines = () => {
             pipeline_graph: {
               nodes: pendingOptimizationNodes.map((node) => ({
                 id: node.id,
-                type: node.type || "",
+                type: node.type ?? "",
                 data: node.data as { [key: string]: string },
               })),
               edges: pendingOptimizationEdges.map((edge) => ({
@@ -401,22 +403,24 @@ const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const graphData = {
+        nodes: currentNodes.map((node) => ({
+          id: node.id,
+          type: node.type ?? "",
+          data: node.data as { [key: string]: string },
+        })),
+        edges: currentEdges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        })),
+      };
+
       await updatePipeline({
         pipelineId: id,
-        pipelineUpdate: {
-          pipeline_graph: {
-            nodes: currentNodes.map((node) => ({
-              id: node.id,
-              type: node.type || "",
-              data: node.data as { [key: string]: string },
-            })),
-            edges: currentEdges.map((edge) => ({
-              id: edge.id,
-              source: edge.source,
-              target: edge.target,
-            })),
-          },
-        },
+        pipelineUpdate: isSimpleMode
+          ? { pipeline_graph_simple: graphData }
+          : { pipeline_graph: graphData },
       }).unwrap();
 
       const response = await runPerformanceTest({
@@ -536,7 +540,7 @@ const Pipelines = () => {
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
           id: node.id,
-          type: node.type || "",
+          type: node.type ?? "",
           data: node.data as { [key: string]: string },
         })),
         edges: currentEdges.map((edge) => ({
@@ -573,21 +577,25 @@ const Pipelines = () => {
   if (isSuccess && data) {
     const editorContent = (
       <div className="w-full h-full relative">
-        <PipelineEditor
-          ref={pipelineEditorRef}
-          key={editorKey}
-          pipelineData={data}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onViewportChange={handleViewportChange}
-          onNodeSelect={handleNodeSelect}
-          initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
-          initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
-          initialViewport={
-            currentNodes.length > 0 ? currentViewport : undefined
-          }
-          shouldFitView={shouldFitView}
-        />
+        <div
+          className="w-full h-full transition-opacity duration-100"
+          style={{ opacity: isTransitioning ? 0 : 1 }}
+        >
+          <PipelineEditor
+            ref={pipelineEditorRef}
+            key={editorKey}
+            pipelineData={data}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
+            onViewportChange={handleViewportChange}
+            onNodeSelect={handleNodeSelect}
+            initialNodes={currentNodes.length > 0 ? currentNodes : undefined}
+            initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
+            initialViewport={currentViewport}
+            shouldFitView={shouldFitView}
+            useSimpleGraph={isSimpleMode}
+          />
+        </div>
 
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
@@ -628,6 +636,26 @@ const Pipelines = () => {
           </div>
 
           <div className="flex gap-2">
+            {id && (
+              <ViewModeSwitcher
+                pipelineId={id}
+                isSimpleMode={isSimpleMode}
+                currentNodes={currentNodes}
+                currentEdges={currentEdges}
+                onModeChange={setIsSimpleMode}
+                onTransitionStart={() => setIsTransitioning(true)}
+                onTransitionEnd={() => setIsTransitioning(false)}
+                onClearGraph={() => {
+                  setCurrentNodes([]);
+                  setCurrentEdges([]);
+                }}
+                onRefetch={refetch}
+                onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+              />
+            )}
+          </div>
+
+          <div className="flex gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
@@ -653,8 +681,22 @@ const Pipelines = () => {
     );
 
     return (
-      <ResizablePanelGroup orientation="horizontal" className="w-full h-full">
-        <ResizablePanel defaultSize={showDetailsPanel ? 70 : 100} minSize={30}>
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="w-full h-full"
+        onLayoutChange={(sizes) => {
+          const sizeValues = Object.values(sizes);
+          if (sizeValues.length === 2) {
+            detailsPanelSizeRef.current = sizeValues[1];
+          }
+        }}
+      >
+        <ResizablePanel
+          defaultSize={
+            showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
+          }
+          minSize={30}
+        >
           {editorContent}
         </ResizablePanel>
 
@@ -662,7 +704,10 @@ const Pipelines = () => {
           <>
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={30} minSize={20}>
+            <ResizablePanel
+              defaultSize={detailsPanelSizeRef.current}
+              minSize={20}
+            >
               <div
                 ref={detailsPanelRef}
                 className="w-full h-full bg-background overflow-auto relative"

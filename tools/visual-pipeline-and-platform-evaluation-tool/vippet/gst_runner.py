@@ -2,8 +2,13 @@
 """
 GStreamer Pipeline Runner
 
-This script provides a command-line tool and library API for running
+This module provides a command-line tool and library API for running
 GStreamer pipeline descriptions.
+
+The runner supports two modes:
+
+- normal: Run pipelines for production use.
+- validation: Run pipelines for a limited time to verify correctness.
 
 The runner:
 
@@ -18,9 +23,8 @@ The runner:
    - watches the bus for GStreamer ERROR and EOS messages.
 5. Stops the pipeline when:
    - an ERROR is observed on the bus (run FAIL), OR
-   - EOS is observed on the bus (run SUCCESS), OR
-   - the max-runtime elapses; in this case the pipeline is stopped and,
-     if no ERRORs were observed at any point, the run is considered SUCCESS.
+   - EOS is observed on the bus, OR
+   - the max-runtime elapses (if configured).
 
 Running semantics:
 
@@ -29,12 +33,11 @@ Running semantics:
   * any GStreamer ERROR is logged during parsing (even if parse_launch
     returns a pipeline object), OR
   * a GStreamer ERROR is observed on the bus at ANY time during the run
-    or shutdown.
+    or shutdown, OR
+  * invalid combination of mode and max-runtime arguments.
 - Success (exit code 0):
   * the pipeline is parsed successfully AND
   * no GStreamer ERROR appears during parsing, run, or shutdown.
-  * reaching the max-runtime and stopping the pipeline is considered SUCCESS,
-    provided no ERRORs were seen.
 
 The script is designed to:
 
@@ -392,24 +395,41 @@ class _PipelineRunner:
     This class encapsulates:
 
     - A GLib.MainLoop driving the pipeline, similar to gst-launch.
-    - A mechanism that stops the pipeline after max-runtime elapses.
+    - A mechanism that stops the pipeline after max-runtime elapses (if configured).
     - A bus message handler that records ERROR/EOS and terminates the loop.
 
     Max-runtime semantics:
 
-    - If an ERROR or EOS is observed before max-runtime elapses, the loop is
-      stopped immediately and the outcome is derived from the observed messages.
-    - If max-runtime elapses first, the pipeline is stopped (set to NULL) and
-      the loop quits. Provided no ERRORs were observed, this is considered
-      a successful run.
+    - If max-runtime > 0: pipeline will be stopped after this duration if it
+      hasn't finished or errored.
+    - If max-runtime == 0: pipeline runs until natural completion (EOS or error).
+
+    Mode semantics:
+
+    - validation mode: used for testing pipeline validity.
+    - normal mode: used for production pipeline execution.
+
+    Note on looping:
+    - This runner does not implement pipeline looping. If you need a pipeline
+      to loop (play repeatedly), use GStreamer elements that support looping
+      natively, such as `multifilesrc loop=true`.
+    - With normal mode and max-runtime == 0, such a pipeline will run indefinitely.
+    - With normal mode and max-runtime > 0, the pipeline will loop until
+      max-runtime is reached.
     """
 
-    def __init__(self, pipeline: Gst.Pipeline, max_run_time_sec: float):
+    def __init__(
+        self,
+        pipeline: Gst.Pipeline,
+        max_run_time_sec: float,
+        mode: str,
+    ):
         if not isinstance(pipeline, Gst.Pipeline):
             raise TypeError("pipeline must be a Gst.Pipeline instance")
 
         self._pipeline = pipeline
         self._max_run_time_sec = max_run_time_sec
+        self._mode = mode
         self._state = _RunState()
         self._logger = get_logger()
 
@@ -436,7 +456,7 @@ class _PipelineRunner:
             loop.quit()
 
         elif msg_type == Gst.MessageType.EOS:
-            self._logger.info("Pipeline produced EOS during run.")
+            self._logger.info("Pipeline reached EOS.")
             self._state.eos_seen = True
             self._state.reason = self._state.reason or None
             loop.quit()
@@ -488,8 +508,8 @@ class _PipelineRunner:
         3. Request PLAYING state on the pipeline.
         4. Call get_state() with a configured wait time (for diagnostics only)
            to log the initial state-change outcome.
-        5. Start a background thread that will trigger when max_run_time_sec
-           elapses.
+        5. If max-runtime > 0, start a background thread that will trigger when
+           max_run_time_sec elapses.
         6. Run the GLib.MainLoop until:
              - ERROR on the bus, OR
              - EOS on the bus, OR
@@ -525,6 +545,7 @@ class _PipelineRunner:
         state_change_ret, current_state, pending = self._pipeline.get_state(
             5 * Gst.SECOND,
         )
+
         self._logger.debug(
             "Initial state change result: %s, current: %s, pending: %s",
             state_change_ret,
@@ -532,18 +553,19 @@ class _PipelineRunner:
             pending,
         )
 
-        # Start max-runtime enforcement thread.
-        max_runtime_thread = threading.Thread(
-            target=self._max_runtime_enforcement_thread,
-            args=(loop,),
-            daemon=True,
-        )
-        max_runtime_thread.start()
+        # Start max-runtime enforcement thread only if max-runtime > 0.
+        if self._max_run_time_sec > 0:
+            max_runtime_thread = threading.Thread(
+                target=self._max_runtime_enforcement_thread,
+                args=(loop,),
+                daemon=True,
+            )
+            max_runtime_thread.start()
 
         # Run main loop until:
         #   - ERROR (bus handler quits loop),
-        #   - EOS   (bus handler quits loop),
-        #   - max-runtime enforcement thread quits loop.
+        #   - EOS (bus handler quits loop),
+        #   - max-runtime enforcement thread quits loop (if configured).
         try:
             loop.run()
         finally:
@@ -574,6 +596,7 @@ class _PipelineRunner:
 def run_pipeline_for_duration(
     pipeline: Gst.Pipeline,
     max_run_time_sec: float,
+    mode: str,
 ) -> Tuple[bool, Optional[str]]:
     """Run the pipeline for up to max_run_time_sec seconds.
 
@@ -583,8 +606,11 @@ def run_pipeline_for_duration(
     Args:
         pipeline: A GStreamer pipeline created by parse_launch().
         max_run_time_sec: Maximum time in seconds for which the pipeline
-                          will run. Reaching this limit is NOT an error unless
-                          shutdown produces GStreamer errors.
+                          will run. Behavior depends on the value:
+                          - > 0: pipeline stops after this duration if not
+                            finished earlier
+                          - == 0: pipeline runs until natural completion (EOS)
+        mode: Execution mode ("normal" or "validation").
 
     Returns:
         (True, None)          if the pipeline ran successfully (EOS or clean
@@ -593,7 +619,7 @@ def run_pipeline_for_duration(
         (True, "max_runtime") if the pipeline was stopped at max-runtime with
                               NO error.
     """
-    runner = _PipelineRunner(pipeline, max_run_time_sec)
+    runner = _PipelineRunner(pipeline, max_run_time_sec, mode)
     return runner.run()
 
 
@@ -605,6 +631,7 @@ def run_pipeline_for_duration(
 def run_pipeline(
     pipeline_description: str,
     max_run_time_sec: float,
+    mode: str,
 ) -> bool:
     """High-level pipeline running helper.
 
@@ -625,7 +652,8 @@ def run_pipeline(
 
     Args:
         pipeline_description: Textual GStreamer pipeline description.
-        max_run_time_sec: Maximum runtime in seconds.
+        max_run_time_sec: Maximum runtime in seconds (behavior depends on value).
+        mode: Execution mode ("normal" or "validation").
 
     Returns:
         True  if the pipeline ran successfully.
@@ -645,6 +673,7 @@ def run_pipeline(
         run_ok, failure_reason = run_pipeline_for_duration(
             pipeline=pipeline,
             max_run_time_sec=max_run_time_sec,
+            mode=mode,
         )
     finally:
         # Ensure the pipeline is always set to NULL, even if something goes
@@ -673,6 +702,42 @@ def run_pipeline(
     return True
 
 
+def validate_arguments(mode: str, max_runtime: float) -> Optional[str]:
+    """Validate the combination of mode and max-runtime arguments.
+
+    Args:
+        mode: Execution mode ("normal" or "validation").
+        max_runtime: Maximum runtime in seconds.
+
+    Returns:
+        None if arguments are valid, otherwise an error message string.
+    """
+    # Validate mode value.
+    if mode not in ("normal", "validation"):
+        return f"Invalid mode '{mode}'. Must be either 'normal' or 'validation'."
+
+    # Negative max-runtime is not allowed.
+    if max_runtime < 0:
+        return (
+            f"Invalid max-runtime value {max_runtime}. "
+            "Negative values are not allowed. "
+            "If you need a pipeline to loop indefinitely, use pipeline elements "
+            "that support looping (e.g., 'multifilesrc loop=true') with "
+            "mode='normal' and max-runtime=0."
+        )
+
+    # Validate mode and max-runtime combinations.
+    if mode == "validation":
+        if max_runtime == 0:
+            return (
+                "Invalid argument combination: validation mode requires "
+                "max-runtime > 0. Validation mode is designed to run pipelines "
+                "for a limited time to verify correctness."
+            )
+
+    return None
+
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse command-line arguments.
 
@@ -693,15 +758,32 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--mode",
+        type=str,
+        default="normal",
+        choices=["normal", "validation"],
+        help=(
+            "Execution mode. 'normal' runs the pipeline for production use. "
+            "'validation' runs the pipeline for a limited time to verify correctness. "
+            "Default: %(default)s."
+        ),
+    )
+
+    parser.add_argument(
         "--max-runtime",
         type=float,
-        default=10.0,
+        default=0.0,
         metavar="SECONDS",
         help=(
-            "Maximum time (in seconds) to run the pipeline. If the pipeline "
-            "does not reach EOS or error within this time, it will be stopped. "
-            "Reaching max-runtime is NOT a failure as long as no errors are "
-            "observed. Default: %(default).1f seconds."
+            "Maximum time (in seconds) to run the pipeline. Behavior depends "
+            "on the value: "
+            "> 0: pipeline stops after this duration if not finished earlier; "
+            "== 0: pipeline runs until natural completion (EOS). "
+            "Note: To make a pipeline loop indefinitely, use pipeline elements "
+            "that support looping (e.g., 'multifilesrc loop=true') with "
+            "max-runtime=0. To loop for a limited time, use looping elements "
+            "with max-runtime > 0. "
+            "Default: %(default).1f seconds."
         ),
     )
 
@@ -731,7 +813,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 def run_application(
     argv: Optional[List[str]],
     initialize_gst_fn: Callable[[], None],
-    run_fn: Callable[[str, float], bool],
+    run_fn: Callable[[str, float, str], bool],
 ) -> int:
     """Core implementation of the CLI entry point with dependency injection.
 
@@ -750,7 +832,7 @@ def run_application(
         initialize_gst_fn: Function used to initialize GStreamer and logging.
         run_fn: Function used to run the pipeline string. The callable
                 MUST accept (pipeline_description: str,
-                max_run_time_sec: float) in this order.
+                max_run_time_sec: float, mode: str) in this order.
 
     Returns:
         0 on successful run,
@@ -769,6 +851,12 @@ def run_application(
 
     logger.debug("Parsed arguments: %s", args)
 
+    # Validate argument combinations.
+    validation_error = validate_arguments(args.mode, args.max_runtime)
+    if validation_error:
+        logger.error("%s", validation_error)
+        return 1
+
     # Initialize GStreamer and its logging bridge.
     try:
         initialize_gst_fn()
@@ -778,12 +866,18 @@ def run_application(
 
     # Join the pipeline pieces into a single string.
     pipeline_description = " ".join(args.pipeline)
-    logger.info("Running pipeline: %s", pipeline_description)
+    logger.info(
+        "Running pipeline in %s mode (max-runtime: %.1f s): %s",
+        args.mode,
+        args.max_runtime,
+        pipeline_description,
+    )
 
     try:
         success = run_fn(
             pipeline_description,
             args.max_runtime,
+            args.mode,
         )
     except Exception as exc:  # noqa: BLE001
         # Any unexpected internal error is treated as a run failure,
