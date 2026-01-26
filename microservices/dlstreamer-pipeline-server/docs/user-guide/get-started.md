@@ -123,3 +123,12 @@ Please contact us at dlsps_support[at]intel[dot]com for more details or any supp
 - [System Requirements](./get-started/system-requirements.md)
 - [API Reference](./api-reference.md)
 - [Environment Variables](./environment-variables.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements.md
+
+:::
+hide_directive-->
