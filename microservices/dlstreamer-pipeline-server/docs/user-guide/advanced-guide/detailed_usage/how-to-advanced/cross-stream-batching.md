@@ -17,8 +17,8 @@ Below is an example that demonstrates cross stream batching, 4 frames at a time:
 
 Choosing the right batch size:
 
-- `Real time applications`  Keep the batch-size small to minimize the latency. A larger batch size may cause the initial frames to wait until the batch is completely filled before the model begins processing. Also, large batch size means higher memory utilization
-- `High throughput `  Keep the batch-size large to maximize the throughput. Some hardware are suited to process large number of frames in parallel, thus reducing overall time required to process all the frames.
+- `Real time applications`  Keep the batch-size small to minimize the latency. A larger batch size may cause the initial frames to wait until the batch is completely filled before the model begins processing. Additionally, a large batch size means higher memory utilization.
+- `High throughput`  Keep the batch-size large to maximize the throughput. Some hardware are suited to process large number of frames in parallel, thus reducing overall time required to process all the frames.
 
 > **Note:** For optimal performance, set `batch-size` to an integer multiple of the stream count.
 > Typically, setting `batch-size` equal to the number of streams (`batch-size=<number of streams>`)
