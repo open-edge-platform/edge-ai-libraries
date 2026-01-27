@@ -21,7 +21,7 @@ The processed frames and metadata can be published over to a MQTT message broker
 - Broker receives messages from DL Streamer Pipeline Server and forwards the messages to MQTT subscribers.
 - Subscriber receives messages from broker on the subscribed topic. <br>
 
-The python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to specified MQTT broker.
+The Python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to the specified MQTT broker.
 
 ## Prerequisites
 Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber needs to be configured and started.

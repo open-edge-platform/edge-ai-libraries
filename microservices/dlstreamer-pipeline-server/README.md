@@ -23,12 +23,12 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-> **Note**: Detailed documentation for Deep Learning Streamer Pipeline Server can be found on
+> **Note:** Detailed documentation for Deep Learning Streamer Pipeline Server can be found on
 [the documentation website](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/index.html).
 
 ## Architecture
 
-![Deep Learning Streamer Pipeline Server Architecture](./docs/user-guide/images/dls-pipelineserver-simplified-arch.png)
+![Deep Learning Streamer Pipeline Server Architecture](./docs/user-guide/_assets/dls-pipelineserver-simplified-arch.png)
 
 ## Prerequisites For Target System
 
@@ -103,7 +103,7 @@ The REST request will return a pipeline instance ID, which can be used as an ide
 
 - RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet-defect-detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc
 
-  ![sample frame RTSP stream](./docs/user-guide/images/sample-pallet-defect-detection.png)
+  ![sample frame RTSP stream](./docs/user-guide/_assets/sample-pallet-defect-detection.png)
 
 To check the pipeline status and stop the pipeline send the following requests,
 
@@ -184,7 +184,7 @@ Refer to the relevant [Get Started](https://docs.openedgeplatform.intel.com/dev/
 ---
 
 ## Troubleshooting
-- [Troubleshooting Guide](./docs/user-guide/troubleshooting-guide.md)
+- [Troubleshooting](./docs/user-guide/troubleshooting.md)
 
 ---
 ## Learn More
