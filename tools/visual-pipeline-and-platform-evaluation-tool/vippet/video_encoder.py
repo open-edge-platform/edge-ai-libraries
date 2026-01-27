@@ -91,8 +91,6 @@ class VideoEncoder:
             },
         }
 
-        # TODO: Only `"x264enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25 bframes=0"` has been checked for low-latency live streaming
-        # TODO: Other encoders need to be verified for low-latency performance
         # Low-latency encoders for live-streaming (used only for live_stream output mode)
         self.streaming_encoder_configs = {
             "h264": {
@@ -267,8 +265,9 @@ class VideoEncoder:
                 f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
-        # Count fakesink instances only when they are separate elements (not embedded in properties like video-sink=fakesink)
-        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink(?=(?:[\s!]|$))"
+        # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
+        # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
+        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
         fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
 
         if fakesink_count == 0:
@@ -326,8 +325,9 @@ class VideoEncoder:
         Raises:
             ValueError: If no fakesink is found in pipeline
         """
-        # Count fakesink instances
-        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink(?=(?:[\s!]|$))"
+        # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
+        # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
+        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
         fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
 
         if fakesink_count == 0:
