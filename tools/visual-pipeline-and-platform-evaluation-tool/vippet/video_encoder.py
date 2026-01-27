@@ -68,6 +68,11 @@ class VideoEncoder:
         self.logger = logging.getLogger("VideoEncoder")
         self.gst_inspector = GstInspector()
 
+        # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
+        # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
+        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
+        self.re_pattern = re.compile(fakesink_pattern)
+
         # Define encoder configurations for different codecs
         # Standard encoders for file output (no looping support needed)
         self.encoder_configs = {
@@ -266,9 +271,7 @@ class VideoEncoder:
             )
 
         # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
-        # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
-        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
-        fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
+        fakesink_count = len(self.re_pattern.findall(pipeline_str))
 
         if fakesink_count == 0:
             self.logger.warning("No fakesink found in pipeline string")
@@ -288,7 +291,7 @@ class VideoEncoder:
 
             # Replace first occurrence of standalone fakesink element
             video_output_str = f"{encoder_element} ! {codec}parse ! mp4mux ! filesink location={output_path}"
-            result = re.sub(fakesink_pattern, video_output_str, result, count=1)
+            result = self.re_pattern.sub(video_output_str, result, count=1)
 
         self.logger.info(
             f"Replaced {fakesink_count} fakesink(s) with video file output(s): "
@@ -326,9 +329,7 @@ class VideoEncoder:
             ValueError: If no fakesink is found in pipeline
         """
         # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
-        # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
-        fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
-        fakesink_count = len(re.findall(fakesink_pattern, pipeline_str))
+        fakesink_count = len(self.re_pattern.findall(pipeline_str))
 
         if fakesink_count == 0:
             raise ValueError("No fakesink found in pipeline string for live streaming")
@@ -372,7 +373,7 @@ class VideoEncoder:
         )
 
         # Replace only first fakesink
-        result = re.sub(fakesink_pattern, live_stream_output_str, pipeline_str, count=1)
+        result = self.re_pattern.sub(live_stream_output_str, pipeline_str, count=1)
 
         encoder_type = "low-latency streaming" if needs_looping else "streaming"
         self.logger.info(
