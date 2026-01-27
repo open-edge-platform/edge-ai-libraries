@@ -103,7 +103,7 @@ services:
       # USB camera devices
       # Selective mount can be done for deployment as mounting whole /dev is not recommended
       - "/dev:/dev"
-      
+
   mediamtx:
     image: bluenviron/mediamtx:1.11.3
     container_name: mediamtx-server

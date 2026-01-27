@@ -161,7 +161,10 @@ async def download_models(
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
-
+                if config['device'].upper() == "NPU":
+                    logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
+                    config['precision'] = "int4"
+                    download_path = download_path.rsplit("/", 1)[0] + "/int4"
                 # Create a unique output directory for the converted model
                 convert_output_dir = os.path.join(
                     models_dir,

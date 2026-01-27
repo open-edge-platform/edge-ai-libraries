@@ -56,7 +56,7 @@ To enable GPU support, set the configuration parameter `gpu.enabled` to `true` a
 
 GPU support only enabled for OpenVINO toolkit framework.
 
-For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./system-requirements.md) section.
+For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./get-started/system-requirements.md) section.
 
 
 | Key | Description | Example Value | Required When | Supported Framework (OpenVINO/Ollama) |

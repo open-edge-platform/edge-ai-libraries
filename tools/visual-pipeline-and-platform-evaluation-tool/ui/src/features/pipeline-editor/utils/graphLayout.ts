@@ -4,7 +4,12 @@ import {
   type Node as ReactFlowNode,
   Position,
 } from "@xyflow/react";
-import { defaultNodeWidth, nodeWidths } from "@/features/pipeline-editor/nodes";
+import {
+  defaultNodeWidth,
+  defaultNodeHeight,
+  nodeWidths,
+  nodeHeights,
+} from "@/features/pipeline-editor/nodes";
 
 export const LayoutDirection = {
   TopToBottom: "TB" as const,
@@ -16,39 +21,29 @@ export const LayoutDirection = {
 export type LayoutDirectionType =
   (typeof LayoutDirection)[keyof typeof LayoutDirection];
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-const nodeHeight = 120;
-
 const getNodeWidth = (nodeType: string): number =>
   nodeWidths[nodeType] ?? defaultNodeWidth;
+
+const getNodeHeight = (nodeType: string): number =>
+  nodeHeights[nodeType] ?? defaultNodeHeight;
 
 export const createGraphLayout = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
-  direction: LayoutDirectionType = LayoutDirection.LeftToRight,
+  direction: LayoutDirectionType = LayoutDirection.TopToBottom,
 ) => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+
   const isHorizontal = direction === "LR" || direction === "RL";
   dagreGraph.setGraph({ rankdir: direction });
 
   nodes.forEach((node) => {
-    if (dagreGraph.hasNode(node.id)) {
-      dagreGraph.removeNode(node.id);
-    }
-  });
-
-  edges.forEach((edge) => {
-    if (dagreGraph.hasEdge(edge.source, edge.target)) {
-      dagreGraph.removeEdge(edge.source, edge.target);
-    }
-  });
-
-  nodes.forEach((node) => {
     const currentNodeWidth = getNodeWidth(node.type || "default");
+    const currentNodeHeight = getNodeHeight(node.type || "default");
     dagreGraph.setNode(node.id, {
       width: currentNodeWidth,
-      height: nodeHeight,
+      height: currentNodeHeight,
     });
   });
 
@@ -61,6 +56,7 @@ export const createGraphLayout = (
   return nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const currentNodeWidth = getNodeWidth(node.type ?? "default");
+    const currentNodeHeight = getNodeHeight(node.type ?? "default");
 
     return {
       ...node,
@@ -68,8 +64,15 @@ export const createGraphLayout = (
       sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
       position: {
         x: nodeWithPosition.x - currentNodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
+        y: nodeWithPosition.y - currentNodeHeight / 2,
       },
     };
   });
+};
+
+export const getHandleLeftPosition = (nodeType: string): string => {
+  const width = nodeWidths[nodeType] ?? defaultNodeWidth;
+  const handleWidth = 12;
+  const leftPosition = (width - handleWidth) / 2;
+  return `${leftPosition}px`;
 };

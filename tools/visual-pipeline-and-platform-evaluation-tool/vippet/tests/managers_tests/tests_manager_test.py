@@ -243,7 +243,8 @@ class TestTestsManager(unittest.TestCase):
             state=TestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
-        manager.runners[job_id] = PipelineRunner()
+        # Create PipelineRunner with correct arguments
+        manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
 
         success, message = manager.stop_job(job_id)
         self.assertTrue(success)
@@ -307,7 +308,8 @@ class TestTestsManager(unittest.TestCase):
             state=TestJobState.COMPLETED,
         )
         manager.jobs[job_id] = job
-        manager.runners[job_id] = PipelineRunner()
+        # Create PipelineRunner with correct arguments
+        manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
 
         success, message = manager.stop_job(job_id)
         self.assertFalse(success)

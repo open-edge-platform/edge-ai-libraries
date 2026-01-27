@@ -16,7 +16,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
     `NOTE` The model used in the below pipeline is from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download it for your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md)
 
     ```sh
-    "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
+    "pipeline": "{auto_source} ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
     ```
 
     `NOTE` The property `add-tensor-data` for the dlstreamer element gvametaconvert is set to `true`.
