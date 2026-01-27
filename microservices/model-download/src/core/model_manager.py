@@ -57,7 +57,7 @@ class ModelManager:
             model_name: Name of the model to process
             output_dir: Optional custom directory for output
             plugin_name: Optional specific plugin to use
-            model_type: Optional type of model (llm, embeddings, rerank, vision)
+            model_type: Optional type of model (llm, embeddings, rerank, vlm, vision)
 
         Returns:
             Job ID as a string
