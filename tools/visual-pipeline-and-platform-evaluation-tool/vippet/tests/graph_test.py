@@ -1,11 +1,11 @@
 import os
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
-from graph import Graph, Node, Edge
-from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
 from typing import Optional
+from unittest.mock import MagicMock, patch
 
+from graph import Edge, Graph, Node
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
@@ -3246,6 +3246,286 @@ class TestApplySimpleViewChanges(unittest.TestCase):
             "CPU",
             "Result graph should have the modified value",
         )
+
+
+class TestApplyLoopingModifications(unittest.TestCase):
+    """Test cases for Graph.apply_looping_modifications method."""
+
+    @patch("graph.videos_manager")
+    def test_filesrc_replaced_with_multifilesrc(self, mock_videos_manager):
+        """Test that filesrc is replaced with multifilesrc loop=true."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc is replaced with multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+    @patch("graph.videos_manager")
+    def test_qtdemux_replaced_with_tsdemux(self, mock_videos_manager):
+        """Test that qtdemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("graph.videos_manager")
+    def test_matroskademux_replaced_with_tsdemux(self, mock_videos_manager):
+        """Test that matroskademux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mkv"}),
+                Node(id="1", type="matroskademux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("graph.videos_manager")
+    def test_avidemux_replaced_with_tsdemux(self, mock_videos_manager):
+        """Test that avidemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.avi"}),
+                Node(id="1", type="avidemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("graph.videos_manager")
+    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_manager):
+        """Test that splitmuxsink is replaced with appsink."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(
+                    id="2",
+                    type="splitmuxsink",
+                    data={"location": "/output/file_%02d.mp4", "max-size-time": "10"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check splitmuxsink is replaced with appsink
+        self.assertEqual(result.nodes[2].type, "appsink")
+        # Check old properties are cleared
+        self.assertNotIn("location", result.nodes[2].data)
+        self.assertNotIn("max-size-time", result.nodes[2].data)
+        # Check appsink properties are set
+        self.assertEqual(result.nodes[2].data["emit-signals"], "false")
+        self.assertEqual(result.nodes[2].data["drop"], "true")
+        self.assertEqual(result.nodes[2].data["max-buffers"], "1")
+
+    @patch("graph.videos_manager")
+    def test_original_graph_not_modified(self, mock_videos_manager):
+        """Test that apply_looping_modifications creates a deep copy."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        original_graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        # Store original values
+        original_type = original_graph.nodes[0].type
+        original_location = original_graph.nodes[0].data.get("location")
+
+        # Apply modifications
+        result = original_graph.apply_looping_modifications()
+
+        # Verify original is unchanged
+        self.assertEqual(original_graph.nodes[0].type, original_type)
+        self.assertEqual(
+            original_graph.nodes[0].data.get("location"), original_location
+        )
+        self.assertNotIn("loop", original_graph.nodes[0].data)
+
+        # Verify result is modified
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+
+    @patch("graph.videos_manager")
+    def test_ts_path_not_found_keeps_original_location(self, mock_videos_manager):
+        """Test that original location is kept when ts_path returns None."""
+        mock_videos_manager.get_ts_path.return_value = None
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.xyz"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Type should still be changed to multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # Location should remain unchanged since get_ts_path returned None
+        self.assertEqual(result.nodes[0].data["location"], "video.xyz")
+
+    @patch("graph.videos_manager")
+    def test_multiple_modifications_in_complex_pipeline(self, mock_videos_manager):
+        """Test looping modifications in a complex pipeline with tee."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="tee", data={"name": "t0"}),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="splitmuxsink",
+                    data={"location": "/output/file.mp4"},
+                ),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="gvadetect", data={"model": "yolo"}),
+                Node(id="8", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="3", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc -> multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+        # Check qtdemux -> tsdemux
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+        # Check splitmuxsink -> appsink
+        self.assertEqual(result.nodes[5].type, "appsink")
+        self.assertEqual(result.nodes[5].data["emit-signals"], "false")
+
+        # Check other nodes are unchanged
+        self.assertEqual(result.nodes[3].type, "tee")
+        self.assertEqual(result.nodes[7].type, "gvadetect")
+        self.assertEqual(result.nodes[8].type, "fakesink")
+
+    @patch("graph.videos_manager")
+    def test_filesrc_without_location(self, mock_videos_manager):
+        """Test filesrc without location property is still modified."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Type should be changed to multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # No location to modify
+        self.assertNotIn("location", result.nodes[0].data)
+        # get_ts_path should not be called
+        mock_videos_manager.get_ts_path.assert_not_called()
+
+    @patch("graph.videos_manager")
+    def test_flvdemux_replaced_with_tsdemux(self, mock_videos_manager):
+        """Test that flvdemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.flv"}),
+                Node(id="1", type="flvdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
 
 
 if __name__ == "__main__":

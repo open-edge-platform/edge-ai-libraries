@@ -7,15 +7,15 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from utils import generate_unique_filename
-from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from resources import (
     get_labels_manager,
-    get_scripts_manager,
     get_public_model_proc_manager,
+    get_scripts_manager,
 )
+from utils import generate_unique_filename
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+from videos import OUTPUT_VIDEO_DIR, get_videos_manager
 
 logger = logging.getLogger(__name__)
 models_manager = get_supported_models_manager()
@@ -385,7 +385,7 @@ class Graph:
             elif node.type in {"qtdemux", "matroskademux", "avidemux", "flvdemux"}:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
-            
+
             # Replace splitmuxsink with appsink (no output files during looping)
             # fakesink can't be used to avoid misunderstanding which sink to override for live output
             elif node.type == "splitmuxsink":

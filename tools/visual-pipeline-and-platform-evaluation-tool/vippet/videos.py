@@ -182,7 +182,6 @@ class VideosManager:
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = float(cap.get(cv2.CAP_PROP_FPS))
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
             cap.release()
 
             codec = self._detect_video_codec(file_path)
@@ -230,9 +229,9 @@ class VideosManager:
 
         directory = os.path.dirname(filename)
         basename = os.path.basename(filename)
-        
+
         base, ext = os.path.splitext(basename)
-        ext = ext.lower().lstrip('.')
+        ext = ext.lower().lstrip(".")
         if ext not in VIDEO_EXTENSIONS:
             logger.warning("Unsupported video extension '.%s' for %s", ext, filename)
             return None

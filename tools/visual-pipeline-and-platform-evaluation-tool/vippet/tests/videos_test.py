@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from videos import Video, VideosManager, get_videos_manager
+from videos import VIDEO_EXTENSIONS, Video, VideosManager, get_videos_manager
 
 
 class TestVideo(unittest.TestCase):
@@ -116,10 +116,14 @@ class TestVideosManager(unittest.TestCase):
 
     @patch("videos.RECORDINGS_PATH")
     @patch("cv2.VideoCapture")
-    def test_videos_manager_scan_with_video_files(self, mock_videocap, mock_path):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_scan_with_video_files(
+        self, mock_convert, mock_videocap, mock_path
+    ):
         """Test scanning directory with video files and extracting metadata."""
         mock_path.__str__ = lambda self: self.temp_dir
         mock_path.return_value = self.temp_dir
+        mock_convert.return_value = None  # Skip TS conversion
 
         # Create dummy video files
         video_file = os.path.join(self.temp_dir, "test.mp4")
@@ -142,8 +146,11 @@ class TestVideosManager(unittest.TestCase):
         mock_videocap.return_value = mock_cap
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            manager = VideosManager()
-            videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="h264"
+            ):
+                manager = VideosManager()
+                videos = manager.get_all_videos()
 
         self.assertEqual(len(videos), 1)
         self.assertIn("test.mp4", videos)
@@ -159,8 +166,11 @@ class TestVideosManager(unittest.TestCase):
         json_path = os.path.join(self.temp_dir, "test.mp4.json")
         self.assertTrue(os.path.exists(json_path))
 
-    def test_videos_manager_load_from_json(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_load_from_json(self, mock_convert):
         """Test loading video metadata from existing JSON file."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         # Create dummy video file
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -190,8 +200,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.width, 1280)
         self.assertEqual(video.height, 720)
 
-    def test_videos_manager_invalid_json(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_invalid_json(self, mock_convert):
         """Test handling of corrupted JSON metadata file."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         # Create dummy video file
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
@@ -209,8 +222,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(len(videos), 0)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_unopenable_video(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_unopenable_video(self, mock_convert, mock_videocap):
         """Test handling of video files that cannot be opened."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
             f.write("dummy video content")
@@ -227,8 +243,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(len(videos), 0)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_unsupported_codec(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_unsupported_codec(self, mock_convert, mock_videocap):
         """Test handling of video files with unsupported codecs."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
             f.write("dummy video content")
@@ -249,14 +268,20 @@ class TestVideosManager(unittest.TestCase):
         mock_videocap.return_value = mock_cap
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            manager = VideosManager()
-            videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="vp80"
+            ):
+                manager = VideosManager()
+                videos = manager.get_all_videos()
 
         self.assertEqual(len(videos), 0)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_hevc_codec(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_hevc_codec(self, mock_convert, mock_videocap):
         """Test handling of video files with HEVC/H.265 codec."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
             f.write("dummy video content")
@@ -277,15 +302,21 @@ class TestVideosManager(unittest.TestCase):
         mock_videocap.return_value = mock_cap
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            manager = VideosManager()
-            videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="h265"
+            ):
+                manager = VideosManager()
+                videos = manager.get_all_videos()
 
         self.assertEqual(len(videos), 1)
         video = videos["test.mp4"]
         self.assertEqual(video.codec, "h265")
 
-    def test_videos_manager_skip_non_video_files(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_skip_non_video_files(self, mock_convert):
         """Test that non-video files are skipped."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         # Create non-video files
         txt_file = os.path.join(self.temp_dir, "readme.txt")
         with open(txt_file, "w") as f:
@@ -297,8 +328,11 @@ class TestVideosManager(unittest.TestCase):
 
         self.assertEqual(len(videos), 0)
 
-    def test_videos_manager_skip_directories(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_skip_directories(self, mock_convert):
         """Test that directories are skipped during scanning."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         # Create a subdirectory
         subdir = os.path.join(self.temp_dir, "subdir")
         os.makedirs(subdir)
@@ -309,8 +343,11 @@ class TestVideosManager(unittest.TestCase):
 
         self.assertEqual(len(videos), 0)
 
-    def test_videos_manager_get_video(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_get_video(self, mock_convert):
         """Test retrieving a specific video by filename."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         json_path = os.path.join(self.temp_dir, "test.mp4.json")
         metadata = {
@@ -336,8 +373,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertEqual(video.filename, "test.mp4")
         self.assertEqual(video.codec, "h264")
 
-    def test_videos_manager_get_video_not_found(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_get_video_not_found(self, mock_convert):
         """Test retrieving a non-existent video returns None."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
             manager = VideosManager()
             video = manager.get_video("nonexistent.mp4")
@@ -345,8 +385,11 @@ class TestVideosManager(unittest.TestCase):
         self.assertIsNone(video)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_json_write_failure(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_json_write_failure(self, mock_convert, mock_videocap):
         """Test handling of JSON write failures."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
             f.write("dummy video content")
@@ -366,21 +409,27 @@ class TestVideosManager(unittest.TestCase):
         original_open = open
 
         def mock_open_func(path, *args, **kwargs):
-            if path.endswith(".json"):
+            if str(path).endswith(".json") and "w" in args:
                 raise OSError("Permission denied")
             return original_open(path, *args, **kwargs)
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            with patch("builtins.open", side_effect=mock_open_func):
-                manager = VideosManager()
-                videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="h264"
+            ):
+                with patch("builtins.open", side_effect=mock_open_func):
+                    manager = VideosManager()
+                    videos = manager.get_all_videos()
 
         # Video should still be in memory even if JSON save failed
         self.assertEqual(len(videos), 1)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_zero_fps(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_zero_fps(self, mock_convert, mock_videocap):
         """Test handling of video with zero FPS."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         video_file = os.path.join(self.temp_dir, "test.mp4")
         with open(video_file, "w") as f:
             f.write("dummy video content")
@@ -397,16 +446,24 @@ class TestVideosManager(unittest.TestCase):
         mock_videocap.return_value = mock_cap
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            manager = VideosManager()
-            videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="h264"
+            ):
+                manager = VideosManager()
+                videos = manager.get_all_videos()
 
         self.assertEqual(len(videos), 1)
         video = videos["test.mp4"]
         self.assertEqual(video.duration, 0.0)
 
     @patch("cv2.VideoCapture")
-    def test_videos_manager_multiple_video_extensions(self, mock_videocap):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_multiple_video_extensions(
+        self, mock_convert, mock_videocap
+    ):
         """Test scanning multiple video file extensions."""
+        mock_convert.return_value = None  # Skip TS conversion
+
         for ext in ["mp4", "mkv", "avi"]:
             video_file = os.path.join(self.temp_dir, f"test.{ext}")
             with open(video_file, "w") as f:
@@ -424,13 +481,97 @@ class TestVideosManager(unittest.TestCase):
         mock_videocap.return_value = mock_cap
 
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            manager = VideosManager()
-            videos = manager.get_all_videos()
+            with patch.object(
+                VideosManager, "_detect_video_codec", return_value="h264"
+            ):
+                manager = VideosManager()
+                videos = manager.get_all_videos()
 
         self.assertEqual(len(videos), 3)
         self.assertIn("test.mp4", videos)
         self.assertIn("test.mkv", videos)
         self.assertIn("test.avi", videos)
+
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_videos_manager_get_ts_path(self, mock_convert):
+        """Test getting .ts path from video filename."""
+        mock_convert.return_value = None  # Skip TS conversion
+
+        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+            manager = VideosManager()
+
+            # Test mp4 to ts conversion
+            ts_path = manager.get_ts_path("test.mp4")
+            self.assertEqual(ts_path, "test.ts")
+
+            # Test with full path
+            ts_path_full = manager.get_ts_path("/videos/input/test.mp4")
+            self.assertEqual(ts_path_full, "/videos/input/test.ts")
+
+            # Test ts file returns unchanged
+            ts_unchanged = manager.get_ts_path("test.ts")
+            self.assertEqual(ts_unchanged, "test.ts")
+
+            # Test unsupported extension
+            unsupported_ts_path = manager.get_ts_path("test.xyz")
+            self.assertIsNone(unsupported_ts_path)
+
+            # Test empty string
+            empty_ts_path = manager.get_ts_path("")
+            self.assertIsNone(empty_ts_path)
+
+    def test_videos_manager_demuxer_selection(self):
+        """Test demuxer selection for video files."""
+        self.assertEqual(VideosManager._get_demuxer_for_extension("mp4"), "qtdemux")
+        self.assertEqual(VideosManager._get_demuxer_for_extension("mov"), "qtdemux")
+        self.assertEqual(
+            VideosManager._get_demuxer_for_extension("mkv"), "matroskademux"
+        )
+        self.assertEqual(VideosManager._get_demuxer_for_extension("avi"), "avidemux")
+        self.assertIsNone(VideosManager._get_demuxer_for_extension("xyz"))
+        self.assertIsNone(VideosManager._get_demuxer_for_extension("ts"))
+
+    def test_videos_manager_raw_stream_extension_detection(self):
+        """Test raw stream extension detection."""
+        self.assertTrue(VideosManager._is_raw_stream_extension("264"))
+        self.assertTrue(VideosManager._is_raw_stream_extension("avc"))
+        self.assertTrue(VideosManager._is_raw_stream_extension("h265"))
+        self.assertTrue(VideosManager._is_raw_stream_extension("hevc"))
+        self.assertFalse(VideosManager._is_raw_stream_extension("mp4"))
+        self.assertFalse(VideosManager._is_raw_stream_extension("ts"))
+
+    @patch("cv2.VideoCapture")
+    def test_videos_manager_codec_detection(self, mock_videocap):
+        """Test codec detection for video files."""
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        # FOURCC for 'avc1' = 0x31637661
+        mock_cap.get.return_value = 0x31637661
+        mock_videocap.return_value = mock_cap
+
+        codec = VideosManager._detect_video_codec("test.mp4")
+        self.assertEqual(codec, "h264")
+
+        # FOURCC for 'hevc' = 0x63766568
+        mock_cap.get.return_value = 0x63766568
+        codec = VideosManager._detect_video_codec("test.mp4")
+        self.assertEqual(codec, "h265")
+
+        mock_cap.isOpened.return_value = False
+        codec = VideosManager._detect_video_codec("test.mp4")
+        self.assertEqual(codec, "")
+
+    def test_video_extensions_constant(self):
+        """Test VIDEO_EXTENSIONS constant."""
+        self.assertIn("mp4", VIDEO_EXTENSIONS)
+        self.assertIn("mkv", VIDEO_EXTENSIONS)
+        self.assertIn("mov", VIDEO_EXTENSIONS)
+        self.assertIn("avi", VIDEO_EXTENSIONS)
+        self.assertIn("ts", VIDEO_EXTENSIONS)
+        self.assertIn("264", VIDEO_EXTENSIONS)
+        self.assertIn("avc", VIDEO_EXTENSIONS)
+        self.assertIn("h265", VIDEO_EXTENSIONS)
+        self.assertIn("hevc", VIDEO_EXTENSIONS)
 
 
 class TestGetVideosManager(unittest.TestCase):
@@ -447,8 +588,11 @@ class TestGetVideosManager(unittest.TestCase):
         else:
             os.environ.pop("RECORDINGS_PATH", None)
 
-    def test_get_videos_manager_singleton(self):
+    @patch.object(VideosManager, "_convert_non_ts_videos")
+    def test_get_videos_manager_singleton(self, mock_convert):
         """Test that get_videos_manager returns the same instance."""
+        mock_convert.return_value = None
+
         with patch("videos.RECORDINGS_PATH", self.temp_dir):
             with patch("videos._videos_manager_instance", None):
                 manager1 = get_videos_manager()
