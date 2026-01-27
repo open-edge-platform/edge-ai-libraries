@@ -16,7 +16,7 @@ Passing values to the `kwarg` property of the `gvapython` element in the pipelin
 
 **Example of unsupported usage:**
 
-   gvapython class=ObjectFilter module=tracked_object_filter.py kwarg="{\"reclassify_interval\": $BARCODE_RECLASSIFY_INTERVAL}"
+`gvapython class=ObjectFilter module=tracked_object_filter.py kwarg="{\"reclassify_interval\": $BARCODE_RECLASSIFY_INTERVAL}"`
 
 ## Note
 
