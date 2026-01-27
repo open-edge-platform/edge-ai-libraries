@@ -1,7 +1,7 @@
 # Customizing Pipeline Requests
 | [Request Format](#request-format) | [Source](#source) | [Destination](#metadata-destination) | [Parameters](#parameters) | [Tags](#tags) |
 
-Pipeline requests are initiated to exercise the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) REST API. Each pipeline in the DL Streamer Pipeline Server has a specific endpoint. A pipeline can be started by issuing a `POST` request and a running pipeline can be stopped using a `DELETE` request. The `source` and `destination` elements of Pipeline Server [pipeline templates](defining_pipelines.md#pipeline-templates) are configured and constructed based on the `source` and `destination` from the incoming requests.
+Pipeline requests are initiated to exercise the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) REST API. Each pipeline in the DL Streamer Pipeline Server has a specific endpoint. A pipeline can be started by issuing a `POST` request and a running pipeline can be stopped using a `DELETE` request. The `source` and `destination` elements of Pipeline Server [pipeline templates](./defining_pipelines.md#pipeline-templates) are configured and constructed based on the `source` and `destination` from the incoming requests.
 
 ## Request Format
 
@@ -17,7 +17,7 @@ Pipeline requests sent to Pipeline Server REST API are JSON documents that have 
 ### Example Request
 Below is a sample request using curl to start an `user_defined_pipelines/pallet_defect_detection` pipeline that analyzes the video warehouse.avi and sends its results to `/tmp/results.jsonl`.
 
-> Note: Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml]. 
+> **Note:** Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml].
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -67,10 +67,10 @@ Some of the common video sources are:
 * IP Camera (RTSP Source)
 * Web Camera
 
-> Note: See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
+> **Note:** See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
 
 ### File Source
-The following example shows a media `source` from a video file in GitHub: 
+The following example shows a media `source` from a video file in GitHub:
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -161,7 +161,7 @@ For example, to set property `buffer-size` on urisourcebin, source section can b
 ### Setting a property on underlying element
 For example, if you'd like to set `ntp-sync` property of the `rtspsrc` element to synchronize timestamps across RTSP source(s).
 
-> Note: This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
+> **Note:** This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
 
 ```json
 {
