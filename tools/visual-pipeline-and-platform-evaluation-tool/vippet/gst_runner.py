@@ -386,6 +386,7 @@ class _RunState:
     error_seen: bool = False
     eos_seen: bool = False
     max_runtime_triggered: bool = False
+    shutdown_in_progress: bool = False
     reason: Optional[str] = None
 
 
@@ -446,6 +447,18 @@ class _PipelineRunner:
         if msg_type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             debug = debug.replace("\r", " ").replace("\n", " ")
+
+            # Ignore errors that occur during graceful shutdown after max-runtime.
+            # Elements like rtspclientsink may report errors when the pipeline
+            # is being stopped, which is expected behavior.
+            if self._state.shutdown_in_progress:
+                self._logger.debug(
+                    "Ignoring error during shutdown: %s (debug: %s)",
+                    err.message,
+                    debug,
+                )
+                return True
+
             self._logger.error(
                 "Pipeline runtime error: %s (debug: %s)",
                 err.message,
@@ -486,6 +499,7 @@ class _PipelineRunner:
             self._max_run_time_sec,
         )
         self._state.max_runtime_triggered = True
+        self._state.shutdown_in_progress = True
         self._state.reason = self._state.reason or "max_runtime"
 
         try:

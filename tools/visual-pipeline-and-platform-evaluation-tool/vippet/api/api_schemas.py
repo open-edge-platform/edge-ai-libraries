@@ -619,23 +619,72 @@ class PipelineRequestOptimize(BaseModel):
     parameters: Optional[Dict[str, Any]]
 
 
-class VideoOutputConfig(BaseModel):
+class OutputMode(str, Enum):
     """
-    Generic configuration of optional encoded video output.
+    Mode for pipeline output generation.
+
+    Values:
+        DISABLED: No output generation (default).
+        FILE: Save output to file.
+        LIVE_STREAM: Stream output live to media server.
+    """
+
+    DISABLED = "disabled"
+    FILE = "file"
+    LIVE_STREAM = "live_stream"
+
+
+class ExecutionConfig(BaseModel):
+    """
+    Configuration for pipeline execution behavior.
+
+    This configuration controls both output generation and runtime limits
+    for test pipelines.
 
     Attributes:
-        enabled: Flag to enable or disable video output generation.
+        output_mode: Mode for pipeline output generation.
+            - disabled: No output (fakesink remains, default)
+            - file: Save video to file (only allowed with max_runtime=0)
+            - live_stream: Stream output live to media server
+        max_runtime: Maximum runtime in seconds for the pipeline.
+            - 0: Run until natural completion (EOS), no time limit (default)
+            - >0: Stop pipeline after this duration, with looping if EOS comes early
+                  (only allowed with output_mode=disabled or output_mode=live_stream)
+            - <0: Not allowed (will be rejected)
 
-    Example:
+    Example (disabled output, no runtime limit):
         .. code-block:: json
 
             {
-              "enabled": false
+              "output_mode": "disabled",
+              "max_runtime": 0
+            }
+
+    Example (save to file, run until EOS):
+        .. code-block:: json
+
+            {
+              "output_mode": "file",
+              "max_runtime": 0
+            }
+
+    Example (live streaming with 60 second limit):
+        .. code-block:: json
+
+            {
+              "output_mode": "live_stream",
+              "max_runtime": 60
             }
     """
 
-    enabled: bool = Field(
-        default=False, description="Flag to enable or disable video output generation."
+    output_mode: OutputMode = Field(
+        default=OutputMode.DISABLED,
+        description="Mode for pipeline output generation.",
+    )
+    max_runtime: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
     )
 
 
@@ -645,7 +694,7 @@ class PerformanceTestSpec(BaseModel):
 
     Attributes:
         pipeline_performance_specs: List of pipelines and their stream counts.
-        video_output: Optional configuration for storing encoded video outputs.
+        execution_config: Configuration for output generation and runtime limits.
     """
 
     pipeline_performance_specs: list[PipelinePerformanceSpec] = Field(
@@ -658,12 +707,10 @@ class PerformanceTestSpec(BaseModel):
             ]
         ],
     )
-    video_output: VideoOutputConfig = Field(
-        default=VideoOutputConfig(
-            enabled=False,
-        ),
-        description="Video output configuration.",
-        examples=[{"enabled": False}],
+    execution_config: ExecutionConfig = Field(
+        default=ExecutionConfig(),
+        description="Execution configuration for output and runtime.",
+        examples=[{"output_mode": "disabled", "max_runtime": 0}],
     )
 
 
@@ -674,7 +721,7 @@ class DensityTestSpec(BaseModel):
     Attributes:
         fps_floor: Minimum acceptable FPS per stream.
         pipeline_density_specs: List of pipelines with relative stream_rate ratios.
-        video_output: Optional configuration for storing encoded video outputs.
+        execution_config: Configuration for output generation and runtime limits.
     """
 
     fps_floor: int = Field(
@@ -692,12 +739,10 @@ class DensityTestSpec(BaseModel):
             ]
         ],
     )
-    video_output: VideoOutputConfig = Field(
-        default=VideoOutputConfig(
-            enabled=False,
-        ),
-        description="Video output configuration.",
-        examples=[{"enabled": False}],
+    execution_config: ExecutionConfig = Field(
+        default=ExecutionConfig(),
+        description="Execution configuration for output and runtime.",
+        examples=[{"output_mode": "disabled", "max_runtime": 0}],
     )
 
 
@@ -730,6 +775,9 @@ class TestsJobStatus(BaseModel):
         streams_per_pipeline: List of stream counts per pipeline.
         video_output_paths: Mapping from pipeline id to list of output file paths.
         error_message: Error description when state is ERROR or ABORTED.
+
+    Note: live_stream_urls is intentionally not included here because density tests
+    do not support live-streaming. PerformanceJobStatus adds this field separately.
     """
 
     id: str
@@ -748,10 +796,16 @@ class PerformanceJobStatus(TestsJobStatus):
     """
     Status of a performance test job.
 
-    Inherits all fields from TestsJobStatus without changes.
+    Inherits all fields from TestsJobStatus and adds live_stream_urls
+    for live-streaming output mode support.
+
+    Attributes:
+        live_stream_urls: Mapping from pipeline id to live stream URL
+            when using live_stream output mode. Only available for
+            performance tests.
     """
 
-    pass
+    live_stream_urls: Optional[Dict[str, str]]
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -759,6 +813,8 @@ class DensityJobStatus(TestsJobStatus):
     Status of a density test job.
 
     Inherits all fields from TestsJobStatus without changes.
+    Does not include live_stream_urls because density tests do not support
+    live-streaming output mode (only disabled or file modes are allowed).
     """
 
     pass

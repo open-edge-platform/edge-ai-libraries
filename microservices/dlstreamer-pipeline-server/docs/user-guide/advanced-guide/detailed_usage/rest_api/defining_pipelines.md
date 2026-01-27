@@ -6,10 +6,9 @@ processing, computer vision, and deep learning inference
 operations. The following sections explain how media analytics
 pipelines are defined and loaded by Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) .
 
-# Pipeline Definition Files
+## Pipeline Definition Files
 DL Streamer Pipeline Server exposes multiple application related fields in the config file.
 The default config is present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`.
-
 
 The following table describes the essential attributes that are supported in the `config` section.
 
@@ -27,8 +26,7 @@ The parameters applicable for each pipeline are described below.
 | `auto_start`          | The Boolean flag for whether to start the pipeline on DL Streamer Pipeline Server start up. |
 | `udfs` | UDF config parameters |
 
-
-## How Pipeline Definition Files are Discovered and Loaded
+### How Pipeline Definition Files are Discovered and Loaded
 
 Pipeline definition files are created from `config.json` and are stored in a hierarchical directory structure that determines their name and version. The `config.json` file is present inside the DL Streamer Pipeline Server container image. After startup, DL Streamer Pipeline Server searches the configured pipeline directory and loads all pipeline definitions that are found.
 
@@ -46,35 +44,28 @@ Here is a sample directory listing:
 > **Note:** While not required, pipeline definition files are named
 > `pipeline.json` by convention.
 
-
 ## Pipeline Definition
-The pipeline property within a `config.json` file describes the order
-and type of operations in the media analytics pipeline. The syntax of
-the template property is specific to the underlying framework
-i.e. `GStreamer`. Pipeline use the `source`,
-`destination` and `parameters` sections of an incoming pipeline
-`request` to customize the source, destination and behavior of a
-pipeline implemented in an underlying framework.
+The pipeline property within a `config.json` file describes the order and type of operations
+in the media analytics pipeline. The syntax of the template property is specific to the
+underlying framework, i.e. `GStreamer`. Pipeline use the `source`, `destination` and
+`parameters` sections of an incoming pipeline `request` to customize the source, destination
+and behavior of a pipeline implemented in an underlying framework.
 
 ### GStreamer Pipeline Definition
 
-> **Note:** This section assumes an understanding of the GStreamer
-> framework.
+> **Note:** This section assumes an understanding of the GStreamer framework.
 
+GStreamer templates use the [GStreamer Pipeline Description](https://gstreamer.freedesktop.org/documentation/tools/gst-launch.html?gi-language=c#pipeline-description)
+syntax to concatenate elements into a pipeline. The Pipeline Server `pipeline_manager` and
+`gstreamer_pipeline` modules parse the template, configure the `source`, `destination`, and
+`appsink` elements and then construct the pipeline based on incoming requests.
 
-GStreamer templates use the [GStreamer Pipeline
-Description](https://gstreamer.freedesktop.org/documentation/tools/gst-launch.html?gi-language=c#pipeline-description)
-syntax to concatenate elements into a pipeline. The Pipeline Server `pipeline_manager` and `gstreamer_pipeline` modules
-parse the template, configure the `source`, `destination`, and
-`appsink` elements and then construct the pipeline based on incoming
-requests.
-
-The `source`, `destination` and `appsink` elements in a pipeline template
-intentionally avoid assigning explicit media source and destination
-properties. This enables the properties to be dynamically defined by
-the calling application.
+The `source`, `destination` and `appsink` elements in a pipeline template intentionally avoid
+assigning explicit media source and destination properties. This enables the properties to be
+dynamically defined by the calling application.
 
 #### Object Detection
+
 **Example:**
 ```
 "pipeline": "uridecodebin name=source",
@@ -82,7 +73,11 @@ the calling application.
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md). Please refer to the documentation for DL Streamer on how to download any given model for your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+
+> **Note:** The model used in the above pipeline is an example of how it can be used from
+> [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> Refer to the documentation for DL Streamer on how to download any given model for your
+> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
 
 #### Source Abstraction
 `{auto_source}` is a virtual source that is updated with the appropriate GStreamer element and properties at request time.
@@ -95,7 +90,10 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+
+> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> Refer to the documentation for DL Streamer on how to download any given model for your
+> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
 
 **Sample audio pipeline**
 ```
@@ -106,7 +104,10 @@ Note: The model used in the above pipeline is an example of how it can be used f
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+
+> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> Refer to the documentation for DL Streamer on how to download any given model for
+> your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
 
 
 |    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks |
@@ -118,7 +119,7 @@ Note: The model used in the above pipeline is an example of how it can be used f
 | Web camera | `urisourcebin`	| <pre> "source": { <br>   `"device": "/dev/video0`",<br>   type": "webcam",<br> }<br></pre> | <pre> `v4l2src device=/dev/video0` name=source ! `video/x-raw,format=YUY2` </pre> |         |
 | Custom GStreamer Element | `urisourcebin`	| <pre> "source": { <br>   "element": GStreamer Element name,<br>   "type": "gst"<br> }<br></pre> Example for microphone for an audio pipeline: <br> <pre> "source": { <br>   "element": `"alsasrc"`,<br>   "type": "gst",<br>   properties": { <br>        `"device": "hw:1,0"` <br>}<br></pre> | <pre> `alsasrc device=hw:1,0 name=source`</pre> |         |
 
-> Note: For request of `type=gst`, the container must support the corresponding element.
+> **Note:**: For a `type=gst` request, the container must support the corresponding element.
 
 Source request accepts the following optional fields set via the request:
 - `capsfilter` if set is applied right after the source element as shown in example below.
@@ -180,11 +181,12 @@ used to detect objects in a video frame.
 gvadetect model={models[person_vehicle_bike_detection][1][network]} model-proc={models[person_vehicle_bike_detection][1][proc]} name=detection
 ```
 
-The `model` and `model-proc` properties reference file paths to the
-deep learning model as discovered and populated by the Pipeline Server `model_manager` module. The `model_manager` module provides a
-python dictionary associating model names and versions to their
-absolute paths enabling pipeline templates to reference them by
-name. You can use the `model-proc` property to point to custom model-proc by specifying absolute path. More details are provided in the [Deep Learning Models](#deep-learning-models) section.
+The `model` and `model-proc` properties reference file paths to the deep learning model as
+discovered and populated by the Pipeline Server `model_manager` module. The `model_manager`
+module provides a Python dictionary associating model names and versions to their absolute
+paths enabling pipeline templates to reference them by name. You can use the `model-proc`
+property to point to custom model-proc by specifying the absolute path. More details are
+provided in the [Deep Learning Models](#deep-learning-models) section.
 
 #### Model Persistance in OpenVINO<sup>&#8482;</sup> GStreamer Elements
 
@@ -698,13 +700,12 @@ to the bus such as
 ```
 
 
-# Deep Learning Models
+## Deep Learning Models
 
-## OpenVINO<sup>&#8482;</sup> Toolkit's Intermediate Representation
+### OpenVINO<sup>&#8482;</sup> Toolkit's Intermediate Representation
 
 The Pipeline Server applications and pipelines use deep learning
-models in the OpenVINO<sup>&#8482;</sup> Toolkit's [Intermediate
-Representation](https://docs.openvino.ai/2025/documentation/openvino-ir-format.html)
+models in the OpenVINO<sup>&#8482;</sup> Toolkit's [Intermediate Representation](https://docs.openvino.ai/2025/documentation/openvino-ir-format.html)
 format (`IR`). A model in the `IR` format is represented by two files:
 
 * `<model_name>.xml`. An XML file describing the model layers,
@@ -712,12 +713,12 @@ format (`IR`). A model in the `IR` format is represented by two files:
 
 * `<model_name>.bin`. A binary file encoding a trained model's weights.
 
-### Converting Models
+#### Converting Models
 For more information on converting models from popular frameworks into
 `IR` format please see the OpenVINO<sup>&#8482;</sup> Toolkit
 documentation for [model optimizer](https://docs.openvino.ai/2025/openvino-workflow/model-optimization.html).
 
-### Ready To Use Models
+#### Ready To Use Models
 
 For more information on ready to use deep learning models that have
 been converted into the IR format (or include conversion instructions)
@@ -727,7 +728,7 @@ for
 and the OpenVINO<sup>&#8482;</sup> Toolkit [Open Model
 Zoo](https://github.com/openvinotoolkit/open_model_zoo).
 
-## Model-Proc Files
+### Model-Proc Files
 
 In addition to the `.xml` and `.bin` files that are part of a model's
 `IR` format, `DL Streamer` elements and `FFmpeg Video Analytics`
@@ -745,18 +746,18 @@ If such a file exists, the Pipeline Server automatically looks for this file in 
 
 For more details on model proc and labels see [Model Proc File](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_proc_file.md).
 
-### Deep Learning Streamer (DL Streamer)
+#### Deep Learning Streamer (DL Streamer)
 For more information on DL Streamer `model-proc` files and samples for
 common models please see the DL Streamer
 [documentation](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
 and
 [samples](https://github.com/dlstreamer/dlstreamer/tree/master/samples).
 
-### FFmpeg Video Analytics
+#### FFmpeg Video Analytics
 For `model-proc` files for use with `FFmpeg Video Analytics` please
 see the following [samples](https://github.com/VCDP/FFmpeg-patch/tree/ffmpeg4.2_va/samples/model_proc)
 
-## How Deep Learning Models are Discovered and Referenced
+### How Deep Learning Models are Discovered and Referenced
 
 Model files are stored in a hierarchical directory structure that
 determines their name, version and precision.
@@ -770,10 +771,12 @@ The hierarchical directory structure is made up of four levels:
 
 `<model-root-directory>/<model-name>/<version>/<precision>`
 
-> Note: Not all models have a file for labels. In such cases, the labels could be listed in the `model-proc`file.
+> **Note:**: Not all models have a file for labels. In such cases, the labels could be listed
+> in the `model-proc`file.
 
 Here's a sample directory listing for the `yolo-v3-tf` model:
-Note: The mentioned model is available [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+
+> **Note:**: The mentioned model is available [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
 
 ```
 models/
@@ -791,8 +794,7 @@ models/
     │   │   └── yolo-v3-tf.xml
 ```
 
-
-## Referencing Models in Pipeline Definitions
+### Referencing Models in Pipeline Definitions
 
 Pipeline definitions reference models in their templates in a similar
 way to how they reference parameters. Instead of being resolved by

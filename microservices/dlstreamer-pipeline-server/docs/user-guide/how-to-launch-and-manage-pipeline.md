@@ -1,6 +1,8 @@
 # How to launch and manage pipeline (via script)
 
-Within a running DL Streamer Pipeline Server container, you can start and stop any dlstreamer pipeline on demand either via python snippet or shell script. This is useful in scenarios where we want to automate the process of running or stopping the pipeline.
+Within a running DL Streamer Pipeline Server container, you can start and stop any DL Streamer
+Pipeline on demand either via a Python snippet or shell script. This is useful in scenarios
+where we want to automate the process of running or stopping the pipeline.
 
 ## Steps
 
@@ -12,7 +14,10 @@ Within a running DL Streamer Pipeline Server container, you can start and stop a
       - "../configs/sample_mqtt_publisher/config.json:/home/pipeline-server/config.json"
 ```
 
-2. Update environment variables file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` with below mentioned variables. Please add corresponding IP address in place of `<MQTT_BROKER_IP_ADDRESS>` below -
+2. Update environment variables file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
+with the following variables. Add the corresponding IP address in place of
+`<MQTT_BROKER_IP_ADDRESS>` below -
+
 ```sh
 MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
 MQTT_PORT=1883
@@ -24,11 +29,11 @@ cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
 docker compose up
 ```
 
-4. Start the pipeline either via python snippet or shell script.
+4. Start the pipeline either via a Python snippet or shell script.
 
-* To use python snippet, save the below snippet on your system as `start_pipeline.py`.
+* To use Python snippet, save the below snippet on your system as `start_pipeline.py`.
 
-`NOTE` Please make sure to intall python libraries "requests" and "json" if not already installed before running the below python snippet.
+> **NOTE:** Please make sure to intall Python libraries "requests" and "json" if not already installed before running the below Python snippet.
 
 ```
 import requests
@@ -115,9 +120,9 @@ docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic dlstr
 
 6. RTSP stream can also be viewed at rtsp://<SYSTEM_IP_ADDRESS>:8554/dlstreamer_pipeline_results. Please replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address.
 
-7. Stop the pipeline either via python snippet or shell script. Replace `<instance-id>` with corresponding ID obtained from step 4 below.
+7. Stop the pipeline either via a Python snippet or shell script. Replace `<instance-id>` with corresponding ID obtained from step 4 below.
 
-* To use python snippet, save the below snippet on your system as `stop_pipeline.py`.
+* To use the Python snippet, save the below snippet on your system as `stop_pipeline.py`.
 ```
 import requests
 url = "http://localhost:8080/pipelines/<instance-id>"

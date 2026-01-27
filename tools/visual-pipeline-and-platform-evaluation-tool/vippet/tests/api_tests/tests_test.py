@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 
 import api.api_schemas as schemas
 from api.routes.tests import router as tests_router
@@ -65,7 +66,7 @@ class TestTestsAPI(unittest.TestCase):
                     "streams": 2,
                 }
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/performance", json=request_body)
 
@@ -104,7 +105,7 @@ class TestTestsAPI(unittest.TestCase):
                     "streams": 3,
                 },
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/performance", json=request_body)
 
@@ -152,7 +153,7 @@ class TestTestsAPI(unittest.TestCase):
                     "streams": -1,
                 }
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/performance", json=request_body)
 
@@ -161,28 +162,25 @@ class TestTestsAPI(unittest.TestCase):
         mock_test_manager.test_performance.assert_not_called()
 
     @patch("api.routes.tests.test_manager")
-    def test_run_performance_test_with_gpu_encoder(self, mock_test_manager):
+    def test_run_performance_test_with_file_output(self, mock_test_manager):
         """
-        The /tests/performance endpoint should accept video output configuration
-        with GPU encoder device.
+        The /tests/performance endpoint should accept execution_config
+        with file output mode.
         """
         # Arrange: configure mock to return a job ID
-        mock_test_manager.test_performance.return_value = "gpu-job-456"
+        mock_test_manager.test_performance.return_value = "file-job-456"
 
-        # Act: send a performance test request with GPU encoder
+        # Act: send a performance test request with file output
         request_body = {
             "pipeline_performance_specs": [
                 {
-                    "id": "pipeline-gpu123",
+                    "id": "pipeline-file123",
                     "streams": 2,
                 }
             ],
-            "video_output": {
-                "enabled": True,
-                "encoder_device": {
-                    "device_name": "GPU",
-                    "gpu_id": 0,
-                },
+            "execution_config": {
+                "output_mode": "file",
+                "max_runtime": 0,
             },
         }
         response = self.client.post("/tests/performance", json=request_body)
@@ -191,15 +189,90 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         data = response.json()
         self.assertIn("job_id", data)
-        self.assertEqual(data["job_id"], "gpu-job-456")
+        self.assertEqual(data["job_id"], "file-job-456")
 
-        # Verify manager was called with correct spec including video output
+        # Verify manager was called with correct spec including file output
         mock_test_manager.test_performance.assert_called_once()
         call_args = mock_test_manager.test_performance.call_args[0][0]
         self.assertIsInstance(call_args, schemas.PerformanceTestSpec)
+        self.assertEqual(
+            call_args.execution_config.output_mode, schemas.OutputMode.FILE
+        )
+        self.assertEqual(call_args.execution_config.max_runtime, 0)
 
-        # Verify video output configuration
-        self.assertTrue(call_args.video_output.enabled)
+    @patch("api.routes.tests.test_manager")
+    def test_run_performance_test_with_live_stream_output(self, mock_test_manager):
+        """
+        The /tests/performance endpoint should accept execution_config
+        with live_stream output mode.
+        """
+        # Arrange: configure mock to return a job ID
+        mock_test_manager.test_performance.return_value = "stream-job-789"
+
+        # Act: send a performance test request with live_stream output
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "id": "pipeline-stream123",
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {
+                "output_mode": "live_stream",
+                "max_runtime": 60,
+            },
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: verify response
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["job_id"], "stream-job-789")
+
+        # Verify manager was called with correct spec including live_stream output
+        mock_test_manager.test_performance.assert_called_once()
+        call_args = mock_test_manager.test_performance.call_args[0][0]
+        self.assertEqual(
+            call_args.execution_config.output_mode, schemas.OutputMode.LIVE_STREAM
+        )
+        self.assertEqual(call_args.execution_config.max_runtime, 60)
+
+    @patch("api.routes.tests.test_manager")
+    def test_run_performance_test_with_max_runtime(self, mock_test_manager):
+        """
+        The /tests/performance endpoint should accept execution_config
+        with max_runtime for time-limited execution.
+        """
+        # Arrange: configure mock to return a job ID
+        mock_test_manager.test_performance.return_value = "runtime-job-999"
+
+        # Act: send a performance test request with max_runtime
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "id": "pipeline-runtime123",
+                    "streams": 2,
+                }
+            ],
+            "execution_config": {
+                "output_mode": "disabled",
+                "max_runtime": 120,
+            },
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: verify response
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["job_id"], "runtime-job-999")
+
+        # Verify manager was called with correct spec including max_runtime
+        mock_test_manager.test_performance.assert_called_once()
+        call_args = mock_test_manager.test_performance.call_args[0][0]
+        self.assertEqual(
+            call_args.execution_config.output_mode, schemas.OutputMode.DISABLED
+        )
+        self.assertEqual(call_args.execution_config.max_runtime, 120)
 
     # ------------------------------------------------------------------
     # /tests/density
@@ -228,7 +301,7 @@ class TestTestsAPI(unittest.TestCase):
                     "stream_rate": 100,
                 }
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/density", json=request_body)
 
@@ -266,10 +339,10 @@ class TestTestsAPI(unittest.TestCase):
                 },
                 {
                     "id": "pipeline-mno345",
-                    "stream_rate": 75,
+                    "stream_rate": 50,
                 },
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/density", json=request_body)
 
@@ -284,7 +357,7 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(call_args.fps_floor, 25)
         self.assertEqual(len(call_args.pipeline_density_specs), 2)
         self.assertEqual(call_args.pipeline_density_specs[0].stream_rate, 50)
-        self.assertEqual(call_args.pipeline_density_specs[1].stream_rate, 75)
+        self.assertEqual(call_args.pipeline_density_specs[1].stream_rate, 50)
 
     @patch("api.routes.tests.test_manager")
     def test_run_density_test_with_invalid_body_returns_422(self, mock_test_manager):
@@ -324,7 +397,7 @@ class TestTestsAPI(unittest.TestCase):
                     "stream_rate": 100,
                 }
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/density", json=request_body)
 
@@ -349,7 +422,7 @@ class TestTestsAPI(unittest.TestCase):
                     "stream_rate": -50,
                 }
             ],
-            "video_output": {"enabled": False},
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
         response = self.client.post("/tests/density", json=request_body)
 
@@ -357,6 +430,37 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         mock_test_manager.test_density.assert_not_called()
 
+    @patch("api.routes.tests.test_manager")
+    def test_run_density_test_with_file_output(self, mock_test_manager):
+        """
+        The /tests/density endpoint should accept file output mode.
+        """
+        # Arrange: configure mock to return a job ID
+        mock_test_manager.test_density.return_value = "density-file-job"
 
-if __name__ == "__main__":
-    unittest.main()
+        # Act: send a density test request with file output
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "id": "pipeline-density-file",
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "file", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert: verify response
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertIn("job_id", data)
+        self.assertEqual(data["job_id"], "density-file-job")
+
+        # Verify manager was called with correct spec including file output
+        mock_test_manager.test_density.assert_called_once()
+        call_args = mock_test_manager.test_density.call_args[0][0]
+        self.assertIsInstance(call_args, schemas.DensityTestSpec)
+        self.assertEqual(
+            call_args.execution_config.output_mode, schemas.OutputMode.FILE
+        )

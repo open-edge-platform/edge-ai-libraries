@@ -73,7 +73,7 @@ Refer the below sample configuration to run the Anomalib UDF.
 
 ## Pallet Defect Detection
 
-This Geti udf supports deploying a project for local inference with OpenVINO using Intel® Geti™ SDK python package. It uses a Geti based Pallet Defect Detection model.
+This Geti™ udf supports deploying a project for local inference with OpenVINO using Intel® Geti™ SDK Python package. It uses a Geti™ based Pallet Defect Detection model.
 
 
 Refer the below config for the default config used for this Geti udf:
@@ -111,3 +111,5 @@ The following example shows the configuration for add label UDF. Either set `"an
 ```
 
 There is no AI model involved. It is a simple UDF script that labels the data with default label values and saves in DataStore which is further expected to be consumed by Visualizer microservice and Intel® Edge Data Collection microservice.
+
+> *Intel, the Intel logo and Intel Geti are trademarks of Intel Corporation or its subsidiaries.*
