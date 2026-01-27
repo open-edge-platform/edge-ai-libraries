@@ -4,5 +4,5 @@
 ## Markdown
 
 <!--hide_directive```{eval-rst}
-.. swagger-plugin:: api-docs/pipeline-server.yaml
+.. swagger-plugin:: _assets/pipeline-server.yaml
 ```hide_directive-->

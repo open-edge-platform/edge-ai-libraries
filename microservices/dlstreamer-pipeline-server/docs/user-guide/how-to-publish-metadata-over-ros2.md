@@ -11,7 +11,7 @@ Ensure to build/pull the DL Streamer Pipeline Server extended image.
 Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
 - Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.
 
-## Publish 
+## Publish
 
 - A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_ros2_publisher/config.json`. We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
 
@@ -47,14 +47,14 @@ Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.doc
             }
         }'
     ```
-    Note: In the above command, do `"publish_frame": true` to send encoded frame as a part of metadata over ROS2.
-
+> **Note:** In the above command, do `"publish_frame": true` to send encoded frame as a part
+> of metadata over ROS2.
 
 ## Subscribe (Example)
 
-Below is an example that shows how to subscribe to the published data.
+Below is an example on how to subscribe to the published data.
 
-- Install ROS2 Humble on Ubuntu22 and source it. Install python and related dependencies too.
+- Install ROS2 Humble on Ubuntu22 and source it. Install Python along with dependencies.
     ```sh
         # Install ROS2 Humble
         sudo apt update && sudo apt install -y curl gnupg lsb-release
@@ -72,7 +72,7 @@ Below is an example that shows how to subscribe to the published data.
         sudo apt install -y python3 python3-pip python3-opencv
     ```
 
-- Install ROS2 Jazzy on Ubuntu24 and source it. Install python and related dependencies too.
+- Install ROS2 Jazzy on Ubuntu24 and source it. Install Python along with dependencies.
     ```sh
         # Install ROS2 Jazzy
         sudo apt update && sudo apt install -y curl gnupg lsb-release
@@ -130,7 +130,7 @@ Below is an example that shows how to subscribe to the published data.
                     img_bytes = base64.b64decode(image_b64)
                     np_arr = np.frombuffer(img_bytes, np.uint8)
                     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-                    
+
                     if img is not None:
                         filename = f"{self.topic_safe}_{self.counter}.jpg"
                         cv2.imwrite(filename, img)
@@ -161,7 +161,8 @@ Below is an example that shows how to subscribe to the published data.
         main()
     ```
 
-- Run the sample subscriber script as follows and view the metadata being printed and frames being saved.
+- Run the sample subscriber script as follows and view the metadata being printed and frames
+being saved.
     ```sh
     python3 ros_subscriber.py /dlstreamer_pipeline_results
     ```
