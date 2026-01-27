@@ -424,9 +424,10 @@ const Pipelines = () => {
       }).unwrap();
 
       const response = await runPerformanceTest({
-        performanceTestSpec: {
-          video_output: {
-            enabled: videoOutputEnabled,
+        performanceTestSpecInput: {
+          execution_config: {
+            output_mode: videoOutputEnabled ? "file" : "disabled",
+            max_runtime: 0,
           },
           pipeline_performance_specs: [
             {
