@@ -54,6 +54,7 @@ Before you begin, ensure that you have the following prerequisites:
     export MODEL_DOWNLOAD_HOST=<your-model-download-host>
     export MODEL_DOWNLOAD_PORT=<your-model-download-port>
     ```
+
     _Optional OTLP configuration_
 
     ```bash
@@ -61,6 +62,15 @@ Before you begin, ensure that you have the following prerequisites:
     export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
     export OTLP_ENDPOINT=<otlp-endpoint> 
     ```
+
+    _Document Ingestion Microservice configuration_
+
+    ```bash
+    # Mandatory for safe URL ingestion by Document Ingestion Microservice to mitigate SSRF attacks.
+    export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Ex: example.com,subdomain.example.com
+    ```
+
+    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration)
 
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
@@ -70,9 +80,10 @@ Before you begin, ensure that you have the following prerequisites:
 
     ```bash
     export REGISTRY="intel/"
+    export TAG=2.0.1
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
-    # model-server: VLLM , OVMS, TGI
+    # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
     # embedding: OVMS, TEI
     ```
 

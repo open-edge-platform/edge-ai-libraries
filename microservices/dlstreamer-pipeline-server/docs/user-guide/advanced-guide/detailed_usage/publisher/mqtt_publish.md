@@ -1,4 +1,4 @@
- # MQTT Publishing
+# MQTT Publishing
 
  **Contents**
 
@@ -11,7 +11,6 @@
   - [Metadata filtering](#metadata-filtering)
 - [Secure MQTT Publishing](#secure-publishing)
 - [Error handling](#error-handling)
-
 
 ## Overview
 The processed frames and metadata can be published over to a MQTT message broker. Prior to publishing, MQTT broker/subscriber needs to be configured and started. Here is an overview of the flow,
@@ -42,7 +41,7 @@ Once the mqtt broker is configured and up, connect to the mqtt broker and subscr
 
     ```sh
     sudo apt install mosquitto-clients
-    
+
     mosquitto_sub --topic <topic name> -p 1883 -h <mqtt broker address>
     ```
 
@@ -50,7 +49,7 @@ Once the mqtt broker is configured and up, connect to the mqtt broker and subscr
 
     Please make sure to update the `<topic_name>` and `<mqtt broker address>` in the script before running.
 
-    Make sure to install the python packages:
+    Make sure to install the Python packages:
     ```sh
     pip install paho-mqtt opencv-python numpy
     ```
@@ -102,23 +101,23 @@ MQTT_PORT=1883
   - `host` mqtt broker hostname or IP address
   - `port` port to connect to the broker
 
-Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
+Add below configuration in appropriate `config.json` file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
   ```json
     "mqtt_publisher": {
       "publish_frame": false
     }
    ```
   - `publish_frame` set this flag to '*true*' if you need frame blobs and metadata to be published. If it is set to '*false*' only metadata will be published.
-    
+
       NOTE: When publish_frame is set to 'true', it is advised to use a pipeline element such as `jpegenc` to do the frame encoding to publish over MQTT. If not present, frame is encoded to jpeg but it is limited to frames with the following image orders - `RGB`, `GRAY8`, `NV12` and `I420`. This capability is however limited and not performance efficient.
 
-Other parameters that can be part of `mqtt_publisher` config are mentioned below - 
+Other parameters that can be part of `mqtt_publisher` config are mentioned below -
   - `topic` topic to which message will be published. Defaults to `dlstreamer_pipeline_results` *(optional)*
   - `qos` quality of service level to use which defaults to 0. Values can be 0, 1, 2. *(optional)*
     More details on the QoS levels can be found [here](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
   - `protocol` protocol version to use which defaults to 4 i.e. MQTTv311. Values can be 3, 4, 5 based on the versions MQTTv3, MQTTv311, MQTTv5 respectively *(optional)*
 
-The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-start-dlstreamer-pipeline-server-mqtt-publish.md) for an example.
+The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-start-dlsps-mqtt-publish.md) for an example.
 
 ### Metadata filtering
 Below configuration can be used to optionally filter out messages sent to mqtt broker for classification and detection usecases.
@@ -151,7 +150,7 @@ Below configuration can be used to optionally filter out messages sent to mqtt b
 
   - Note:
     - For detection, metadata is expected to have, for example,
-      
+
       `'predictions': {'labels_to_revisit_full_scene': None, 'kind': 'prediction', 'id': None, 'maps': [], 'media_identifier': None, 'modified': None, 'annotations': [{'labels_to_revisit': None, 'shape': {'type': 'RECTANGLE', 'x': 333, 'height': 198, 'y': 127, 'width': 255}, 'id': None, 'labels': [{'id': None, 'probability': 0.9196773171424866, 'source': None, 'color': '#00f5d4', 'name': 'box'}], 'modified': None}, {'labels_to_revisit': None, 'shape': {'type': 'RECTANGLE', 'x': 494, 'height': 154, 'y': 143, 'width': 83}, 'id': None, 'labels': [{'id': None, 'probability': 0.7351013422012329, 'source': None, 'color': '#edb200', 'name': 'shipping label'}], 'modified': None}]...}`
     - For classification, metadata is expected to have, for example,
        `...{'label': 'Person', 'score': 0.5}...`
@@ -264,11 +263,11 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
       Please make sure to update the `<topic_name>`, `<mqtt broker address>`, `<path to ca.rt>`, `<path to client.crt>`, `<path to client.key`> in the script before running.
 
-      Make sure to install the python packages:
+      Make sure to install the Python packages:
       ```sh
       pip install paho-mqtt opencv-python numpy
       ```
-      
+
       ```python
       import paho.mqtt.subscribe as subscribe
 
@@ -312,7 +311,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
     MQTT_PORT=1883
     ```
 
-   Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
+   Add below configuration in appropriate `config.json` file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
 
     ```json
       "mqtt_publisher": {
@@ -325,8 +324,9 @@ Follow the below steps to establish a secure connection with MQTT broker,
     ```
 
 ## Error Handling
+
 1. If connection to MQTT broker is successful, messages are published to the broker.
 2. If there are connection issues with MQTT broker, messages will not be published to the broker.
 3. Reconnection is automatically attempted when connection is lost. The time between successive reconnect attempts starts with 1s and doubles for every attempt until a max of 30s is reached after which it will always be 30s.
-3. If connection is re-established, subsequent messages will be published to the broker.
-4. Publishing to EIS Message bus remains unimpacted.
+4. If connection is re-established, subsequent messages will be published to the broker.
+5. Publishing to EIS Message bus remains unimpacted.
