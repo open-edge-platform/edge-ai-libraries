@@ -98,7 +98,6 @@ export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # To mitigate SSR
 
 **Note**: Use comma-separated domain patterns. Wildcards (*) are supported for subdomains. Be as specific as possible to minimize security risks from SSRF attacks.
 
-Refer to [manually customize](./how-to-customize.md) for customization options for the microservice.
 Refer to instructions on [manual customization](./how-to-customize.md) for the customization
 options for the microservice.
 
