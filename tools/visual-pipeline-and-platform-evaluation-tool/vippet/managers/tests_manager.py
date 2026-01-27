@@ -257,10 +257,20 @@ class TestsManager:
                 )
             )
 
-            # Update job with live_stream_urls immediately after generation
+            # Build streams distribution per pipeline
+            streams_per_pipeline = [
+                PipelinePerformanceSpec(
+                    id=spec.id,
+                    streams=spec.streams,
+                )
+                for spec in performance_request.pipeline_performance_specs
+            ]
+
+            # Update job with live_stream_urls and streams_per_pipeline immediately
             with self.lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
+                    job.streams_per_pipeline = streams_per_pipeline
 
                     # Type guard: ensure we have a PerformanceJob
                     if not isinstance(job, PerformanceJob):
@@ -315,20 +325,10 @@ class TestsManager:
                         job.state = TestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
-                        # Build streams distribution per pipeline
-                        streams_per_pipeline = [
-                            PipelinePerformanceSpec(
-                                id=spec.id,
-                                streams=spec.streams,
-                            )
-                            for spec in performance_request.pipeline_performance_specs
-                        ]
-
                         # Update performance metrics
                         job.total_fps = result.total_fps
                         job.per_stream_fps = result.per_stream_fps
                         job.total_streams = result.num_streams
-                        job.streams_per_pipeline = streams_per_pipeline
                         job.video_output_paths = video_output_paths
 
                         self.logger.info(
