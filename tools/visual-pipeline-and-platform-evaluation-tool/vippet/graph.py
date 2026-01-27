@@ -374,7 +374,7 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
-                    ts_path = videos_manager.change_file_extension_to_ts(location)
+                    ts_path = videos_manager.get_ts_path(location)
                     if ts_path:
                         node.data["location"] = ts_path
                     logger.debug(

@@ -217,7 +217,7 @@ class VideosManager:
             except Exception as e:
                 logger.warning(f"Failed to write JSON metadata for '{entry}': {e}")
 
-    def change_file_extension_to_ts(self, filename: str) -> Optional[str]:
+    def get_ts_path(self, filename: str) -> Optional[str]:
         """
         Return the .ts filename/path for the given video filename/path.
 
