@@ -60,8 +60,10 @@ export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 The `ALLOWED_HOSTS` environment variable is critical for security as it restricts which domains the microservice can access during URL ingestion. Configure this based on your deployment scenario:
 
 ```bash
-export ALLOWED_HOSTS=<list_of_trusted_domains> # To mitigate SSRF attacks during URL ingestion
+export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # To mitigate SSRF attacks during URL ingestion
 ```
+
+### Example Configurations
 
 - **Enterprise Setup**: For environments within an organization firewall with access to intranet and internal wikis
 

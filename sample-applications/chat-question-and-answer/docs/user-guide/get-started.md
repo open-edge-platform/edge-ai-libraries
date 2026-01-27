@@ -106,7 +106,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```
     _Document Ingestion Microservice configuration_
     ```bash
-    export ALLOWED_HOSTS=<list_of_trusted_domains> # Mandatory for safe URL ingestion by Document Ingestion Microservice to mitigate SSRF attacks. EX: example.com,subdomain.example.com
+    export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Mandatory for safe URL ingestion by Document Ingestion Microservice to mitigate SSRF attacks. EX: example.com,subdomain.example.com
     ```
 
    __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
