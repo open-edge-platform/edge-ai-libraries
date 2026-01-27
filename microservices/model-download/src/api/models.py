@@ -22,6 +22,7 @@ class ModelHub(str, Enum):
     ULTRALYTICS = "ultralytics"
     OLLAMA = "ollama"
     OPENVINO = "openvino"
+    GETI = "geti"
 
 class ModelType(str, Enum):
     LLM = "llm"
@@ -59,6 +60,10 @@ class ModelRequest(BaseModel):
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None
+    model_group_id: Optional[str] = None
+    export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
+    optimized_model_id: Optional[str] = None
+    model_only: Optional[bool] = Field(True, description="For optimized Geti models: exclude code")
 
 
 class ModelDownloadRequest(BaseModel):

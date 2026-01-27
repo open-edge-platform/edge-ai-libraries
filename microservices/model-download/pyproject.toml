@@ -35,7 +35,6 @@ dev = [
 ]
 
 huggingface = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "sentence-transformers==5.1.2",
     "einops==0.8.1",
     "torchvision",
@@ -66,6 +65,7 @@ openvino = [
     "diffusers==0.35.2",
     "pillow==12.0.0",
 ]
+
 
 ollama = [
     # Ollama is installed as a binary, no Python dependencies required

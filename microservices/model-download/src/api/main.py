@@ -122,6 +122,11 @@ async def download_models(
             
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
                 extra_kwargs["token"] = hf_token
+                # Remove fields that shouldn't be passed to plugins
+                extra_kwargs.pop("hub", None)
+                extra_kwargs.pop("config", None)
+                extra_kwargs.pop("is_ovms", None)
+                
                 model_download_path = os.path.join(
                     models_dir, download_path
                 )
@@ -143,6 +148,7 @@ async def download_models(
                     model_manager.process_download(
                         job_id=download_job_id,
                         model_name=model.name,
+                        hub=model.hub,
                         output_dir=model_download_path,
                         downloader=model.hub,
                         **extra_kwargs
