@@ -21,9 +21,9 @@ memory footprint, as it is built as a single monolithic application with the ent
 pipeline bundled in a single microservice. The microservice supports a bare metal
 deployment through docker compose installation to emphasize on the monolithic objective.
 
-![Chat Q&A web interface](./images/ChatQnA_Webpage.png)
+![Chat Q&A web interface](./_assets/ChatQnA_Webpage.png)
 
-## Overview and Architecture
+## Architecture
 
 ### Key Features
 
@@ -33,11 +33,13 @@ Key features include:
   is [optimized](./benchmarks.md) to run efficiently on Intel® hardware, ensuring high
   performance and reliability. Given the memory optimization, this version is also
   able to address the Core portfolio.
-- **Supports a wide range of open-source models**: Intel's suite of inference
-  microservices provides flexibility to use the right GenAI models (LLM, for example)
-  as required for target usage. The application supports various
-  [open-source models](https://huggingface.co/OpenVINO), allowing developers to select
-  the best models for their use cases.
+- **Comprehensive Framework Options**: The application supports a diverse range
+  of open-source models through both the `OpenVINO toolkit` and `Ollama` frameworks.
+  This integration empowers developers to select from a wide array of models available on
+  [Hugging Face](https://huggingface.co/OpenVINO) and
+  [Ollama](https://ollama.com/library),
+  offering flexibility in choosing the most suitable GenAI models (LLM, for
+  example) for their use cases.
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data
   privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and
@@ -49,10 +51,16 @@ Key features include:
 
 The Chat Question-and-Answer Core sample application is implemented as a LangChain
 based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker)
-executed in the context of a single OpenVINO® runtime. The approach is documented in
-the OpenVINO
+executed in the context of a single OpenVINO™ runtime. The approach is documented
+in the OpenVINO toolkit
 [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino).
-Readers are advised to refer to this documentation for the technical details.
+Readers are requested to refer to this documentation for the technical details.
+
+With the integration of the Ollama framework, the application expands its
+capabilities, offering additional flexibility and model options for developers.
+Ollama enhances the pipeline by broadening the scope of available models. For
+more information on the Ollama framework, visit its
+[official GitHub page](https://github.com/ollama/ollama).
 
 ## How to Use the Application
 
@@ -73,19 +81,16 @@ The Chat Question-and-Answer Core sample application consists of two main parts:
    relevant embeddings, returning a ranked list of documents based on semantic
    similarity. The LLM generates a context-aware response from the final set of documents.
 
-Detailed Hardware and Software requirements are available
-[here](./system-requirements).
+For more details, refer to the [Hardware and Software requirements](./get-started/system-requirements).
 
 ## Benchmark Results
 
-Detailed metrics and  analysis can be found in the benchmark report
-[here](./benchmarks).
+Detailed metrics and analysis can be found in [the benchmark report](./benchmarks.md).
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-system-requirements
 get-started
 build-from-source
 deploy-with-helm

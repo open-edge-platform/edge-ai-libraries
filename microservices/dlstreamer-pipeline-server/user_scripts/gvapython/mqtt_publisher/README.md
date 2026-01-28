@@ -4,7 +4,7 @@ This python script supports publishing frames and metadata to specified MQTT bro
 
 We need to update the pipeline key in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` as shown below:
 ```sh
-"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvafpscounter ! gvametapublish name=destination ! appsink name=appsink"
+"pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvafpscounter ! gvametapublish name=destination ! appsink name=appsink"
 ```
 Add mqtt_publisher to the `properties` key in the `config.json` file as shown below:
 ```sh

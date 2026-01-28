@@ -1,14 +1,9 @@
 # Get Started
 
-<!--
-**Sample Description**: Provide a brief overview of the application and its purpose.
--->
 The ChatQ&A Sample Application is a Retrieval Augmented Generation (RAG) pipeline designed to be used in a single user non concurrent deployment primarily targeting  Intel® Core&trade; deployments.  The application is intended to help developers create personal intelligent chatbots that can answer questions based on their private data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
 
-<!--
-**What You Can Do**: Highlight the developer workflows supported by the guide.
--->
 By following this guide, you will learn how to:
+
 - **Set up the sample application**: Use Docker Compose to quickly deploy the application in your environment.
 - **Run the application**: Execute the application to see real-time question answering based on your data.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
@@ -19,58 +14,47 @@ By following this guide, you will learn how to:
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
 
-<!--
-**Setup and First Use**: Include installation instructions, basic operation, and initial validation.
--->
 ## Running the application using Docker Compose
-<!--
-**User Story 1**: Setting Up the Application
-- **As a developer**, I want to set up the application in my environment, so that I can start exploring its functionality.
-
-**Acceptance Criteria**:
-1. Step-by-step instructions for downloading and installing the application.
-2. Verification steps to ensure successful setup.
-3. Troubleshooting tips for common installation issues.
--->
 
 1. **Clone the Repository**:
 
    Clone the repository.
 
-     ```bash
-     # Clone the latest on mainline
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-     # Alternatively, Clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-     ```
-   Note: Adjust the repo link appropriately in case of forked repo.
+   ```bash
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   ```
+
+   > **Note:** Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
    Go to the directory where the Docker Compose file is located:
 
-     ```bash
-     cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
-     ```
+   ```bash
+   cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
+   ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
 
    To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
 
-     ```bash
-     export REGISTRY="intel/"
-     export UI_TAG=core_1.3.0
+   ```bash
+   export REGISTRY="intel/"
+   export UI_TAG=core_1.3.0
 
-     # If you prefer to use the default CPU device, set the following:
-     export BACKEND_TAG=core_1.3.1
+   # If you prefer to use the default CPU device, set the following:
+   export BACKEND_TAG=core_1.3.1
 
-     # If you want to utilize GPU device for inferencing, set the following:
-     # Note: This image also supports CPU devices.
-     export BACKEND_TAG=core_gpu_1.3.1
+   # If you want to utilize GPU device for inferencing, set the following:
+   # Note: This image also supports CPU devices.
+   export BACKEND_TAG=core_gpu_1.3.1
 
-     # For those who prefer Ollama framework, set the following:
-     export BACKEND_TAG=core_ollama_1.3.1
-     ```
+   # For those who prefer Ollama framework, set the following:
+   export BACKEND_TAG=core_ollama_1.3.1
+   ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
@@ -117,50 +101,49 @@ By following this guide, you will learn how to:
 
    - A collection of ready-to-use YAML configuration files featuring validated combinations of LLMs, Embedding models, and Rerankers is available in the [model_config folder](../../model_config/). Feel free to explore these examples and use them as a starting point.
 
-    - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU or GPU) independently by configuring the `device_settings` section in the YAML as below:
+   - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU or GPU) independently by configuring the `device_settings` section in the YAML as below:
 
-       ```bash
-       # EMBEDDING_DEVICE: Specifies the device for embedding model inference.
-       # RERANKER_DEVICE: Specifies the device for reranker model inference.
-       # LLM_DEVICE: Specifies the device for LLM model inference.
-       # Make sure that you are using the correct backend image if you wish to use GPU inferencing.
-       device_settings:
-         EMBEDDING_DEVICE: "GPU"
-         RERANKER_DEVICE: "GPU"
-         LLM_DEVICE: "GPU"
-       ```
+     ```bash
+     # EMBEDDING_DEVICE: Specifies the device for embedding model inference.
+     # RERANKER_DEVICE: Specifies the device for reranker model inference.
+     # LLM_DEVICE: Specifies the device for LLM model inference.
+     # Make sure that you are using the correct backend image if you wish to use GPU inferencing.
+     device_settings:
+       EMBEDDING_DEVICE: "GPU"
+       RERANKER_DEVICE: "GPU"
+       LLM_DEVICE: "GPU"
+     ```
 
-    - __NOTE__
+     >**Note:**
+     >
+     > - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
+     > - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
+     >
+     >   ```bash
+     >   device_settings:
+     >     EMBEDDING_DEVICE: "<GPU.0/GPU.1>"
+     >     RERANKER_DEVICE: "<GPU.0/GPU.1>"
+     >     LLM_DEVICE: "<GPU.0/GPU.1>"
+     >   ```
 
-       - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
-
-       - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
-
-         ```bash
-         device_settings:
-           EMBEDDING_DEVICE: "<GPU.0/GPU.1>"
-           RERANKER_DEVICE: "<GPU.0/GPU.1>"
-           LLM_DEVICE: "<GPU.0/GPU.1>"
-         ```
-
-    - Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+   - Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
 
 6. **Start the Application**:
 
    Start the application using Docker Compose tool:
 
-     ```bash
-     docker compose -f docker/compose.yaml up
-     ```
+   ```bash
+   docker compose -f docker/compose.yaml up
+   ```
 
 7. **Verify the Application**:
 
    The following log will be printed on the console, confirming that the application is ready for use.
 
-     ```bash
-     # chatqna-core    | INFO:     Application startup complete.
-     # chatqna-core    | INFO:     Uvicorn running on http://0.0.0.0:8888
-     ```
+   ```text
+   # chatqna-core    | INFO:     Application startup complete.
+   # chatqna-core    | INFO:     Uvicorn running on http://0.0.0.0:8888
+   ```
 
 8. **Access the Application**:
 
@@ -168,7 +151,6 @@ By following this guide, you will learn how to:
 
    - Create and manage context by adding documents (pdf, docx, etc. Note: Web links are not supported for the Core version of the sample application. Note: There are restrictions on the max size of the document allowed.)
    - Start Q&A session with the created context.
-
 
 ## Advanced Setup Options
 
@@ -180,3 +162,12 @@ For alternative ways to set up the sample application, see:
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [API Reference](./api-docs/chatqna-api.yml)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+
+:::
+hide_directive-->
