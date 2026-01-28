@@ -2,9 +2,11 @@ import unittest
 from unittest.mock import Mock, patch
 
 from video_encoder import (
-    VideoEncoder,
     ENCODER_DEVICE_CPU,
     ENCODER_DEVICE_GPU,
+    LIVE_STREAM_SERVER_HOST,
+    LIVE_STREAM_SERVER_PORT,
+    VideoEncoder,
 )
 
 
@@ -24,7 +26,17 @@ class TestVideoEncoderClass(unittest.TestCase):
         encoder = VideoEncoder()
         self.assertIsNotNone(encoder.gst_inspector)
         self.assertIn("h264", encoder.encoder_configs)
+        self.assertIn("h264", encoder.streaming_encoder_configs)
         mock_gst_inspector.assert_called_once()
+
+    @patch("video_encoder.GstInspector")
+    def test_streaming_encoder_configs_exist(self, mock_gst_inspector):
+        """Test that streaming encoder configs are defined for h264 and h265."""
+        encoder = VideoEncoder()
+        self.assertIn("h264", encoder.streaming_encoder_configs)
+        self.assertIn("h265", encoder.streaming_encoder_configs)
+        self.assertIn(ENCODER_DEVICE_GPU, encoder.streaming_encoder_configs["h264"])
+        self.assertIn(ENCODER_DEVICE_CPU, encoder.streaming_encoder_configs["h264"])
 
     def test_select_element_gpu_0(self):
         """Test selecting encoder for GPU 0."""
@@ -194,6 +206,212 @@ class TestVideoEncoderClass(unittest.TestCase):
             )
 
         self.assertIn("No suitable encoder found", str(context.exception))
+
+
+class TestLiveStreamOutput(unittest.TestCase):
+    """Test cases for live stream output functionality."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        with patch("video_encoder.GstInspector"):
+            self.encoder = VideoEncoder()
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_output_basic(self, mock_videos_manager):
+        """Test replacing fakesink with live stream output."""
+        self.encoder.gst_inspector.elements = [("elem", "x264enc")]
+
+        mock_video = Mock()
+        mock_video.codec = "h264"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = "videotestsrc ! fakesink"
+        encoder_device = ENCODER_DEVICE_CPU
+        pipeline_id = "test-pipeline-live"
+
+        result, stream_url = self.encoder.replace_fakesink_with_live_stream_output(
+            pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+        )
+
+        # Verify encoder and RTSP sink are in the result
+        self.assertIn("x264enc", result)
+        self.assertIn("h264parse", result)
+        self.assertIn("rtspclientsink", result)
+        self.assertIn("protocols=tcp", result)
+        self.assertNotIn("fakesink", result)
+
+        # Verify stream URL format
+        expected_url = f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/stream_{pipeline_id}"
+        self.assertEqual(stream_url, expected_url)
+        self.assertIn(stream_url, result)
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_output_h265(self, mock_videos_manager):
+        """Test live stream output with H265 codec."""
+        self.encoder.gst_inspector.elements = [("elem", "x265enc")]
+
+        mock_video = Mock()
+        mock_video.codec = "h265"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = "videotestsrc ! fakesink"
+        encoder_device = ENCODER_DEVICE_CPU
+        pipeline_id = "test-pipeline-h265"
+
+        result, stream_url = self.encoder.replace_fakesink_with_live_stream_output(
+            pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+        )
+
+        self.assertIn("x265enc", result)
+        self.assertIn("h265parse", result)
+        self.assertIn("rtspclientsink", result)
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_output_gpu(self, mock_videos_manager):
+        """Test live stream output with GPU encoder."""
+        self.encoder.gst_inspector.elements = [("elem", "vah264lpenc")]
+
+        mock_video = Mock()
+        mock_video.codec = "h264"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = "videotestsrc ! fakesink"
+        encoder_device = ENCODER_DEVICE_GPU
+        pipeline_id = "test-pipeline-gpu"
+
+        result, stream_url = self.encoder.replace_fakesink_with_live_stream_output(
+            pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+        )
+
+        self.assertIn("vah264lpenc", result)
+        self.assertIn("rtspclientsink", result)
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_no_fakesink(self, mock_videos_manager):
+        """Test that ValueError is raised when no fakesink is found."""
+        pipeline_str = "videotestsrc ! autovideosink"
+        encoder_device = ENCODER_DEVICE_CPU
+        pipeline_id = "test-pipeline-no-fakesink"
+
+        with self.assertRaises(ValueError) as context:
+            self.encoder.replace_fakesink_with_live_stream_output(
+                pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+            )
+
+        self.assertIn("No fakesink found", str(context.exception))
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_replaces_only_first(
+        self, mock_videos_manager
+    ):
+        """Test that only the first fakesink is replaced for live streaming."""
+        self.encoder.gst_inspector.elements = [("elem", "x264enc")]
+
+        mock_video = Mock()
+        mock_video.codec = "h264"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = (
+            "videotestsrc ! tee name=t t. ! queue ! fakesink t. ! queue ! fakesink"
+        )
+        encoder_device = ENCODER_DEVICE_CPU
+        pipeline_id = "test-pipeline-multi"
+
+        result, stream_url = self.encoder.replace_fakesink_with_live_stream_output(
+            pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+        )
+
+        # Only one fakesink should be replaced
+        self.assertEqual(result.count("rtspclientsink"), 1)
+        self.assertEqual(result.count("fakesink"), 1)
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_needs_looping_flag(
+        self, mock_videos_manager
+    ):
+        """Test that needs_looping flag is accepted."""
+        self.encoder.gst_inspector.elements = [("elem", "x264enc")]
+
+        mock_video = Mock()
+        mock_video.codec = "h264"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = "videotestsrc ! fakesink"
+        encoder_device = ENCODER_DEVICE_CPU
+        pipeline_id = "test-pipeline-loop"
+
+        # Test with needs_looping=True
+        result, stream_url = self.encoder.replace_fakesink_with_live_stream_output(
+            pipeline_id,
+            pipeline_str,
+            encoder_device,
+            ["input.mp4"],
+            needs_looping=True,
+        )
+
+        self.assertIn("x264enc", result)
+        self.assertIn("rtspclientsink", result)
+
+    @patch("video_encoder.videos_manager")
+    def test_replace_fakesink_with_live_stream_no_encoder_found(
+        self, mock_videos_manager
+    ):
+        """Test that ValueError is raised when no encoder is found."""
+        self.encoder.gst_inspector.elements = []  # No encoders available
+
+        mock_video = Mock()
+        mock_video.codec = "h264"
+        mock_videos_manager.get_video = Mock(return_value=mock_video)
+
+        pipeline_str = "videotestsrc ! fakesink"
+        encoder_device = ENCODER_DEVICE_GPU
+        pipeline_id = "test-pipeline-no-enc"
+
+        with self.assertRaises(ValueError) as context:
+            self.encoder.replace_fakesink_with_live_stream_output(
+                pipeline_id, pipeline_str, encoder_device, ["input.mp4"]
+            )
+
+        self.assertIn("No suitable encoder found", str(context.exception))
+
+
+class TestFakesinkPattern(unittest.TestCase):
+    """Test cases for fakesink regex pattern matching."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        with patch("video_encoder.GstInspector"):
+            self.encoder = VideoEncoder()
+
+    def test_fakesink_pattern_matches_standalone(self):
+        """Test that pattern matches standalone fakesink."""
+        pipeline_str = "videotestsrc ! fakesink"
+        matches = self.encoder.re_pattern.findall(pipeline_str)
+        self.assertEqual(len(matches), 1)
+
+    def test_fakesink_pattern_matches_multiple(self):
+        """Test that pattern matches multiple fakesinks."""
+        pipeline_str = "videotestsrc ! fakesink ! fakesink"
+        matches = self.encoder.re_pattern.findall(pipeline_str)
+        self.assertEqual(len(matches), 2)
+
+    def test_fakesink_pattern_ignores_embedded(self):
+        """Test that pattern ignores fakesink embedded in properties."""
+        pipeline_str = "playbin video-sink=fakesink"
+        matches = self.encoder.re_pattern.findall(pipeline_str)
+        self.assertEqual(len(matches), 0)
+
+    def test_fakesink_pattern_matches_with_properties(self):
+        """Test that pattern matches fakesink with properties."""
+        pipeline_str = "videotestsrc ! fakesink sync=false"
+        matches = self.encoder.re_pattern.findall(pipeline_str)
+        self.assertEqual(len(matches), 1)
+
+    def test_fakesink_pattern_at_start(self):
+        """Test that pattern matches fakesink at start of string."""
+        pipeline_str = "fakesink"
+        matches = self.encoder.re_pattern.findall(pipeline_str)
+        self.assertEqual(len(matches), 1)
 
 
 if __name__ == "__main__":

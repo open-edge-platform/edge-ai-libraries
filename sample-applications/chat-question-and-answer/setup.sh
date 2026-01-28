@@ -183,12 +183,6 @@ download_ovms_model() {
     local DOWNLOAD_MODEL_DIR="downloaded_models/"
     local TARGET_DIR="${VOLUME_OVMS}/models/"
 
-
-    mkdir -p $DOWNLOAD_MODEL_DIR || {
-        echo -e "${RED}Error: Failed to create download directory: $DOWNLOAD_MODEL_DIR\n${NC}"
-        return 1
-    }
-
     # Target directory mirrors downloaded model structure
     mkdir -p "$TARGET_DIR" || {
         echo -e "${RED}Error: Failed to create download directory: $TARGET_DIR\n${NC}"
@@ -221,11 +215,11 @@ download_ovms_model() {
 
     # Check if POST_RESPONSE is empty or contains an error
     if [[ -z "$POST_RESPONSE" || "$POST_RESPONSE" == *"error"* ]]; then
-        echo -e "${RED}Error: Failed to submit the model download job. Response: $POST_RESPONSE\n${NC}"
+        echo -e "${RED}Error: Failed to submit the model download request. Response: $POST_RESPONSE\n${NC}"
         return 1
     fi
 
-    echo -e "Job submission response: $POST_RESPONSE\n"
+    echo -e "Model download API response: $POST_RESPONSE\n"
 
     # jq is mandatory
     if ! command -v jq >/dev/null 2>&1; then
@@ -242,7 +236,7 @@ download_ovms_model() {
         return 1
     fi
 
-    echo "Jobs submitted: ${JOB_IDS[*]}"
+    echo -e "Jobs submitted: ${JOB_IDS[*]}\n"
 
     local MAX_ATTEMPTS=60
     local SLEEP_SECS=5
@@ -299,21 +293,22 @@ download_ovms_model() {
         local JOB_CONVERSION_DIR="${job_conversion_path[$job_id]}"
 
         if [[ ! -d "$JOB_CONVERSION_DIR" ]]; then
-            echo -e "${RED}Error: Expected model directory not found: $JOB_CONVERSION_DIR\n${NC}"
+            echo -e "${RED}Error: Conversion path does not exist for job $job_id. Check the job status and logs for more details.\n${NC}"
             return 1
         fi
 
-        echo -e "${BLUE}\nJob $job_id saved model files at JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR\n${NC}"
+        echo -e "${BLUE}\nCopying model files from conversion directory: $JOB_CONVERSION_DIR to target directory: $TARGET_DIR${NC}"
 
-        echo -e "${BLUE}\nCopying JOB_CONVERSION_DIR: $JOB_CONVERSION_DIR  to TARGET_DIR: $TARGET_DIR\n${NC}"
         if ! cp -r "$JOB_CONVERSION_DIR/"* "$TARGET_DIR"; then
-            echo -e "${RED}Error: Failed to copy files from $JOB_CONVERSION_DIR to $TARGET_DIR\n${NC}"
+            echo -e "${RED}\nError: Failed to copy model files. Verify permissions and available disk space.\n${NC}"
             return 1
         fi
+
+        echo -e "${GREEN}\nSuccessfully copied model files for job $job_id${NC}"
 
     done
 
-    echo -e "${GREEN}$MODEL_NAME model artifacts successfully copied to $TARGET_DIR/$MODEL_NAME\n${NC}"
+    echo -e "${GREEN}\nSuccessfully prepared $MODEL_TYPE model: $MODEL_NAME${NC}\n${NC}"
 }
 
 setup_inference() {

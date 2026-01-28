@@ -116,7 +116,7 @@ def get_pipeline_config():
     
     config = {
         'pipeline_count': max_workers,
-        'batch_size': 32,  # Optimal batch size for embedding generation
+        'batch_size': max(1, settings.EMBEDDING_BATCH_SIZE),
         'enable_pipelines': enable_pipelines,
         'use_openvino': use_openvino
     }
@@ -599,6 +599,7 @@ class SimplePipelineManager:
             embedding_times: List[float] = []
             storage_times: List[float] = []
             total_items_after_detection = 0
+            completed_batches: List[Dict[str, Any]] = []
             
             logger.info(f"Starting parallel execution of {len(batches)} batches with {self.config['pipeline_count']} maximum workers")
             
@@ -644,6 +645,7 @@ class SimplePipelineManager:
                         embedding_times.append(batch_embedding_time)
                         storage_times.append(batch_storage_time)
                         total_items_after_detection += batch_items_after_detection
+                        completed_batches.append(batch_result)
                         
                         logger.info(
                             f"Batch {batch_index}/{len(batch_futures)} completed: {embeddings_count} embeddings stored"
@@ -669,6 +671,7 @@ class SimplePipelineManager:
                 return {
                     "avg_s": avg_time,
                     "max_s": stats.get("max", 0.0),
+                    "total_s": stats.get("total", 0.0),
                     "avg_pct_of_batch": (avg_time / avg_batch_time * 100.0) if avg_batch_time else 0.0,
                 }
 
@@ -697,6 +700,14 @@ class SimplePipelineManager:
                     'max_s': max_batch_time,
                     'count': batch_time_stats.get('count', 0),
                 },
+                'batch_details': completed_batches,
+                'pipeline_config': {
+                    'pipeline_count': self.config.get('pipeline_count'),
+                    'batch_size': self.config.get('batch_size'),
+                    'use_openvino': self.config.get('use_openvino'),
+                    'object_detection_enabled': self.enable_object_detection,
+                    'detection_confidence': self.detection_confidence,
+                },
                 'post_detection_items': total_items_after_detection,
                 'input_frames': len(all_frames)
             }
@@ -711,11 +722,19 @@ class SimplePipelineManager:
                 'avg_batch_time': 0.0,
                 'max_batch_time': 0.0,
                 'stage_breakdown': {
-                    'detection': {'avg_s': 0.0, 'max_s': 0.0, 'avg_pct_of_batch': 0.0},
-                    'embedding': {'avg_s': 0.0, 'max_s': 0.0, 'avg_pct_of_batch': 0.0},
-                    'storage': {'avg_s': 0.0, 'max_s': 0.0, 'avg_pct_of_batch': 0.0},
+                    'detection': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
+                    'embedding': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
+                    'storage': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
                 },
                 'batch_stats': {'avg_s': 0.0, 'max_s': 0.0, 'count': 0},
+                'batch_details': completed_batches,
+                'pipeline_config': {
+                    'pipeline_count': self.config.get('pipeline_count'),
+                    'batch_size': self.config.get('batch_size'),
+                    'use_openvino': self.config.get('use_openvino'),
+                    'object_detection_enabled': self.enable_object_detection,
+                    'detection_confidence': self.detection_confidence,
+                },
                 'post_detection_items': 0,
                 'input_frames': len(all_frames)
             }
@@ -858,6 +877,7 @@ class SimplePipelineManager:
             )
             
             return {
+                'batch_index': batch_index,
                 'embeddings_count': len(valid_embeddings),
                 'stored_ids': stored_ids,
                 'processing_time': batch_time,
@@ -871,6 +891,7 @@ class SimplePipelineManager:
         except Exception as e:
             logger.error(f"[Batch {batch_index}/{total_batches}] Error processing batch: {e}")
             return {
+                'batch_index': batch_index,
                 'embeddings_count': 0,
                 'stored_ids': [],
                 'processing_time': time.time() - batch_start_time,
@@ -1187,39 +1208,17 @@ def _process_video_from_memory_simple_pipeline(
                 'post_detection_items': post_detection_items,
                 'stored_embeddings': len(stored_ids)
             },
-            'processing_mode': 'sdk_simple_pipeline_with_batch_storage'
+            'processing_mode': 'sdk_simple_pipeline_with_batch_storage',
+            'batch_details': processing_result.get('batch_details', []),
+            'pipeline_config': processing_result.get('pipeline_config', {}),
+            'video_properties': {
+                'fps': float(fps) if fps else None,
+                'total_frames': int(total_frames) if total_frames is not None else None,
+                'video_duration_seconds': video_duration_seconds,
+            },
         }
         
         logger.info("Simple pipeline processing completed successfully")
-        logger.info(
-            "Frame flow summary: extracted=%d -> after_detection=%d -> stored=%d",
-            len(frames),
-            post_detection_items,
-            len(stored_ids),
-        )
-
-        def _format_stage(label: str, stats: Dict[str, float]) -> str:
-            avg_time = stats.get('avg_s', 0.0)
-            max_time = stats.get('max_s', 0.0)
-            pct = stats.get('avg_pct_of_batch', 0.0)
-            return f"{label}(avg={avg_time:.3f}s, max={max_time:.3f}s, ~{pct:.1f}% of batch)"
-
-        logger.info(
-            "Stage timing snapshot: extraction=%.3fs | %s | %s | %s | parallel_batch_time_after_extraction=%.3fs | total_time=%.3fs",
-            frame_extraction_time,
-            _format_stage("detection", detection_stats),
-            _format_stage("embedding", embedding_stats),
-            _format_stage("storage", storage_stats),
-            parallel_stage_time,
-            method_time,
-        )
-        if batch_stats.get('count'):
-            logger.info(
-                "Batch timing snapshot: avg=%.3fs, max=%.3fs across %d batches",
-                batch_stats.get('avg_s', 0.0),
-                batch_stats.get('max_s', 0.0),
-                batch_stats.get('count', 0),
-            )
         
         return result
         

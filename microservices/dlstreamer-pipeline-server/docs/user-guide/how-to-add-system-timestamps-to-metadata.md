@@ -1,16 +1,18 @@
 # How to add system timestamps to metadata
 
-This tutorial will help you add timestamp to metadata of each frame. This tutorial shows how to use the GST element 'timecodestamper' that adds timestamps to frames.
+This tutorial will help you add a timestamp to the metadata of each frame. This tutorial shows
+how to use the GST element `timecodestamper` that adds timestamps to frames.
 
 ## Steps
-1. Update default config.json present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with below configurations.
+1. Update default `config.json` present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with below configurations.
 
-* Update "pipeline" variable as follows -
+- Update "pipeline" variable as follows -
 ```sh
 "pipeline": "{auto_source} ! decodebin ! timecodestamper set=always ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
-`NOTE` Make sure that proprety `set` of `timecodestamper` is set to `always`. `timecodestamper` element follows SMPTE format of storing data (hours:minutes:seconds:frames).
+> **NOTE**: Make sure that proprety `set` of `timecodestamper` is set to `always`. The
+> `timecodestamper` element follows SMPTE format of storing data (hours:minutes:seconds:frames).
 
 `set` property can have anyone of the 3 values shown below
 | Value  | Description |
@@ -19,9 +21,9 @@ This tutorial will help you add timestamp to metadata of each frame. This tutori
 | keep | Keep upstream timecodes and only set if no upstream timecode |
 | always | Always set timecode and remove upstream timecode |
 
-Ensure that the changes made to the config.json are reflected in the container by volume mounting it as mentioned in this [tutorial](./how-to-change-dlstreamer-pipeline.md)
+Ensure that the changes made to the `config.json` are reflected in the container by volume mounting it as mentioned in this [tutorial](./how-to-change-dlstreamer-pipeline.md)
 
-2. Start the DL Streamer pipeline server
+2. Start the DL Streamer Pipeline Server
 ```sh
 cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
 docker compose up

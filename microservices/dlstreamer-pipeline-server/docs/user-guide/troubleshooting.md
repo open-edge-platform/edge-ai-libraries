@@ -1,24 +1,37 @@
 # Troubleshooting
 
+This article contains troubleshooting steps for known issues. If you encounter any problems
+with the application not addressed here, check the [GitHub Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues)
+board. Feel free to file new tickets there.
 
-## Using REST API in Image Ingestor mode has low first inference latency
+## Troubleshooting
 
-This is an expected behavior observed only for the first inference. Subsequent inferences would be considerably faster.
-For inference on GPU, the first inference might be even slower. Latency for up to 15 seconds have been observed for image requests inference on GPU.
-When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for the first inference latency to avoid request time out.
-Read [here](./advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md#post-pipelinesnameversioninstance_id) to learn more about the API.
+### Using REST API in Image Ingestor mode has low first inference latency
+
+This is an expected behavior observed only for the first inference. Subsequent inferences
+would be considerably faster.
+For inference on GPU, the first inference might be even slower. Latencies for up to 15 seconds
+have been observed for image request inference on GPU.
+When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for
+the first inference latency to avoid request time out.
+Read the relevant [REST Endpoints Reference Guide](./advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md#post-pipelinesnameversioninstance_id)
+section to learn more about the API.
 
 ---
 
-## Axis RTSP camera freezes or pipeline stops
+### Axis RTSP camera freezes or pipeline stops
 
-Restart the DL Streamer pipeline server container with the pipeline that has this rtsp source.
+Restart the DL Streamer Pipeline Server container with the pipeline that has this rtsp source.
 
 ---
 
-## Deploying with Intel GPU K8S Extension
+### Deploying with Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
+If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
+`vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
+appropriately in order to utilize the underlying GPU.
+
 ```sh
 gpu:
    enabled: true
@@ -28,7 +41,7 @@ gpu:
 
 ---
 
-## Deploying without Intel GPU K8S Extension
+### Deploying without Intel GPU K8S Extension
 
 If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
 ```sh
@@ -37,7 +50,7 @@ privileged_access_required: true
 
 ---
 
-## Using RTSP/WebRTC streaming, S3_write or MQTT fails with GPU elements in pipeline
+### Using RTSP/WebRTC streaming, S3_write or MQTT fails with GPU elements in pipeline
 
 If you are using GPU elements in the pipeline, RTSP/WebRTC streaming, S3_write and MQTT will not work because these are expects CPU buffer. \
 Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in case you are using S3_write) in the GPU pipeline.
@@ -49,9 +62,9 @@ Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in ca
 
 ---
 
-## RTSP streaming fails if you are using udfloader
+### RTSP streaming fails if you are using udfloader
 
-If you are using udfloader<link> pipeline RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
+If you are using [udfloader pipeline](./how-to-run-udf-pipelines.md), RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
 If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add  `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
 ```sh
 # Sample pipeline
@@ -61,7 +74,7 @@ If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipel
 
 ---
 
-## Resolving Time Sync Issues in Prometheus
+### Resolving Time Sync Issues in Prometheus
 
 If you see the following warning in Prometheus, it indicates a time sync issue.
 
@@ -103,7 +116,7 @@ This should resolve the time discrepancy in Prometheus.
 
 ---
 
-## WebRTC Stream on web browser
+### WebRTC Stream on web browser
 The firewall may prevent you from viewing the video stream on web browser. Please disable the firewall using this command.
 ```sh
 sudo ufw disable
@@ -111,13 +124,13 @@ sudo ufw disable
 
 ---
 
-## Inferencing on NPU
+### Inferencing on NPU
 
 To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#prerequisite-2---install-intel-npu-drivers) to install Intel NPU drivers.
 
 ---
 
-## Unable to run GPU inference on some Arrow Lake machines with `resource allocation failed` errors
+### Unable to run GPU inference on some Arrow Lake machines with `resource allocation failed` errors
 
 For example:
 
@@ -131,6 +144,12 @@ One is updating the kernel to `6.11.11-061111-generic` in the host system.
 Alternately, install OpenCL runtime packages in the host system. Refer to the instructions from OpenVINO documentation [here](https://docs.openvino.ai/2025/get-started/install-openvino/configurations/configurations-intel-gpu.html#linux) to install GPU drivers.
 
 ---
+
+## Known Issues
+
+### Running DL Streamer Pipeline Server on Ubuntu 24.04
+
+User has to install `docker compose v2` to run DL Streamer Pipeline Server on Ubuntu 24.04.
 
 ## Error Logs
 

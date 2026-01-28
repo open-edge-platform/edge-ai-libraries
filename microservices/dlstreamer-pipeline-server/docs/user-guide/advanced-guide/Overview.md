@@ -53,8 +53,8 @@
 ```{toctree}
 :maxdepth: 5
 :hidden:
-detailed_usage/rest_api/Overview
 detailed_usage/configuration/Overview
+detailed_usage/rest_api/Overview
 detailed_usage/camera/Overview
 detailed_usage/file_ingestion/Overview
 detailed_usage/udf/Overview

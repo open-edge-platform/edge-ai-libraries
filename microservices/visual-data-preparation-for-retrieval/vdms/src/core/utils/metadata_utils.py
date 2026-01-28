@@ -34,6 +34,7 @@ Usage:
 import datetime
 import json
 import pathlib
+import time
 from typing import Dict, List, Optional, Tuple, NamedTuple
 
 from tzlocal import get_localzone
@@ -241,7 +242,7 @@ def store_enhanced_video_metadata(
     enable_object_detection: bool = None,
     detection_confidence: float = None,
     tags: List[str] | str = [],
-) -> pathlib.Path:
+) -> Tuple[pathlib.Path, dict]:
     """
     Store enhanced video metadata with frame-based processing and object detection support
 
@@ -257,7 +258,7 @@ def store_enhanced_video_metadata(
         tags (List[str] | str): Tags for the video
 
     Returns:
-        metadata_file_path (Path): Path of the metadata file location
+        Tuple containing metadata file path and processing summary
     """
     # Get config defaults if parameters not provided
     config = get_config()
@@ -269,7 +270,7 @@ def store_enhanced_video_metadata(
     if detection_confidence is None:
         detection_confidence = config.get("detection_confidence", 0.85)
     
-    metadata: dict = extract_enhanced_video_metadata(
+    metadata, processing_summary = extract_enhanced_video_metadata(
         temp_video_path=temp_video_path,
         bucket_name=bucket_name,
         video_id=video_id,
@@ -281,7 +282,8 @@ def store_enhanced_video_metadata(
     )
     metadata_file_path: pathlib.Path = save_metadata_at_temp(metadata_temp_path, metadata)
 
-    return metadata_file_path
+    processing_summary["metadata_file_path"] = str(metadata_file_path)
+    return metadata_file_path, processing_summary
 
 
 def extract_enhanced_video_metadata(
@@ -293,7 +295,7 @@ def extract_enhanced_video_metadata(
     enable_object_detection: bool = None,
     detection_confidence: float = None,
     tags: List[str] | str = [],
-) -> Dict:
+) -> Tuple[Dict, Dict]:
     """
     Generates enhanced metadata for a video with frame-based processing and optional object detection.
 
@@ -308,7 +310,7 @@ def extract_enhanced_video_metadata(
         tags (List[str] | str): Tags for the video
 
     Returns:
-        metadata (dict): The generated metadata as a python dict
+        Tuple containing the metadata dictionary and processing summary metrics
     """
     # Get config defaults if parameters not provided
     config = get_config()
@@ -321,6 +323,7 @@ def extract_enhanced_video_metadata(
         detection_confidence = config.get("detection_confidence", 0.85)
     
     metadata = {}
+    processing_metrics: Dict[str, float] = {}
     logger.info("Extracting enhanced video metadata with frame-based processing...")
 
     # Generate clean timestamp once 
@@ -361,11 +364,12 @@ def extract_enhanced_video_metadata(
         )
         
         # Use the enhanced detection pipeline
-        frame_info_list, actual_manifest_path = process_video_with_enhanced_detection(
+        frame_info_list, actual_manifest_path, extraction_metrics = process_video_with_enhanced_detection(
             temp_video_path,
             frame_interval=frame_interval,
             object_detection_config=object_detection_config,
         )
+        processing_metrics = dict(extraction_metrics)
         
         # Generate metadata for each extracted frame/crop
         for idx, frame_info in enumerate(frame_info_list):
@@ -412,11 +416,14 @@ def extract_enhanced_video_metadata(
         if metadata:
             first_key = next(iter(metadata))
             metadata[first_key]["frames_manifest_path"] = str(actual_manifest_path)
+        processing_metrics["manifest_path"] = str(actual_manifest_path)
+        processing_metrics["items_after_detection"] = len(frame_info_list)
             
     else:
         # Process with basic frame-based extraction (no object detection)
         logger.info("Processing video with basic frame-based extraction")
         
+        extraction_start = time.perf_counter()
         # Create frame info list for batch processing
         frame_info_list = []
         
@@ -463,6 +470,8 @@ def extract_enhanced_video_metadata(
 
             frame_count += 1
 
+        frame_extraction_seconds = time.perf_counter() - extraction_start
+
         # Create frames manifest for batch processing (even without object detection)
         logger.info(f"Creating frames manifest for {len(frame_info_list)} frames...")
         manifest_path = create_frames_manifest(frame_info_list, str(temp_video_path.parent), str(temp_video_path))
@@ -473,4 +482,26 @@ def extract_enhanced_video_metadata(
             metadata[first_key]["frames_manifest_path"] = str(manifest_path)
             logger.info(f"Frames manifest created at: {manifest_path}")
 
-    return metadata
+        processing_metrics = {
+            "frame_extraction_seconds": frame_extraction_seconds,
+            "detection_seconds": 0.0,
+            "frames_extracted": frame_count,
+            "items_after_detection": frame_count,
+            "manifest_path": str(manifest_path),
+        }
+
+    metadata_sample = metadata[next(iter(metadata))] if metadata else {}
+    processing_summary = {
+        **processing_metrics,
+        "fps": float(fps) if fps else None,
+        "total_frames": total_frames,
+        "video_duration_seconds": video_duration_seconds,
+        "frame_interval": frame_interval,
+        "object_detection_enabled": enable_object_detection,
+        "detection_confidence": detection_confidence,
+        "metadata_sample": metadata_sample,
+        "video_url": video_url,
+        "video_rel_url": video_rel_url,
+    }
+
+    return metadata, processing_summary
