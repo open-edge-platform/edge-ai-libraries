@@ -115,9 +115,10 @@ async def download_models(
                     detail=f"Plugin '{model.hub}' is not available: {error_reason}"
                 )
             
-            extra_kwargs = model.dict()
-            needs_conversion = model.is_ovms
+            extra_kwargs = model.model_dump().copy()  
+            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {extra_kwargs}")
 
+            needs_conversion = model.is_ovms
             model_download_path = os.path.join(models_dir, download_path)
             
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:

@@ -5,22 +5,15 @@ import os
 import shutil
 import json
 import zipfile
+import subprocess
 from io import BytesIO
 from enum import Enum, auto
-from typing import Dict, Any, List, Optional, Union, Type
+from typing import Dict, Any, List, Optional
 
-import requests
-from requests.exceptions import RequestException
 from pydantic import TypeAdapter
 
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
-
-
-class HTTPMethod(Enum):
-    """Enum for HTTP methods"""
-    GET = auto()
-    POST = auto()
 
 
 class GetiResourceProperty(Enum):
@@ -47,14 +40,13 @@ class GetiPlugin(ModelDownloadPlugin):
         self._verify_server_ssl_cert = self._parse_bool(
             os.getenv("GETI_SERVER_SSL_VERIFY", "False"), ignore_empty=True
         )
-        self.model_id=None
+        self.model_id = None
 
         if isinstance(self._server_url, str):
             self._server_url = self._server_url + f"/api/{self._server_api_ver}"
 
         self._geti_req_headers = {
-            #"Accept": "application/json",
-            "x-api-key": f"{self._server_api_token}",
+            "x-api-key": self._server_api_token,
         }
         self._req_timeout = 30
 
@@ -99,7 +91,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
         return True
 
-    def _validate_env_vars(self) -> None:
+    async def _validate_env_vars(self) -> None:
         """Validate that all required environment variables are set"""
         if any(
             [
@@ -117,49 +109,88 @@ class GetiPlugin(ModelDownloadPlugin):
             )
             raise ValueError(err_msg)
 
-    def _send_request(self, method: HTTPMethod, url: str, data=None, headers: Optional[Dict[str, str]] = None):
-        """Send HTTP request to Geti server"""
-        self._validate_env_vars()
+    async def _send_request_via_curl(self, method: str, url: str, data: Optional[str] = None, headers: Optional[Dict[str, str]] = None) -> "_CurlResponse":
+        """Send HTTP request to Geti server using curl"""
+        await self._validate_env_vars()
 
         try:
-            # Merge default headers with any overrides (override takes precedence)
+            # Merge default headers with any overrides
             req_headers = dict(self._geti_req_headers)
             if headers:
                 req_headers.update(headers)
             
-            logger.info(f"Sending {method.name} request to Geti server: {url}")
+            # For POST requests with data, ensure Content-Type is set
+            if method == "POST" and data and "Content-Type" not in req_headers:
+                req_headers["Content-Type"] = "application/json"
+            
+            logger.info(f"Sending {method} request to Geti server via curl: {url}")
             logger.info(f"Request headers: {req_headers}")
+            if data:
+                logger.debug(f"Request body: {data}")
+            
+            # Build curl command
+            curl_cmd = ["curl", "--location", "--silent", "--show-error"]
+            
+            # Add SSL verification flag
+            if not self._verify_server_ssl_cert:
+                curl_cmd.append("--insecure")
+            
+            # Add timeout
+            curl_cmd.extend(["--max-time", str(self._req_timeout)])
+            
+            # Add headers
+            for header_key, header_value in req_headers.items():
+                curl_cmd.extend(["--header", f"{header_key}: {header_value}"])
+            
+            # Add method and data
+            if method == "GET":
+                curl_cmd.append("--request")
+                curl_cmd.append("GET")
+            elif method == "POST":
+                curl_cmd.append("--request")
+                curl_cmd.append("POST")
+                if data:
+                    curl_cmd.extend(["--data", data])
+            
+            # Add URL
+            curl_cmd.append(url)
+            
+            logger.debug(f"Curl command: {' '.join(curl_cmd)}")
+            
+            # Execute curl command
+            # Use binary mode (text=False) to properly capture binary ZIP data
+            result = subprocess.run(
+                curl_cmd,
+                capture_output=True,
+                text=False,  # Keep as binary to preserve ZIP file data
+                timeout=self._req_timeout + 5
+            )
+            
+            logger.debug(f"Curl exit code: {result.returncode}")
+            if result.stdout:
+                logger.debug(f"Curl stdout length: {len(result.stdout)}")
+            if result.stderr:
+                stderr_text = result.stderr.decode('utf-8', errors='replace') if isinstance(result.stderr, bytes) else result.stderr
+                logger.debug(f"Curl stderr: {stderr_text}")
+            
+            if result.returncode != 0:
+                error_msg = f"Curl failed with exit code {result.returncode}"
+                if result.stderr:
+                    stderr_text = result.stderr.decode('utf-8', errors='replace') if isinstance(result.stderr, bytes) else result.stderr
+                    error_msg += f": {stderr_text}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            
+            return _CurlResponse(result.stdout)
+            
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Curl request timed out: {e}")
+            raise RuntimeError(f"Request timed out: {e}") from e
+        except Exception as e:
+            logger.error(f"Failed to send request via curl: {e}")
+            raise RuntimeError(f"Failed to communicate with Geti server: {e}") from e
 
-            if method == HTTPMethod.GET:
-                response = requests.get(
-                    url, 
-                    headers=req_headers, 
-                    proxies={'no_proxy': '10.223.22.123'}, 
-                    timeout=self._req_timeout, 
-                    verify=self._verify_server_ssl_cert
-                )
-            elif method == HTTPMethod.POST:
-                response = requests.post(
-                    url, 
-                    headers=req_headers, 
-                    data=data,
-                    proxies={'no_proxy': self._server_url.split('/')[2] if self._server_url else ''}, 
-                    timeout=self._req_timeout, 
-                    verify=self._verify_server_ssl_cert
-                )
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            
-            logger.info(f"Geti {method.name} Response Status Code: {response.status_code}")
-            response.raise_for_status()
-            return response
-            
-            
-        except RequestException as e:
-            logger.error(f"Failed to communicate with Geti server: {e}")
-            raise RequestException(f"Failed to get resource from the Geti server: {e}") from e
-
-    def get_resources(
+    async def get_resources(
         self,
         url_path: str,
         resource_prop_key: GetiResourceProperty,
@@ -186,7 +217,7 @@ class GetiPlugin(ModelDownloadPlugin):
         url = f"{self._server_url}{url_path}{url_query_str}"
 
         try:
-            response = self._send_request(method=HTTPMethod.GET, url=url)
+            response = await self._send_request_via_curl(method="GET", url=url)
 
             if response.status_code == 200:
                 if resource_id:
@@ -208,7 +239,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
         return resources
 
-    def post_resources(self, url_path: str, data, resource_id: Optional[str] = None):
+    async def post_resources(self, url_path: str, data, resource_id: Optional[str] = None):
         """
         Send a POST request regarding a specific resource.
 
@@ -218,7 +249,7 @@ class GetiPlugin(ModelDownloadPlugin):
             resource_id (str, optional): The ID of a specific resource. Defaults to None.
 
         Returns:
-            requests.Response: Response from the Geti server
+            Response-like object from the Geti server
         """
         if resource_id:
             url_path = f"{url_path}/{resource_id}"
@@ -226,7 +257,7 @@ class GetiPlugin(ModelDownloadPlugin):
         url = f"{self._server_url}{url_path}"
 
         try:
-            response = self._send_request(method=HTTPMethod.POST, url=url, data=data)
+            response = await self._send_request_via_curl(method="POST", url=url, data=data)
 
             if response.status_code in (200, 201):
                 return response
@@ -240,7 +271,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
         return None
 
-    def get_projects(self, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_projects(self, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all projects or a specific project.
 
@@ -253,7 +284,7 @@ class GetiPlugin(ModelDownloadPlugin):
         url_path = f"/organizations/{self._organization_id}/workspaces/{self._workspace_id}/projects"
 
         try:
-            projects = self.get_resources(
+            projects = await self.get_resources(
                 url_path=url_path,
                 resource_prop_key=GetiResourceProperty.PROJECTS,
                 resource_id=project_id,
@@ -264,7 +295,7 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.error(f"Error retrieving projects: {e}")
             raise
 
-    def get_model_id_by_name(self, project_id: str, model_group_id: str, model_name: str) -> Optional[str]:
+    async def get_model_id_by_name(self, project_id: str, model_group_id: str, model_name: str) -> Optional[str]:
         """
         Fetch model_id from Geti server by looking up the model name.
 
@@ -279,7 +310,7 @@ class GetiPlugin(ModelDownloadPlugin):
         # Per REST API spec, models are returned within the model group object
         # at GET /projects/{project_id}/model_groups/{model_group_id}
         try:
-            model_group = self.get_model_group(project_id=project_id, model_group_id=model_group_id)
+            model_group = await self.get_model_group(project_id=project_id, model_group_id=model_group_id)
             if not model_group:
                 logger.error(
                     f"Model group '{model_group_id}' not found in project '{project_id}'"
@@ -288,7 +319,7 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.info(f"Searching for model name '{model_name}' in model group {model_group}") 
             models = model_group.get("models", [])
             for model in models:
-                if model.get("name") == model_name:
+                if model.get("name").lower() == model_name.lower():
                     model_id = model.get("id")
                     logger.info(
                         f"Found model ID '{model_id}' for model name '{model_name}'"
@@ -304,7 +335,7 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.error(f"Error fetching model ID by name: {e}")
             return None
 
-    def get_model_group(self, project_id: str, model_group_id: str) -> Optional[Dict[str, Any]]:
+    async def get_model_group(self, project_id: str, model_group_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve a specific model group, which includes its models list, per REST API spec:
         GET /organizations/{organization_id}/workspaces/{workspace_id}/projects/{project_id}/model_groups/{model_group_id}
@@ -316,7 +347,7 @@ class GetiPlugin(ModelDownloadPlugin):
         url = f"{self._server_url}{url_path}"
         try:
             # Expecting a ZIP archive, adjust Accept header accordingly
-            resp = self._send_request(method=HTTPMethod.GET, url=url)
+            resp = await self._send_request_via_curl(method="GET", url=url)
             if resp.status_code == 200:
                 return resp.json()
             else:
@@ -328,8 +359,8 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.error(f"Error retrieving model group: {e}")
             return None
 
-    def _download_model_from_geti(
-        self, project_id: str, model_id: str, output_dir: str, **kwargs
+    async def _download_model_from_geti(
+        self, model_id: str, output_dir: str, model_name: str = None, **kwargs
     ) -> Optional[str]:
         """
         Download model files from a Geti server using the deployment package download API.
@@ -337,7 +368,6 @@ class GetiPlugin(ModelDownloadPlugin):
         Uses POST endpoint: /projects/{project_id}/deployment_package:download
 
         Args:
-            project_id (str): The ID of the project
             model_id (str): The ID of the model
             output_dir (str): Output directory for downloaded files
             **kwargs: Additional arguments:
@@ -350,6 +380,7 @@ class GetiPlugin(ModelDownloadPlugin):
         """
         export_type = (kwargs.get("export_type") or "base").lower()
         model_group_id = kwargs.get("model_group_id")
+        project_id = kwargs.get("project_id")
         
         try:
             # Build the POST endpoint URL
@@ -359,51 +390,53 @@ class GetiPlugin(ModelDownloadPlugin):
             )
             url = f"{self._server_url}{url_path}"
             
-            # Prepare the request body
-            # request_body = {
-            #     "model_id": model_id,
-            #     "model_group_id": model_group_id,
-            # }
-            request_body = {
-                    "package_type": "ovms",
-                    "models": [
-                        {
-                            "model_group_id": "691bfb86c7b9a6d48b162af3",
-                            "model_id": "691bfba01fefe127812d9693"
-                        }
-                    ]
+            # Prepare the model object
+            model_obj = {
+                "model_group_id": model_group_id,
+                "model_id": model_id,
             }
             
+            # Prepare the request body with correct structure
+            request_body = {
+                "package_type": "ovms",
+                "models": [model_obj]
+            }
+                       
             if export_type == "optimized":
                 optimized_model_id = kwargs.get("optimized_model_id")
                 if not optimized_model_id:
                     logger.error("optimized_model_id is required for optimized model export")
                     return None
                 
-                request_body["optimized_model_id"] = optimized_model_id
-                request_body["model_only"] = kwargs.get("model_only", True)
+                model_obj["optimized_model_id"] = optimized_model_id
+                model_obj["model_only"] = kwargs.get("model_only", True)
                 
-                logger.info(f"Downloading optimized model: {optimized_model_id}, model_only={request_body['model_only']}")
+                logger.info(f"Downloading optimized model: {optimized_model_id}, model_only={model_obj['model_only']}")
             else:
                 logger.info(f"Downloading base model: {model_id}")
 
             # Make the POST request to download the model
             data = json.dumps(request_body)
-            headers = {"Content-Type": "application/json"}
-            resp = self._send_request(method=HTTPMethod.POST, url=url, data=data, headers=headers)
+            logger.info(f"Request body: {data}")
+
+            # Create hub-specific directory
+            hub_dir = os.path.join(output_dir, "geti")
+            model_dir_name = f"{export_type}_{model_id}".replace("/", "_")
+            model_dir = os.path.join(hub_dir, model_dir_name)
+            os.makedirs(model_dir, exist_ok=True)
+
+            resp = await self._send_request_via_curl(method="POST", url=url, data=data)
 
             if resp.status_code in (200, 201):
                 logger.debug(f"Model ({model_id}) downloaded successfully")
 
-                # Create hub-specific directory
-                hub_dir = os.path.join(output_dir, "geti")
-                model_dir_name = f"{export_type}_{model_id}".replace("/", "_")
-                model_dir = os.path.join(hub_dir, model_dir_name)
-
-                os.makedirs(model_dir, exist_ok=True)
+                # Store the POST request result (ZIP file) in the model directory
+                zip_file_path = os.path.join(model_dir, f"{model_name}.zip")
+                with open(zip_file_path, "wb") as f:
+                    f.write(resp.content)
+                logger.info(f"Model ZIP file saved to {zip_file_path}")
 
                 # Extract zip file
-                zip_file_path = os.path.join(model_dir, f"{model_dir_name}.zip")
                 with BytesIO(resp.content) as zip_buffer:
                     with zipfile.ZipFile(zip_buffer, "r") as zip_ref:
                         zip_ref.extractall(model_dir)
@@ -416,18 +449,22 @@ class GetiPlugin(ModelDownloadPlugin):
                 )
                 logger.debug(f"Archive created: {archive_path}")
 
-                return archive_path
+                return model_dir
             else:
-                logger.error(
-                    f"Failed to download model - Status code: {resp.status_code}, {resp.text}"
-                )
+                error_msg = f"Failed to download model - Status code: {resp.status_code}"
+                try:
+                    error_detail = resp.text[:500] if resp.text else "No response body"
+                except:
+                    error_detail = "Could not read response"
+                logger.error(f"{error_msg}. Response: {error_detail}")
+                return None
         except Exception as e:
             logger.error(f"Error downloading model from Geti: {e}")
             raise
 
         return None
 
-    def _prepare_deployment(self, project_id: str, model_info: Dict[str, Any]) -> Optional[str]:
+    async def _prepare_deployment(self, project_id: str, model_info: Dict[str, Any]) -> Optional[str]:
         """
         Prepare a deployment for model download.
 
@@ -442,7 +479,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
         try:
             data = json.dumps({"models": [model_info]})
-            resp = self.post_resources(url_path=url_path, data=data)
+            resp = await self.post_resources(url_path=url_path, data=data)
 
             if resp and resp.status_code in (200, 201):
                 deployment_id = resp.json().get("id")
@@ -456,7 +493,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
         return None
 
-    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
+    async def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """
         Download OpenVINO models from Geti server.
 
@@ -480,7 +517,7 @@ class GetiPlugin(ModelDownloadPlugin):
             Dict[str, Any]: Download result information
         """
         try:
-            project_id = (kwargs.get("project_id") or "691bfa6c0a9b332eadf1d28c").lower()
+            project_id = kwargs.get("project_id")
             model_group_id = kwargs.get("model_group_id")
             export_type = (kwargs.get("export_type") or "base").lower()
             model_only = kwargs.get("model_only", True)  # Default to True to exclude code
@@ -499,7 +536,7 @@ class GetiPlugin(ModelDownloadPlugin):
             model_id = kwargs.get("model_id")
             if not model_id:
                 logger.info(f"Model ID not provided, fetching model_id for model name '{model_name}' from Geti server")
-                model_id = self.get_model_id_by_name(project_id, model_group_id, model_name)
+                model_id = await self.get_model_id_by_name(project_id, model_group_id, model_name)
                 if not model_id:
                     logger.error(f"Failed to fetch model_id for model name '{model_name}'")
                     return {"success": False, "error": f"Model '{model_name}' not found in Geti server"}
@@ -514,8 +551,8 @@ class GetiPlugin(ModelDownloadPlugin):
             kwargs["model_only"] = model_only
             logger.info(f"Downloading model_id '{model_id}' from Geti server of project '{project_id}' and model group '{model_group_id}' in the directory '{output_dir}' with kwargs: {kwargs}")
             # Download model files using the export API
-            model_path = self._download_model_from_geti(
-                project_id=project_id, model_id=model_id, output_dir=output_dir, **kwargs
+            model_path = await self._download_model_from_geti(
+                model_id, output_dir, model_name, **kwargs
             )
 
             if not model_path:
@@ -553,7 +590,7 @@ class GetiPlugin(ModelDownloadPlugin):
         """Geti plugin does not support task-based downloading"""
         raise NotImplementedError("Geti plugin does not support task-based downloading")
 
-    def post_process(
+    async def post_process(
         self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs
     ) -> Dict[str, Any]:
         """Post-process downloaded Geti models"""
@@ -563,3 +600,42 @@ class GetiPlugin(ModelDownloadPlugin):
             "download_path": output_dir,
             "success": True,
         }
+
+
+class _CurlResponse:
+    """
+    Wrapper for curl response to provide a requests-like interface.
+    This maintains backward compatibility with existing code.
+    """
+    
+    def __init__(self, response_data):
+        # Handle both binary and text responses
+        if isinstance(response_data, bytes):
+            self._content_bytes = response_data
+            try:
+                self._content_str = response_data.decode('utf-8')
+            except UnicodeDecodeError:
+                self._content_str = response_data.decode('utf-8', errors='replace')
+        else:
+            # Text response
+            self._content_str = response_data
+            self._content_bytes = response_data.encode('utf-8') if isinstance(response_data, str) else response_data
+        
+        # Parse status code from curl output if available
+        # For now, assume success if we got content
+        self.status_code = 200
+        self.url = ""
+
+    @property
+    def content(self) -> bytes:
+        """Return response content as bytes"""
+        return self._content_bytes
+
+    @property
+    def text(self) -> str:
+        """Return response content as text"""
+        return self._content_str
+
+    def json(self) -> Dict[str, Any]:
+        """Parse response content as JSON"""
+        return json.loads(self._content_str)

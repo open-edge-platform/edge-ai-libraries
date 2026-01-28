@@ -41,6 +41,15 @@ The Model Download Service is a microservice that enables downloading models fro
       export TAG=1.0.1
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
+    - For using the GETI plugin set the below environment variables
+      ```bash
+      export GETI_HOST=<GETI_HOST_ADDRESS>
+      export GETI_ORGANIZATION_ID=<YOUR_GETI_ORGANIZATION_ID>
+      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+      export GETI_SERVER_API_VERSION=v1
+      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
+      ```
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
       ```bash
@@ -68,14 +77,14 @@ The Model Download Service is a microservice that enables downloading models fro
         | `--build`                | Build the Docker image before running                                                            |
         | `--rebuild`              | This flag instructs to ignore any existing cached images and rebuild them from scratch using the Dockerfile definitions|
         | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,geti`) or `all` to enable all available plugins |
         | `--help`                 | Show this help message                                                                           |
       
       **Examples**:
         - Start the service with default settings: `source scripts/run_service.sh up`
         - Stop the service: `source scripts/run_service.sh down`
         - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics`
+        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,geti`
         - Use a custom model storage location: `source scripts/run_service.sh up --model-path /data/my-models`
         - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
         - Display usage information: `source scripts/run_service.sh --help`

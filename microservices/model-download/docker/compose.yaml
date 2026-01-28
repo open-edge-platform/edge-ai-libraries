@@ -10,9 +10,9 @@ services:
     container_name: model-download
     command: --plugins ${ENABLED_PLUGINS:-all}
     environment:
-      - HTTP_PROXY=${HTTP_PROXY:-}
-      - HTTPS_PROXY=${HTTPS_PROXY:-}
-      - NO_PROXY=${NO_PROXY:-}
+      #- HTTP_PROXY=${HTTP_PROXY:-}
+      #- HTTPS_PROXY=${HTTPS_PROXY:-}
+      - no_proxy=${no_proxy:-}
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - ENABLED_PLUGINS=${ENABLED_PLUGINS}

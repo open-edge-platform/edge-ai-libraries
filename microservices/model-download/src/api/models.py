@@ -65,6 +65,8 @@ class ModelRequest(BaseModel):
     export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
     optimized_model_id: Optional[str] = None
     model_only: Optional[bool] = Field(True, description="For optimized Geti models: exclude code")
+    class Config:
+        extra = "allow"
 
 
 class ModelDownloadRequest(BaseModel):
