@@ -72,6 +72,32 @@ export USER_AGENT_HEADER=<your_user_agent_string>
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 ```
+
+## ALLOWED_HOSTS Configuration
+
+The `ALLOWED_HOSTS` environment variable is critical for security as it restricts which domains the microservice can access during URL ingestion. Configure this based on your deployment scenario:
+
+```bash
+export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # To mitigate SSRF attacks during URL ingestion
+```
+
+### Example Configurations
+
+- **Enterprise Setup**: For environments within an organization firewall with access to intranet and internal wikis
+
+    Example: Allow access to internal Intel domains and public Wikipedia
+
+    export ALLOWED_HOSTS="\*.intel.com,en.wikipedia.org,\*.wikipedia.org,\*.github.com"
+
+
+- **Public Setup**: For public deployments with access to general internet resources:
+
+    Example: Allow access to public wikis and common websites
+
+    export ALLOWED_HOSTS="en.wikipedia.org,\*.wikipedia.org,craigslist.org,\*.craigslist.org,\*.medium.com"
+
+**Note**: Use comma-separated domain patterns. Wildcards (*) are supported for subdomains. Be as specific as possible to minimize security risks from SSRF attacks.
+
 Refer to instructions on [manual customization](./how-to-customize.md) for the customization
 options for the microservice.
 
