@@ -19,6 +19,7 @@ import pipeline2 from "@/assets/pipeline_2.png";
 import pipeline3 from "@/assets/pipeline_3.png";
 import pipeline4 from "@/assets/pipeline_4.png";
 import pipeline5 from "@/assets/pipeline_5.png";
+import pipeline6 from "@/assets/pipeline_6.png";
 import type { Pipeline } from "@/api/api.generated";
 import { selectHasNPU } from "@/store/reducers/devices.ts";
 import { NpuUsageProgress } from "@/features/metrics/NpuUsageProgress.tsx";
@@ -30,6 +31,7 @@ const pipelineImages = [
   pipeline3,
   pipeline4,
   pipeline5,
+  pipeline6,
 ];
 
 const Home = () => {

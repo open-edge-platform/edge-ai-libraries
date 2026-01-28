@@ -2,6 +2,8 @@
   filename: people.mp4
 - url: "https://github.com/open-edge-platform/edge-ai-resources/raw/6d452bf87bb1707630f747774d2d15caa1a6f7aa/videos/ParkingVideo.mp4"
   filename: license-plate-detection.mp4
+- url: "https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/warehouse.avi"
+  filename: warehouse.avi
 - url: "https://www.pexels.com/download/video/6891009"
   filename: obj_classification.mp4
 - url: "https://www.pexels.com/download/video/3249935"
