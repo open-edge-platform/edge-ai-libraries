@@ -99,6 +99,7 @@ def test_store_enhanced_video_metadata(mocker, tmp_path):
         "metadata_local_temp_dir": str(tmp_path),
     }
     mock_metadata = {"video_name": {"fps": 20, "total_frames": 10}}
+    mock_summary = {"metadata_file_path": ""}
 
     frame_interval = 15
     enable_object_detection = True
@@ -107,7 +108,7 @@ def test_store_enhanced_video_metadata(mocker, tmp_path):
     mock_open = mocker.mock_open()
     mocker.patch("builtins.open", mock_open)
     mock_extract = mocker.MagicMock()
-    mock_extract.return_value = mock_metadata
+    mock_extract.return_value = (mock_metadata, mock_summary)
     mocker.patch(
         "src.core.utils.metadata_utils.extract_enhanced_video_metadata",
         return_value=mock_metadata,
@@ -117,7 +118,7 @@ def test_store_enhanced_video_metadata(mocker, tmp_path):
     metadata_file = tmp_path / Settings().METADATA_FILENAME
 
     # Assert that result is a path and path matches the metadata_file
-    result = store_enhanced_video_metadata(
+    result_path, summary = store_enhanced_video_metadata(
         bucket_name="test-bucket",
         video_id="test-video",
         video_filename="test.mp4",
@@ -128,8 +129,9 @@ def test_store_enhanced_video_metadata(mocker, tmp_path):
         detection_confidence=detection_confidence,
         tags=[]
     )
-    assert type(result) is pathlib.PosixPath
-    assert result == metadata_file
+    assert isinstance(result_path, pathlib.PosixPath)
+    assert result_path == metadata_file
+    assert summary.get("metadata_file_path") == str(metadata_file)
 
     pathlib.Path.mkdir.assert_called_once()
     mock_open.assert_called_with(metadata_file, "w")

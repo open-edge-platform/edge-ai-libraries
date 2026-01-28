@@ -3,6 +3,7 @@
 
 from .document_processing import process_document_router
 from .health import check_health_router
+from .telemetry import telemetry_router
 from .video_management import delete_video_router, download_video_router, list_videos_router
 from .video_processing import (
     process_minio_video_router,
@@ -17,4 +18,5 @@ __all__ = [
     "list_videos_router",
     "download_video_router",
     "delete_video_router",
+    "telemetry_router",
 ]
