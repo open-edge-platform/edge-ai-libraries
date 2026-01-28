@@ -297,7 +297,7 @@ download_ovms_model() {
             return 1
         fi
 
-        echo -e "${BLUE}\nCopying model files from coversion directory: $JOB_CONVERSION_DIR to target directory: $TARGET_DIR${NC}"
+        echo -e "${BLUE}\nCopying model files from conversion directory: $JOB_CONVERSION_DIR to target directory: $TARGET_DIR${NC}"
 
         if ! cp -r "$JOB_CONVERSION_DIR/"* "$TARGET_DIR"; then
             echo -e "${RED}\nError: Failed to copy model files. Verify permissions and available disk space.\n${NC}"
