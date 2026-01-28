@@ -20,12 +20,15 @@ performance on Intel hardware.
 
 from pathlib import Path
 from typing import List, Union, Dict, Any, Optional
+import os
+import numpy as np
 import torch
 import torch.nn.functional as F
 import types
 import gc
 import json
 import openvino as ov
+import openvino.properties as ov_props
 from PIL import Image
 import open_clip
 import shutil
@@ -79,6 +82,14 @@ class CLIPHandler(BaseEmbeddingModel):
         self.ov_image_encoder = None
         self.ov_text_encoder = None
         self._embedding_dim: Optional[int] = None
+        self._ov_image_async_requests = 1
+        self._ov_text_async_requests = 1
+        self._ov_image_async_chunk = 0
+        self._ov_text_async_chunk = 0
+        self._ov_image_optimal_reqs: Optional[int] = None
+        self._ov_text_optimal_reqs: Optional[int] = None
+        self._ov_image_optimal_batch: Optional[int] = None
+        self._ov_text_optimal_batch: Optional[int] = None
         
     def load_model(self) -> None:
         """
@@ -147,6 +158,7 @@ class CLIPHandler(BaseEmbeddingModel):
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device
         )
+        self._configure_openvino_async_settings()
         # Create model structure WITHOUT downloading weights to get preprocessing
         # This leverages OpenCLIP's built-in preprocessing configuration
         _, _, self.preprocess = open_clip.create_model_and_transforms(
@@ -159,6 +171,114 @@ class CLIPHandler(BaseEmbeddingModel):
         # Get tokenizer (lightweight operation)
         self.tokenizer = open_clip.get_tokenizer(self.model_name)
         logger.info(f"CLIP OpenVINO models loaded successfully on device: {self.device}")
+    
+    def _configure_openvino_async_settings(self) -> None:
+        """Configure OpenVINO async settings using device guidance + env overrides."""
+
+        def _safe_int(value: Optional[int], *, minimum: int = 1, default: int = 1) -> int:
+            if value is None:
+                return default
+            try:
+                return max(minimum, int(value))
+            except (TypeError, ValueError):
+                return default
+
+        def _resolve_requests(env_key: str, recommended: Optional[int], fallback: int) -> int:
+            raw = os.getenv(env_key)
+            if raw is not None:
+                try:
+                    resolved = max(1, int(raw))
+                    logger.info("Env override %s=%s", env_key, resolved)
+                    return resolved
+                except ValueError:
+                    logger.warning("Ignoring non-integer value for %s: %s", env_key, raw)
+            if recommended:
+                return _safe_int(recommended, default=fallback)
+            return fallback
+
+        def _resolve_chunk(env_key: str, recommended: Optional[int], fallback: int) -> int:
+            raw = os.getenv(env_key)
+            if raw is not None:
+                try:
+                    resolved = max(0, int(raw))
+                    logger.info("Env override %s=%s", env_key, resolved)
+                    return resolved
+                except ValueError:
+                    logger.warning("Ignoring non-integer value for %s: %s", env_key, raw)
+            if recommended is not None:
+                return max(0, recommended)
+            return max(0, fallback)
+
+        image_defaults = self._extract_async_preferences(self.ov_image_encoder, "image")
+        text_defaults = self._extract_async_preferences(self.ov_text_encoder, "text")
+
+        self._ov_image_async_requests = _resolve_requests(
+            "OV_IMAGE_ASYNC_REQUESTS", image_defaults["requests"], fallback=2
+        )
+        self._ov_text_async_requests = _resolve_requests(
+            "OV_TEXT_ASYNC_REQUESTS", text_defaults["requests"], fallback=2
+        )
+
+        # Prefer OpenVINO's optimal batch size; fall back to "auto" (0) which lets _run_openvino_async decide.
+        image_chunk_fallback = image_defaults["batch"] or image_defaults["requests"] or 0
+        text_chunk_fallback = text_defaults["batch"] or text_defaults["requests"] or 0
+
+        self._ov_image_async_chunk = _resolve_chunk(
+            "OV_IMAGE_ASYNC_CHUNK", image_defaults["batch"], fallback=image_chunk_fallback
+        )
+        self._ov_text_async_chunk = _resolve_chunk(
+            "OV_TEXT_ASYNC_CHUNK", text_defaults["batch"], fallback=text_chunk_fallback
+        )
+
+        logger.info(
+            "OpenVINO async settings - image: %d requests (chunk=%s, recommended=%s/%s), text: %d requests (chunk=%s, recommended=%s/%s)",
+            self._ov_image_async_requests,
+            self._ov_image_async_chunk or "auto",
+            image_defaults["requests"],
+            image_defaults["batch"],
+            self._ov_text_async_requests,
+            self._ov_text_async_chunk or "auto",
+            text_defaults["requests"],
+            text_defaults["batch"],
+        )
+
+    def _extract_async_preferences(self, compiled_model: Optional[ov.CompiledModel], label: str) -> Dict[str, Optional[int]]:
+        """Collect OpenVINO recommendations for queue sizing if the device exposes them."""
+        recommendations: Dict[str, Optional[int]] = {"requests": None, "batch": None}
+        if compiled_model is None:
+            return recommendations
+
+        def _query_property(prop_name: str) -> Optional[int]:
+            prop = getattr(ov_props, prop_name, None)
+            if prop is None:
+                return None
+            try:
+                value = compiled_model.get_property(prop)
+                return int(value)
+            except Exception as exc:  # pragma: no cover - diagnostic only
+                logger.debug("%s model missing %s (%s)", label, prop_name, exc)
+                return None
+
+        optimal_requests = _query_property("optimal_number_of_infer_requests")
+        optimal_batch = _query_property("optimal_batch_size")
+
+        if optimal_requests:
+            logger.info("OpenVINO recommends %d in-flight requests for %s encoder", optimal_requests, label)
+            recommendations["requests"] = optimal_requests
+            if label == "image":
+                self._ov_image_optimal_reqs = optimal_requests
+            else:
+                self._ov_text_optimal_reqs = optimal_requests
+
+        if optimal_batch:
+            logger.info("OpenVINO recommends batch size %d for %s encoder", optimal_batch, label)
+            recommendations["batch"] = optimal_batch
+            if label == "image":
+                self._ov_image_optimal_batch = optimal_batch
+            else:
+                self._ov_text_optimal_batch = optimal_batch
+
+        return recommendations
     
     def encode_text(self, texts: Union[str, List[str]]) -> torch.Tensor:
         """
@@ -185,9 +305,16 @@ class CLIPHandler(BaseEmbeddingModel):
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO inference with infer_new_request for thread safety
-            result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: tokenized})
-            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
+            text_array = tokenized.detach().cpu().numpy()
+            ov_result = self._run_openvino_async(
+                compiled_model=self.ov_text_encoder,
+                input_port=self.ov_text_encoder.inputs[0],
+                output_port=self.ov_text_encoder.outputs[0],
+                input_array=text_array,
+                chunk_size=self._ov_text_async_chunk or text_array.shape[0],
+                max_inflight=self._ov_text_async_requests,
+            )
+            text_features = torch.from_numpy(ov_result)
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -227,9 +354,16 @@ class CLIPHandler(BaseEmbeddingModel):
             image_tensor = torch.stack([self.preprocess(img) for img in images])
         
         if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO inference with infer_new_request for thread safety
-            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
-            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
+            image_array = image_tensor.detach().cpu().numpy()
+            ov_result = self._run_openvino_async(
+                compiled_model=self.ov_image_encoder,
+                input_port=self.ov_image_encoder.inputs[0],
+                output_port=self.ov_image_encoder.outputs[0],
+                input_array=image_array,
+                chunk_size=self._ov_image_async_chunk or image_array.shape[0],
+                max_inflight=self._ov_image_async_requests,
+            )
+            image_features = torch.from_numpy(ov_result)
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -385,6 +519,51 @@ class CLIPHandler(BaseEmbeddingModel):
             self._embedding_dim = int(features.shape[-1])
 
         return self._embedding_dim
+
+    def _run_openvino_async(
+        self,
+        compiled_model: ov.CompiledModel,
+        input_port: ov.Output,
+        output_port: ov.Output,
+        input_array: np.ndarray,
+        chunk_size: int,
+        max_inflight: int,
+    ) -> np.ndarray:
+        """Run OpenVINO inference with small async batches to keep GPU busy."""
+        total = input_array.shape[0]
+        if total == 0:
+            return np.empty((0,))
+
+        chunk = max(1, min(chunk_size or total, total))
+        inflight_limit = max(1, max_inflight)
+        results: List[np.ndarray] = []
+        pending: List[ov.InferRequest] = []
+
+        for start_idx in range(0, total, chunk):
+            batch = input_array[start_idx : start_idx + chunk]
+            infer_request = compiled_model.create_infer_request()
+            tensor = ov.Tensor(batch)
+            infer_request.set_tensor(input_port, tensor)
+            infer_request.start_async()
+            pending.append(infer_request)
+
+            if len(pending) >= inflight_limit:
+                completed = pending.pop(0)
+                completed.wait()
+                results.append(self._extract_ov_output(completed, output_port))
+
+        while pending:
+            completed = pending.pop(0)
+            completed.wait()
+            results.append(self._extract_ov_output(completed, output_port))
+
+        return np.concatenate(results, axis=0)
+
+    @staticmethod
+    def _extract_ov_output(infer_request: ov.InferRequest, output_port: ov.Output) -> np.ndarray:
+        """Copy data from an OpenVINO tensor into a numpy array for torch conversion."""
+        output_tensor = infer_request.get_tensor(output_port)
+        return np.array(output_tensor.data, copy=True)
 
     def _get_preprocess_image_size(self) -> int:
         """Infer the expected image resolution from the preprocess pipeline."""

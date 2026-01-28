@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     # Telemetry persistence settings
     TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
     TELEMETRY_MAX_RECORDS: int = 100
+
+    @field_validator("MAX_PARALLEL_WORKERS", mode="before")
+    @classmethod
+    def _normalize_parallel_workers(cls, value):
+        """Treat empty env strings as unset so we fall back to auto sizing."""
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     # Allow environment override for bucket name (useful for different deployments)
     # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME

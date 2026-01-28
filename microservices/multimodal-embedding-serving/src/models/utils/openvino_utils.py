@@ -109,7 +109,12 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
     performance_mode_env = os.getenv("OV_PERFORMANCE_MODE") or os.getenv(
         "OPENVINO_PERFORMANCE_MODE"
     )
-    requested_mode = (performance_mode_env or "LATENCY").strip().upper()
+    device_upper = (device or "").upper()
+
+    if performance_mode_env:
+        requested_mode = performance_mode_env.strip().upper()
+    else:
+        requested_mode = "THROUGHPUT" if "GPU" in device_upper else "LATENCY"
     mode_aliases = {
         "THROUGHPUT": "THROUGHPUT",
         "LATENCY": "LATENCY",
@@ -127,7 +132,10 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
     logger.info("Using OpenVINO performance mode: %s", performance_mode)
 
     if performance_mode == "LATENCY":
-        logger.info("Latency mode selected; compiling with default OpenVINO settings (no overrides).")
+        logger.info(
+            "Latency mode selected for device %s; compiling with default OpenVINO settings (no overrides).",
+            device,
+        )
         ov_image_encoder = core.compile_model(image_encoder_path, device)
         ov_text_encoder = core.compile_model(text_encoder_path, device)
     else:
@@ -136,7 +144,11 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
         default_requests = base_worker_target
 
         perf_hint_requests = _resolve_int_env(
-            ["OV_PERFORMANCE_HINT_NUM_REQUESTS", "PERFORMANCE_HINT_NUM_REQUESTS"],
+            [
+                "OV_PERFORMANCE_HINT_NUM_REQUESTS",
+                "PERFORMANCE_HINT_NUM_REQUESTS",
+                "MAX_PARALLEL_WORKERS",
+            ],
             default_requests,
         )
 

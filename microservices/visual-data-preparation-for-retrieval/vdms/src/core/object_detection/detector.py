@@ -7,6 +7,8 @@ import logging
 import tarfile
 import urllib.request
 import urllib.error
+import queue
+from contextlib import contextmanager
 from typing import List, Optional, Tuple, Union
 
 import cv2
@@ -22,9 +24,11 @@ logger = logging.getLogger(__name__)
 
 try:
     import openvino as ov
+    import openvino.properties as ov_props
     OPENVINO_AVAILABLE = True
 except ImportError:
     OPENVINO_AVAILABLE = False
+    ov_props = None
     logger.warning("OpenVINO not available. Object detection will be disabled.")
 
 class YOLOXDetector:
@@ -57,6 +61,9 @@ class YOLOXDetector:
         self.confidence_threshold = self.detection_config.get('confidence_threshold', 0.5)
         self.nms_threshold = self.detection_config.get('nms_threshold', 0.45)
         self.input_size = tuple(self.detection_config.get('input_size', [640, 640]))
+        self._async_request_count = 1
+        self._request_pool: Optional[queue.SimpleQueue] = None
+        self._device_recommended_requests: Optional[int] = None
         
         # Model configuration - use persistent mount path
         self.model_dir = self.detection_config.get('model_dir', '/app/models/yolox')
@@ -108,6 +115,7 @@ class YOLOXDetector:
             self.core = ov.Core()
             self.net = self.core.read_model(model=self.model_file)
             self.exec_net = self.core.compile_model(self.net, self.device)
+            self._initialize_request_pool()
             
             # Get input/output information
             self.input_tensor = self.exec_net.inputs[0]
@@ -120,6 +128,71 @@ class YOLOXDetector:
         except Exception as e:
             logger.error(f"Failed to initialize OpenVINO: {e}")
             raise
+
+    def _initialize_request_pool(self) -> None:
+        """Create infer requests up front so workers can borrow them."""
+        if not hasattr(self, 'exec_net') or self.exec_net is None:
+            raise RuntimeError("Detector exec_net is not initialized")
+        self._async_request_count = self._resolve_async_request_count()
+        self._request_pool = queue.SimpleQueue()
+        for _ in range(self._async_request_count):
+            self._request_pool.put(self.exec_net.create_infer_request())
+        logger.info(
+            "Initialized %d OpenVINO infer requests for detector async execution",
+            self._async_request_count,
+        )
+
+    def _resolve_async_request_count(self) -> int:
+        """Resolve how many infer requests to keep in-flight for detection."""
+        env_value = os.getenv('DETECTION_ASYNC_REQUESTS')
+        config_value = self.detection_config.get('async_requests')
+        recommended = self._query_optimal_infer_requests()
+
+        if env_value is not None:
+            try:
+                value = max(1, int(env_value))
+                if recommended and value > recommended:
+                    logger.info(
+                        "DETECTION_ASYNC_REQUESTS=%s overrides device recommendation=%s",
+                        value,
+                        recommended,
+                    )
+                return value
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid DETECTION_ASYNC_REQUESTS=%s", env_value)
+
+        if config_value is not None:
+            try:
+                value = max(1, int(config_value))
+                if recommended and value > recommended:
+                    logger.info(
+                        "Config async_requests=%s overrides device recommendation=%s",
+                        value,
+                        recommended,
+                    )
+                return value
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Ignoring invalid object_detection.async_requests value: %s",
+                    config_value,
+                )
+
+        if recommended:
+            logger.info("Using OpenVINO optimal infer requests: %d", recommended)
+            return recommended
+
+        return 2
+
+    @contextmanager
+    def _borrow_infer_request(self):
+        """Borrow a compiled infer request from the pool for thread-safe async usage."""
+        if self._request_pool is None:
+            raise RuntimeError("Detector infer request pool is not initialized")
+        infer_request = self._request_pool.get()
+        try:
+            yield infer_request
+        finally:
+            self._request_pool.put(infer_request)
     
     def _ensure_model_available(self):
         """Download YOLOX model if not available using pure Python methods."""
@@ -191,6 +264,22 @@ class YOLOXDetector:
         except Exception as e:
             logger.error(f"Failed to download model: {e}")
             raise
+
+    def _query_optimal_infer_requests(self) -> Optional[int]:
+        """Ask the compiled model how many infer requests saturate the device."""
+        if not OPENVINO_AVAILABLE or ov_props is None:
+            return None
+        exec_net = getattr(self, 'exec_net', None)
+        if exec_net is None:
+            return None
+        try:
+            recommended = exec_net.get_property(ov_props.optimal_number_of_infer_requests)
+            recommended_int = max(1, int(recommended))
+            self._device_recommended_requests = recommended_int
+            return recommended_int
+        except Exception as exc:  # pragma: no cover - diagnostic path
+            logger.debug("OpenVINO did not provide optimal_number_of_infer_requests: %s", exc)
+            return None
     
     def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[List[np.ndarray], List[float], List[int]]:
         """
@@ -210,9 +299,15 @@ class YOLOXDetector:
         processed_image, ratio = preproc(image, (self.h, self.w))
         
         # Run inference
+        # Run inference (async requests pulled from pool for multi-threaded workloads)
         try:
-            result = self.exec_net.infer_new_request({self.input_tensor: processed_image})
-            output = result[self.output_tensor]
+            with self._borrow_infer_request() as infer_request:
+                ov_tensor = ov.Tensor(processed_image)
+                infer_request.set_tensor(self.input_tensor, ov_tensor)
+                infer_request.start_async()
+                infer_request.wait()
+                output_tensor = infer_request.get_tensor(self.output_tensor)
+                output = output_tensor.data
             
             # Post-process results
             predictions = demo_postprocess(output, (self.h, self.w))[0]
