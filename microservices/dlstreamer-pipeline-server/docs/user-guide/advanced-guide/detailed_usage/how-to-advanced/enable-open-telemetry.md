@@ -2,8 +2,8 @@
 
 ## What telemetry data is collected
 DL Streamer Pipeline Server supports gathering metrics and logs over Open Telemetry. The supported metrics currently are:
-- `cpu_usage_percentage`: Tracks CPU usage percentage of DL Streamer Pipeline Server python process
-- `memory_usage_bytes`: Tracks memory usage in bytes of DL Streamer Pipeline Server python process
+- `cpu_usage_percentage`: Tracks CPU usage percentage of DL Streamer Pipeline Server Python process
+- `memory_usage_bytes`: Tracks memory usage in bytes of DL Streamer Pipeline Server Python process
 - `fps_per_pipeline`: Tracks FPS for each active pipeline instance in DL Streamer Pipeline Server
 
 ---
@@ -75,7 +75,7 @@ GRAFANA_PASSWORD= # Provide username to be used to login to Grafana, ex: GRAFANA
         }
     }'
     ```
-- This returns a pipeline_id like: 
+- This returns a pipeline_id like:
     ```sh
     658a5260f37d11ef94fc0242ac160005
     ```
@@ -91,7 +91,7 @@ You can run queries like:
 - `memory_usage_bytes`
 - `fps_per_pipeline{}`
     - If you are starting multiple pipelines, then it can also be queried per pipeline ID. Example: `fps_per_pipeline{pipeline_id="658a5260f37d11ef94fc0242ac160005"}`
-![Open telemetry fps_per_pipeline example in prometheus](../../../images/prometheus_fps_per_pipeline.png)
+![Open telemetry fps_per_pipeline example in prometheus](../../../_assets/prometheus_fps_per_pipeline.png)
 
 ---
 
@@ -115,10 +115,10 @@ Open Grafana by visiting `http://<HOST_IP>:<GRAFANA_PORT>` (login with: `GRAFANA
 
 - Go to "Explore" and choose Prometheus as data source.
 - Enter queries like: `cpu_usage_percentage`, `memory_usage_bytes`, `fps_per_pipeline`
-- ![Open telemetry fps_per_pipeline example in Grafana](../../../images/grafana_fps_per_pipeline.png)
+- ![Open telemetry fps_per_pipeline example in Grafana](../../../_assets/grafana_fps_per_pipeline.png)
 
 ### View logs from Loki
 
 - Go to "Explore" and choose Loki as data source.
 - Enter query with appropriate filters and view real time logs.
-- ![Open telemetry logs example in Grafana](../../../images/loki_logs.png)
+- ![Open telemetry logs example in Grafana](../../../_assets/loki_logs.png)

@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
     # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
     SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
+    MAX_PARALLEL_WORKERS: int | None = Field(
+        default=None,
+        description="Hard cap for SDK parallel worker threads; auto-calculated when unset",
+    )
+    EMBEDDING_BATCH_SIZE: int = Field(
+        default=32,
+        ge=1,
+        description="Items per embedding batch for SDK mode",
+    )
     DEVICE: str = Field(
         default="CPU",
         validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),
@@ -64,6 +73,10 @@ class Settings(BaseSettings):
     DETECTION_CONFIDENCE: float = 0.85
     DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
+
+    # Telemetry persistence settings
+    TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
+    TELEMETRY_MAX_RECORDS: int = 100
 
     # Allow environment override for bucket name (useful for different deployments)
     # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME

@@ -45,6 +45,7 @@ interface PipelineEditorProps {
   initialEdges?: ReactFlowEdge[];
   initialViewport?: Viewport;
   shouldFitView?: boolean;
+  useSimpleGraph?: boolean;
 }
 
 const PipelineEditorContent = forwardRef<
@@ -62,6 +63,7 @@ const PipelineEditorContent = forwardRef<
       initialEdges,
       initialViewport,
       shouldFitView,
+      useSimpleGraph,
     },
     ref,
   ) => {
@@ -105,6 +107,10 @@ const PipelineEditorContent = forwardRef<
     }, [edges, onEdgesChangeCallback]);
 
     useEffect(() => {
+      setHasInitialized(false);
+    }, [useSimpleGraph]);
+
+    useEffect(() => {
       if (!hasInitialized) {
         if (initialNodes && initialEdges) {
           setNodes(initialNodes);
@@ -118,9 +124,16 @@ const PipelineEditorContent = forwardRef<
             }
           }, 0);
           setHasInitialized(true);
-        } else if (pipelineData?.pipeline_graph) {
-          const nodes = pipelineData.pipeline_graph.nodes ?? [];
-          const edges = pipelineData.pipeline_graph.edges ?? [];
+        } else if (
+          pipelineData?.pipeline_graph ||
+          pipelineData?.pipeline_graph_simple
+        ) {
+          const graphToUse =
+            useSimpleGraph === true
+              ? pipelineData.pipeline_graph_simple
+              : pipelineData.pipeline_graph;
+          const nodes = graphToUse?.nodes ?? [];
+          const edges = graphToUse?.edges ?? [];
 
           const transformedNodes = nodes.map(
             (node) =>
@@ -140,8 +153,12 @@ const PipelineEditorContent = forwardRef<
           setEdges(edges);
 
           setTimeout(() => {
-            const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
-            setViewport({ x: viewportX, y: 50, zoom: 1 });
+            if (initialViewport) {
+              setViewport(initialViewport);
+            } else {
+              const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
+              setViewport({ x: viewportX, y: 50, zoom: 1 });
+            }
           }, 0);
 
           setHasInitialized(true);
@@ -158,6 +175,7 @@ const PipelineEditorContent = forwardRef<
       setEdges,
       setViewport,
       fitView,
+      useSimpleGraph,
     ]);
 
     return (
