@@ -23,6 +23,7 @@ By following this guide, you will learn how to:
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
 - Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+- `jq` command-line JSON processor: [Installation Guide](https://jqlang.github.io/jq/download/).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
