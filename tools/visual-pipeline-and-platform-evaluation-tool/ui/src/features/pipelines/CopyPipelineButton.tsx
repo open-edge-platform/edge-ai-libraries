@@ -32,10 +32,10 @@ const CopyPipelineButton = ({
   const [open, setOpen] = useState(false);
 
   const tags = Object.keys(pipelines);
-  const [selectedTag, setSelectedTag] = useState(tags[0] || "");
+  const [selectedTag, setSelectedTag] = useState(tags[0] ?? "");
   const selectedPipeline = pipelines[selectedTag];
 
-  const [name, setName] = useState(`Copy of ${baseName} [${tags[0] || ""}]`);
+  const [name, setName] = useState(`Copy of ${baseName} [${tags[0] ?? ""}]`);
   const [nameError, setNameError] = useState(false);
   const [description, setDescription] = useState(pipelineDescription);
   const [isNameManuallyEdited, setIsNameManuallyEdited] = useState(false);
@@ -47,8 +47,8 @@ const CopyPipelineButton = ({
 
   useEffect(() => {
     if (open) {
-      setSelectedTag(tags[0] || "");
-      setName(`Copy of ${baseName} [${tags[0] || ""}]`);
+      setSelectedTag(tags[0] ?? "");
+      setName(`Copy of ${baseName} [${tags[0] ?? ""}]`);
       setDescription(pipelineDescription);
       setIsNameManuallyEdited(false);
     }

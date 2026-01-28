@@ -7,15 +7,15 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from utils import generate_unique_filename
-from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from resources import (
     get_labels_manager,
-    get_scripts_manager,
     get_public_model_proc_manager,
+    get_scripts_manager,
 )
+from utils import generate_unique_filename
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+from videos import OUTPUT_VIDEO_DIR, get_videos_manager
 
 logger = logging.getLogger(__name__)
 models_manager = get_supported_models_manager()
@@ -348,6 +348,56 @@ class Graph:
         logger.debug(f"Generated pipeline description: {pipeline_description}")
 
         return pipeline_description
+
+    def apply_looping_modifications(self) -> "Graph":
+        """
+        Apply modifications to make pipeline suitable for looping playback.
+
+        Changes applied:
+        - Replace filesrc with multifilesrc loop=true
+        - Change input file extension to .ts in location
+        - Replace qtdemux with tsdemux
+
+        Returns:
+            Modified Graph object with looping support
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            # Replace filesrc with multifilesrc loop=true
+            if node.type == "filesrc":
+                node.type = "multifilesrc"
+                node.data["loop"] = "true"
+
+                if "location" in node.data:
+                    location = node.data["location"]
+                    ts_path = videos_manager.get_ts_path(location)
+                    if ts_path:
+                        node.data["location"] = ts_path
+                    logger.debug(
+                        f"Modified filesrc to multifilesrc with location: {node.data['location']}"
+                    )
+
+            # Replace demuxers with tsdemux for looping support
+            elif node.type in {"qtdemux", "matroskademux", "avidemux", "flvdemux"}:
+                node.type = "tsdemux"
+                logger.debug("Replaced demuxer with tsdemux for looping support")
+
+            # Replace splitmuxsink with appsink (no output files during looping)
+            # fakesink can't be used to avoid misunderstanding which sink to override for live output
+            elif node.type == "splitmuxsink":
+                node.data.clear()  # Clear all properties to avoid invalid args for appsink
+                node.type = "appsink"
+                # Make appsink behave like fakesink: no signals and no backpressure
+                node.data["emit-signals"] = "false"
+                node.data["drop"] = "true"
+                node.data["max-buffers"] = "1"
+                logger.debug("Replaced splitmuxsink with appsink for looping support")
+
+        return modified_graph
 
     def prepare_output_sinks(self) -> tuple["Graph", list[str]]:
         """

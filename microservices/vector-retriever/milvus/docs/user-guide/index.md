@@ -22,13 +22,13 @@ Key Features:
 
 - Text-Based Image/Video Retrieval:
 
-    Accepts text queries and retrieves the top-k most relevant results based on vector
-    similarity. Supports optional filters to refine search results.
+  Accepts text queries and retrieves the top-k most relevant results based on vector
+  similarity. Supports optional filters to refine search results.
 
 - Integration with Milvus:
 
-    Utilizes the Milvus vector database for efficient storage and retrieval of embeddings.
-    Ensures high performance and scalability for large datasets.
+  Utilizes the Milvus vector database for efficient storage and retrieval of embeddings.
+  Ensures high performance and scalability for large datasets.
 
 **Programming Language:** Python
 
@@ -54,14 +54,13 @@ Key Features:
 
 ## Learn More
 
-- Begin with the [Get Started Guide](./get-started)
+- Begin with the [Get Started Guide](./get-started).
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
 get-started
-system-requirements
 api-reference
 release-notes
 

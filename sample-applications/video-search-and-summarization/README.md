@@ -20,10 +20,10 @@ This foundational sample application provides three modes:
 The detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices are as follows.
 
 ## Documentation
-  
+
 - **Get Started**
   - [Get Started](./docs/user-guide/get-started.md): How to get started with the sample application.
-  - [System Requirements](./docs/user-guide/system-requirements.md): What hardware and software you need to run the sample application.
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): What hardware and software you need to run the sample application.
 
 - **Deployment**
   - [How to Build from Source](./docs/user-guide/build-from-source.md): How to build from source code.

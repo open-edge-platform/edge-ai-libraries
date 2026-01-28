@@ -4,6 +4,8 @@
 import datetime
 import pathlib
 import shutil
+import time
+import uuid
 from http import HTTPStatus
 from typing import Annotated, List
 
@@ -192,6 +194,12 @@ async def process_minio_video(
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
 
         # Process video metadata and generate frame-based embeddings
+        telemetry_context = {
+            "request_id": str(uuid.uuid4()),
+            "source": "/videos/minio",
+            "requested_at": time.time(),
+        }
+
         ids = await generate_video_embedding(
             bucket_name=bucket_name,
             video_id=video_id,
@@ -202,6 +210,7 @@ async def process_minio_video(
             enable_object_detection=enable_object_detection,
             detection_confidence=detection_confidence,
             tags=tags,
+            telemetry_context=telemetry_context,
         )
 
         # logger.debug(f"Frame-based embeddings created for videos: {ids}")

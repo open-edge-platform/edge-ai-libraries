@@ -17,15 +17,14 @@ to generate significantly more accurate and context-aware summaries.
 
 The overall high-level design is shown as below:
 
-![Multi-level Video Understanding High-level Design](high-level_design.png)
-
-    Figure 1: Multi-level Video Understanding High-level Design
+![Multi-level Video Understanding High-level Design](./_assets/high-level_design.png)\
+Figure 1: Multi-level Video Understanding High-level Design
 
 Among all the components, `Multi-level Video Understanding` refers to this microservice.
 `Video Chunking` is a library implemented in this Open Edge Platform (OEP) suite:
 [video-chunking-utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils).
 `Vision-Language Model Serving` and `Large Language Model Serving` are dependent
-services required by this microservice, running on OpenAI-compatibale APIs.
+services required by this microservice, running on OpenAI-compatible APIs.
 
 ## Overview
 
@@ -79,7 +78,7 @@ The following models are validated by the service:
 
 - [Get Started Guide](./get-started.md)
 - [API Reference](./api-reference.md)
-- [System Requirements](./system-requirements.md)
+- [System Requirements](./get-started/system-requirements.md)
 - [Release Notes](./release-notes.md)
 
 <!--hide_directive
@@ -87,10 +86,8 @@ The following models are validated by the service:
 :hidden:
 
 get-started
-system-requirements
-release-notes
 api-reference
-how-to-build-from-source
+release-notes
 
 :::
 hide_directive-->

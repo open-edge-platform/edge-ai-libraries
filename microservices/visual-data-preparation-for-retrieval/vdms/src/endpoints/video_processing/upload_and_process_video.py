@@ -5,6 +5,8 @@ import datetime
 import pathlib
 import shutil
 import io
+import time
+import uuid
 from http import HTTPStatus
 from typing import Annotated, List, Optional
 
@@ -144,6 +146,12 @@ async def upload_and_process_video(
             logger.error(f"Error uploading video to Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
 
+        telemetry_context = {
+            "request_id": str(uuid.uuid4()),
+            "source": "/videos/upload",
+            "requested_at": time.time(),
+        }
+
         # Choose processing approach based on embedding mode
         if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
             logger.info("Using SDK mode: processing video directly from memory for optimal performance")
@@ -159,6 +167,7 @@ async def upload_and_process_video(
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
                 tags=tags or [],
+                telemetry_context=telemetry_context,
             )
             logger.info(f"SDK mode: {len(ids)} embeddings created with optimized memory usage")
         else:
@@ -181,6 +190,7 @@ async def upload_and_process_video(
                 enable_object_detection=enable_object_detection,
                 detection_confidence=detection_confidence,
                 tags=tags or [],
+                telemetry_context=telemetry_context,
             )
             logger.info(f"API mode: {len(ids)} embeddings created using HTTP calls")
 

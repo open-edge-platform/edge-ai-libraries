@@ -1,6 +1,5 @@
 # Release Notes
 
-
 ## Current Release
 
 **Version**: 1.0.3
@@ -11,10 +10,10 @@
 - Update openvino/model_server to 2025.3 version
 
 ## Known Issues/Behaviour (Consolidated):
+
 - Application running into Model Type issue on EMT 3.1 - Closed
 - EMF Deployment package is not supported. - Open
 - Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
-
 
 ## Previous Releases
 
@@ -22,7 +21,7 @@
 **Release Date**: 09 Sep 2025
 
 - Fix issue where summary generation timed-out for huge text files. Now text file chunking is done and then summary is generated.
-- Update openvino/model_server to 2025.2 version 
+- Update openvino/model_server to 2025.2 version
 - Update nginxinc/nginx-unprivileged to 1.29.1 version
 
 **Version**: 1.0.1

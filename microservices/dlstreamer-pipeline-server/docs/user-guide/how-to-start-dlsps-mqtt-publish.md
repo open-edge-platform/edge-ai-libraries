@@ -2,12 +2,12 @@
 
 Pre-requisites:
 - `MQTT_HOST` and `MQTT_PORT` environment variable must be set for DL Streamer Pipeline Server prior to sending this curl request.
-You can do this by adding these variables to `.env` file present in the same folder as `docker-compose.yml`. 
+You can do this by adding these variables to `.env` file present in the same folder as `docker-compose.yml`.
     ```sh
     MQTT_HOST=<MQTT_BROKER_IP>
     MQTT_PORT=<MQTT_BROKER_PORT>
     ```
-    Alternatively, you can add them to the `environments` for DL Streamer Pipeline Server section in `docker-compose.yml`. 
+    Alternatively, you can add them to the `environments` for DL Streamer Pipeline Server section in `docker-compose.yml`.
 
     ```yaml
     dlstreamer-pipeline-server:
@@ -26,7 +26,7 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
 
 The below CURL command publishes metadata to a MQTT broker and sends frames over RTSP for streaming.
 
-Assuming broker is running in the same host over port `1883`, replace the `<SYSTEM_IP_ADDRESS>` field with your system IP address.  
+Assuming broker is running in the same host over port `1883`, replace the `<SYSTEM_IP_ADDRESS>` field with your system IP address.
 RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection`.
 
 ```sh
@@ -61,4 +61,4 @@ Output can be viewed on MQTT subscriber as shown below.
 docker run --network=docker_app_network -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h mqtt-broker
 ```
 
-For more details on MQTT you can refer this [document](./advanced-guide/detailed_usage/publisher/mqtt_publish.md)
+For more details on MQTT you can refer to the [MQTT publishing guide](./advanced-guide/detailed_usage/publisher/mqtt_publish.md).

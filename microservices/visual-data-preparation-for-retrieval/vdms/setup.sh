@@ -35,6 +35,9 @@ export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
 export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
 export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+# Optional hard cap for SDK parallel workers (auto when unset)
+export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
+export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
 
 # Embedding microservice configuration -------------------------------
 export EMBEDDING_SERVER_PORT=${EMBEDDING_SERVER_PORT:-9777}
@@ -180,11 +183,18 @@ elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
 
 # Build dataprep image
 elif [ "$1" = "--build" ] && ([ "$#" -eq 1 ] || [ "$#" -eq 2 ]); then
-    tag=${2:-${REGISTRY}vdms-dataprep:${TAG:-latest}}
-    docker build -t $tag -f docker/Dockerfile .
-    if [ $? = 0 ]; then
-        docker images | grep $tag
-        echo "Image ${tag} was successfully built."
+    default_image="${REGISTRY}vdms-dataprep:${TAG:-latest}"
+    if ./build.sh; then
+        docker images | grep "${default_image}"
+        echo "Image ${default_image} was successfully built."
+
+        if [ $# -eq 2 ]; then
+            custom_tag="$2"
+            docker tag "${default_image}" "${custom_tag}"
+            echo "Tagged image ${default_image} as ${custom_tag}."
+        fi
+    else
+        echo -e "${RED}ERROR: build.sh failed. Please check the build logs for details.${NC}"
     fi
 
 # Build dataprep dev image
@@ -255,7 +265,12 @@ elif [ "$1" = "--nd" ] && [ "$#" -eq 1 ]; then
 
 # Spin-up prod version of all services in daemon mode
 elif [ "$#" -eq 0 ]; then
-    docker compose -f docker/compose.yaml up -d --build
+    if ! ./build.sh; then
+        echo -e "${RED}ERROR: build.sh failed. Please inspect the build logs.${NC}"
+        exit 1
+    fi
+
+    docker compose -f docker/compose.yaml up -d --no-build
     if [ $? = 0 ]; then
         docker ps | grep "${PROJECT_NAME}"
         echo "Prod environment is up!"

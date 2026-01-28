@@ -67,6 +67,8 @@ services:
             - SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
             - VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-CPU}
             - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
+            - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
+            - MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-}
 
             # Frame processing settings
             - FRAME_INTERVAL=${FRAME_INTERVAL:-15}

@@ -1,6 +1,5 @@
 import time
 import unittest
-from typing import List
 from unittest.mock import patch, MagicMock
 
 from api.api_schemas import (
@@ -10,10 +9,10 @@ from api.api_schemas import (
 )
 from managers.validation_manager import (
     ValidationManager,
-    ValidatorRunner,
     ValidationJob,
     get_validation_manager,
 )
+from pipeline_runner import PipelineValidationResult
 
 
 class TestValidationManager(unittest.TestCase):
@@ -23,11 +22,10 @@ class TestValidationManager(unittest.TestCase):
     The tests focus on:
       * job creation and initial state,
       * status and summary retrieval,
-      * interaction with ValidatorRunner,
+      * interaction with PipelineRunner,
       * input validation and error paths.
     """
 
-    # Simple graph structure reused across tests (mirrors other manager tests)
     test_graph_json = """
     {
         "nodes": [
@@ -69,19 +67,15 @@ class TestValidationManager(unittest.TestCase):
     # ------------------------------------------------------------------
 
     @patch("managers.validation_manager.Graph")
-    def test_run_validation_creates_job_with_running_state_and_pipeline_description(
-        self, mock_graph_cls
-    ):
+    def test_run_validation_creates_job_with_running_state(self, mock_graph_cls):
         """
         run_validation should:
           * convert the graph to a pipeline description,
           * create a new ValidationJob with RUNNING state,
-          * store the converted pipeline_description on the job,
-          * start a background worker thread.
+          * start a background worker thread that uses PipelineRunner.
         """
         manager = ValidationManager()
 
-        # Mock Graph.from_dict(...).to_pipeline_description()
         mock_graph = MagicMock()
         mock_graph.to_pipeline_description.return_value = (
             "filesrc ! decodebin3 ! autovideosink"
@@ -90,7 +84,6 @@ class TestValidationManager(unittest.TestCase):
 
         request = self._build_validation_request(parameters=None)
 
-        # Patch _execute_validation so we do not actually spawn gst_runner.py
         with patch.object(manager, "_execute_validation") as mock_execute:
             job_id = manager.run_validation(request)
 
@@ -106,29 +99,22 @@ class TestValidationManager(unittest.TestCase):
             job.pipeline_description, "filesrc ! decodebin3 ! autovideosink"
         )
 
-        # Background worker must be started with correct arguments
         mock_execute.assert_called_once()
         called_job_id, called_pipe_desc, called_max_rt, called_hard_to = (
             mock_execute.call_args[0]
         )
         self.assertEqual(called_job_id, job_id)
         self.assertEqual(called_pipe_desc, "filesrc ! decodebin3 ! autovideosink")
-        # Default max-runtime is 10, hard-timeout is 10 + 60
         self.assertEqual(called_max_rt, 10)
         self.assertEqual(called_hard_to, 70)
 
     # ------------------------------------------------------------------
-    # Parameter validation (max-runtime)
+    # Parameter validation
     # ------------------------------------------------------------------
 
     @patch("managers.validation_manager.Graph")
-    def test_run_validation_uses_default_max_runtime_when_not_provided(
-        self, mock_graph_cls
-    ):
-        """
-        When 'max-runtime' is not provided in parameters, run_validation
-        should default it to 10 seconds.
-        """
+    def test_run_validation_uses_default_max_runtime(self, mock_graph_cls):
+        """When max-runtime not provided, should default to 10 seconds."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
@@ -138,21 +124,15 @@ class TestValidationManager(unittest.TestCase):
         request = self._build_validation_request(parameters={})
 
         with patch.object(manager, "_execute_validation") as mock_execute:
-            job_id = manager.run_validation(request)
+            manager.run_validation(request)
 
-        # Ensure thread was scheduled with default values
         _, _, max_rt, hard_timeout = mock_execute.call_args[0]
         self.assertEqual(max_rt, 10)
         self.assertEqual(hard_timeout, 70)
-        self.assertIn(job_id, manager.jobs)
 
     @patch("managers.validation_manager.Graph")
-    def test_run_validation_raises_value_error_for_non_int_max_runtime(
-        self, mock_graph_cls
-    ):
-        """
-        Non-integer 'max-runtime' should result in a ValueError.
-        """
+    def test_run_validation_raises_error_for_non_int_max_runtime(self, mock_graph_cls):
+        """Non-integer max-runtime should raise ValueError."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
@@ -168,12 +148,10 @@ class TestValidationManager(unittest.TestCase):
         self.assertIn("must be an integer", str(ctx.exception))
 
     @patch("managers.validation_manager.Graph")
-    def test_run_validation_raises_value_error_for_too_small_max_runtime(
+    def test_run_validation_raises_error_for_too_small_max_runtime(
         self, mock_graph_cls
     ):
-        """
-        max-runtime < 1 should result in a ValueError.
-        """
+        """max-runtime < 1 should raise ValueError."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
@@ -192,17 +170,11 @@ class TestValidationManager(unittest.TestCase):
     # _execute_validation behaviour
     # ------------------------------------------------------------------
 
-    @patch("managers.validation_manager.ValidatorRunner")
+    @patch("managers.validation_manager.PipelineRunner")
     def test_execute_validation_marks_job_completed_on_success(self, mock_runner_cls):
-        """
-        On successful validator run:
-          * job.state should become COMPLETED,
-          * is_valid must be True,
-          * error_message should remain None.
-        """
+        """On successful validation, job should be marked COMPLETED."""
         manager = ValidationManager()
 
-        # Prepare a job in RUNNING state
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
         request = PipelineValidation(pipeline_graph=graph, parameters=None)
 
@@ -216,9 +188,11 @@ class TestValidationManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        # Mock runner returning (True, [])
+        # Mock PipelineRunner returning valid result
         mock_runner = MagicMock()
-        mock_runner.run.return_value = (True, [])
+        mock_runner.run.return_value = PipelineValidationResult(
+            is_valid=True, errors=[]
+        )
         mock_runner_cls.return_value = mock_runner
 
         manager._execute_validation(
@@ -234,16 +208,11 @@ class TestValidationManager(unittest.TestCase):
         self.assertIsNone(updated.error_message)
         self.assertIsNotNone(updated.end_time)
 
-    @patch("managers.validation_manager.ValidatorRunner")
+    @patch("managers.validation_manager.PipelineRunner")
     def test_execute_validation_marks_job_error_on_invalid_pipeline(
         self, mock_runner_cls
     ):
-        """
-        When validator reports invalid pipeline:
-          * job.state should become ERROR,
-          * is_valid must be False,
-          * error_message should contain the reported errors.
-        """
+        """When pipeline is invalid, job should be marked ERROR."""
         manager = ValidationManager()
 
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
@@ -260,7 +229,9 @@ class TestValidationManager(unittest.TestCase):
         manager.jobs[job_id] = job
 
         mock_runner = MagicMock()
-        mock_runner.run.return_value = (False, ["no element foo", "some other error"])
+        mock_runner.run.return_value = PipelineValidationResult(
+            is_valid=False, errors=["no element foo", "some other error"]
+        )
         mock_runner_cls.return_value = mock_runner
 
         manager._execute_validation(
@@ -275,13 +246,9 @@ class TestValidationManager(unittest.TestCase):
         self.assertFalse(updated.is_valid)
         self.assertEqual(updated.error_message, ["no element foo", "some other error"])
 
-    @patch("managers.validation_manager.ValidatorRunner")
+    @patch("managers.validation_manager.PipelineRunner")
     def test_execute_validation_sets_error_on_exception(self, mock_runner_cls):
-        """
-        Any unexpected exception from ValidatorRunner should:
-          * mark the job as ERROR,
-          * append the exception message to error_message.
-        """
+        """Unexpected exception should mark job as ERROR."""
         manager = ValidationManager()
 
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
@@ -298,7 +265,7 @@ class TestValidationManager(unittest.TestCase):
         manager.jobs[job_id] = job
 
         mock_runner = MagicMock()
-        mock_runner.run.side_effect = RuntimeError("validator exploded")
+        mock_runner.run.side_effect = RuntimeError("runner exploded")
         mock_runner_cls.return_value = mock_runner
 
         manager._execute_validation(
@@ -311,16 +278,14 @@ class TestValidationManager(unittest.TestCase):
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, ValidationJobState.ERROR)
         self.assertIsNotNone(updated.error_message)
-        self.assertIn("validator exploded", " ".join(updated.error_message or []))
+        self.assertIn("runner exploded", " ".join(updated.error_message or []))
 
     # ------------------------------------------------------------------
     # Status and summary retrieval
     # ------------------------------------------------------------------
 
     def test_get_all_job_statuses_returns_correct_statuses(self):
-        """
-        get_all_job_statuses should build statuses for all jobs currently known.
-        """
+        """get_all_job_statuses should build statuses for all jobs."""
         manager = ValidationManager()
 
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
@@ -424,61 +389,14 @@ class TestValidationManager(unittest.TestCase):
         self.assertEqual(summary.request, request)
 
 
-class TestValidatorRunner(unittest.TestCase):
-    """
-    Focused tests for ValidatorRunner._parse_stderr.
-
-    ValidatorRunner.run() itself is not invoked here because it launches
-    a real subprocess; instead we verify that stderr parsing behaves as
-    expected for various shapes of validator output.
-    """
-
-    def test_parse_stderr_collects_only_validator_error_lines(self):
-        """
-        _parse_stderr should:
-          * keep only lines starting with 'gst_runner - ERROR - ',
-          * strip that prefix,
-          * drop empty/whitespace-only messages.
-        """
-        raw = "\n".join(
-            [
-                "some-other-tool - INFO - hello",
-                "gst_runner - ERROR - first error",
-                "gst_runner - ERROR -   second error   ",
-                "gst_runner - ERROR -    ",
-                "completely unrelated line",
-            ]
-        )
-
-        # Use the static method directly
-        errors: List[str] = ValidatorRunner._parse_stderr(raw)
-        self.assertEqual(errors, ["first error", "second error"])
-
-    def test_parse_stderr_handles_empty_input(self):
-        """Empty stderr should produce an empty list."""
-        errors = ValidatorRunner._parse_stderr("")
-        self.assertEqual(errors, [])
-
-    def test_parse_stderr_ignores_non_prefixed_lines(self):
-        """Lines without the expected prefix must be ignored."""
-        raw = "gst_runner - INFO - not-an-error\nother - ERROR - also-ignored"
-        errors = ValidatorRunner._parse_stderr(raw)
-        self.assertEqual(errors, [])
-
-
 class TestGetValidationManagerSingleton(unittest.TestCase):
-    """
-    Tests for the get_validation_manager singleton accessor.
-    """
+    """Tests for get_validation_manager singleton accessor."""
 
     @patch("managers.validation_manager.ValidationManager")
     def test_get_validation_manager_returns_singleton(self, mock_mgr_cls):
-        """
-        get_validation_manager should lazily create and cache a singleton.
-        """
+        """get_validation_manager should lazily create and cache singleton."""
         from managers import validation_manager as mod
 
-        # Reset global state for this test
         mod._validation_manager_instance = None
 
         instance1 = get_validation_manager()

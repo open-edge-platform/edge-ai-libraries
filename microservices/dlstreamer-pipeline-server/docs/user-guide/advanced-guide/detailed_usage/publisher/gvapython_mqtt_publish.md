@@ -21,7 +21,7 @@ The processed frames and metadata can be published over to a MQTT message broker
 - Broker receives messages from DL Streamer Pipeline Server and forwards the messages to MQTT subscribers.
 - Subscriber receives messages from broker on the subscribed topic. <br>
 
-The python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to specified MQTT broker.
+The Python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to the specified MQTT broker.
 
 ## Prerequisites
 Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber needs to be configured and started.
@@ -41,7 +41,7 @@ For starting MQTT subscriber, refer [here](./eis_mqtt_publish_doc.md#start-mqtt-
 Here is a sample configuration which performs Pallet Defect Detection and publishes the inference results to mqtt broker using gvapython script.
 
 ```bash
-"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 ```bash

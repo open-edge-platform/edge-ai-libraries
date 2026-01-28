@@ -3,7 +3,9 @@
 This section shows how to deploy the Video Search and Summarization Sample Application using Helm chart.
 
 ## Prerequisites
+
 Before you begin, ensure that you have the following:
+
 - Kubernetes\* cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
@@ -23,6 +25,7 @@ There are 2 options to get the charts in your workspace:
 ##### Step 1: Pull the Specific Chart
 
 Use the following command to pull the Helm chart from Docker Hub:
+
 ```bash
 helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
 ```
@@ -32,6 +35,7 @@ Refer to the release notes for details on the latest version number to use for t
 ##### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
+
 ```bash
 tar -xvf video-search-and-summarization-<version-no>.tgz
 ```
@@ -47,6 +51,7 @@ cd video-search-and-summarization
 ##### Step 1: Clone the Repository
 
 Clone the repository containing the Helm chart:
+
 ```bash
 # Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
@@ -61,7 +66,6 @@ Navigate to the chart directory:
 ```bash
 cd edge-ai-libraries/sample-applications/video-search-and-summarization/chart
 ```
-
 
 ### 2. Configure Required Values
 
@@ -101,9 +105,7 @@ Update or edit the values in YAML file as follows:
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 
-
-
-> **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.gpu.multimodalembeddingmsEnabled=true` **and** `global.gpu.vdmsdataprepEnabled=true`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the flags don’t match while both services are enabled.
 
@@ -111,7 +113,6 @@ Update or edit the values in YAML file as follows:
 > - VLM search + MME + DataPrep on GPU: set `global.gpu.vlminferenceEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
 > - OVMS summary + MME + DataPrep on GPU: set `global.gpu.ovmsEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
 > In each case MME and DataPrep must share the same GPU setting, otherwise Helm blocks the deployment.
-
 
 ### 3. Build Helm Dependencies
 
@@ -127,24 +128,23 @@ We will install the helm chart in a new namespace. Create a shell variable to re
 
 1. Refer a new namespace using shell variable `my_namespace`. Set any desired unique value.
 
-    ```bash
-    my_namespace=foobar
-    ```
+   ```bash
+   my_namespace=foobar
+   ```
 
 2. Create the Kubernetes namespace. If it is already created, creation will fail. You can update the namespace in previous step and try again.
 
-    ```bash
-    kubectl create namespace $my_namespace
-    ```
+   ```bash
+   kubectl create namespace $my_namespace
+   ```
 
 > **_NOTE :_** All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
-
 
 ### 5. Deploy the Helm Chart
 
 At present, there are 4 use-cases for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the helm chart.
 
-> **_NOTE :_** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the helm chart for the first time.
+> **Note:** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the helm chart for the first time.
 
 #### **Use Case 1: Video Summarization Only (Using VLM Microservice)**
 
@@ -154,7 +154,7 @@ Deploy the Video Summarization application:
 helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **_NOTE :_** Delete the chart for installing the chart in other modes `helm uninstall vss -n $my_namespace`
+> **Note:** Delete the chart for installing the chart in other modes `helm uninstall vss -n $my_namespace`
 
 #### **Use Case 2: Video Summarization with OVMS Microservice (OpenVINO Model Serving)**
 
@@ -163,7 +163,8 @@ If you want to use OVMS for LLM Summarization, deploy with the OVMS override val
 ```bash
 helm install vss . -f summary_override.yaml -f ovms_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
-**Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
+
+> **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
 #### **Use Case 3: Video Search Only**
 
@@ -181,8 +182,8 @@ To deploy the combined video search and summarization functionality, use the uni
 helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
-
+> **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+>
 > **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.gpu.multimodalembeddingmsEnabled=true` and `global.gpu.vdmsdataprepEnabled=true`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously, and the Helm chart blocks such mismatches during install/upgrade.
 
 ### Step 6: Verify the Deployment
@@ -199,9 +200,10 @@ kubectl get pods -n $my_namespace
 
 2. Ensure all containers in each pod are _Ready_. As all pods are running single container only, this is typically denoted by mentioning **1/1** in the **READY** column.
 
-> **_IMPORTANT NOTE :_** When deployed for first time, it may take up-to around 50 Mins to bring all the pods/containers in running and ready state, as several containers try to download models which can take a while. The time to bring up all the pods depends on several factors including but not limited to node availability, node load average, network speed, compute availability etc.
-
-> **_IMPORTANT NOTE :_** If you want to persist the downloaded models and avoid delays pertaining to model downloads when re-installing the charts, please set the `global.keepPvc` value to `true` in `user_values_override.yaml` file before installing the chart.
+> **Important:**
+>
+> - When deployed for first time, it may take up-to around 50 Mins to bring all the pods/containers in running and ready state, as several containers try to download models which can take a while. The time to bring up all the pods depends on several factors including but not limited to node availability, node load average, network speed, compute availability etc.
+> -If you want to persist the downloaded models and avoid delays pertaining to model downloads when re-installing the charts, please set the `global.keepPvc` value to `true` in `user_values_override.yaml` file before installing the chart.
 
 ### Step 7: Accessing the application
 
@@ -321,4 +323,5 @@ If not set while installing the chart, all services will claim a default amount 
 - If you're experiencing issues with the Hugging Face API, ensure your API token `global.huggingfaceToken` is valid and properly set in the `user_values_override.yaml` file.
 
 ## Related links
+
 - [How to Build from Source](./build-from-source.md)

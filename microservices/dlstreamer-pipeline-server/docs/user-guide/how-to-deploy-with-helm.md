@@ -5,12 +5,11 @@
 
 ## Prerequisites
 
-- [System Requirements](./system-requirements.md)
+- [System Requirements](./get-started/system-requirements.md)
 - K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
-  Refer to tutorials such as <https://adamtheautomator.com/install-kubernetes-ubuntu> and many other
-  online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
-- For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
-- Clone the Edge-AI-Libraries repository from open edge platform and change to the helm directory inside DL Streamer Pipeline Server project.
+  Refer to online tutorials (such as <https://adamtheautomator.com/install-kubernetes-ubuntu>) to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
+- For Helm installation, refer to the [Helm website](https://helm.sh/docs/intro/install/)
+- Clone the `Edge-AI-Libraries` repository from Open Edge Platform and change to the Helm directory inside DL Streamer Pipeline Server project.
 
   ```sh
     cd [WORKDIR]
@@ -23,7 +22,8 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 ### Pull the helm chart (Optional)
 
-- Note: The helm chart should be downloaded when you are not using the helm chart provided in `edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm`
+> **Note:** The helm chart should be downloaded when you are not using the helm chart provided
+> the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server/helm).
 
 - Download helm chart with the following command
 
@@ -91,7 +91,7 @@ Open another terminal and send the following curl request
   }'
 ```
 
-The REST request will return a pipeline instance ID, which can be used as an identifier to query later the pipeline status or stop the pipeline instance. For example, a6d67224eacc11ec9f360242c0a86003.
+The REST request will return a pipeline instance ID, for example: `a6d67224eacc11ec9f360242c0a86003`, which can be used as an identifier to later query the pipeline status or stop the pipeline instance.
 
 - To view the metadata, open another terminal and run the following command,
   ```sh
@@ -100,7 +100,7 @@ The REST request will return a pipeline instance ID, which can be used as an ide
 
 - RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:30025/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc
 
-  ![sample frame RTSP stream](./images/sample-pallet-defect-detection.png)
+  ![sample frame RTSP stream](./_assets/sample-pallet-defect-detection.png)
 
 To check the pipeline status and stop the pipeline send the following requests,
 
@@ -122,19 +122,15 @@ To check the pipeline status and stop the pipeline send the following requests,
 Now you have successfully run the DL Streamer Pipeline Server container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
 
 ## Troubleshooting
-- [Troubleshooting Guide](./troubleshooting-guide.md)
-
-## Summary
-
-In this get started guide, you learned how to start the DL Streamer Pipeline Server service and start default pipeline.
+- [Troubleshooting](./troubleshooting.md)
 
 ## Learn More
 
--   For getting started with the deployment using docker, please go [here](get-started.md)
+-   [Get Started](./get-started.md) with the deployment using docker
 -   Understand the components, services, architecture, and data flow, in
-    the [Overview](Overview.md).
+    the [Overview](./index.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
--   For more details on Deep Learning Streamer (DL Streamer) visit [this](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/index.md) page.
+-   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.
