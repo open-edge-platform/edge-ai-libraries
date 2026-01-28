@@ -31,6 +31,15 @@ SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink"
 )
 
+# Configuration for Simple View: comma-separated regex patterns for invisible elements.
+# Elements matching these patterns will be excluded from Simple View even if they
+# match SIMPLE_VIEW_VISIBLE_ELEMENTS. This allows fine-grained control over which
+# elements are shown. Evaluation order: VISIBLE first, then INVISIBLE exclusions.
+SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
+    "SIMPLE_VIEW_INVISIBLE_ELEMENTS",
+    "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
+)
+
 
 # Internal reserved key used to mark special node kinds inside Node.data.
 # We cannot extend the public Node schema with a new top-level field, so we
@@ -784,16 +793,35 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     if node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS:
         return False
 
-    # Check if node type matches any visible pattern
     node_type = node.type
+
+    # Step 1: Check if node type matches any visible pattern
+    matches_visible = False
     for pattern in visible_patterns:
         # Convert wildcard pattern to regex
         # * matches any sequence of characters
         regex_pattern = "^" + pattern.replace("*", ".*") + "$"
         if re.match(regex_pattern, node_type):
-            return True
+            matches_visible = True
+            break
 
-    return False
+    if not matches_visible:
+        return False
+
+    # Step 2: Check if node type matches any invisible pattern (exclusion)
+    invisible_patterns = [
+        pattern.strip()
+        for pattern in SIMPLE_VIEW_INVISIBLE_ELEMENTS.split(",")
+        if pattern.strip()
+    ]
+
+    for pattern in invisible_patterns:
+        # Convert wildcard pattern to regex
+        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
+        if re.match(regex_pattern, node_type):
+            return False
+
+    return True
 
 
 def _find_visible_targets(

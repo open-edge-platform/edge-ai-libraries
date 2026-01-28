@@ -29,6 +29,7 @@ x-vippet: &vippet
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     RECORDINGS_PATH: /videos/input
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink"
+    SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     http_proxy: ${http_proxy}

@@ -3009,6 +3009,7 @@ class TestToSimpleView(unittest.TestCase):
     by filtering out technical elements and reconnecting visible nodes.
     """
 
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
     def test_simple_view_generation(self):
         """
         Test that to_simple_view() generates the expected simplified graphs.
@@ -3079,6 +3080,144 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
+    def test_simple_view_with_invisible_elements(self):
+        """
+        Test that SIMPLE_VIEW_INVISIBLE_ELEMENTS excludes specified elements.
+
+        This test verifies that:
+        - Elements matching invisible patterns are excluded even if they match visible patterns
+        - Other visible elements (like gvametaconvert, gvadetect) remain visible
+        - Edges are properly reconnected through the newly hidden nodes
+        """
+        # Create a graph with gvafpscounter and gvametapublish that should be hidden
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="gvafpscounter", data={"starting-frame": "500"}),
+                Node(id="4", type="gvametaconvert", data={"format": "json"}),
+                Node(id="5", type="gvametapublish", data={"method": "file"}),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Expected: filesrc, gvadetect, gvametaconvert, fakesink
+        # gvafpscounter and gvametapublish should be excluded
+        expected_node_types = ["filesrc", "gvadetect", "gvametaconvert", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+        # Check edges are properly reconnected
+        self.assertEqual(len(simple_view.edges), 3)
+        # filesrc -> gvadetect
+        self.assertEqual(simple_view.edges[0].source, "0")
+        self.assertEqual(simple_view.edges[0].target, "2")
+        # gvadetect -> gvametaconvert
+        self.assertEqual(simple_view.edges[1].source, "2")
+        self.assertEqual(simple_view.edges[1].target, "4")
+        # gvametaconvert -> fakesink
+        self.assertEqual(simple_view.edges[2].source, "4")
+        self.assertEqual(simple_view.edges[2].target, "6")
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gva*")
+    def test_simple_view_invisible_wildcard_pattern(self):
+        """
+        Test that wildcard patterns work in SIMPLE_VIEW_INVISIBLE_ELEMENTS.
+
+        This test verifies that a wildcard pattern like 'gva*' excludes all gva elements.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvametaconvert", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # All gva* elements should be hidden
+        expected_node_types = ["filesrc", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+        # Direct edge from filesrc to fakesink
+        self.assertEqual(len(simple_view.edges), 1)
+        self.assertEqual(simple_view.edges[0].source, "0")
+        self.assertEqual(simple_view.edges[0].target, "3")
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    def test_simple_view_empty_invisible_elements(self):
+        """
+        Test that empty SIMPLE_VIEW_INVISIBLE_ELEMENTS does not exclude anything.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # gvafpscounter should be visible (matches gva* pattern, no exclusion)
+        expected_node_types = ["filesrc", "gvafpscounter", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter")
+    def test_simple_view_invisible_single_element(self):
+        """
+        Test exclusion of a single specific element type.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="gvadetect", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Only gvafpscounter should be hidden, gvadetect should remain
+        expected_node_types = ["filesrc", "gvadetect", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
 
 
 class TestApplySimpleViewChanges(unittest.TestCase):
