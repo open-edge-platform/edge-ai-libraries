@@ -1,3 +1,4 @@
+import re
 import os
 import unittest
 from dataclasses import dataclass
@@ -3010,6 +3011,7 @@ class TestToSimpleView(unittest.TestCase):
     """
 
     @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
     def test_simple_view_generation(self):
         """
         Test that to_simple_view() generates the expected simplified graphs.
@@ -3091,6 +3093,12 @@ class TestToSimpleView(unittest.TestCase):
         - Other visible elements (like gvametaconvert, gvadetect) remain visible
         - Edges are properly reconnected through the newly hidden nodes
         """
+        # Compile the test-specific invisible patterns
+        test_invisible_patterns = [
+            re.compile("^gvafpscounter$"),
+            re.compile("^gvametapublish$"),
+        ]
+
         # Create a graph with gvafpscounter and gvametapublish that should be hidden
         graph = Graph(
             nodes=[
@@ -3112,34 +3120,37 @@ class TestToSimpleView(unittest.TestCase):
             ],
         )
 
-        simple_view = graph.to_simple_view()
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
 
-        # Expected: filesrc, gvadetect, gvametaconvert, fakesink
-        # gvafpscounter and gvametapublish should be excluded
-        expected_node_types = ["filesrc", "gvadetect", "gvametaconvert", "fakesink"]
-        actual_node_types = [node.type for node in simple_view.nodes]
+            # Expected: filesrc, gvadetect, gvametaconvert, fakesink
+            # gvafpscounter and gvametapublish should be excluded
+            expected_node_types = ["filesrc", "gvadetect", "gvametaconvert", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
 
-        self.assertEqual(actual_node_types, expected_node_types)
+            self.assertEqual(actual_node_types, expected_node_types)
 
-        # Check edges are properly reconnected
-        self.assertEqual(len(simple_view.edges), 3)
-        # filesrc -> gvadetect
-        self.assertEqual(simple_view.edges[0].source, "0")
-        self.assertEqual(simple_view.edges[0].target, "2")
-        # gvadetect -> gvametaconvert
-        self.assertEqual(simple_view.edges[1].source, "2")
-        self.assertEqual(simple_view.edges[1].target, "4")
-        # gvametaconvert -> fakesink
-        self.assertEqual(simple_view.edges[2].source, "4")
-        self.assertEqual(simple_view.edges[2].target, "6")
+            # Check edges are properly reconnected
+            self.assertEqual(len(simple_view.edges), 3)
+            # filesrc -> gvadetect
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "2")
+            # gvadetect -> gvametaconvert
+            self.assertEqual(simple_view.edges[1].source, "2")
+            self.assertEqual(simple_view.edges[1].target, "4")
+            # gvametaconvert -> fakesink
+            self.assertEqual(simple_view.edges[2].source, "4")
+            self.assertEqual(simple_view.edges[2].target, "6")
 
-    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gva*")
     def test_simple_view_invisible_wildcard_pattern(self):
         """
         Test that wildcard patterns work in SIMPLE_VIEW_INVISIBLE_ELEMENTS.
 
         This test verifies that a wildcard pattern like 'gva*' excludes all gva elements.
         """
+        # Compile wildcard pattern: gva*
+        test_invisible_patterns = [re.compile("^gva.*$")]
+
         graph = Graph(
             nodes=[
                 Node(id="0", type="filesrc", data={"location": "test.mp4"}),
@@ -3154,20 +3165,21 @@ class TestToSimpleView(unittest.TestCase):
             ],
         )
 
-        simple_view = graph.to_simple_view()
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
 
-        # All gva* elements should be hidden
-        expected_node_types = ["filesrc", "fakesink"]
-        actual_node_types = [node.type for node in simple_view.nodes]
+            # All gva* elements should be hidden
+            expected_node_types = ["filesrc", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
 
-        self.assertEqual(actual_node_types, expected_node_types)
+            self.assertEqual(actual_node_types, expected_node_types)
 
-        # Direct edge from filesrc to fakesink
-        self.assertEqual(len(simple_view.edges), 1)
-        self.assertEqual(simple_view.edges[0].source, "0")
-        self.assertEqual(simple_view.edges[0].target, "3")
+            # Direct edge from filesrc to fakesink
+            self.assertEqual(len(simple_view.edges), 1)
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "3")
 
-    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
     def test_simple_view_empty_invisible_elements(self):
         """
         Test that empty SIMPLE_VIEW_INVISIBLE_ELEMENTS does not exclude anything.
