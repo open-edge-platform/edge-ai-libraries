@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from fastapi.routing import APIRoute
 from unittest.mock import patch, MagicMock
 
+from api.api_schemas import AppStatus
 from api.routes.health import router as health_router
-from managers.app_state_manager import AppStatus
 
 
 class TestHealthAPI(unittest.TestCase):

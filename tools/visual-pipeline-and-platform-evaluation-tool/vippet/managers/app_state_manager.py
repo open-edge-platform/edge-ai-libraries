@@ -8,27 +8,11 @@ middleware to control API availability.
 
 import logging
 import threading
-from enum import Enum
 from typing import Optional
 
+from api.api_schemas import AppStatus
+
 logger = logging.getLogger("app_state_manager")
-
-
-class AppStatus(str, Enum):
-    """
-    Application status enum for tracking initialization progress.
-
-    Values:
-        STARTING: Application is starting, no initialization yet.
-        INITIALIZING: Application is initializing resources (e.g., loading videos).
-        READY: Application is fully initialized and ready to serve requests.
-        SHUTDOWN: Application is shutting down.
-    """
-
-    STARTING = "starting"
-    INITIALIZING = "initializing"
-    READY = "ready"
-    SHUTDOWN = "shutdown"
 
 
 class AppStateManager:

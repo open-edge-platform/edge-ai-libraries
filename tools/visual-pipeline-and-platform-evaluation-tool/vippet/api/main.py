@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from api.api_schemas import AppStatus
 from api.middleware import InitializationMiddleware
 from api.routes import health, metrics
-from managers.app_state_manager import AppStatus, get_app_state_manager
+from managers.app_state_manager import get_app_state_manager
 
 # Configure logging
 handler = logging.StreamHandler()

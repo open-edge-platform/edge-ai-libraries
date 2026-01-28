@@ -11,7 +11,8 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from managers.app_state_manager import AppStatus, get_app_state_manager
+from api.api_schemas import AppStatus
+from managers.app_state_manager import get_app_state_manager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.health")

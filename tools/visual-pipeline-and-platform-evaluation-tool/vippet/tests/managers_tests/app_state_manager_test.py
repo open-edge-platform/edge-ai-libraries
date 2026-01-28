@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import patch
 
+from api.api_schemas import AppStatus
 from managers.app_state_manager import (
     AppStateManager,
-    AppStatus,
     get_app_state_manager,
 )
 
