@@ -6,7 +6,7 @@ import psycopg
 import ipaddress
 import socket
 import os
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
