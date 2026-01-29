@@ -116,6 +116,7 @@ install_dependencies() {
 # Parse arguments
 PLUGINS=""
 START_SERVICE=true
+EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -146,6 +147,8 @@ if [ "$PLUGINS" = "all" ]; then
     # Install dependencies for all available plugins
     for plugin in "${AVAILABLE_PLUGINS[@]}"; do
         install_dependencies "$plugin"
+        # Add to extra args for uv sync
+        EXTRA_ARGS+=("--extra" "$plugin")
     done
 
     echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
@@ -158,6 +161,8 @@ else
     for plugin in "${PLUGIN_LIST[@]}"; do
         plugin=$(echo "$plugin" | xargs)  # Trim whitespace
         install_dependencies "$plugin"
+        # Add to extra args for uv sync
+        EXTRA_ARGS+=("--extra" "$plugin")
     done
     
     print_success "Activated plugins: $PLUGINS"

@@ -9,7 +9,7 @@ requires-python = "==3.12.*"
 
 dependencies = [
     "fastapi==0.121.3",
-    "pydantic==2.12.3",
+    "pydantic==2.12.4",
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
@@ -68,7 +68,7 @@ ollama = [
 ]
 
 geti = [
-    # Add geti plugin specific dependencies here
+    "geti-sdk==2.13.0",
 ]
 
 [tool.uv]

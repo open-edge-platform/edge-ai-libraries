@@ -10,18 +10,17 @@ services:
     container_name: model-download
     command: --plugins ${ENABLED_PLUGINS:-all}
     environment:
-      #- HTTP_PROXY=${HTTP_PROXY:-}
-      #- HTTPS_PROXY=${HTTPS_PROXY:-}
+      - http_proxy=${HTTP_PROXY:-}
+      - https_proxy=${HTTPS_PROXY:-}
       - no_proxy=${no_proxy:-}
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - ENABLED_PLUGINS=${ENABLED_PLUGINS}
       - MODEL_PATH=${MODEL_PATH}
-      - GETI_HOST=${GETI_HOST:-}
-      - GETI_ORGANIZATION_ID=${GETI_ORGANIZATION_ID:-}
+      - GETI_HOST=${GETI_HOST}
       - GETI_WORKSPACE_ID=${GETI_WORKSPACE_ID:-}
-      - GETI_TOKEN=${GETI_TOKEN:-}
-      - GETI_SERVER_API_VERSION=${GETI_SERVER_API_VERSION:-v1}
+      - GETI_TOKEN=${GETI_TOKEN}
+      - GETI_SERVER_API_VERSION=${GETI_SERVER_API_VERSION}
       - GETI_SERVER_SSL_VERIFY=${GETI_SERVER_SSL_VERIFY:-False}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
