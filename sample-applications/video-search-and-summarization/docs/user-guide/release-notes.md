@@ -54,6 +54,7 @@
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
+
 **Version**: rc1.3.2 \
 **Release Date**: 14 Nov 2025
 
