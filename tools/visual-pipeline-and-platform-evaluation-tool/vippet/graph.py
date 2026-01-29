@@ -7,15 +7,15 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from utils import generate_unique_filename
-from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from resources import (
     get_labels_manager,
-    get_scripts_manager,
     get_public_model_proc_manager,
+    get_scripts_manager,
 )
+from utils import generate_unique_filename
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+from videos import OUTPUT_VIDEO_DIR, get_videos_manager
 
 logger = logging.getLogger(__name__)
 models_manager = get_supported_models_manager()
@@ -29,6 +29,52 @@ model_proc_manager = get_public_model_proc_manager()
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink"
+)
+
+# Configuration for Simple View: comma-separated regex patterns for invisible elements.
+# Elements matching these patterns will be excluded from Simple View even if they
+# match SIMPLE_VIEW_VISIBLE_ELEMENTS. This allows fine-grained control over which
+# elements are shown. Evaluation order: VISIBLE first, then INVISIBLE exclusions.
+SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
+    "SIMPLE_VIEW_INVISIBLE_ELEMENTS",
+    "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
+)
+
+
+def _compile_visibility_patterns(pattern_string: str) -> list[re.Pattern]:
+    """
+    Parse comma-separated wildcard patterns and compile them into regex patterns.
+
+    Args:
+        pattern_string: Comma-separated string of wildcard patterns (e.g., "*src,gva*")
+
+    Returns:
+        list[re.Pattern]: List of compiled regex patterns
+
+    Examples:
+        "*src" becomes regex "^.*src$"
+        "gva*" becomes regex "^gva.*$"
+    """
+    if not pattern_string or not pattern_string.strip():
+        return []
+
+    patterns = [
+        pattern.strip() for pattern in pattern_string.split(",") if pattern.strip()
+    ]
+    compiled_patterns = []
+
+    for pattern in patterns:
+        # Convert wildcard pattern to regex: * matches any sequence of characters
+        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
+        compiled_patterns.append(re.compile(regex_pattern))
+
+    return compiled_patterns
+
+
+# Compile visibility patterns once at module initialization
+_COMPILED_VISIBLE_PATTERNS = _compile_visibility_patterns(SIMPLE_VIEW_VISIBLE_ELEMENTS)
+_COMPILED_INVISIBLE_PATTERNS = _compile_visibility_patterns(
+    SIMPLE_VIEW_INVISIBLE_ELEMENTS
 )
 
 
@@ -349,6 +395,56 @@ class Graph:
 
         return pipeline_description
 
+    def apply_looping_modifications(self) -> "Graph":
+        """
+        Apply modifications to make pipeline suitable for looping playback.
+
+        Changes applied:
+        - Replace filesrc with multifilesrc loop=true
+        - Change input file extension to .ts in location
+        - Replace qtdemux with tsdemux
+
+        Returns:
+            Modified Graph object with looping support
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            # Replace filesrc with multifilesrc loop=true
+            if node.type == "filesrc":
+                node.type = "multifilesrc"
+                node.data["loop"] = "true"
+
+                if "location" in node.data:
+                    location = node.data["location"]
+                    ts_path = videos_manager.get_ts_path(location)
+                    if ts_path:
+                        node.data["location"] = ts_path
+                    logger.debug(
+                        f"Modified filesrc to multifilesrc with location: {node.data['location']}"
+                    )
+
+            # Replace demuxers with tsdemux for looping support
+            elif node.type in {"qtdemux", "matroskademux", "avidemux", "flvdemux"}:
+                node.type = "tsdemux"
+                logger.debug("Replaced demuxer with tsdemux for looping support")
+
+            # Replace splitmuxsink with appsink (no output files during looping)
+            # fakesink can't be used to avoid misunderstanding which sink to override for live output
+            elif node.type == "splitmuxsink":
+                node.data.clear()  # Clear all properties to avoid invalid args for appsink
+                node.type = "appsink"
+                # Make appsink behave like fakesink: no signals and no backpressure
+                node.data["emit-signals"] = "false"
+                node.data["drop"] = "true"
+                node.data["max-buffers"] = "1"
+                logger.debug("Replaced splitmuxsink with appsink for looping support")
+
+        return modified_graph
+
     def prepare_output_sinks(self) -> tuple["Graph", list[str]]:
         """
         Prepare output sink nodes with unique filenames in the output directory.
@@ -464,15 +560,10 @@ class Graph:
         logger.debug("Generating simple view from advanced graph")
         logger.debug(f"Visible element patterns: {SIMPLE_VIEW_VISIBLE_ELEMENTS}")
 
-        # Parse the comma-separated patterns into a list
-        visible_patterns = [
-            pattern.strip() for pattern in SIMPLE_VIEW_VISIBLE_ELEMENTS.split(",")
-        ]
-
-        # Determine which nodes should be visible in simple view
+        # Use precompiled patterns for visibility check
         visible_node_ids = set()
         for node in self.nodes:
-            if _is_node_visible(node, visible_patterns):
+            if _is_node_visible(node, _COMPILED_VISIBLE_PATTERNS):
                 visible_node_ids.add(node.id)
                 logger.debug(f"Node {node.id} ({node.type}) is visible in simple view")
             else:
@@ -710,7 +801,7 @@ class Graph:
         return result_advanced
 
 
-def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
+def _is_node_visible(node: Node, visible_patterns: list[re.Pattern]) -> bool:
     """
     Determine if a node should be visible in Simple View based on pattern matching.
 
@@ -719,7 +810,7 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
 
     Args:
         node: The node to check for visibility
-        visible_patterns: List of wildcard patterns (e.g., "*src", "gva*") to match against node type
+        visible_patterns: List of compiled regex patterns to match against node type
 
     Returns:
         bool: True if node should be visible in simple view, False if it should be hidden
@@ -734,16 +825,24 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     if node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS:
         return False
 
-    # Check if node type matches any visible pattern
     node_type = node.type
-    for pattern in visible_patterns:
-        # Convert wildcard pattern to regex
-        # * matches any sequence of characters
-        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
-        if re.match(regex_pattern, node_type):
-            return True
 
-    return False
+    # Step 1: Check if node type matches any visible pattern
+    matches_visible = False
+    for pattern in visible_patterns:
+        if pattern.match(node_type):
+            matches_visible = True
+            break
+
+    if not matches_visible:
+        return False
+
+    # Step 2: Check if node type matches any invisible pattern (exclusion)
+    for pattern in _COMPILED_INVISIBLE_PATTERNS:
+        if pattern.match(node_type):
+            return False
+
+    return True
 
 
 def _find_visible_targets(
@@ -1289,28 +1388,28 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         Output: node.data["model"] = "YOLOv8 License Plate Detector"
     """
     for node in nodes:
-        path = node.data.get("model")
-        if path is None:
+        model_path = node.data.get("model")
+        if model_path is None:
             continue
 
-        for part in Path(path).with_suffix("").parts:
-            if model := models_manager.find_installed_model_by_name(part):
-                node.data["model"] = model.display_name
-                logger.debug(
-                    f"Converted model path to display name: {path} -> {model.display_name}"
-                )
+        model_proc_path = node.data.get("model-proc", None)
+        model = models_manager.find_installed_model_by_model_and_proc_path(
+            model_path, model_proc_path
+        )
 
-                # Also convert model-proc if present
-                model_proc_path = node.data.get("model-proc")
-                if model_proc_path is not None:
-                    node.data["model-proc"] = model_proc_manager.get_filename(
-                        model_proc_path
-                    )
-                break
+        if model is not None:
+            node.data["model"] = model.display_name
+            logger.debug(
+                f"Converted model path to display name: {model_path} -> {model.display_name}"
+            )
         else:
             node.data["model"] = ""
-            node.data["model-proc"] = ""
-            logger.debug(f"Model path not found in installed models: {path}")
+            logger.debug(
+                f"Model not found in installed models: model_path='{model_path}', model_proc_path='{model_proc_path}'"
+            )
+
+        # Remove model-proc to avoid leaking internal filesystem layout.
+        node.data.pop("model-proc", None)
 
 
 def _model_display_name_to_path(nodes: list[Node]) -> None:
@@ -1329,11 +1428,10 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
     Raises:
         ValueError: If model display name is not found in installed models
-        ValueError: If configured model-proc file is not found
 
     Side effects:
         - Modifies node.data["model"] to contain full path instead of display name
-        - Injects or updates node.data["model-proc"] with appropriate model-proc file path
+        - Injects node.data["model-proc"] with the model-proc file path if available
         - Logs debug messages for each conversion
 
     Example:
@@ -1355,33 +1453,9 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
 
         node.data["model"] = model.model_path_full
 
-        # model-proc handling
-        configured_model_proc = node.data.get("model-proc")
-        default_model_proc = (
-            model_proc_manager.get_filename(model.model_proc)
-            if model.model_proc is not None
-            else None
-        )
+        if model.model_proc_full:
+            _insert_model_proc_after_model(node, model.model_proc_full)
 
-        # If a model-proc was explicitly configured and is different from
-        # the default, use it. Otherwise, inject the default if available.
-        if (
-            configured_model_proc is not None
-            and configured_model_proc != default_model_proc
-        ):
-            # Use the user-specified model-proc
-            model_proc_path = model_proc_manager.get_path(configured_model_proc)
-            if model_proc_path is None:
-                raise ValueError(
-                    f"Model-proc file '{configured_model_proc}' not found for {node.type} element. "
-                    f"Please verify the file name is correct or leave it empty to use the default."
-                )
-
-            _insert_model_proc_after_model(node, model_proc_path)
-        else:
-            # Use the default model-proc if available
-            if model.model_proc_full:
-                _insert_model_proc_after_model(node, model.model_proc_full)
         logger.debug(
             f"Converted model display name to path: {name} -> {model.model_path_full}"
         )

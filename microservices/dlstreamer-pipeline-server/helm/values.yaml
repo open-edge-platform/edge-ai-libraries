@@ -11,15 +11,15 @@ env:
   GST_DEBUG: "1"
   HTTPS: "false"
   RTSP_PORT: "8554"
-  http_proxy: 
-  https_proxy: 
+  http_proxy:
+  https_proxy:
   no_proxy: "intel.com,.intel.com,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,192.168.49.2"
 privileged_access_required: false
 gpu:
   enabled: false
   type: "gpu.intel.com/i915"
   count: 1
-config: 
+config:
   dlstreamer_pipeline_server:
     name: dlstreamer-pipeline-server
     int:

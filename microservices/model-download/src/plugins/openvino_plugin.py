@@ -37,12 +37,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("precision", "fp16"))
+        weight_format = config.get("precision", kwargs.get("precision", "int8"))
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
         target_device = config.get("device", kwargs.get("device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))
+
+        if target_device.upper() == "NPU":
+            logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
+            weight_format = "int4"
+            if model_type != "llm" and model_type != "vlm":
+                raise RuntimeError("NPU target device is only supported for 'llm' model types.")
+            if output_dir.endswith("/fp16") or output_dir.endswith("/int8") or output_dir.endswith("/int4"):
+                output_dir = output_dir.rsplit("/", 1)[0] + "/int4"
         
         try:
             # Perform the conversion
@@ -109,7 +117,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             weight_format (str): The weight format for the exported model (e.g., "int4", "fp16").
             huggingface_token (str): The Hugging Face API token for authentication.
             model_type (str): The type of the model (e.g., "llm", "embeddings", "rerank").
-            target_device (str): Target hardware device for optimization (e.g., "CPU", "GPU").
+            target_device (str): Target hardware device for optimization (e.g., "CPU", "GPU", "NPU").
             model_directory (str): Directory to save the converted model.
             cache_size (int, optional): Cache size for model optimization.
 
@@ -119,8 +127,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Map model_type to export type
         export_type_map = {
             "llm": "text_generation",
-            "embeddings": "embeddings",
-            "rerank": "rerank"
+            "embeddings": "embeddings_ov",
+            "rerank": "rerank_ov"
         }
 
         # Validate model_type
@@ -146,16 +154,16 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         logger.info("Checking for export_model.py script...")
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
+        # export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py"
       
-        if not os.path.exists("export_model.py"):
-            logger.info(f"Downloading export_model.py script...")
-            try:
-                subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to download export script: {str(e)}")
-        else:
-            logger.info("export_model.py already exists, skipping download.")
+        # if not os.path.exists("export_model.py"):
+        #     logger.info(f"Downloading export_model.py script...")
+        #     try:
+        #         subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
+        #     except subprocess.CalledProcessError as e:
+        #         raise RuntimeError(f"Failed to download export script: {str(e)}")
+        # else:
+        #     logger.info("export_model.py already exists, skipping download.")
 
         # Step 4: Export the model using the virtual environment's Python
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
@@ -165,10 +173,10 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Build command with Python from the virtual environment
         command = [
-            "python3", "export_model.py", export_type,
+            "python3", "scripts/export_model.py", export_type,
             "--source_model", model_name,
             "--weight-format", weight_format,
-            "--config_file_path", f"{model_directory}/config.json",
+            "--config_file_path", f"{model_directory}/config_all.json",
             "--model_repository_path", f"{model_directory}/",
             "--target_device", target_device
         ]
@@ -177,6 +185,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
             command += ["--version", version]
         if export_type == "text_generation" and cache_size is not None:
             command += ["--cache_size", f"{cache_size}"]
+        if export_type == "embeddings_ov":
+            command += ["--extra_quantization_params", f"--library sentence_transformers"]
 
         logger.info(f"Executing command with virtual environment: {command}")
         try:
@@ -233,7 +243,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         # Extract parameters to maintain consistent response structure
         config = kwargs.get("config", {})
-        weight_format = config.get("precision", kwargs.get("precision", "fp16"))
+        weight_format = config.get("precision", kwargs.get("precision", "int8"))
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))

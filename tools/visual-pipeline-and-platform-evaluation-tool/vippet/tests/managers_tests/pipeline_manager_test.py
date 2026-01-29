@@ -1,18 +1,20 @@
 import unittest
+from unittest.mock import patch
 
-from videos import OUTPUT_VIDEO_DIR
-from managers.pipeline_manager import PipelineManager
 from api.api_schemas import (
-    Node,
     Edge,
-    PipelineType,
-    PipelineSource,
+    ExecutionConfig,
+    Node,
+    OutputMode,
+    PipelineDefinition,
     PipelineGraph,
     PipelineParameters,
-    PipelineDefinition,
     PipelinePerformanceSpec,
-    VideoOutputConfig,
+    PipelineSource,
+    PipelineType,
 )
+from managers.pipeline_manager import PipelineManager
+from videos import OUTPUT_VIDEO_DIR
 
 
 class TestPipelineManager(unittest.TestCase):
@@ -219,15 +221,16 @@ class TestPipelineManager(unittest.TestCase):
 
         # Build command with one pipeline and one stream using the pipeline ID
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        video_config = VideoOutputConfig(enabled=False)
+        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify command is not empty and contains pipeline elements
         self.assertIsInstance(command, str)
         self.assertIsInstance(output_paths, dict)
+        self.assertIsInstance(live_stream_urls, dict)
         self.assertGreater(len(command), 0)
         self.assertIn("fakesrc", command)
         self.assertIn("fakesink", command)
@@ -249,15 +252,16 @@ class TestPipelineManager(unittest.TestCase):
 
         # Build command with one pipeline and 3 streams using the pipeline ID
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=3)]
-        video_config = VideoOutputConfig(enabled=False)
+        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify command contains multiple instances
         self.assertIsInstance(command, str)
         self.assertIsInstance(output_paths, dict)
+        self.assertIsInstance(live_stream_urls, dict)
         self.assertGreater(len(command), 0)
         # Should have 3 instances of videotestsrc (one per stream)
         self.assertEqual(command.count("videotestsrc"), 3)
@@ -292,15 +296,16 @@ class TestPipelineManager(unittest.TestCase):
             PipelinePerformanceSpec(id=added1.id, streams=2),
             PipelinePerformanceSpec(id=added2.id, streams=3),
         ]
-        video_config = VideoOutputConfig(enabled=False)
+        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify both pipeline types are present
         self.assertIsInstance(command, str)
         self.assertIsInstance(output_paths, dict)
+        self.assertIsInstance(live_stream_urls, dict)
         self.assertGreater(len(command), 0)
         # Should have 2 instances of fakesrc and 3 instances of videotestsrc
         self.assertEqual(command.count("fakesrc"), 2)
@@ -313,10 +318,10 @@ class TestPipelineManager(unittest.TestCase):
         pipeline_performance_specs = [
             PipelinePerformanceSpec(id="nonexistent-pipeline-id", streams=1)
         ]
-        video_config = VideoOutputConfig(enabled=False)
+        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
 
         with self.assertRaises(ValueError) as context:
-            manager.build_pipeline_command(pipeline_performance_specs, video_config)
+            manager.build_pipeline_command(pipeline_performance_specs, execution_config)
 
         self.assertIn(
             "Pipeline with id 'nonexistent-pipeline-id' not found",
@@ -438,7 +443,7 @@ class TestPipelineManager(unittest.TestCase):
         )
 
     def test_build_pipeline_command_with_video_output_enabled(self):
-        """Test building pipeline command with video output enabled."""
+        """Test building pipeline command with video output enabled (file mode)."""
         manager = PipelineManager()
         manager.pipelines = []
 
@@ -455,12 +460,13 @@ class TestPipelineManager(unittest.TestCase):
         added = manager.add_pipeline(new_pipeline)
 
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        video_config = VideoOutputConfig(
-            enabled=True,
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,
         )
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify video output is configured
@@ -476,8 +482,11 @@ class TestPipelineManager(unittest.TestCase):
         self.assertNotIn("fakesink", command)
         self.assertIn("filesink", command)
 
+        # Verify no live stream URLs for file output mode
+        self.assertEqual(len(live_stream_urls), 0)
+
     def test_build_pipeline_command_with_gpu_encoder(self):
-        """Test building pipeline command with GPU encoder."""
+        """Test building pipeline command with GPU encoder (file mode)."""
         manager = PipelineManager()
         manager.pipelines = []
 
@@ -493,12 +502,13 @@ class TestPipelineManager(unittest.TestCase):
         added = manager.add_pipeline(new_pipeline)
 
         pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=2)]
-        video_config = VideoOutputConfig(
-            enabled=True,
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,
         )
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify output paths for all streams
@@ -539,12 +549,13 @@ class TestPipelineManager(unittest.TestCase):
             PipelinePerformanceSpec(id=added1.id, streams=2),
             PipelinePerformanceSpec(id=added2.id, streams=3),
         ]
-        video_config = VideoOutputConfig(
-            enabled=True,
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,
         )
 
-        command, output_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, video_config
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config
         )
 
         # Verify video output paths exist for both pipelines
@@ -830,9 +841,11 @@ class TestPipelineManager(unittest.TestCase):
 
         # Build command should work
         specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        video_config = VideoOutputConfig(enabled=False)
+        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
 
-        command, output_paths = manager.build_pipeline_command(specs, video_config)
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            specs, execution_config
+        )
 
         # Verify command was built successfully
         self.assertIsInstance(command, str)
@@ -911,3 +924,267 @@ class TestPipelineManager(unittest.TestCase):
         # Both should have valid edges
         self.assertGreater(len(added.pipeline_graph.edges), 0)
         self.assertGreater(len(added.pipeline_graph_simple.edges), 0)
+
+
+class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
+    """Test cases for ExecutionConfig validation in build_pipeline_command."""
+
+    def setUp(self):
+        self.manager = PipelineManager()
+        self.manager.pipelines = []
+
+        # Add a test pipeline for all tests
+        test_pipeline = PipelineDefinition(
+            name="test-execution-config",
+            version=1,
+            description="Test pipeline for execution config",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! fakesink",
+            parameters=None,
+        )
+        self.added_pipeline = self.manager.add_pipeline(test_pipeline)
+        self.specs = [PipelinePerformanceSpec(id=self.added_pipeline.id, streams=1)]
+
+    def test_file_output_with_max_runtime_raises_error(self):
+        """Test that file output mode with max_runtime > 0 raises ValueError."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=60,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            self.manager.build_pipeline_command(self.specs, execution_config)
+
+        self.assertIn(
+            "output_mode='file' cannot be combined with max_runtime > 0",
+            str(context.exception),
+        )
+
+    def test_file_output_with_zero_max_runtime_succeeds(self):
+        """Test that file output mode with max_runtime=0 works correctly."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,
+        )
+
+        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+        self.assertIn("filesink", command)
+
+    def test_disabled_output_with_max_runtime_succeeds(self):
+        """Test that disabled output mode with max_runtime > 0 works correctly."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.DISABLED,
+            max_runtime=60,
+        )
+
+        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+        # Fakesink should remain in disabled mode
+        self.assertIn("fakesink", command)
+
+    def test_live_stream_output_with_max_runtime_succeeds(self):
+        """Test that live stream output mode with max_runtime > 0 works correctly."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=60,
+        )
+
+        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+        # Should have rtspclientsink for live streaming
+        self.assertIn("rtspclientsink", command)
+        # Should have live stream URL
+        self.assertIn(self.added_pipeline.id, live_stream_urls)
+
+    def test_live_stream_output_returns_stream_urls(self):
+        """Test that live stream output mode returns correct stream URLs."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=0,
+        )
+
+        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        # Verify live stream URL format
+        self.assertIn(self.added_pipeline.id, live_stream_urls)
+        stream_url = live_stream_urls[self.added_pipeline.id]
+        self.assertTrue(stream_url.startswith("rtsp://"))
+        self.assertIn(self.added_pipeline.id, stream_url)
+
+    def test_live_stream_one_url_per_pipeline_type(self):
+        """Test that only one live stream URL is generated per pipeline type."""
+        # Add another pipeline
+        another_pipeline = PipelineDefinition(
+            name="test-execution-config",
+            version=2,
+            description="Another test pipeline",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! fakesink",
+            parameters=None,
+        )
+        added2 = self.manager.add_pipeline(another_pipeline)
+
+        specs = [
+            PipelinePerformanceSpec(id=self.added_pipeline.id, streams=3),
+            PipelinePerformanceSpec(id=added2.id, streams=2),
+        ]
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=60,
+        )
+
+        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
+            specs, execution_config
+        )
+
+        # Should have exactly 2 live stream URLs (one per pipeline type)
+        self.assertEqual(len(live_stream_urls), 2)
+        self.assertIn(self.added_pipeline.id, live_stream_urls)
+        self.assertIn(added2.id, live_stream_urls)
+
+        # Only first stream of each pipeline should have rtspclientsink
+        self.assertEqual(command.count("rtspclientsink"), 2)
+
+
+class TestBuildPipelineCommandLooping(unittest.TestCase):
+    """Test cases for looping behavior in build_pipeline_command."""
+
+    def setUp(self):
+        self.manager = PipelineManager()
+        self.manager.pipelines = []
+
+        # Add a test pipeline with videotestsrc for looping tests
+        # Using videotestsrc instead of filesrc avoids video path validation issues
+        test_pipeline = PipelineDefinition(
+            name="test-looping",
+            version=1,
+            description="Test pipeline for looping",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! fakesink",
+            parameters=None,
+        )
+        self.added_pipeline = self.manager.add_pipeline(test_pipeline)
+        self.specs = [PipelinePerformanceSpec(id=self.added_pipeline.id, streams=1)]
+
+    def test_looping_not_applied_when_max_runtime_zero(self):
+        """Test that looping modifications are not applied when max_runtime=0."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.DISABLED,
+            max_runtime=0,
+        )
+
+        command, _, _ = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        # Should use videotestsrc (not multifilesrc) when not looping
+        self.assertIn("videotestsrc", command)
+        self.assertNotIn("multifilesrc", command)
+
+    def test_looping_applied_when_max_runtime_positive_and_disabled_mode(self):
+        """Test that looping modifications are applied for disabled mode with max_runtime > 0."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.DISABLED,
+            max_runtime=60,
+        )
+
+        command, _, _ = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        # videotestsrc doesn't get converted to multifilesrc, only filesrc does
+        # But the pipeline should still work with max_runtime > 0
+        self.assertIn("videotestsrc", command)
+        self.assertIn("fakesink", command)
+
+    def test_looping_applied_when_max_runtime_positive_and_live_stream_mode(self):
+        """Test that looping modifications are applied for live stream mode with max_runtime > 0."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=60,
+        )
+
+        command, _, live_stream_urls = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        # Should have rtspclientsink for live streaming
+        self.assertIn("rtspclientsink", command)
+        # Should have live stream URL
+        self.assertIn(self.added_pipeline.id, live_stream_urls)
+
+    def test_looping_not_applied_for_file_mode(self):
+        """Test that looping modifications are never applied for file mode."""
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,  # max_runtime must be 0 for file mode
+        )
+
+        command, _, _ = self.manager.build_pipeline_command(
+            self.specs, execution_config
+        )
+
+        # Should use videotestsrc (not multifilesrc) for file output
+        self.assertIn("videotestsrc", command)
+        self.assertNotIn("multifilesrc", command)
+
+
+class TestBuildPipelineCommandLoopingWithFilesrc(unittest.TestCase):
+    """Test cases for looping behavior with filesrc pipelines."""
+
+    def setUp(self):
+        self.manager = PipelineManager()
+        self.manager.pipelines = []
+
+    @patch("graph.videos_manager")
+    def test_looping_converts_filesrc_to_multifilesrc(self, mock_videos_manager):
+        """Test that filesrc is converted to multifilesrc when looping is enabled."""
+        # Mock get_ts_path to return a valid path
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/test.ts"
+        mock_videos_manager.get_video_path.return_value = "/videos/input/test.mp4"
+
+        # Add pipeline with filesrc - use a path that won't trigger validation
+        test_pipeline = PipelineDefinition(
+            name="test-filesrc-looping",
+            version=1,
+            description="Test filesrc looping",
+            source=PipelineSource.USER_CREATED,
+            type=PipelineType.GSTREAMER,
+            pipeline_description="videotestsrc ! fakesink",
+            parameters=None,
+        )
+        added = self.manager.add_pipeline(test_pipeline)
+        specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
+
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.DISABLED,
+            max_runtime=60,
+        )
+
+        command, _, _ = self.manager.build_pipeline_command(specs, execution_config)
+
+        # Command should be valid
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

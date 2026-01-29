@@ -14,7 +14,8 @@ from api.api_schemas import (
     Pipeline,
     PipelineDefinition,
     PipelinePerformanceSpec,
-    VideoOutputConfig,
+    ExecutionConfig,
+    OutputMode,
     PipelineGraph,
     PipelineParameters,
 )
@@ -380,8 +381,8 @@ class PipelineManager:
     def build_pipeline_command(
         self,
         pipeline_performance_specs: list[PipelinePerformanceSpec],
-        video_config: VideoOutputConfig,
-    ) -> tuple[str, dict[str, List[str]]]:
+        execution_config: ExecutionConfig,
+    ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
         """
         Build a complete executable GStreamer pipeline command from run specifications.
 
@@ -391,16 +392,53 @@ class PipelineManager:
 
         Args:
             pipeline_performance_specs: List of PipelinePerformanceSpec defining pipelines and streams.
-            video_config: Configuration for video output generation.
+            execution_config: Configuration for output generation and runtime limits.
 
         Returns:
-            tuple: (Complete GStreamer command string, dictionary mapping pipeline IDs to output file paths)
+            tuple: (Complete GStreamer command string,
+                    dictionary mapping pipeline IDs to output file paths,
+                    dictionary mapping pipeline IDs to live stream URLs)
+
+            Note: live_stream_urls will be empty for density tests since they do not
+            support live-streaming output mode. The caller is responsible for validating
+            that output_mode=live_stream is not used with density tests.
 
         Raises:
             ValueError: If any pipeline in specs is not found.
+            ValueError: If execution_config.max_runtime is negative.
+            ValueError: If output_mode=file is combined with max_runtime>0.
         """
+        # Validate max_runtime
+        if execution_config.max_runtime < 0:
+            raise ValueError(
+                f"Invalid max_runtime value: {execution_config.max_runtime}. "
+                "Negative values are not allowed."
+            )
+
+        # Validate output_mode + max_runtime combination
+        if (
+            execution_config.output_mode == OutputMode.FILE
+            and execution_config.max_runtime > 0
+        ):
+            raise ValueError(
+                "Invalid execution_config: output_mode='file' cannot be combined with max_runtime > 0. "
+                "File output does not support looping. Use max_runtime=0 to run until EOS, "
+                "or use output_mode='disabled' or 'live_stream' for time-limited execution."
+            )
+
         pipeline_parts = []
         video_output_paths: dict[str, List[str]] = {}
+        live_stream_urls: dict[str, str] = {}
+
+        # Track which pipeline types have already been streamed (one live stream per pipeline type)
+        streamed_pipeline_ids: set[str] = set()
+
+        # Determine if we need looping behavior based on max_runtime
+        # Looping is only supported for disabled and live_stream modes
+        needs_looping = (
+            execution_config.max_runtime > 0
+            and execution_config.output_mode != OutputMode.FILE
+        )
 
         for pipeline_index, run_spec in enumerate(pipeline_performance_specs):
             # Retrieve the pipeline definition by ID
@@ -408,6 +446,10 @@ class PipelineManager:
 
             # Convert pipeline graph dict back to Graph object
             graph = Graph.from_dict(pipeline.pipeline_graph.model_dump())
+
+            # Apply looping modifications if needed
+            if needs_looping:
+                graph = graph.apply_looping_modifications()
 
             # Retrieve input video filenames from the graph
             input_video_filenames = graph.get_input_video_filenames()
@@ -427,21 +469,38 @@ class PipelineManager:
                     base_pipeline_str, pipeline_index, stream_index
                 )
 
-                # Handle final video output if enabled
-                if video_config.enabled and stream_index == 0:
-                    # Get recommended encoder device from the graph
+                # Handle output replacement based on output_mode (only for first stream of each pipeline type)
+                if stream_index == 0:
+                    output_mode = execution_config.output_mode
                     encoder_device = graph.get_recommended_encoder_device()
-                    # Replace fakesink with actual video output element
-                    unique_pipeline_str, generated_paths = (
-                        self.video_encoder.replace_fakesink_with_video_output(
-                            pipeline.id,
-                            unique_pipeline_str,
-                            encoder_device,
-                            input_video_filenames,
+
+                    if output_mode == OutputMode.FILE:
+                        # Replace fakesink with file output
+                        unique_pipeline_str, generated_paths = (
+                            self.video_encoder.replace_fakesink_with_video_output(
+                                pipeline.id,
+                                unique_pipeline_str,
+                                encoder_device,
+                                input_video_filenames,
+                            )
                         )
-                    )
-                    video_output_paths[pipeline.id].extend(generated_paths)
+                        video_output_paths[pipeline.id].extend(generated_paths)
+
+                    elif output_mode == OutputMode.LIVE_STREAM:
+                        # Replace fakesink with live stream output (one per pipeline type)
+                        if pipeline.id not in streamed_pipeline_ids:
+                            unique_pipeline_str, stream_url = (
+                                self.video_encoder.replace_fakesink_with_live_stream_output(
+                                    pipeline.id,
+                                    unique_pipeline_str,
+                                    encoder_device,
+                                    input_video_filenames,
+                                    needs_looping=needs_looping,
+                                )
+                            )
+                            live_stream_urls[pipeline.id] = stream_url
+                            streamed_pipeline_ids.add(pipeline.id)
 
                 pipeline_parts.append(unique_pipeline_str)
 
-        return " ".join(pipeline_parts), video_output_paths
+        return " ".join(pipeline_parts), video_output_paths, live_stream_urls

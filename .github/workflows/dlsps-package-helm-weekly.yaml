@@ -26,7 +26,7 @@ jobs:
         path: edge-ai-libraries-repo
         persist-credentials: false
     - name: Install Helm
-      uses: azure/setup-helm@v4
+      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 #v4.3.1
       with:
         version: v3.15.2
     - name: Log in to GitHub Container Registry
@@ -37,20 +37,28 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Package Helm Chart
+      env:
+        HELM_CHART_TAG: ${{ inputs.helm-chart-tag }}
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/helm
-        helm package . --version ${{ inputs.helm-chart-tag }} --app-version ${{ inputs.helm-chart-tag }}
+        helm package . --version "${HELM_CHART_TAG}" --app-version "${HELM_CHART_TAG}"
     - name: Push to GHCR
+      env:
+        HELM_CHART_TAG: ${{ inputs.helm-chart-tag }}
+        GITHUB_REPO: ${{ github.repository }}
       run: |
-        CHART_PACKAGE=$(ls edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/helm/dlstreamer-pipeline-server-${{ inputs.helm-chart-tag }}.tgz)
-        helm push $CHART_PACKAGE oci://ghcr.io/${{ github.repository }}/
+        CHART_PACKAGE=$(ls edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/helm/dlstreamer-pipeline-server-"${HELM_CHART_TAG}".tgz)
+        helm push $CHART_PACKAGE oci://ghcr.io/${GITHUB_REPO}/
 
     - name: Update Github Summary
+      env:
+        HELM_CHART_TAG: ${{ inputs.helm-chart-tag }}
+        GITHUB_REPO: ${{ github.repository }}
       run: |
         echo "### ✅ DLStreamerPipelineServer helm chart published to github container registry" >> $GITHUB_STEP_SUMMARY
-          echo "- Registry: \`oci://ghcr.io/${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: \`${{ inputs.helm-chart-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Pull command: \`helm pull oci://ghcr.io/${{ github.repository }}/dlstreamer-pipeline-server --version ${{ inputs.helm-chart-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Registry: \`oci://ghcr.io/${GITHUB_REPO}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${HELM_CHART_TAG}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Pull command: \`helm pull oci://ghcr.io/${GITHUB_REPO}/dlstreamer-pipeline-server --version ${HELM_CHART_TAG}\`" >> $GITHUB_STEP_SUMMARY
     - name: Clean up
       if: always()
       run: |

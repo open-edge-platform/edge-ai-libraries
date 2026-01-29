@@ -12,6 +12,7 @@
   - Direct time range input from the UI.
 - Added live system performance metrics in the search UI (enable with `export ENABLE_VSS_COLLECTOR=true`).
 - Fixed the build script of the `vdms-dataprep` microservice.
+- Added telemetry collection of the application metrics for VDMS-dataprep microservice and VLM microservice.
 
 **HW used for validation**:
 
@@ -31,7 +32,7 @@
 ## Previous releases
 
 **Version**: 1.3.1 \
-**Release Date**: 20 Nov 2025  
+**Release Date**: 20 Nov 2025
 
 **Features**:
 
@@ -53,9 +54,8 @@
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
-
 **Version**: rc1.3.2 \
-**Release Date**: 14 Nov 2025  
+**Release Date**: 14 Nov 2025
 
 **Features**:
 
@@ -74,9 +74,8 @@
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
-
 **Version**: 1.3.0 \
-**Release Date**: 14 Nov 2025  
+**Release Date**: 14 Nov 2025
 
 **Features**:
 
@@ -108,15 +107,14 @@
   - Enhanced segment scoring algorithm with qualitative metrics based on peak and sustained quality.
   - Implemented scoring that considers frame quality and contextual proximity for improved relevance.
   - Exposed all result fine-tuning parameters via environment variables for user customization.
-  - Added troubleshooting section for search results with embedding model changes 
+  - Added troubleshooting section for search results with embedding model changes
 
 **HW used for validation**:
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 
-
 **Version**: 1.2.3 \
-**Release Date**: 31 Oct 2025  
+**Release Date**: 31 Oct 2025
 
 **Features**:
 
@@ -131,7 +129,7 @@
 - Vanilla Kubernetes Cluster
 
 **Version**: 1.2.2 \
-**Release Date**: 06 Oct 2025  
+**Release Date**: 06 Oct 2025
 
 **Features**:.
 
@@ -143,7 +141,7 @@
 - Addressed vulnerabilities flagged by Trivy and dependabot scans.
 
 **Version**: 1.2.1 \
-**Release Date**: 29 Sept 2025  
+**Release Date**: 29 Sept 2025
 
 **Features**:
 
@@ -179,10 +177,8 @@
 - Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
 - Directory Watcher service only supported in Search only mode.
 
-## Previous releases
-
 **Version**: 1.2.0 \
-**Release Date**: 04 August 2025  
+**Release Date**: 04 August 2025
 **Features**:
 
 - This is an incremental release on top of RC4.1 providing fixes for issues found on RC4.1 The notes provided under RC4.1 apply for this incremental release too.
@@ -194,7 +190,7 @@
 - Images for all required microservices uploaded and available on Docker registry.
 
 **Version**: RC4.1 \
-**Release Date**: 29 July 2025  
+**Release Date**: 29 July 2025
 **Features**:
 
 - This is an incremental release on top of RC4 providing fixes for issues found on RC4. The notes provided under RC4 apply for this incremental release too.
@@ -210,7 +206,7 @@
   - Enabled a minimum configuration of Video Summarization to work on older Xeon configurations. Note that there is no official support for versions of Xeon earlier than Xeon 4.
 
 **Version**: RC4 \
-**Release Date**: 18 June 2025  
+**Release Date**: 18 June 2025
 **Features**:
 
 - Added Helm chart for Video Search and Summarization.

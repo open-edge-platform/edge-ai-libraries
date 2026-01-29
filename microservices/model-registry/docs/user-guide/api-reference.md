@@ -2,5 +2,5 @@
 **Version: 1.0.3**
 
 <!--hide_directive```{eval-rst}
-.. swagger-plugin:: api-docs/openapi.yaml
+.. swagger-plugin:: _assets/openapi.yaml
 ```hide_directive-->

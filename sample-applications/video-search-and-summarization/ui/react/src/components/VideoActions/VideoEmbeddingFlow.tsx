@@ -17,10 +17,11 @@ import { Information } from '@carbon/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { SearchSelector } from '../../redux/search/searchSlice';
+import { videosLoad, videosSelector } from '../../redux/video/videoSlice';
+import { Video } from '../../redux/video/video';
 import axios from 'axios';
 import type { AxiosProgressEvent } from 'axios';
-import { APP_URL } from '../../config';
-import { videosLoad } from '../../redux/video/videoSlice';
+import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { NotificationSeverity, notify } from '../Notification/notify';
 
 const CenteredContainer = styled.div`
@@ -147,6 +148,97 @@ const SettingsPanel = styled.div`
   max-height: 50vh;
 `;
 
+const VideoSelectorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+`;
+
+const VideoSelectorDivider = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.25rem 0;
+  color: #666;
+  font-size: 0.9rem;
+  
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
+  }
+`;
+
+const RecentVideosList = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  width: 100%;
+`;
+
+const RecentVideoItem = styled.div<{ selected: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 calc(20% - 0.6rem);
+  min-width: 120px;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: ${({ selected }) => (selected ? '#e5f6ff' : '#fff')};
+  border: 2px solid ${({ selected }) => (selected ? '#0072c3' : '#e0e0e0')};
+  
+  &:hover {
+    background: ${({ selected }) => (selected ? '#e5f6ff' : '#f0f0f0')};
+    border-color: #0072c3;
+  }
+`;
+
+const VideoItemInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.5rem;
+`;
+
+const VideoItemName = styled.span`
+  font-weight: 500;
+  color: #333;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+`;
+
+const VideoItemDate = styled.span`
+  font-size: 0.65rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+`;
+
+const VideoThumbnail = styled.video`
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+`;
+
 const StyledModalFooter = styled(ModalFooter)`
   padding: 0rem 0 0 0 !important;
   margin: 0 -1rem -1rem -1rem !important;
@@ -211,6 +303,16 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   // API endpoints
   const videoUploadAPi = `${APP_URL}/videos`;
 
+  // Get videos from Redux store
+  const { videos } = useAppSelector(videosSelector);
+
+  // Get top 5 recent videos sorted by upload date
+  const recentVideos = useMemo(() => {
+    return [...videos]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
+  }, [videos]);
+
   // State
   const [step, setStep] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -219,6 +321,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedExistingVideo, setSelectedExistingVideo] = useState<Video | null>(null);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [videoTags, setVideoTags] = useState<string | null>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -233,12 +336,16 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const { suggestedTags } = useAppSelector(SearchSelector);
 
   const displayFileName = useMemo(() => {
+    if (selectedExistingVideo) {
+      const name = selectedExistingVideo.dataStore?.fileName || selectedExistingVideo.name || selectedExistingVideo.videoId;
+      return name.toLowerCase().endsWith('.mp4') ? name.slice(0, -4) : name;
+    }
     if (!selectedFile) return '';
     const originalName = selectedFile.name;
     return originalName.toLowerCase().endsWith('.mp4')
       ? originalName.slice(0, -4)
       : originalName;
-  }, [selectedFile]);
+  }, [selectedFile, selectedExistingVideo]);
 
   const resetForm = useCallback(() => {
     // Clean up video preview URL first
@@ -248,6 +355,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
     setVideoPreviewUrl(null);
     setSelectedFile(null);
+    setSelectedExistingVideo(null);
     setFormatError(null);
     setVideoTags('');
     setSelectedTags([]);
@@ -260,7 +368,9 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, []); // Empty dependency array - stable reference
+    // Load videos list for the selector
+    dispatch(videosLoad());
+  }, [dispatch]);
 
   const clearErrorState = useCallback(() => {
     setUploadErrorMessage(null);
@@ -367,10 +477,34 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       }
       
       setSelectedFile(file);
-      // Create a preview URL for the video
+      // Clear existing video selection when a new file is selected
+      setSelectedExistingVideo(null);
       const previewUrl = URL.createObjectURL(file);
       videoPreviewUrlRef.current = previewUrl;
       setVideoPreviewUrl(previewUrl);
+    }
+  };
+
+  // Handler for selecting an existing video
+  const handleSelectExistingVideo = (video: Video) => {
+    if (videoPreviewUrlRef.current) {
+      URL.revokeObjectURL(videoPreviewUrlRef.current);
+      videoPreviewUrlRef.current = null;
+    }
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setFormatError(null);
+    setSelectedExistingVideo(video);
+    if (video.dataStore) {
+      const existingVideoUrl = `${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`;
+      setVideoPreviewUrl(existingVideoUrl);
+    } else {
+      setVideoPreviewUrl(null);
+    }
+    if (video.tags && video.tags.length > 0) {
+      setSelectedTags(video.tags);
     }
   };
 
@@ -415,8 +549,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
 
   const triggerCreateEmbedding = async () => {
     try {
-      setUploading(true);
-      setProgressText(t('uploadingVideo'));
+      let videoIdToUse: string | undefined;
 
       const videoData: VideoUploadPayload = {};
       const tags: string[] = [];
@@ -433,29 +566,42 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
         videoData.tags = tags.join(',');
       }
 
-  const videoRes = await uploadVideo(videoData);
-      dispatch(videosLoad());
-      setUploading(false);
-      setProcessing(true);
-
-  if (videoRes.data.videoId) {
+      // Check if using existing video or uploading new one
+      if (selectedExistingVideo) {
+        // Use existing video - skip upload
+        setProcessing(true);
         setProgressText(t('CreatingEmbeddings'));
+        videoIdToUse = selectedExistingVideo.videoId;
+      } else {
+        // Upload new video
+        setUploading(true);
+        setProgressText(t('uploadingVideo'));
 
-        const embeddingRes = await triggerEmbeddings(videoRes.data.videoId);
+        const videoRes = await uploadVideo(videoData);
+        dispatch(videosLoad());
+        setUploading(false);
+        setProcessing(true);
 
-        if (embeddingRes.status === 'success') {
-          setProgressText(t('allDone'));
-          setUploading(false);
-          resetForm();
-          notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
-          if (onClose) {
-            onClose();
-          }
+        if (videoRes.data.videoId) {
+          videoIdToUse = videoRes.data.videoId;
         } else {
-          throw new Error(embeddingRes.message || t('unknownError'));
+          throw new Error(t('serverError'));
+        }
+      }
+
+      setProgressText(t('CreatingEmbeddings'));
+      const embeddingRes = await triggerEmbeddings(videoIdToUse);
+
+      if (embeddingRes.status === 'success') {
+        setProgressText(t('allDone'));
+        setUploading(false);
+        resetForm();
+        notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
+        if (onClose) {
+          onClose();
         }
       } else {
-        throw new Error(t('serverError'));
+        throw new Error(embeddingRes.message || t('unknownError'));
       }
     } catch (error: unknown) {
       console.error('Video upload/processing error:', error);
@@ -499,64 +645,136 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           </TimelineContainer>
 
           {step === 0 && (
-            <DropArea
-              dragging={dragging}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={e => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={e => {
-                e.preventDefault();
-                setDragging(false);
-                handleFileSelect(e.dataTransfer.files);
-              }}
-            >
-              {selectedFile ? (
-                <>
-                  <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                    {selectedFile.name}
+            <>
+              {/* Show selected existing video if one is selected */}
+              {selectedExistingVideo && !selectedFile && (
+                <div style={{
+                  background: '#e5f6ff',
+                  border: '2px solid #0072c3',
+                  borderRadius: '8px',
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  marginBottom: '1rem'
+                }}>
+                  <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem', color: '#0072c3' }}>
+                    {t('selectedVideo')}: {selectedExistingVideo.dataStore?.fileName || selectedExistingVideo.name || selectedExistingVideo.videoId}
                   </h3>
+                  <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.75rem' }}>
+                    {t('uploadedOn')}: {new Date(selectedExistingVideo.createdAt).toLocaleString()}
+                  </div>
                   <MainButton 
                     kind="tertiary" 
                     style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (videoPreviewUrlRef.current) {
-                        URL.revokeObjectURL(videoPreviewUrlRef.current);
-                        videoPreviewUrlRef.current = null;
-                      }
-                      setVideoPreviewUrl(null);
-                      setSelectedFile(null);
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = '';
-                        // Open file picker after clearing
-                        setTimeout(() => {
-                          fileInputRef.current?.click();
-                        }, 0);
-                      }
+                    onClick={() => {
+                      setSelectedExistingVideo(null);
+                      setSelectedTags([]);
                     }}
                   >
                     {t('changeVideo')}
                   </MainButton>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontWeight: 500 }}>{t('SelectVideo') || 'Select a Video'}</div>
-                  <div style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
-                    or drag and drop here
-                  </div>
-                </>
+                </div>
               )}
-              <input
-                type="file"
-                accept=".mp4"
-                style={{ display: 'none' }}
-                ref={fileInputRef}
-                onChange={e => handleFileSelect(e.target.files)}
-              />
-            </DropArea>
+              
+              {/* Upload new video area - only show when no existing video is selected */}
+              {!selectedExistingVideo && (
+                <DropArea
+                  dragging={dragging}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragging(false);
+                    handleFileSelect(e.dataTransfer.files);
+                  }}
+                >
+                  {selectedFile ? (
+                    <>
+                      <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+                        {selectedFile.name}
+                      </h3>
+                      <MainButton 
+                        kind="tertiary" 
+                        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (videoPreviewUrlRef.current) {
+                            URL.revokeObjectURL(videoPreviewUrlRef.current);
+                            videoPreviewUrlRef.current = null;
+                          }
+                          setVideoPreviewUrl(null);
+                          setSelectedFile(null);
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                            // Open file picker after clearing
+                            setTimeout(() => {
+                              fileInputRef.current?.click();
+                            }, 0);
+                          }
+                        }}
+                      >
+                        {t('changeVideo')}
+                      </MainButton>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontWeight: 500 }}>{t('uploadNew') || 'Upload New Video'}</div>
+                      <div style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
+                        or drag and drop here
+                      </div>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept=".mp4"
+                    style={{ display: 'none' }}
+                    ref={fileInputRef}
+                    onChange={e => handleFileSelect(e.target.files)}
+                  />
+                </DropArea>
+              )}
+
+              {/* Recent videos selector - only show when no file is selected and there are recent videos */}
+              {!selectedFile && recentVideos.length > 0 && (
+                <VideoSelectorContainer>
+                  <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
+                  <RecentVideosList>
+                    {recentVideos.map((video) => (
+                      <RecentVideoItem
+                        key={video.videoId}
+                        selected={selectedExistingVideo?.videoId === video.videoId}
+                        onClick={() => handleSelectExistingVideo(video)}
+                      >
+                        {video.dataStore && (
+                          <VideoThumbnail
+                            src={`${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`}
+                            muted
+                            preload="metadata"
+                            onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                            onMouseLeave={(e) => {
+                              const el = e.currentTarget as HTMLVideoElement;
+                              el.pause();
+                              el.currentTime = 0;
+                            }}
+                          />
+                        )}
+                        <VideoItemInfo>
+                          <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
+                            {video.dataStore?.fileName || video.name || video.videoId}
+                          </VideoItemName>
+                          <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
+                            {new Date(video.createdAt).toLocaleDateString()}
+                          </VideoItemDate>
+                        </VideoItemInfo>
+                      </RecentVideoItem>
+                    ))}
+                  </RecentVideosList>
+                </VideoSelectorContainer>
+              )}
+            </>
           )}
           {formatError && (
             formatError === t('OnlyStreamableMp4') ? (
@@ -655,8 +873,13 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 
                 <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
                   <div>
-                    <strong>{t('videoNameLabel')}:</strong> {selectedFile ? displayFileName : '-'}
+                    <strong>{t('videoNameLabel')}:</strong> {displayFileName || '-'}
                   </div>
+                  {selectedExistingVideo && (
+                    <div>
+                      <strong>{t('uploadedOn')}:</strong> {new Date(selectedExistingVideo.createdAt).toLocaleString()}
+                    </div>
+                  )}
                   {videoTags && videoTags.trim().length > 0 && (
                     <div>
                       <strong>{t('customVideoTags')}:</strong> {videoTags}
@@ -695,7 +918,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={!selectedFile}
+              disabled={!selectedFile && !selectedExistingVideo}
               onClick={() => setStep(1)}
             >
               Next
@@ -711,7 +934,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={uploading || !selectedFile}
+              disabled={uploading || (!selectedFile && !selectedExistingVideo)}
               onClick={() => {
                 clearErrorState();
                 setStep(2);
@@ -730,7 +953,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </Button>
             <Button
               kind="primary"
-              disabled={uploading || !selectedFile}
+              disabled={uploading || (!selectedFile && !selectedExistingVideo)}
               onClick={triggerCreateEmbedding}
             >
               {uploading ? t('uploadingVideoState') : t('CreateVideoEmbedding')}

@@ -7,7 +7,7 @@ manner that different stages such as decoding, inference etc., can make use of t
 
 ### Ensure you have a GPU
 
-To determine which graphics processor you have, please follow [this](https://dgpu-docs.intel.com/devices/hardware-table.html) document.
+To determine which graphics processor you have, refer to the [Hardware table](https://dgpu-docs.intel.com/devices/hardware-table.html) document.
 
 ### Provide GPU access to the container
 
@@ -43,7 +43,8 @@ DL Streamer inference elements also provides property such as `pre-process-backe
 
 ## Tutorial on how to use GPU specific pipelines
 
-> Note - DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file that includes the necessary GPU access to the container.
+> **Note:** - DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
+> file that includes the necessary GPU access to the container.
 
 - A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json`. We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
 
@@ -85,4 +86,4 @@ DL Streamer inference elements also provides property such as `pre-process-backe
     ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
+- To perform decode and inference on CPU, see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
