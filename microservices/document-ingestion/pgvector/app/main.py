@@ -367,10 +367,13 @@ async def ingest_links(urls: list[str]) -> dict:
     """
     try:
         if urls:
-            ingest_url_to_pgvector(urls)
+            result = ingest_url_to_pgvector(urls)
 
-        result = {"status": 200, "message": "Data preparation succeeded"}
-        return result
+        return {
+            "status": 200,
+            "message": f"Data preparation completed: {result['successful']}/{result['total_urls']} URLs succeeded",
+        }
+
 
     except HTTPException as e:
         raise e
