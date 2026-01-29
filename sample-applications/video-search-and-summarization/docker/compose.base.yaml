@@ -112,7 +112,7 @@ services:
       - vs_network
 
   minio-service:
-    image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
+    image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
     ports:
       - "${MINIO_API_HOST_PORT}:80"
       - "${MINIO_CONSOLE_HOST_PORT}:81"
@@ -127,7 +127,7 @@ services:
       --address ":80"
       --console-address ":81"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/minio/health/live"]
+      test: [ "CMD-SHELL", "echo > /dev/tcp/127.0.0.1/80 && exit 0 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3

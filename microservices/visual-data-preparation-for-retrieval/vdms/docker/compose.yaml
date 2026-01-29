@@ -3,7 +3,7 @@
 name: ${PROJECT_NAME}
 services:
     minio-server:
-        image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+        image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
         environment:
             - MINIO_ROOT_USER=${MINIO_ROOT_USER}
             - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
