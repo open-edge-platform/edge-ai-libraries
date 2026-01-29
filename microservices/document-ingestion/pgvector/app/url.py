@@ -116,7 +116,7 @@ def validate_url(url: str) -> bool:
             logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains {allowed_domains}.")
             return False
 
-        # Resolve ALL IPs (A + AAAA)
+        # Resolve ALL IPs for the hostname
         infos = socket.getaddrinfo(hostname, None)
         resolved_ips = {info[4][0] for info in infos}
 
