@@ -23,8 +23,8 @@ name: minio-server
 claimSize: ""
 
 image:
-  repository: minio/minio
-  tag: RELEASE.2025-02-07T23-21-09Z-cpuv1
+  repository: coollabsio/minio
+  tag: RELEASE.2025-10-15T17-29-55Z
   pullPolicy: IfNotPresent
 
 containerApiPortName: api-port  # Optional name to refer apiPort
