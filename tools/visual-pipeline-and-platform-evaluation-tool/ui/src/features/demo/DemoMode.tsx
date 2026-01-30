@@ -17,6 +17,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Home, ChevronDown, ChevronRight } from "lucide-react";
+import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaConvertNode.config.ts";
+import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
+import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
+import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
 import pipeline0 from "@/assets/pipeline_0.png";
 import pipeline1 from "@/assets/pipeline_1.png";
 import pipeline2 from "@/assets/pipeline_2.png";
@@ -111,6 +115,36 @@ interface PipelineSelection {
   pipelineId: string;
   stream_rate: number;
 }
+
+type NodePropertyConfig = {
+  key: string;
+  label: string;
+  type: "text" | "number" | "boolean" | "select" | "textarea";
+  defaultValue?: unknown;
+  options?: string[] | readonly string[];
+  description?: string;
+  required?: boolean;
+  params?: { [key: string]: string };
+};
+
+type NodeConfig = {
+  editableProperties: NodePropertyConfig[];
+};
+
+const getNodeConfig = (nodeType: string): NodeConfig | null => {
+  switch (nodeType) {
+    case "gvametaconvert":
+      return gvaMetaConvertConfig;
+    case "gvatrack":
+      return gvaTrackConfig;
+    case "gvaclassify":
+      return gvaClassifyConfig;
+    case "gvadetect":
+      return gvaDetectConfig;
+    default:
+      return null;
+  }
+};
 
 const DemoMode = () => {
   const navigate = useNavigate();
@@ -590,7 +624,7 @@ const DemoMode = () => {
                         className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                           isSelected
                             ? "border-blue-500 ring-2 ring-blue-500/50"
-                            : "border-slate-400/40 hover:border-blue-500/60"
+                            : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
                         }`}
                       >
                         {pipelineImages[
@@ -688,27 +722,77 @@ const DemoMode = () => {
                                     }`}
                                   />
                                 </button>
-                                {openNodeId === node.id && (
-                                  <div
-                                    className={`absolute left-0 right-0 top-full mt-1 z-10 border rounded-lg shadow-lg ${colors.dropdownBg} max-h-48 overflow-y-auto`}
-                                  >
-                                    <div
-                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
-                                    >
-                                      Configuration option 1
-                                    </div>
-                                    <div
-                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
-                                    >
-                                      Configuration option 2
-                                    </div>
-                                    <div
-                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
-                                    >
-                                      Configuration option 3
-                                    </div>
-                                  </div>
-                                )}
+                                {openNodeId === node.id &&
+                                  (() => {
+                                    const nodeConfig = getNodeConfig(node.type);
+                                    const editableProperties =
+                                      nodeConfig?.editableProperties ?? [];
+
+                                    // Get data entries: use config properties if available, otherwise use all node.data
+                                    const dataEntries = nodeConfig
+                                      ? editableProperties.map((prop) => [
+                                          prop.key,
+                                          node.data[prop.key] ??
+                                            prop.defaultValue,
+                                          prop,
+                                        ])
+                                      : Object.entries(node.data ?? {})
+                                          .filter(
+                                            ([key]) =>
+                                              !["label"].includes(key) &&
+                                              !key.startsWith("__"),
+                                          )
+                                          .map(([key, value]) => [
+                                            key,
+                                            value,
+                                            null,
+                                          ]);
+
+                                    if (dataEntries.length === 0) {
+                                      return (
+                                        <div
+                                          className={`absolute left-0 right-0 top-full mt-1 z-10 border rounded-lg shadow-lg ${colors.dropdownBg} p-3`}
+                                        >
+                                          <p className="text-xs text-slate-400 text-center">
+                                            No parameters to display
+                                          </p>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div
+                                        className={`absolute left-0 right-0 top-full mt-1 z-10 border rounded-lg shadow-lg ${colors.dropdownBg} max-h-64 overflow-y-auto`}
+                                      >
+                                        {dataEntries.map(
+                                          ([key, value, propConfig]) => (
+                                            <div
+                                              key={String(key)}
+                                              className={`p-2 border-b border-slate-700/50 last:border-b-0`}
+                                            >
+                                              <div className="flex flex-col">
+                                                <span className="text-xs font-medium text-slate-300">
+                                                  {propConfig?.label ??
+                                                    String(key)}
+                                                </span>
+                                                <span className="text-xs text-slate-400 font-mono mt-0.5">
+                                                  {value !== null &&
+                                                  value !== undefined &&
+                                                  value !== "" ? (
+                                                    String(value)
+                                                  ) : (
+                                                    <span className="italic">
+                                                      not set
+                                                    </span>
+                                                  )}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                               </div>
                             );
                           })}
