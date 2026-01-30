@@ -2,7 +2,7 @@
 
 The Model Download Microservice offers a streamlined approach for acquiring AI/ML models from multiple model hubs, promoting consistency and ease of use across different applications. It serves as a centralized system for managing model downloads, storage, and optional format conversions.
 
-Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
+Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice..
 
 ## Documentation
 
