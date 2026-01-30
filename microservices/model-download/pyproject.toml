@@ -63,6 +63,7 @@ openvino = [
 ]
 
 ollama = [
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0"
     # Ollama is installed as a binary, no Python dependencies required
 ]
 
