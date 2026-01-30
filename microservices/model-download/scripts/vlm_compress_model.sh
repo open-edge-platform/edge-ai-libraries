@@ -2,14 +2,11 @@
 
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-
+echo "Starting model compression script with arguments: $@"
 VLM_MODEL_NAME=$1
 VLM_COMPRESSION_WEIGHT_FORMAT=$2
 HUGGINGFACE_TOKEN=$3
 MODEL_DIR=$4
-
-#MODEL_DIR=$(echo $VLM_MODEL_NAME | awk -F/ '{print $NF}')
-MODEL_DIR="$MODEL_DIR/$VLM_COMPRESSION_WEIGHT_FORMAT"
 
 echo "Model Name: $VLM_MODEL_NAME"
 echo "Compression Weight Format: $VLM_COMPRESSION_WEIGHT_FORMAT"

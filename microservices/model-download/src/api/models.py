@@ -25,12 +25,13 @@ class ModelHub(str, Enum):
 
 class ModelType(str, Enum):
     LLM = "llm"
+    VLM = "vlm"
     EMBEDDINGS = "embeddings"
     RERANKER = "rerank"
     VISION = "vision"
 
 class Config(BaseModel):
-    precision: ModelPrecision = ModelPrecision.INT8
+    precision: ModelPrecision = ModelPrecision.INT4
     device: DeviceType = DeviceType.CPU
     cache_size: Optional[int] = Field(None, gt=0)
 

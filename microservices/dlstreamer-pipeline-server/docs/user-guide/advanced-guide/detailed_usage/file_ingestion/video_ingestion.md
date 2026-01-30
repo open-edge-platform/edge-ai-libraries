@@ -18,7 +18,8 @@ Video ingestion supports reading video files from a directory.
       ...
   ```
 
-- Modify pipeline in appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
+- Modify the pipeline in the appropriate `config.json` file in
+the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
   -  For reading videos, for example, `video_000.avi`, `video_001.avi`, `video_002.avi`, from a directory use the following pipeline.
 
     ```json

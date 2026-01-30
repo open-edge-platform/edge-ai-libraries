@@ -159,3 +159,21 @@
   unsupported_devices: ""
   precision: FP16
   default: false
+- name: colorcls2
+  display_name: Color Classification (FP32)
+  source: public
+  type: classification
+  model_path: public/colorcls2/FP32/colorcls2.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: FP32
+  default: false
+- name: pallet_defect_detection
+  display_name: Pallet Defect Detection (INT8)
+  source: public
+  type: detection
+  model_path: public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+  model_proc: ""
+  unsupported_devices: ""
+  precision: INT8
+  default: false

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ---- Stage 1: Build dependencies ----
-FROM python:3.11-slim AS python-base
+FROM python:3.12-slim AS python-base
 
 # Set the working directory in the container
 WORKDIR /opt
@@ -28,7 +28,7 @@ RUN uv sync \
     && rm -rf ~/.cache
 
 # ---- Stage 2: Final slim image ----
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ARG UID=1001
 ARG GID=1001
@@ -49,7 +49,7 @@ RUN groupadd -g ${GID} appuser && \
     useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser
 
 # Copy installed dependencies from python-base
-COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=python-base /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
 COPY src /opt/src

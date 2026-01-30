@@ -1,4 +1,4 @@
-# 📁 Directory Watcher Service Guide
+# Directory Watcher Service Guide
 
 ## Overview
 
@@ -8,20 +8,20 @@ The Directory Watcher service is an automated video ingestion system that monito
 
 The Directory Watcher service provides the following functionality:
 
-### 🔍 File Monitoring
+### File Monitoring
 
 - **Watches for MP4 files**: Monitors a specified directory for new `.mp4` video files
 - **File size filtering**: Only processes files larger than 512KB (524,288 bytes) to avoid incomplete or corrupted files
 - **Real-time detection**: Automatically detects when files are created or modified in the watched directory
 - **Recursive monitoring**: Optionally monitors subdirectories when `VS_WATCH_DIRECTORY_RECURSIVE=true` is set
 
-### ⏱️ Debounced Processing
+### Debounced Processing
 
 - **Debounce mechanism**: Groups file events together to avoid processing files multiple times during rapid file operations
 - **Configurable delay**: Uses a configurable debounce time (default: 5 seconds) before processing detected files
 - **Batch processing**: Processes multiple files together for efficiency
 
-### 🚀 Automatic Upload and Indexing
+### Automatic Upload and Indexing
 
 - **Two-step process**:
   1. Uploads video files to the data preparation service
@@ -29,7 +29,7 @@ The Directory Watcher service provides the following functionality:
 - **Retry mechanism**: Implements exponential backoff retry logic (up to 3 attempts) for failed uploads
 - **Status tracking**: Maintains upload status with total, completed, and pending file counts
 
-### 🗂️ Initial Directory Processing
+### Initial Directory Processing
 
 - **Bulk upload**: Optionally processes all existing MP4 files in the watched directory on startup
 - **Batch processing**: Processes existing files in batches of 10 for optimal performance
@@ -74,7 +74,7 @@ export VS_WATCH_DIRECTORY_RECURSIVE=true
 
 1. **Optional: Create a directory** on your host system to store video files:
 
-> **Note:** Make sure that the directory is created with normal user access and not as the root user.
+   > **Note:** Make sure that the directory is created with normal user access and not as the root user.
 
    ```bash
    mkdir -p /home/user/videos
@@ -137,7 +137,7 @@ The Directory Watcher provides upload status information that can be monitored t
 
 ## File Processing Flow
 
-![File Processing Flow](./images/file-processing-flow.drawio.svg)
+![File Processing Flow](./_assets/file-processing-flow.drawio.svg)
 
 ## Best Practices
 

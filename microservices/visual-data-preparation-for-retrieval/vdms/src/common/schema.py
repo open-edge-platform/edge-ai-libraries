@@ -157,30 +157,101 @@ class VideoSummaryRequest(BaseModel):
     bucket_name: Annotated[
         str, Field(description="The Minio bucket name where the referenced video is stored")
     ]
-    video_id: Annotated[
-        str,
-        Field(
-            description="The video ID (directory in Minio bucket) containing the referenced video"
-        ),
-    ]
-    video_summary: Annotated[
-        str, Field(description="The summary text for the video to be embedded")
-    ]
-    video_start_time: Annotated[
-        float,
-        Field(
-            ge=0,
-            description="The start timestamp in seconds for the video or video chunk",
-        ),
-    ]
-    video_end_time: Annotated[
-        float,
-        Field(description="The end timestamp in seconds for the video or video chunk"),
-    ]
-    tags: Annotated[
-        Optional[List[str]],
-        Field(
-            default_factory=list,
-            description="List of tags to be associated with the video. Useful for filtering the search.",
-        ),
-    ]
+
+
+class TelemetryStageTiming(BaseModel):
+    """Represents the percentage contribution of a processing stage."""
+
+    name: str = Field(description="Stage label (extraction, detection, embedding, storage)")
+    seconds: float = Field(ge=0.0, description="Summed duration for the stage")
+    percent_of_total: float = Field(
+        ge=0.0,
+        le=100.0,
+        description="Percentage of overall pipeline wall time",
+    )
+
+
+class TelemetryBatchDetail(BaseModel):
+    """Timing details for a single batch in SDK mode."""
+
+    batch_index: int = Field(ge=1)
+    input_frames: int = Field(ge=0)
+    items_after_detection: int = Field(ge=0)
+    detection_seconds: float = Field(ge=0.0)
+    embedding_seconds: float = Field(ge=0.0)
+    storage_seconds: float = Field(ge=0.0)
+    total_seconds: float = Field(ge=0.0)
+    embeddings_stored: int = Field(ge=0)
+
+
+class TelemetryCounts(BaseModel):
+    """Aggregate frame and embedding counts."""
+
+    frames_extracted: int = Field(ge=0)
+    items_after_detection: int = Field(ge=0)
+    embeddings_stored: int = Field(ge=0)
+
+
+class TelemetryThroughput(BaseModel):
+    """Derived throughput metrics."""
+
+    embeddings_per_second: float = Field(ge=0.0)
+    embedding_stage_embeddings_per_second: float = Field(ge=0.0)
+    wall_time_embeddings_per_second: float = Field(ge=0.0)
+    frames_per_second: float = Field(ge=0.0)
+
+
+class TelemetryVideoMetadata(BaseModel):
+    """Snapshot of the processed video's metadata."""
+
+    bucket_name: str
+    video_id: str
+    filename: str
+    frame_interval: int
+    fps: Optional[float] = None
+    total_frames: Optional[int] = None
+    video_duration_seconds: Optional[float] = None
+    tags: List[str] = Field(default_factory=list)
+    video_url: Optional[str] = None
+    video_rel_url: Optional[str] = None
+    processing_mode: Optional[str] = None
+
+
+class TelemetryProcessingConfig(BaseModel):
+    """Processing configuration persisted with telemetry."""
+
+    embedding_mode: str
+    object_detection_enabled: bool
+    detection_confidence: Optional[float] = None
+    sdk_parallel_workers: Optional[int] = None
+    sdk_batch_size: Optional[int] = None
+
+
+class TelemetryTimestamps(BaseModel):
+    """Request lifecycle timestamps."""
+
+    requested_at: str = Field(description="UTC timestamp when processing started")
+    completed_at: str = Field(description="UTC timestamp when processing finished")
+    wall_time_seconds: float = Field(ge=0.0)
+
+
+class TelemetryRecord(BaseModel):
+    """Stored telemetry entry served via /telemetry endpoint."""
+
+    request_id: str
+    source: str
+    processing_mode: str
+    timestamps: TelemetryTimestamps
+    video: TelemetryVideoMetadata
+    config: TelemetryProcessingConfig
+    counts: TelemetryCounts
+    stages: List[TelemetryStageTiming]
+    throughput: TelemetryThroughput
+    batches: List[TelemetryBatchDetail] = Field(default_factory=list)
+
+
+class TelemetryResponse(BaseModel):
+    """Response payload for /telemetry endpoint."""
+
+    count: int
+    items: List[TelemetryRecord]

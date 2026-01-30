@@ -187,6 +187,16 @@ curl -L "http://localhost:6007/v1/dataprep/videos/download?video_id=traffic_cam_
 curl -X DELETE "http://localhost:6007/v1/dataprep/videos?video_id=traffic_cam_2024_10_21"
 ```
 
+### Review processing telemetry
+
+The telemetry endpoint captures per-request wall-clock timings, stage durations, throughput, and batch-level stats. Query the most recent entries directly from the DataPrep service (or via the pipeline-manager proxy) with:
+
+```bash
+curl --location 'http://localhost:6016/telemetry?limit=5'
+```
+
+See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete breakdown of every field and how each value is calculated.
+
 ## Validate Services
 
 1. Call `GET /v1/dataprep/health` – expect `status: ok`, the active embedding mode, and the OpenVINO flag when SDK mode is selected.
