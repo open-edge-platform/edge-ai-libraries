@@ -609,10 +609,7 @@ const DemoMode = () => {
             </div>
           ) : demoStep === "configuration" ? (
             /* 4-PART GRID LAYOUT */
-            <div
-              className="grid grid-cols-2 gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]"
-              style={{ gridTemplateRows: "minmax(150px, 35%) 1fr" }}
-            >
+            <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
               {/* TOP LEFT - Selected Pipelines Cards */}
               <div className="overflow-y-auto">
                 <div className="flex flex-wrap gap-2">
