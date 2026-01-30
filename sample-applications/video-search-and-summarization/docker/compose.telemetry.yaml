@@ -16,7 +16,7 @@ services:
         pid: host
         volumes:
             - ../pipeline-manager/telemetry/collector/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-            - ../pipeline-manager/telemetry/shared/collector-signals:/app/.collector-signals
+            - collector_signals:/app/.collector-signals
         restart: on-failure:5
         environment:
             - http_proxy=${http_proxy}
@@ -28,3 +28,7 @@ services:
                 condition: service_started
         networks:
             - vs_network
+
+volumes:
+    collector_signals:
+        driver: local

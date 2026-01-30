@@ -3,10 +3,11 @@
 import { Module } from '@nestjs/common';
 import { TelemetryService } from './telemetry.service';
 import { TelemetryController } from './telemetry.controller';
+import { DataprepTelemetryService } from './dataprep-telemetry.service';
 
 @Module({
   controllers: [TelemetryController],
-  providers: [TelemetryService],
+  providers: [TelemetryService, DataprepTelemetryService],
   exports: [TelemetryService],
 })
 export class TelemetryModule {}
