@@ -81,7 +81,7 @@ async def download_models(
     Models are downloaded from the specified hub (huggingface, ollama, etc.).
     Models will be converted to OpenVINO format if:
     1. is_ovms is set to true in the request for openvino conversion, or
-    2. type can be set to 'llm,embeddings,reranker or vision' in the request
+    2. type can be set to 'llm,embeddings,reranker,vlm or vision' in the request
     
     The config object is optional and used only for conversion.
     
@@ -116,7 +116,7 @@ async def download_models(
                 )
             
             extra_kwargs = model.dict()
-            needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
+            needs_conversion = model.is_ovms
 
             model_download_path = os.path.join(models_dir, download_path)
             
@@ -164,7 +164,7 @@ async def download_models(
                 if config['device'].upper() == "NPU":
                     logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
                     config['precision'] = "int4"
-                    download_path = download_path.rsplit("/", 1)[0] + "/int4"
+                    
                 # Create a unique output directory for the converted model
                 convert_output_dir = os.path.join(
                     models_dir,
