@@ -292,7 +292,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: [ "--port", "9000", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json" ]
+    command: [ "--port", "9000", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config_all.json" ]
     networks:
       - my_network
 

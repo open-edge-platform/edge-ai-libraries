@@ -297,14 +297,14 @@ class TestOpenVINOConverter:
         assert result == 0
         # Verify curl was called to download the script
         curl_call = call(["curl", 
-                         "https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py",
+                         "https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/export_model.py",
                          "-o", "export_model.py"], check=True)
         assert curl_call in mock_run.call_args_list
 
     @pytest.mark.parametrize("model_type,expected_export_type", [
         ("llm", "text_generation"),
-        ("embeddings", "embeddings"),
-        ("rerank", "rerank"),
+        ("embeddings", "embeddings_ov"),
+        ("rerank", "rerank_ov"),
     ])
     @patch('subprocess.run')
     @patch('subprocess.Popen')
