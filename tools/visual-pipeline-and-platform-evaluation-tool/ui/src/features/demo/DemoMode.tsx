@@ -42,6 +42,71 @@ const pipelineImages = [
   pipeline5,
 ];
 
+// Mapowanie typów węzłów na ich kategorie/tagi (z rzeczywistych definicji węzłów)
+const nodeTypeToTag: Record<string, string> = {
+  // Sources
+  filesrc: "Source",
+  v4l2src: "Source",
+  videotestsrc: "Source",
+  audiotestsrc: "Source",
+  uridecodebin: "Source",
+
+  // Decoders
+  avdec_h264: "Decoder",
+  avdec_h265: "Decoder",
+  vah264dec: "Decoder",
+  vah265dec: "Decoder",
+  decodebin3: "Decoder",
+  decodebin: "Decoder",
+  vaapidecodebin: "Decoder",
+
+  // Encoders
+  vah264enc: "Encoder",
+
+  // Demuxers/Muxers/Parsers
+  qtdemux: "Demuxer",
+  h264parse: "Parser",
+  h265parse: "Parser",
+  videoparse: "Parser",
+  mp4mux: "Muxer",
+  splitmuxsink: "Muxer",
+
+  // GVA - Inference/Processing
+  gvadetect: "Detection",
+  gvaclassify: "Classification",
+  gvainference: "Inference",
+  gvatrack: "Tracking",
+  gvawatermark: "Overlay",
+  gvametaconvert: "Converter",
+  gvametapublish: "Publisher",
+  gvafpscounter: "Counter",
+
+  // Video Processing
+  videoconvert: "Converter",
+  videoscale: "PostProc",
+  vapostproc: "Transform",
+  capsfilter: "Filter",
+
+  // Sinks
+  fakesink: "Sink",
+  filesink: "Sink",
+  autovideosink: "Sink",
+  v4l2sink: "Sink",
+  ximagesink: "Sink",
+  xvimagesink: "Sink",
+
+  // Other
+  queue: "Buffer",
+  queue2: "Buffer",
+  tee: "Splitter",
+  identity: "Identity",
+  valve: "Valve",
+
+  // Caps
+  "video/x-raw": "Caps",
+  "video/x-raw(memory:VAMemory)": "Caps",
+};
+
 interface PipelineSelection {
   pipelineId: string;
   stream_rate: number;
@@ -81,6 +146,10 @@ const DemoMode = () => {
   const [demoStep, setDemoStep] = useState<"selection" | "configuration">(
     "selection",
   );
+  const [selectedConfigPipelineId, setSelectedConfigPipelineId] = useState<
+    string | null
+  >(null);
+  const [openNodeId, setOpenNodeId] = useState<string | null>(null);
 
   const colorModes = {
     first: "180,230,255",
@@ -467,12 +536,15 @@ const DemoMode = () => {
                   onClick={() => {
                     if (selectedModels.size > 0) {
                       // Initialize pipeline selections with selected pipelines
-                      setPipelineSelections(
-                        Array.from(selectedModels.values()).map((id) => ({
-                          pipelineId: id,
-                          stream_rate: 50,
-                        })),
-                      );
+                      const selections = Array.from(
+                        selectedModels.values(),
+                      ).map((id) => ({
+                        pipelineId: id,
+                        stream_rate: 50,
+                      }));
+                      setPipelineSelections(selections);
+                      // Set first pipeline as selected for configuration
+                      setSelectedConfigPipelineId(selections[0].pipelineId);
                       setDemoStep("configuration");
                     }
                   }}
@@ -506,11 +578,20 @@ const DemoMode = () => {
                     const pipelineIndex = pipelines.findIndex(
                       (p) => p.id === selection.pipelineId,
                     );
+                    const isSelected =
+                      selectedConfigPipelineId === selection.pipelineId;
 
                     return (
                       <Card
                         key={selection.pipelineId}
-                        className="flex flex-col border border-slate-400/40 bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-shadow"
+                        onClick={() =>
+                          setSelectedConfigPipelineId(selection.pipelineId)
+                        }
+                        className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-blue-500 ring-2 ring-blue-500/50"
+                            : "border-slate-400/40 hover:border-blue-500/60"
+                        }`}
                       >
                         {pipelineImages[
                           pipelineIndex % pipelineImages.length
@@ -561,10 +642,84 @@ const DemoMode = () => {
                 >
                   Pipeline Configuration
                 </p>
-                <div className="flex-1 flex items-center justify-center text-slate-400">
-                  <p className="text-sm">
-                    Configuration options will appear here
-                  </p>
+                <div className="flex-1 overflow-y-auto">
+                  {selectedConfigPipelineId ? (
+                    (() => {
+                      const pipeline = pipelines.find(
+                        (p) => p.id === selectedConfigPipelineId,
+                      );
+                      if (!pipeline) return null;
+
+                      return (
+                        <div className="space-y-2">
+                          {pipeline.pipeline_graph?.nodes?.map((node) => {
+                            // Pobierz tag na podstawie typu węzła
+                            const nodeTag = nodeTypeToTag[node.type] || null;
+
+                            return (
+                              <div key={node.id} className="relative">
+                                <button
+                                  onClick={() =>
+                                    setOpenNodeId(
+                                      openNodeId === node.id ? null : node.id,
+                                    )
+                                  }
+                                  className={`w-full px-3 py-2 bg-slate-950/90 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 transition-all cursor-pointer flex items-center justify-between ${colors.dropdown}`}
+                                >
+                                  <div className="flex flex-col items-start">
+                                    {nodeTag ? (
+                                      <>
+                                        <span className="font-medium">
+                                          {nodeTag}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-light">
+                                          {node.type}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="font-medium">
+                                        {node.type}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <ChevronDown
+                                    className={`w-4 h-4 transition-transform ${colors.dropdownIcon} ${
+                                      openNodeId === node.id ? "rotate-180" : ""
+                                    }`}
+                                  />
+                                </button>
+                                {openNodeId === node.id && (
+                                  <div
+                                    className={`absolute left-0 right-0 top-full mt-1 z-10 border rounded-lg shadow-lg ${colors.dropdownBg} max-h-48 overflow-y-auto`}
+                                  >
+                                    <div
+                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
+                                    >
+                                      Configuration option 1
+                                    </div>
+                                    <div
+                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
+                                    >
+                                      Configuration option 2
+                                    </div>
+                                    <div
+                                      className={`p-2 text-sm text-slate-300 cursor-pointer ${colors.dropdownHover}`}
+                                    >
+                                      Configuration option 3
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-slate-400">
+                      <p className="text-sm">Select a pipeline to configure</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
