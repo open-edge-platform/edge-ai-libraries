@@ -1,4 +1,4 @@
-# Using custom gvapython modules
+# Use Custom gvapython Modules
 
 The `shared/scripts` directory contains user-defined Python scripts that can be loaded as modules by the `gvapython` element.
 

@@ -401,14 +401,18 @@ class Graph:
 
         Changes applied:
         - Replace filesrc with multifilesrc loop=true
-        - Change input file extension to .ts in location
+        - Change input file extension to .ts in location (ensures TS file exists)
         - Replace qtdemux with tsdemux
 
         Returns:
             Modified Graph object with looping support
 
+        Raises:
+            ValueError: If TS file cannot be created for any video source
+
         Note:
             This creates a deep copy of the graph to avoid modifying the original.
+            If TS file does not exist, it will be created automatically.
         """
         modified_graph = copy.deepcopy(self)
 
@@ -420,11 +424,38 @@ class Graph:
 
                 if "location" in node.data:
                     location = node.data["location"]
+
+                    # Ensure TS file exists before using it
                     ts_path = videos_manager.get_ts_path(location)
-                    if ts_path:
-                        node.data["location"] = ts_path
+                    if ts_path is None:
+                        raise ValueError(
+                            f"Cannot get TS path for video '{location}'. "
+                            f"Ensure the video file exists and has a supported format."
+                        )
+
+                    # Verify TS file actually exists on disk
+                    if not os.path.isfile(ts_path):
+                        # Try to create TS file
+                        source_filename = os.path.basename(location)
+                        source_path = videos_manager.get_video_path(source_filename)
+
+                        if source_path is None:
+                            raise ValueError(
+                                f"Cannot find source video '{source_filename}' for TS conversion."
+                            )
+
+                        ts_path = videos_manager.ensure_ts_file(source_path)
+                        if ts_path is None:
+                            raise ValueError(
+                                f"Failed to create TS file for video '{source_filename}'."
+                            )
+
+                    # Store only the filename, not the full path
+                    # _input_video_name_to_path will convert it back to full path later
+                    ts_filename = os.path.basename(ts_path)
+                    node.data["location"] = ts_filename
                     logger.debug(
-                        f"Modified filesrc to multifilesrc with location: {node.data['location']}"
+                        f"Modified filesrc to multifilesrc with location: {ts_filename}"
                     )
 
             # Replace demuxers with tsdemux for looping support

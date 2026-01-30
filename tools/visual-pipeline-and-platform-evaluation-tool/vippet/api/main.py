@@ -1,9 +1,14 @@
 import os
 import logging
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-from api.routes import convert, devices, jobs, metrics, models, pipelines, tests, videos
-from videos import get_videos_manager
+from api.api_schemas import AppStatus
+from api.middleware import InitializationMiddleware
+from api.routes import health, metrics
+from managers.app_state_manager import get_app_state_manager
 
 # Configure logging
 handler = logging.StreamHandler()
@@ -25,10 +30,87 @@ logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 logger.handlers = [handler]
 
-# Initialize VideosManager singleton before FastAPI app
-videos_manager = get_videos_manager()
 
-# Initialize FastAPI app
+def _initialize_in_background(app: FastAPI) -> None:
+    """
+    Initialize application resources in background thread.
+
+    This function runs in a separate thread so the server can start
+    responding to health checks immediately while initialization proceeds.
+    """
+    from videos import get_videos_manager
+
+    app_state = get_app_state_manager()
+
+    try:
+        app_state.set_status(
+            AppStatus.INITIALIZING, "Downloading videos and loading metadata..."
+        )
+
+        # Initialize VideosManager - downloads videos, scans files,
+        # extracts metadata, and converts to TS format
+        get_videos_manager()
+
+        # Register remaining routers after VideosManager is ready
+        register_routers(app)
+
+        app_state.set_status(AppStatus.READY)
+        logger.info("Application initialization complete")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        app_state.set_status(AppStatus.SHUTDOWN, f"Initialization failed: {e}")
+
+
+def register_routers(app: FastAPI) -> None:
+    """
+    Register all API routers (except health which is registered early).
+
+    This function is called after VideosManager initialization to avoid
+    importing modules that depend on VideosManager before it's initialized.
+    """
+    # Import routers here to avoid early initialization of VideosManager
+    from api.routes import convert, devices, jobs, models, pipelines, tests, videos
+
+    # Include routers from different modules
+    app.include_router(convert.router, prefix="/convert", tags=["convert"])
+    app.include_router(devices.router, prefix="/devices", tags=["devices"])
+    app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
+    app.include_router(models.router, prefix="/models", tags=["models"])
+    app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
+    app.include_router(tests.router, prefix="/tests", tags=["tests"])
+    app.include_router(videos.router, prefix="/videos", tags=["videos"])
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan context manager for startup and shutdown.
+
+    Starts initialization in background thread so server can respond
+    to health checks immediately.
+    """
+    logger.info("Application starting...")
+    app_state = get_app_state_manager()
+    app_state.set_status(AppStatus.STARTING)
+
+    # Start initialization in background thread
+    init_thread = threading.Thread(
+        target=_initialize_in_background,
+        args=(app,),
+        name="initialization-thread",
+        daemon=True,
+    )
+    init_thread.start()
+
+    yield
+
+    # Shutdown
+    logger.info("Application shutting down...")
+    app_state.set_status(AppStatus.SHUTDOWN)
+
+
+# Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Visual Pipeline and Platform Evaluation Tool API",
     description="API for Visual Pipeline and Platform Evaluation Tool",
@@ -39,14 +121,13 @@ app = FastAPI(
     servers=[
         {"url": "/api/v1"},
     ],
+    lifespan=lifespan,
 )
 
-# Include routers from different modules
-app.include_router(convert.router, prefix="/convert", tags=["convert"])
-app.include_router(devices.router, prefix="/devices", tags=["devices"])
-app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
+# Add middleware to block requests during initialization
+app.add_middleware(InitializationMiddleware)
+
+# Register health router immediately (before initialization) so health checks work while app is initializing
+app.include_router(health.router, tags=["health"])
+# Register metrics router immediately (it does not depend on VideosManager) so collector can connect as soon as possible
 app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
-app.include_router(models.router, prefix="/models", tags=["models"])
-app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
-app.include_router(tests.router, prefix="/tests", tags=["tests"])
-app.include_router(videos.router, prefix="/videos", tags=["videos"])

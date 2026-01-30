@@ -47,6 +47,8 @@ The Model Download Service is a microservice that enables downloading models fro
       source scripts/run_service.sh up --plugins all --model-path <host path>
       ```
       __NOTE__: For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format
+      
+      __NOTE__: Ensure the host path does not require privileged access for directory creation. It is recommended to use `$PWD/host_path` or a similar location within your working directory.
 
       The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 

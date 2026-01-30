@@ -58,7 +58,6 @@ RUN \
 COPY --chown=dlstreamer:dlstreamer \
     vippet/*.py \
     vippet/entrypoint.sh \
-    vippet/video_manager.sh \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer vippet/pipelines/ /home/dlstreamer/vippet/pipelines
@@ -66,7 +65,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
 
 # Make scripts executable
-RUN chmod +x ./entrypoint.sh ./video_manager.sh
+RUN chmod +x ./entrypoint.sh
 
 # Set the entrypoint for the container to run the main Python script
 CMD ["./entrypoint.sh"]
