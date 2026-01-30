@@ -1,0 +1,292 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[Model Download] CI"
+run-name: "[Model-Download-CI] PR workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - model-download-workflow
+    paths:
+      - 'microservices/model-download/**'
+
+jobs:
+   
+  trivy-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+      
+      - name: Build Docker images
+        run: |
+          docker build -f ./microservices/model-download/docker/Dockerfile -t model-download:latest ./microservices/model-download/
+      
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "microservices/model-download/"
+          report_suffix: "-fs-model-download-CT7"
+      
+         
+      - name: Run trivy Scan - model-download (HTML Report)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: model-download-html
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "model-download:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "table"
+          report_suffix: "-image-model-download-html-CT248"
+          generate_sbom: "false"
+
+      - name: Run trivy Scan - model-download (SPDX SBOM)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: model-download-spdx
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "model-download:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "spdx-json"
+          scanners: "vuln"
+          report_suffix: "-image-model-download-spdx-CT248"
+          generate_sbom: "false"
+      
+      - name: Scan Dockerfile with Trivy
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        with:
+          scan_type: "config"
+          scan_target: "microservices/model-download/docker/"
+          severity: "HIGH,CRITICAL"
+          format: "json"
+          misconfig_scanners: "dockerfile"
+          report_suffix: "-config-model-download-CT222"
+           
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-model-download
+          path: security-results/trivy*
+
+  bandit-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Run Bandit Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        id: bandit
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/model-download/"
+          report_suffix: "-bandit-model-download-CT161"
+          
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: bandit-report-model-download
+          path: bandit-report-*.txt
+        
+
+  clamav-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Run ClamAV Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
+        id: clamav
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/model-download/"
+          exclude_dirs: ".git,node_modules,venv,ui/test,tests"
+          
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: clamav-report-model-download
+          path: security-results/clamav*
+
+  # GitLeaks scanning job
+  gitleaks-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+          
+      - name: Install gitleaks
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        with:
+          bootstrap_tools: "gitleaks"
+          
+      - name: Get current timestamp
+        id: timestamp
+        run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
+        
+      - name: Clone CI repo
+        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          repository: open-edge-platform/orch-ci
+          path: ci
+          persist-credentials: false
+          
+      - name: Scan for secrets
+        run: |
+          gitleaks dir "microservices/model-download/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-model-download.json -r gitleaks-model-download.json || true
+          
+      - name: Upload Gitleaks Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: gitleaks-report-model-download-${{ steps.timestamp.outputs.time }}
+          path: gitleaks-model-download.json
+
+  # Python linting with pylint
+  pylint-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies and pylint
+        run: |
+          pip install pylint uv
+          cd microservices/model-download/
+          uv pip install --system -e . || true
+      
+      - name: Run pylint
+        run: |
+          cd microservices/model-download/
+          mkdir -p security-results
+          echo "=== Pylint Scan Results ===" > security-results/pylint-report-model-download.txt
+          echo "Scan Date: $(date)" >> security-results/pylint-report-model-download.txt
+          echo "" >> security-results/pylint-report-model-download.txt
+          
+          # Create a basic pylint config
+          cat > .pylintrc << EOF
+          [MESSAGES CONTROL]
+          disable=C0111,C0103,R0903,R0913,W0613,W0622,R0801,R0902,R0914,R0915,R0912,C0301,C0302
+          
+          [FORMAT]
+          max-line-length=120
+          
+          [REPORTS]
+          output-format=text
+          reports=yes
+          EOF
+          
+          # Find all Python files and lint them
+          find src/ -type f -name "*.py" -exec pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-model-download.txt 2>&1 || true
+          
+          echo "Pylint scan completed"
+      
+      - name: Upload pylint Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: pylint-report-model-download
+          path: microservices/model-download/security-results/pylint-report-model-download.txt
+
+  # ShellCheck scanning job
+  shellcheck-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Setup environment with shellcheck
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        with:
+          bootstrap_tools: "shellcheck"
+      
+      - name: Run ShellCheck
+        run: |
+          mkdir -p security-results
+          echo "=== ShellCheck Scan Results ===" > security-results/shellcheck-report-model-download.txt
+          echo "Scan Date: $(date)" >> security-results/shellcheck-report-model-download.txt
+          echo "" >> security-results/shellcheck-report-model-download.txt
+          
+          # Find all shell scripts and check them
+          find microservices/model-download/ -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | while IFS= read -r -d '' file; do
+            echo "Checking: $file" >> security-results/shellcheck-report-model-download.txt
+            shellcheck "$file" >> security-results/shellcheck-report-model-download.txt 2>&1 || true
+            echo "---" >> security-results/shellcheck-report-model-download.txt
+          done
+          
+          echo "ShellCheck scan completed"
+      
+      - name: Upload ShellCheck Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: shellcheck-report-model-download
+          path: security-results/shellcheck-report-model-download.txt
+
+  # Run Unit test cases for Backend
+  run-unit-tests:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+    
+      - name: Run unit tests
+        run: |
+          cd microservices/model-download/
+          # Backend Coverage (including all production Python files)
+          python3.12 -m venv model-download-venv
+          source model-download-venv/bin/activate
+          pip install uv
+          uv pip install --system -e ".[dev]" || true
+          pytest tests/ \
+            --cov=src \
+            --cov-report=html:coverage \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-branch || true
+          deactivate
+          rm -rf model-download-venv
+
+      - name: Upload test results
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: model-download-test-results
+          path: microservices/model-download/coverage/

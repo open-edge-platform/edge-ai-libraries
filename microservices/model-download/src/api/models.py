@@ -25,6 +25,7 @@ class ModelHub(str, Enum):
 
 class ModelType(str, Enum):
     LLM = "llm"
+    VLM = "vlm"
     EMBEDDINGS = "embeddings"
     RERANKER = "rerank"
     VISION = "vision"

@@ -6,14 +6,16 @@ from dataclasses import dataclass
 import uuid
 
 from api.api_schemas import (
+    DensityJobStatus,
     DensityJobSummary,
     DensityTestSpec,
+    ExecutionConfig,
+    OutputMode,
+    PerformanceJobStatus,
     PerformanceJobSummary,
     PerformanceTestSpec,
-    TestJobState,
     PipelinePerformanceSpec,
-    PerformanceJobStatus,
-    DensityJobStatus,
+    TestJobState,
     TestsJobStatus,
 )
 from pipeline_runner import PipelineRunner, PipelineRunResult
@@ -64,6 +66,7 @@ class PerformanceJob:
     total_streams: int | None = None
     streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
+    live_stream_urls: dict[str, str] | None = None
     error_message: str | None = None
 
 
@@ -74,6 +77,9 @@ class DensityJob:
 
     This mirrors what is exposed through :class:`DensityJobStatus`
     and :class:`DensityJobSummary`, with a few runtime-only fields.
+
+    Note: live_stream_urls is not included because density tests do not support
+    live-streaming output mode.
     """
 
     id: str
@@ -183,6 +189,36 @@ class TestsManager:
         """
         return self._start_job(density_request, self._execute_density_test)
 
+    def _validate_execution_config(
+        self, execution_config: ExecutionConfig, is_density_test: bool = False
+    ) -> None:
+        """
+        Validate execution_config for invalid combinations.
+
+        Args:
+            execution_config: ExecutionConfig to validate
+            is_density_test: If True, also validate that live_stream is not used
+
+        Raises:
+            ValueError: If output_mode=file is combined with max_runtime>0
+            ValueError: If output_mode=live_stream is used for density tests
+        """
+        if (
+            execution_config.output_mode == OutputMode.FILE
+            and execution_config.max_runtime > 0
+        ):
+            raise ValueError(
+                "Invalid execution_config: output_mode='file' cannot be combined with max_runtime > 0. "
+                "File output does not support looping. Use max_runtime=0 to run until EOS, "
+                "or use output_mode='disabled' or 'live_stream' for time-limited execution."
+            )
+
+        if is_density_test and execution_config.output_mode == OutputMode.LIVE_STREAM:
+            raise ValueError(
+                "Density tests do not support output_mode='live_stream'. "
+                "Use output_mode='disabled' or output_mode='file' instead."
+            )
+
     def _execute_performance_test(
         self,
         job_id: str,
@@ -196,6 +232,11 @@ class TestsManager:
         :class:`PerformanceJob` accordingly.
         """
         try:
+            # Validate execution_config (performance tests support all output modes)
+            self._validate_execution_config(
+                performance_request.execution_config, is_density_test=False
+            )
+
             # Calculate total streams
             total_streams = sum(
                 spec.streams for spec in performance_request.pipeline_performance_specs
@@ -209,15 +250,44 @@ class TestsManager:
                 return
 
             # Build pipeline command from specs
-            pipeline_command, video_output_paths = (
+            pipeline_command, video_output_paths, live_stream_urls = (
                 pipeline_manager.build_pipeline_command(
                     performance_request.pipeline_performance_specs,
-                    performance_request.video_output,
+                    performance_request.execution_config,
                 )
             )
 
-            # Initialize PipelineRunner in normal mode with max_runtime=0 (run until EOS)
-            runner = PipelineRunner(mode="normal", max_runtime=0)
+            # Build streams distribution per pipeline
+            streams_per_pipeline = [
+                PipelinePerformanceSpec(
+                    id=spec.id,
+                    streams=spec.streams,
+                )
+                for spec in performance_request.pipeline_performance_specs
+            ]
+
+            # Update job with live_stream_urls and streams_per_pipeline immediately
+            with self.lock:
+                if job_id in self.jobs:
+                    job = self.jobs[job_id]
+                    job.streams_per_pipeline = streams_per_pipeline
+
+                    # Type guard: ensure we have a PerformanceJob
+                    if not isinstance(job, PerformanceJob):
+                        self.logger.error(
+                            f"Job {job_id} is not a PerformanceJob, skipping update"
+                        )
+                    else:
+                        job.live_stream_urls = live_stream_urls
+                        self.logger.debug(
+                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}"
+                        )
+
+            # Initialize PipelineRunner in normal mode with max_runtime from execution_config
+            runner = PipelineRunner(
+                mode="normal",
+                max_runtime=performance_request.execution_config.max_runtime,
+            )
 
             # Store runner for this job so that a future extension could cancel it.
             with self.lock:
@@ -255,20 +325,10 @@ class TestsManager:
                         job.state = TestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
-                        # Build streams distribution per pipeline
-                        streams_per_pipeline = [
-                            PipelinePerformanceSpec(
-                                id=spec.id,
-                                streams=spec.streams,
-                            )
-                            for spec in performance_request.pipeline_performance_specs
-                        ]
-
                         # Update performance metrics
                         job.total_fps = result.total_fps
                         job.per_stream_fps = result.per_stream_fps
                         job.total_streams = result.num_streams
-                        job.streams_per_pipeline = streams_per_pipeline
                         job.video_output_paths = video_output_paths
 
                         self.logger.info(
@@ -297,8 +357,15 @@ class TestsManager:
 
         The method runs the benchmark using :class:`Benchmark` and then
         updates the corresponding :class:`DensityJob` accordingly.
+
+        Note: Density tests do not support live-streaming output mode.
         """
         try:
+            # Validate execution_config (density tests do not support live_stream)
+            self._validate_execution_config(
+                density_request.execution_config, is_density_test=True
+            )
+
             # Initialize Benchmark
             benchmark = Benchmark()
 
@@ -310,7 +377,7 @@ class TestsManager:
             results = benchmark.run(
                 pipeline_benchmark_specs=density_request.pipeline_density_specs,
                 fps_floor=density_request.fps_floor,
-                video_config=density_request.video_output,
+                execution_config=density_request.execution_config,
             )
 
             # Update job with results
@@ -390,6 +457,7 @@ class TestsManager:
             total_streams=job.total_streams,
             streams_per_pipeline=job.streams_per_pipeline,
             video_output_paths=job.video_output_paths,
+            live_stream_urls=job.live_stream_urls,
             error_message=job.error_message,
         )
 
@@ -399,6 +467,9 @@ class TestsManager:
 
         This method centralises the mapping to ensure consistency between
         status queries.
+
+        Note: DensityJobStatus does not include live_stream_urls because
+        density tests do not support live-streaming output mode.
         """
         current_time = int(time.time() * 1000)
         elapsed_time = (

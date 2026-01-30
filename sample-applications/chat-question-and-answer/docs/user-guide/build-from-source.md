@@ -13,6 +13,7 @@ Before you begin, ensure that you have the following prerequisites:
 
 - Docker installed on your system: [Installation Guide](https://docs.docker.com/get-docker/).
 - Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+- `jq` command-line JSON processor: [Installation Guide](https://jqlang.github.io/jq/download/)
 
 ## Steps to Build from Source
 

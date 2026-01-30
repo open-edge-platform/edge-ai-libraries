@@ -1,11 +1,12 @@
+import re
 import os
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
-from graph import Graph, Node, Edge
-from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
 from typing import Optional
+from unittest.mock import MagicMock, patch
 
+from graph import Edge, Graph, Node
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
@@ -3009,6 +3010,8 @@ class TestToSimpleView(unittest.TestCase):
     by filtering out technical elements and reconnecting visible nodes.
     """
 
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
     def test_simple_view_generation(self):
         """
         Test that to_simple_view() generates the expected simplified graphs.
@@ -3079,6 +3082,154 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
+    def test_simple_view_with_invisible_elements(self):
+        """
+        Test that SIMPLE_VIEW_INVISIBLE_ELEMENTS excludes specified elements.
+
+        This test verifies that:
+        - Elements matching invisible patterns are excluded even if they match visible patterns
+        - Other visible elements (like gvametaconvert, gvadetect) remain visible
+        - Edges are properly reconnected through the newly hidden nodes
+        """
+        # Compile the test-specific invisible patterns
+        test_invisible_patterns = [
+            re.compile("^gvafpscounter$"),
+            re.compile("^gvametapublish$"),
+        ]
+
+        # Create a graph with gvafpscounter and gvametapublish that should be hidden
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="gvafpscounter", data={"starting-frame": "500"}),
+                Node(id="4", type="gvametaconvert", data={"format": "json"}),
+                Node(id="5", type="gvametapublish", data={"method": "file"}),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        )
+
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
+
+            # Expected: filesrc, gvadetect, gvametaconvert, fakesink
+            # gvafpscounter and gvametapublish should be excluded
+            expected_node_types = ["filesrc", "gvadetect", "gvametaconvert", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
+
+            self.assertEqual(actual_node_types, expected_node_types)
+
+            # Check edges are properly reconnected
+            self.assertEqual(len(simple_view.edges), 3)
+            # filesrc -> gvadetect
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "2")
+            # gvadetect -> gvametaconvert
+            self.assertEqual(simple_view.edges[1].source, "2")
+            self.assertEqual(simple_view.edges[1].target, "4")
+            # gvametaconvert -> fakesink
+            self.assertEqual(simple_view.edges[2].source, "4")
+            self.assertEqual(simple_view.edges[2].target, "6")
+
+    def test_simple_view_invisible_wildcard_pattern(self):
+        """
+        Test that wildcard patterns work in SIMPLE_VIEW_INVISIBLE_ELEMENTS.
+
+        This test verifies that a wildcard pattern like 'gva*' excludes all gva elements.
+        """
+        # Compile wildcard pattern: gva*
+        test_invisible_patterns = [re.compile("^gva.*$")]
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvametaconvert", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
+
+            # All gva* elements should be hidden
+            expected_node_types = ["filesrc", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
+
+            self.assertEqual(actual_node_types, expected_node_types)
+
+            # Direct edge from filesrc to fakesink
+            self.assertEqual(len(simple_view.edges), 1)
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "3")
+
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
+    def test_simple_view_empty_invisible_elements(self):
+        """
+        Test that empty SIMPLE_VIEW_INVISIBLE_ELEMENTS does not exclude anything.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # gvafpscounter should be visible (matches gva* pattern, no exclusion)
+        expected_node_types = ["filesrc", "gvafpscounter", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter")
+    def test_simple_view_invisible_single_element(self):
+        """
+        Test exclusion of a single specific element type.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="gvadetect", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Only gvafpscounter should be hidden, gvadetect should remain
+        expected_node_types = ["filesrc", "gvadetect", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
 
 
 class TestApplySimpleViewChanges(unittest.TestCase):
@@ -3246,6 +3397,372 @@ class TestApplySimpleViewChanges(unittest.TestCase):
             "CPU",
             "Result graph should have the modified value",
         )
+
+
+class TestApplyLoopingModifications(unittest.TestCase):
+    """Test cases for Graph.apply_looping_modifications method."""
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_filesrc_replaced_with_multifilesrc(self, mock_videos_manager, mock_isfile):
+        """Test that filesrc is replaced with multifilesrc loop=true."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc is replaced with multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # Location should be just filename (basename of ts_path)
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_qtdemux_replaced_with_tsdemux(self, mock_videos_manager, mock_isfile):
+        """Test that qtdemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_matroskademux_replaced_with_tsdemux(
+        self, mock_videos_manager, mock_isfile
+    ):
+        """Test that matroskademux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mkv"}),
+                Node(id="1", type="matroskademux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_avidemux_replaced_with_tsdemux(self, mock_videos_manager, mock_isfile):
+        """Test that avidemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.avi"}),
+                Node(id="1", type="avidemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_manager, mock_isfile):
+        """Test that splitmuxsink is replaced with appsink."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(
+                    id="2",
+                    type="splitmuxsink",
+                    data={"location": "/output/file_%02d.mp4", "max-size-time": "10"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check splitmuxsink is replaced with appsink
+        self.assertEqual(result.nodes[2].type, "appsink")
+        # Check old properties are cleared
+        self.assertNotIn("location", result.nodes[2].data)
+        self.assertNotIn("max-size-time", result.nodes[2].data)
+        # Check appsink properties are set
+        self.assertEqual(result.nodes[2].data["emit-signals"], "false")
+        self.assertEqual(result.nodes[2].data["drop"], "true")
+        self.assertEqual(result.nodes[2].data["max-buffers"], "1")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_original_graph_not_modified(self, mock_videos_manager, mock_isfile):
+        """Test that apply_looping_modifications creates a deep copy."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        original_graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        # Store original values
+        original_type = original_graph.nodes[0].type
+        original_location = original_graph.nodes[0].data.get("location")
+
+        # Apply modifications
+        result = original_graph.apply_looping_modifications()
+
+        # Verify original is unchanged
+        self.assertEqual(original_graph.nodes[0].type, original_type)
+        self.assertEqual(
+            original_graph.nodes[0].data.get("location"), original_location
+        )
+        self.assertNotIn("loop", original_graph.nodes[0].data)
+
+        # Verify result is modified
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+
+    @patch("graph.videos_manager")
+    def test_ts_path_not_found_raises_error(self, mock_videos_manager):
+        """Test that ValueError is raised when get_ts_path returns None."""
+        mock_videos_manager.get_ts_path.return_value = None
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.xyz"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot get TS path", str(cm.exception))
+
+    @patch("graph.videos_manager")
+    @patch("os.path.isfile")
+    def test_ts_file_created_when_not_exists(self, mock_isfile, mock_videos_manager):
+        """Test that TS file is created when it does not exist on disk."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_manager.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_manager.ensure_ts_file.return_value = "/videos/input/video.ts"
+        # First call (checking if ts exists) returns False, subsequent calls return True
+        mock_isfile.side_effect = [False, True]
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Verify ensure_ts_file was called
+        mock_videos_manager.ensure_ts_file.assert_called_once()
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+    @patch("graph.videos_manager")
+    @patch("os.path.isfile")
+    def test_ts_conversion_failure_raises_error(self, mock_isfile, mock_videos_manager):
+        """Test that ValueError is raised when TS conversion fails."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_manager.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_manager.ensure_ts_file.return_value = None  # Conversion failed
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Failed to create TS file", str(cm.exception))
+
+    @patch("graph.videos_manager")
+    @patch("os.path.isfile")
+    def test_source_video_not_found_raises_error(
+        self, mock_isfile, mock_videos_manager
+    ):
+        """Test that ValueError is raised when source video cannot be found."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_manager.get_video_path.return_value = None  # Source not found
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot find source video", str(cm.exception))
+
+    @patch("graph.videos_manager")
+    @patch("os.path.isfile")
+    def test_multiple_modifications_in_complex_pipeline(
+        self, mock_isfile, mock_videos_manager
+    ):
+        """Test looping modifications in a complex pipeline with tee."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_isfile.return_value = True  # TS file exists
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="tee", data={"name": "t0"}),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="splitmuxsink",
+                    data={"location": "/output/file.mp4"},
+                ),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="gvadetect", data={"model": "yolo"}),
+                Node(id="8", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="3", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc -> multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+        # Check qtdemux -> tsdemux
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+        # Check splitmuxsink -> appsink
+        self.assertEqual(result.nodes[5].type, "appsink")
+        self.assertEqual(result.nodes[5].data["emit-signals"], "false")
+
+        # Check other nodes are unchanged
+        self.assertEqual(result.nodes[3].type, "tee")
+        self.assertEqual(result.nodes[7].type, "gvadetect")
+        self.assertEqual(result.nodes[8].type, "fakesink")
+
+    @patch("graph.videos_manager")
+    def test_filesrc_without_location(self, mock_videos_manager):
+        """Test filesrc without location property is still modified."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Type should be changed to multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # No location to modify
+        self.assertNotIn("location", result.nodes[0].data)
+        # get_ts_path should not be called
+        mock_videos_manager.get_ts_path.assert_not_called()
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.videos_manager")
+    def test_flvdemux_replaced_with_tsdemux(self, mock_videos_manager, mock_isfile):
+        """Test that flvdemux is replaced with tsdemux."""
+        mock_videos_manager.get_ts_path.return_value = "/videos/input/video.ts"
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.flv"}),
+                Node(id="1", type="flvdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
 
 
 if __name__ == "__main__":

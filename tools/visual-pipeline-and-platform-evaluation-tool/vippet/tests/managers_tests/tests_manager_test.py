@@ -3,16 +3,19 @@ import unittest
 from unittest.mock import patch
 
 from api.api_schemas import (
-    PerformanceTestSpec,
-    PipelinePerformanceSpec,
-    PipelineDensitySpec,
+    DensityJobStatus,
     DensityTestSpec,
+    ExecutionConfig,
+    OutputMode,
+    PerformanceJobStatus,
+    PerformanceTestSpec,
+    PipelineDensitySpec,
+    PipelinePerformanceSpec,
     TestJobState,
-    VideoOutputConfig,
 )
-from pipeline_runner import PipelineRunner
 from benchmark import BenchmarkResult
-from managers.tests_manager import TestsManager, PerformanceJob, DensityJob
+from managers.tests_manager import DensityJob, PerformanceJob, TestsManager
+from pipeline_runner import PipelineRunner, PipelineRunResult
 
 
 class TestTestsManager(unittest.TestCase):
@@ -27,7 +30,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         with patch.object(manager, "_execute_performance_test") as mock_execute:
@@ -46,7 +49,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         with patch.object(manager, "_execute_performance_test"):
@@ -76,7 +79,7 @@ class TestTestsManager(unittest.TestCase):
                     stream_rate=100,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         with patch.object(manager, "_execute_density_test") as mock_execute:
@@ -107,7 +110,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         pipeline_density_request = DensityTestSpec(
@@ -118,7 +121,7 @@ class TestTestsManager(unittest.TestCase):
                     stream_rate=100,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         with (
@@ -164,7 +167,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
         job = PerformanceJob(
             id="test-job-id",
@@ -204,7 +207,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job = PerformanceJob(
@@ -232,7 +235,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-id"
@@ -267,7 +270,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-id"
@@ -297,7 +300,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-id"
@@ -325,7 +328,7 @@ class TestTestsManager(unittest.TestCase):
                     streams=1,
                 )
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-start"
@@ -340,7 +343,7 @@ class TestTestsManager(unittest.TestCase):
         with (
             patch(
                 "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}),
+                return_value=("fakesrc ! fakesink", {}, {}),
             ),
             patch.object(PipelineRunner, "run", return_value=None) as mock_run,
         ):
@@ -352,8 +355,6 @@ class TestTestsManager(unittest.TestCase):
             mock_run.assert_called_once()
 
     def test_execute_performance_test_updates_metrics_on_completion(self):
-        from pipeline_runner import PipelineRunResult
-
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -361,7 +362,7 @@ class TestTestsManager(unittest.TestCase):
                 PipelinePerformanceSpec(id="pipeline-test", streams=1),
                 PipelinePerformanceSpec(id="pipeline-test", streams=2),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-metrics"
@@ -376,7 +377,7 @@ class TestTestsManager(unittest.TestCase):
         with (
             patch(
                 "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}),
+                return_value=("fakesrc ! fakesink", {}, {}),
             ),
             patch.object(
                 PipelineRunner,
@@ -402,14 +403,12 @@ class TestTestsManager(unittest.TestCase):
         self.assertNotIn(job_id, manager.runners)
 
     def test_execute_performance_test_aborts_on_cancelled_runner(self):
-        from pipeline_runner import PipelineRunResult
-
         manager = TestsManager()
         pipeline_request = PerformanceTestSpec(
             pipeline_performance_specs=[
                 PipelinePerformanceSpec(id="pipeline-test", streams=1),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-cancel"
@@ -424,7 +423,7 @@ class TestTestsManager(unittest.TestCase):
         with (
             patch(
                 "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}),
+                return_value=("fakesrc ! fakesink", {}, {}),
             ),
             patch.object(
                 PipelineRunner,
@@ -451,7 +450,7 @@ class TestTestsManager(unittest.TestCase):
             pipeline_performance_specs=[
                 PipelinePerformanceSpec(id="pipeline-test", streams=1),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-job-exception"
@@ -498,7 +497,7 @@ class TestTestsManager(unittest.TestCase):
                 PipelineDensitySpec(id="pipeline-test", stream_rate=50),
                 PipelineDensitySpec(id="pipeline-test", stream_rate=50),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-density-success"
@@ -537,7 +536,7 @@ class TestTestsManager(unittest.TestCase):
             pipeline_density_specs=[
                 PipelineDensitySpec(id="pipeline-test", stream_rate=100),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-density-cancel"
@@ -582,7 +581,7 @@ class TestTestsManager(unittest.TestCase):
             pipeline_density_specs=[
                 PipelineDensitySpec(id="pipeline-test", stream_rate=100),
             ],
-            video_output=VideoOutputConfig(enabled=False),
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
         )
 
         job_id = "test-density-exception"
@@ -608,3 +607,224 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(updated.state, TestJobState.ERROR)
         self.assertIn("density test failed", updated.error_message or "")
         self.assertNotIn(job_id, manager.runners)
+
+
+class TestExecutionConfigValidation(unittest.TestCase):
+    """Test cases for ExecutionConfig validation in TestsManager."""
+
+    def test_validate_execution_config_file_with_max_runtime_raises_error(self):
+        """Test that file output mode with max_runtime > 0 raises ValueError."""
+        manager = TestsManager()
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=60,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_execution_config(execution_config, is_density_test=False)
+
+        self.assertIn(
+            "output_mode='file' cannot be combined with max_runtime > 0",
+            str(context.exception),
+        )
+
+    def test_validate_execution_config_file_with_zero_runtime_succeeds(self):
+        """Test that file output mode with max_runtime=0 passes validation."""
+        manager = TestsManager()
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.FILE,
+            max_runtime=0,
+        )
+
+        # Should not raise any exception
+        manager._validate_execution_config(execution_config, is_density_test=False)
+
+    def test_validate_execution_config_live_stream_for_density_raises_error(self):
+        """Test that live stream output mode raises ValueError for density tests."""
+        manager = TestsManager()
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=60,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_execution_config(execution_config, is_density_test=True)
+
+        self.assertIn(
+            "Density tests do not support output_mode='live_stream'",
+            str(context.exception),
+        )
+
+    def test_validate_execution_config_live_stream_for_performance_succeeds(self):
+        """Test that live stream output mode passes validation for performance tests."""
+        manager = TestsManager()
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.LIVE_STREAM,
+            max_runtime=60,
+        )
+
+        # Should not raise any exception
+        manager._validate_execution_config(execution_config, is_density_test=False)
+
+    def test_validate_execution_config_disabled_with_max_runtime_succeeds(self):
+        """Test that disabled output mode with max_runtime > 0 passes validation."""
+        manager = TestsManager()
+        execution_config = ExecutionConfig(
+            output_mode=OutputMode.DISABLED,
+            max_runtime=60,
+        )
+
+        # Should not raise any exception for both performance and density tests
+        manager._validate_execution_config(execution_config, is_density_test=False)
+        manager._validate_execution_config(execution_config, is_density_test=True)
+
+
+class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
+    """Test cases for live_stream_urls handling in performance tests."""
+
+    def test_performance_job_status_includes_live_stream_urls(self):
+        """Test that PerformanceJobStatus includes live_stream_urls field."""
+        manager = TestsManager()
+
+        pipeline_request = PerformanceTestSpec(
+            pipeline_performance_specs=[
+                PipelinePerformanceSpec(id="pipeline-test", streams=1),
+            ],
+            execution_config=ExecutionConfig(output_mode=OutputMode.LIVE_STREAM),
+        )
+
+        job = PerformanceJob(
+            id="test-job-live-stream",
+            request=pipeline_request,
+            start_time=int(time.time()),
+            state=TestJobState.RUNNING,
+            live_stream_urls={"pipeline-test": "rtsp://mediamtx:8554/stream_test"},
+        )
+        manager.jobs[job.id] = job
+
+        status = manager.get_job_status(job.id)
+        self.assertIsNotNone(status)
+        assert status is not None
+
+        self.assertIsInstance(status, PerformanceJobStatus)
+        # Type narrowing for PerformanceJobStatus
+        assert isinstance(status, PerformanceJobStatus)
+        self.assertEqual(
+            status.live_stream_urls,
+            {"pipeline-test": "rtsp://mediamtx:8554/stream_test"},
+        )
+
+    def test_density_job_status_does_not_include_live_stream_urls(self):
+        """Test that DensityJobStatus does not include live_stream_urls field."""
+        manager = TestsManager()
+
+        density_request = DensityTestSpec(
+            fps_floor=30,
+            pipeline_density_specs=[
+                PipelineDensitySpec(id="pipeline-test", stream_rate=100),
+            ],
+            execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+        )
+
+        job = DensityJob(
+            id="test-density-job",
+            request=density_request,
+            start_time=int(time.time()),
+            state=TestJobState.RUNNING,
+        )
+        manager.jobs[job.id] = job
+
+        status = manager.get_job_status(job.id)
+        self.assertIsNotNone(status)
+        assert status is not None
+
+        self.assertIsInstance(status, DensityJobStatus)
+        self.assertFalse(hasattr(status, "live_stream_urls"))
+
+    def test_execute_performance_test_updates_live_stream_urls(self):
+        """Test that _execute_performance_test updates live_stream_urls on job."""
+        manager = TestsManager()
+
+        pipeline_request = PerformanceTestSpec(
+            pipeline_performance_specs=[
+                PipelinePerformanceSpec(id="pipeline-test", streams=1),
+            ],
+            execution_config=ExecutionConfig(
+                output_mode=OutputMode.LIVE_STREAM, max_runtime=60
+            ),
+        )
+
+        job_id = "test-job-live-urls"
+        job = PerformanceJob(
+            id=job_id,
+            request=pipeline_request,
+            start_time=int(time.time()),
+            state=TestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        expected_urls = {"pipeline-test": "rtsp://mediamtx:8554/stream_pipeline-test"}
+
+        with (
+            patch(
+                "managers.tests_manager.pipeline_manager.build_pipeline_command",
+                return_value=("fakesrc ! fakesink", {}, expected_urls),
+            ),
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineRunResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1
+                ),
+            ),
+            patch.object(PipelineRunner, "is_cancelled", return_value=False),
+        ):
+            manager._execute_performance_test(job_id, pipeline_request)
+
+        updated = manager.jobs[job_id]
+        assert isinstance(updated, PerformanceJob)
+        self.assertEqual(updated.live_stream_urls, expected_urls)
+
+
+class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
+    """Test cases for max_runtime behavior in tests."""
+
+    def test_execute_performance_test_uses_max_runtime_from_config(self):
+        """Test that PipelineRunner is created with correct max_runtime."""
+        manager = TestsManager()
+
+        pipeline_request = PerformanceTestSpec(
+            pipeline_performance_specs=[
+                PipelinePerformanceSpec(id="pipeline-test", streams=1),
+            ],
+            execution_config=ExecutionConfig(
+                output_mode=OutputMode.DISABLED, max_runtime=120
+            ),
+        )
+
+        job_id = "test-job-max-runtime"
+        job = PerformanceJob(
+            id=job_id,
+            request=pipeline_request,
+            start_time=int(time.time()),
+            state=TestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        with (
+            patch(
+                "managers.tests_manager.pipeline_manager.build_pipeline_command",
+                return_value=("fakesrc ! fakesink", {}, {}),
+            ),
+            patch("managers.tests_manager.PipelineRunner") as MockPipelineRunner,
+        ):
+            mock_runner = MockPipelineRunner.return_value
+            mock_runner.run.return_value = PipelineRunResult(
+                total_fps=100.0, per_stream_fps=100.0, num_streams=1
+            )
+            mock_runner.is_cancelled.return_value = False
+
+            manager._execute_performance_test(job_id, pipeline_request)
+
+            # Verify PipelineRunner was created with correct max_runtime
+            MockPipelineRunner.assert_called_once_with(mode="normal", max_runtime=120)
