@@ -9,6 +9,21 @@ You can try resetting the volume storage by deleting the previously created volu
 ```bash
 source setup.sh --clean-data
 ```
+## OpenGL/Mesa Library Dependencies (Certain Kernel Versions)
+
+On some Linux systems with certain kernel versions, you may encounter OpenCV-related errors due to missing OpenGL/Mesa libraries. If you experience issues with the summary stack or video processing, try installing the following dependencies:
+
+```bash
+sudo apt update
+sudo apt install libgl1-mesa-dri libgl1-mesa-dev
+```
+
+After installing these dependencies:
+1. Remove the `ov_models/` directory (if it exists)
+2. Redeploy the VSS stack using the latest tagged images
+3. Rerun your tests
+
+This should resolve OpenCV-related dependency issues and allow the summary stack to work as expected.
 
 ## Search returns no results after changing embedding model
 
