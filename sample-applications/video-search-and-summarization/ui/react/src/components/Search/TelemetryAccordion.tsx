@@ -82,6 +82,7 @@ type MetricState = {
   cpu: number | null;
   ram: number | null;
   gpu: number | null;
+  embeddingsPerSecond?: number | null;
   gpuFreq?: number | null;
   gpuPower?: number | null;
   pkgPower?: number | null;
@@ -117,7 +118,8 @@ const TelemetryAccordion = (): JSX.Element | null => {
   const cpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const ramCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const chartsRef = useRef<{ cpu?: Chart; ram?: Chart; gpu?: Chart }>({});
+  const epsCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const chartsRef = useRef<{ cpu?: Chart; ram?: Chart; gpu?: Chart; embeddings?: Chart }>({});
 
   const apiBase = useMemo(() => normalizeApiBase(), []);
 
@@ -177,7 +179,7 @@ const TelemetryAccordion = (): JSX.Element | null => {
       return undefined;
     }
 
-    const createChart = (canvas: HTMLCanvasElement | null, label: string, color: string) => {
+    const createChart = (canvas: HTMLCanvasElement | null, label: string, color: string, maxValue = 100) => {
       if (!canvas) return undefined;
       const ctx = canvas.getContext('2d');
       if (!ctx) return undefined;
@@ -193,7 +195,7 @@ const TelemetryAccordion = (): JSX.Element | null => {
           animation: false,
           scales: {
             x: { display: false },
-            y: { suggestedMin: 0, suggestedMax: 100, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#4c4c4c' } },
+            y: { suggestedMin: 0, suggestedMax: maxValue, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#4c4c4c' } },
           },
           plugins: { legend: { display: false } },
         },
@@ -203,11 +205,13 @@ const TelemetryAccordion = (): JSX.Element | null => {
     chartsRef.current.cpu = createChart(cpuCanvasRef.current, 'CPU %', '#0f62fe');
     chartsRef.current.ram = createChart(ramCanvasRef.current, 'RAM %', '#8ca0c2');
     chartsRef.current.gpu = createChart(gpuCanvasRef.current, 'GPU %', '#ff832b');
+    chartsRef.current.embeddings = createChart(epsCanvasRef.current, 'Embeddings/sec', '#3ddbd9', 50);
 
     return () => {
       chartsRef.current.cpu?.destroy();
       chartsRef.current.ram?.destroy();
       chartsRef.current.gpu?.destroy();
+      chartsRef.current.embeddings?.destroy();
       chartsRef.current = {};
     };
   }, [isOpen, telemetryAvailable]);
@@ -275,6 +279,12 @@ const TelemetryAccordion = (): JSX.Element | null => {
               } else if (tags.type === 'pkg_cur_power') {
                 pkgPower = fields.value;
               }
+            }
+            break;
+          case 'dataprep_embeddings_per_second':
+            if (typeof fields.value === 'number') {
+              next.embeddingsPerSecond = fields.value;
+              pushSample(chartsRef.current.embeddings, next.embeddingsPerSecond);
             }
             break;
           default:
@@ -367,6 +377,18 @@ const TelemetryAccordion = (): JSX.Element | null => {
             </StatusRow>
 
             <MetricChartGrid>
+              <MetricChartCard>
+                <MetricLabel>Embeddings / sec</MetricLabel>
+                <MetricValue>
+                  {metrics.embeddingsPerSecond !== undefined && metrics.embeddingsPerSecond !== null
+                    ? metrics.embeddingsPerSecond.toFixed(1)
+                    : '—'}
+                </MetricValue>
+                <div style={{ height: '180px' }}>
+                  <canvas ref={epsCanvasRef} aria-label='embeddings-chart'></canvas>
+                </div>
+              </MetricChartCard>
+
               <MetricChartCard>
                 <MetricLabel>CPU Usage</MetricLabel>
                 <MetricValue>{formatNumber(metrics.cpu)}</MetricValue>
