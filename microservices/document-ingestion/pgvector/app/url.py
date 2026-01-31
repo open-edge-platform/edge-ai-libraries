@@ -6,6 +6,7 @@ import psycopg
 import ipaddress
 import socket
 import os
+from fnmatch import fnmatch
 from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
@@ -110,20 +111,23 @@ def validate_url(url: str) -> bool:
             logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
             return False
 
-        # Check if hostname matches allowed domains (exact or subdomain match)
-        if not any(normalized_hostname == allowed or normalized_hostname.endswith('.' + allowed) 
-                   for allowed in allowed_domains):
+        # Check if hostname matches allowed domains (supports wildcards like *.example.com)
+        if not any(fnmatch(normalized_hostname, pattern) for pattern in allowed_domains):
             logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains {allowed_domains}.")
             return False
 
         # Resolve ALL IPs for the hostname
-        infos = socket.getaddrinfo(hostname, None)
-        resolved_ips = {info[4][0] for info in infos}
+        try:
+            infos = socket.getaddrinfo(normalized_hostname, None)
+            resolved_ips = {info[4][0] for info in infos}
+        except (socket.gaierror, socket.error) as e:
+            logger.error(f"DNS resolution failed for {normalized_hostname}: {e}")
+            return False
 
         # Ensure the resolved IP is public
         for ip in resolved_ips:
             if not is_public_ip(ip):
-                logger.warning(f"Non-public IP blocked: {ip} for host {hostname}")
+                logger.warning(f"Non-public IP blocked: {ip} for host {normalized_hostname}")
                 return False
 
         return True
@@ -245,10 +249,9 @@ def ingest_url_to_pgvector(url_list: List[str]) -> dict:
                 )
 
         except requests.exceptions.SSLError as e:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN,
-                detail=f"SSL Error while fetching {url}: {e}",
-            )
+            logger.error(f"SSL Error while fetching {url}: {e}")
+            invalid_urls += 1
+            continue
 
         except Exception as e:
             logger.exception(f"Error ingesting URL {url}")
