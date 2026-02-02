@@ -28,7 +28,7 @@
 
     2. unzip the package using the following command
 
-        `tar -xvzf time-series-analytics-microservice-2026.0-<date>-weekly.tgz`
+        `tar -xvzf time-series-analytics-microservice-2026.0.0-<date>-weekly.tgz`
 
     - Get into the helm directory
 
