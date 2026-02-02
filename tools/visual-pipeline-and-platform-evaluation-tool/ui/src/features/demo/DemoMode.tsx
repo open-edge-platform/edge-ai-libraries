@@ -916,6 +916,84 @@ const DemoMode = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Run Configuration Section */}
+                {selectedConfigPipelineId && (
+                  <div className="mt-4 border-t border-slate-400/30 pt-4">
+                    <p
+                      className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
+                    >
+                      Run Configuration
+                    </p>
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem
+                        value="run-config"
+                        className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                      >
+                        <AccordionTrigger className="hover:no-underline py-2">
+                          <span className="font-medium text-white">
+                            Test Parameters
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pb-2">
+                            {/* FPS Floor */}
+                            <div className="space-y-1">
+                              <label className="text-xs font-medium text-slate-300 block">
+                                FPS Floor
+                              </label>
+                              <input
+                                type="number"
+                                value={fpsFloor}
+                                onChange={(e) =>
+                                  setFpsFloor(parseFloat(e.target.value) || 0)
+                                }
+                                className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                placeholder="Minimum FPS threshold"
+                                min={0}
+                              />
+                            </div>
+
+                            {/* Video Output */}
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={videoOutputEnabled}
+                                  onCheckedChange={(checked) =>
+                                    setVideoOutputEnabled(!!checked)
+                                  }
+                                  className={colors.checkbox}
+                                />
+                                <label className="text-xs text-slate-300">
+                                  Enable video output
+                                </label>
+                              </div>
+                              {videoOutputEnabled && (
+                                <div className="mt-2">
+                                  <SaveOutputWarning />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Run Button */}
+                            <button
+                              onClick={handleRunTest}
+                              disabled={isRunning}
+                              className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-2 ${colors.runButton}`}
+                            >
+                              <div
+                                className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
+                              ></div>
+                              <span className="relative">
+                                {isRunning ? "Running..." : "Run Test"}
+                              </span>
+                            </button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  </div>
+                )}
               </div>
 
               {/* BOTTOM RIGHT - Results */}
