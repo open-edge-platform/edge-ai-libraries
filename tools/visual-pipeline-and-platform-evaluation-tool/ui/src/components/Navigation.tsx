@@ -3,21 +3,25 @@ import logoDark from "@/assets/digital-unboxed-energyblue-white.svg";
 import { useTheme } from "next-themes";
 import { NavLink } from "react-router";
 import { menuItems } from "@/config/navigation.ts";
+import { version } from "../../package.json";
 
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import type { ComponentProps } from "react";
 
 export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
   const { theme } = useTheme();
+  const { state } = useSidebar();
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -62,6 +66,15 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <div
+          className={`px-2 py-2 text-xs text-muted-foreground whitespace-nowrap transition-opacity ease-linear group-data-[collapsible=icon]:opacity-0 ${
+            state === "collapsed" ? "duration-100" : "duration-200 delay-100"
+          }`}
+        >
+          Version: {version}
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 };
