@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import {
   type PipelinePerformanceSpec,
   useGetDensityJobStatusQuery,
+  useGetPerformanceJobStatusQuery,
   useRunDensityTestMutation,
+  useRunPerformanceTestMutation,
+  useUpdatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
-import { MetricChart } from "@/features/metrics/MetricChart";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
+import { selectModels } from "@/store/reducers/models";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
@@ -35,7 +38,10 @@ import pipeline4 from "@/assets/pipeline_4.png";
 import pipeline5 from "@/assets/pipeline_5.png";
 import type { Pipeline } from "@/api/api.generated";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
+import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useNavigate } from "react-router";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
@@ -158,22 +164,43 @@ const DemoMode = () => {
   useModelsLoader();
   useDevicesLoader();
   const pipelines = useAppSelector(selectPipelines);
+  const models = useAppSelector(selectModels);
   const history = useMetricHistory();
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
+  const [runPerformanceTest, { isLoading: isPerformanceRunning }] =
+    useRunPerformanceTestMutation();
+  const [updatePipeline] = useUpdatePipelineMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [densityJobId, setDensityJobId] = useState<string | null>(null);
+  const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;
     streams_per_pipeline: PipelinePerformanceSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
+  const [performanceResult, setPerformanceResult] = useState<{
+    total_fps: number | null;
+    per_stream_fps: number | null;
+    video_output_paths: { [key: string]: string[] } | null;
+    live_stream_urls: { [key: string]: string } | null;
+  } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [performanceVideoOutputEnabled, setPerformanceVideoOutputEnabled] =
+    useState(false);
+  const [performanceLivePreviewEnabled, setPerformanceLivePreviewEnabled] =
+    useState(false);
+  const [performanceStreams, setPerformanceStreams] = useState<
+    Record<string, number>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [performanceErrorMessage, setPerformanceErrorMessage] = useState<
+    string | null
+  >(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
   const [testStarted, setTestStarted] = useState(false);
@@ -186,6 +213,17 @@ const DemoMode = () => {
   const [demoStep, setDemoStep] = useState<"selection" | "configuration">(
     "selection",
   );
+  const [activeTest, setActiveTest] = useState<
+    "performance-test" | "density-test"
+  >("density-test");
+  const [lastRunTest, setLastRunTest] = useState<
+    "performance-test" | "density-test"
+  >("density-test");
+  const isDensityRunning = isRunning;
+  const isRunDisabled =
+    activeTest === "performance-test"
+      ? isPerformanceRunning || !!performanceJobId
+      : isDensityRunning || !!densityJobId;
   const [selectedConfigPipelineId, setSelectedConfigPipelineId] = useState<
     string | null
   >(null);
@@ -324,9 +362,17 @@ const DemoMode = () => {
   const availableDevices = getDevicesForModel(currentModel);
 
   const { data: jobStatus } = useGetDensityJobStatusQuery(
-    { jobId: jobId! },
+    { jobId: densityJobId! },
     {
-      skip: !jobId,
+      skip: !densityJobId,
+      pollingInterval: 1000,
+    },
+  );
+
+  const { data: performanceJobStatus } = useGetPerformanceJobStatusQuery(
+    { jobId: performanceJobId! },
+    {
+      skip: !performanceJobId,
       pollingInterval: 1000,
     },
   );
@@ -342,14 +388,40 @@ const DemoMode = () => {
       // Save snapshot of metric history
       setMetricHistorySnapshot([...history]);
       setErrorMessage(null);
-      setJobId(null);
+      setDensityJobId(null);
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
       console.error("Test failed:", jobStatus.error_message);
       setErrorMessage(jobStatus.error_message || "Test failed");
       setTestResult(null);
-      setJobId(null);
+      setDensityJobId(null);
     }
   }, [jobStatus, history]);
+
+  useEffect(() => {
+    if (performanceJobStatus?.state === "COMPLETED") {
+      setPerformanceResult({
+        total_fps: performanceJobStatus.total_fps,
+        per_stream_fps: performanceJobStatus.per_stream_fps,
+        video_output_paths: performanceJobStatus.video_output_paths,
+        live_stream_urls: performanceJobStatus.live_stream_urls,
+      });
+      setPerformanceErrorMessage(null);
+      setPerformanceJobId(null);
+    } else if (
+      performanceJobStatus?.state === "ERROR" ||
+      performanceJobStatus?.state === "ABORTED"
+    ) {
+      console.error(
+        "Performance test failed:",
+        performanceJobStatus.error_message,
+      );
+      setPerformanceErrorMessage(
+        performanceJobStatus.error_message || "Test failed",
+      );
+      setPerformanceResult(null);
+      setPerformanceJobId(null);
+    }
+  }, [performanceJobStatus]);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -361,6 +433,34 @@ const DemoMode = () => {
       ]);
     }
   }, [pipelines, pipelineSelections.length]);
+
+  useEffect(() => {
+    if (pipelineSelections.length === 0) return;
+
+    setPerformanceStreams((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      const validIds = new Set(
+        pipelineSelections.map((selection) => selection.pipelineId),
+      );
+
+      pipelineSelections.forEach((selection) => {
+        if (next[selection.pipelineId] == null) {
+          next[selection.pipelineId] = 8;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((pipelineId) => {
+        if (!validIds.has(pipelineId)) {
+          delete next[pipelineId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [pipelineSelections]);
 
   const handlePipelineChange = (
     oldPipelineId: string,
@@ -397,17 +497,141 @@ const DemoMode = () => {
     );
   };
 
+  const handlePerformanceStreamsChange = (
+    pipelineId: string,
+    streams: number,
+  ) => {
+    setPerformanceStreams((prev) => ({
+      ...prev,
+      [pipelineId]: streams,
+    }));
+  };
+
   const handleRunTest = async () => {
     if (pipelineSelections.length === 0) return;
 
     setTestStarted(true);
+    setLastRunTest(activeTest);
+
+    try {
+      for (const selection of pipelineSelections) {
+        const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+        if (!pipeline?.pipeline_graph) continue;
+
+        let hasChanges = false;
+        const getDefaultModelForNode = (nodeType: string) => {
+          const category =
+            nodeType === "gvadetect"
+              ? "detection"
+              : nodeType === "gvaclassify"
+                ? "classification"
+                : null;
+
+          if (!category) return null;
+          const match = models.find((model) => model.category === category);
+          return match ? (match.display_name ?? match.name) : null;
+        };
+        const updatedNodes = pipeline.pipeline_graph.nodes.map((node) => {
+          const edits = nodeDataEdits[node.id];
+          const mergedData = {
+            ...node.data,
+            ...(edits ?? {}),
+          } as Record<string, unknown>;
+
+          const currentModel =
+            mergedData.model === null || mergedData.model === undefined
+              ? ""
+              : String(mergedData.model);
+          if (
+            (node.type === "gvadetect" || node.type === "gvaclassify") &&
+            currentModel.trim() === ""
+          ) {
+            const defaultModel = getDefaultModelForNode(node.type);
+            if (defaultModel) {
+              mergedData.model = defaultModel;
+            }
+          }
+
+          const shouldUpdate =
+            !!edits ||
+            (mergedData.model !== node.data?.model &&
+              (node.type === "gvadetect" || node.type === "gvaclassify"));
+
+          if (!shouldUpdate) return node;
+          hasChanges = true;
+
+          const normalizedData = Object.fromEntries(
+            Object.entries(mergedData).map(([key, value]) => [
+              key,
+              value === null || value === undefined ? "" : String(value),
+            ]),
+          ) as { [key: string]: string };
+
+          return {
+            ...node,
+            data: normalizedData,
+          };
+        });
+
+        if (hasChanges) {
+          await updatePipeline({
+            pipelineId: pipeline.id,
+            pipelineUpdate: {
+              pipeline_graph: {
+                nodes: updatedNodes,
+                edges: pipeline.pipeline_graph.edges ?? [],
+              },
+            },
+          }).unwrap();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update pipeline before test:", err);
+      if (activeTest === "performance-test") {
+        setPerformanceErrorMessage("Failed to update pipeline configuration");
+      } else {
+        setErrorMessage("Failed to update pipeline configuration");
+      }
+      return;
+    }
+
+    if (activeTest === "performance-test") {
+      setPerformanceResult(null);
+      setPerformanceErrorMessage(null);
+      try {
+        const outputMode = performanceLivePreviewEnabled
+          ? "live_stream"
+          : performanceVideoOutputEnabled
+            ? "file"
+            : "disabled";
+
+        const result = await runPerformanceTest({
+          performanceTestSpecInput: {
+            execution_config: {
+              output_mode: outputMode,
+              max_runtime: 0,
+            },
+            pipeline_performance_specs: pipelineSelections.map((selection) => ({
+              id: selection.pipelineId,
+              streams: performanceStreams[selection.pipelineId] ?? 8,
+            })),
+          },
+        }).unwrap();
+        setPerformanceJobId(result.job_id);
+      } catch (err) {
+        console.error("Failed to run performance test:", err);
+      }
+      return;
+    }
+
     setTestResult(null);
     setErrorMessage(null);
     try {
       const result = await runDensityTest({
         densityTestSpec: {
-          video_output: {
-            enabled: videoOutputEnabled,
+          execution_config: {
+            output_mode: videoOutputEnabled ? "file" : "disabled",
+            max_runtime: 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -416,7 +640,7 @@ const DemoMode = () => {
           })),
         },
       }).unwrap();
-      setJobId(result.job_id);
+      setDensityJobId(result.job_id);
     } catch (err) {
       console.error("Failed to run density test:", err);
     }
@@ -609,7 +833,7 @@ const DemoMode = () => {
             </div>
           ) : demoStep === "configuration" ? (
             /* 4-PART GRID LAYOUT */
-            <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+            <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
               {/* TOP LEFT - Selected Pipelines Cards */}
               <div className="overflow-y-auto">
                 <div className="flex flex-wrap gap-2">
@@ -678,14 +902,14 @@ const DemoMode = () => {
 
               {/* BOTTOM LEFT - Pipeline Configuration */}
               <div
-                className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col ${colors.testBorder}`}
+                className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 ${colors.testBorder}`}
               >
                 <p
                   className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
                 >
                   Pipeline Configuration
                 </p>
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                   {selectedConfigPipelineId ? (
                     (() => {
                       const pipeline = pipelines.find(
@@ -694,220 +918,486 @@ const DemoMode = () => {
                       if (!pipeline) return null;
 
                       return (
-                        <Accordion
-                          type="single"
-                          collapsible
-                          className="w-full space-y-2"
-                        >
-                          {pipeline.pipeline_graph?.nodes?.map((node) => {
-                            const nodeTag = nodeTypeToTag[node.type] || null;
-                            const nodeConfig = getNodeConfig(node.type);
-                            const editableProperties =
-                              nodeConfig?.editableProperties ?? [];
+                        <>
+                          <Accordion
+                            type="single"
+                            collapsible
+                            className="w-full space-y-2"
+                          >
+                            {pipeline.pipeline_graph?.nodes?.map((node) => {
+                              const nodeTag = nodeTypeToTag[node.type] || null;
+                              const nodeConfig = getNodeConfig(node.type);
+                              const editableProperties =
+                                nodeConfig?.editableProperties ?? [];
 
-                            const dataEntries = nodeConfig
-                              ? editableProperties.map((prop) => [
-                                  prop.key,
-                                  node.data[prop.key] ?? prop.defaultValue,
-                                  prop,
-                                ])
-                              : Object.entries(node.data ?? {})
-                                  .filter(
-                                    ([key]) =>
-                                      !["label"].includes(key) &&
-                                      !key.startsWith("__"),
-                                  )
-                                  .map(([key, value]) => [key, value, null]);
+                              const dataEntries = nodeConfig
+                                ? editableProperties.map((prop) => [
+                                    prop.key,
+                                    node.data[prop.key] ?? prop.defaultValue,
+                                    prop,
+                                  ])
+                                : Object.entries(node.data ?? {})
+                                    .filter(
+                                      ([key]) =>
+                                        !["label"].includes(key) &&
+                                        !key.startsWith("__"),
+                                    )
+                                    .map(([key, value]) => [key, value, null]);
 
-                            const getEditedValue = (
-                              nodeId: string,
-                              key: string,
-                              originalValue: unknown,
-                            ) => {
+                              const getEditedValue = (
+                                nodeId: string,
+                                key: string,
+                                originalValue: unknown,
+                              ) => {
+                                return (
+                                  nodeDataEdits[nodeId]?.[key] ?? originalValue
+                                );
+                              };
+
+                              const handleValueChange = (
+                                nodeId: string,
+                                key: string,
+                                value: unknown,
+                              ) => {
+                                setNodeDataEdits((prev) => ({
+                                  ...prev,
+                                  [nodeId]: {
+                                    ...prev[nodeId],
+                                    [key]: value,
+                                  },
+                                }));
+                              };
+
                               return (
-                                nodeDataEdits[nodeId]?.[key] ?? originalValue
-                              );
-                            };
-
-                            const handleValueChange = (
-                              nodeId: string,
-                              key: string,
-                              value: unknown,
-                            ) => {
-                              setNodeDataEdits((prev) => ({
-                                ...prev,
-                                [nodeId]: {
-                                  ...prev[nodeId],
-                                  [key]: value,
-                                },
-                              }));
-                            };
-
-                            return (
-                              <AccordionItem
-                                key={node.id}
-                                value={node.id}
-                                className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
-                              >
-                                <AccordionTrigger className="hover:no-underline py-2">
-                                  <div className="flex flex-col items-start">
-                                    {nodeTag ? (
-                                      <>
+                                <AccordionItem
+                                  key={node.id}
+                                  value={node.id}
+                                  className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                                >
+                                  <AccordionTrigger className="hover:no-underline py-2">
+                                    <div className="flex flex-col items-start">
+                                      {nodeTag ? (
+                                        <>
+                                          <span className="font-medium text-white">
+                                            {nodeTag}
+                                          </span>
+                                          <span className="text-xs text-slate-400 font-light">
+                                            {node.type}
+                                          </span>
+                                        </>
+                                      ) : (
                                         <span className="font-medium text-white">
-                                          {nodeTag}
-                                        </span>
-                                        <span className="text-xs text-slate-400 font-light">
                                           {node.type}
                                         </span>
-                                      </>
+                                      )}
+                                    </div>
+                                  </AccordionTrigger>
+                                  <AccordionContent>
+                                    {dataEntries.length === 0 ? (
+                                      <p className="text-xs text-slate-400 text-center py-2">
+                                        No parameters to display
+                                      </p>
                                     ) : (
-                                      <span className="font-medium text-white">
-                                        {node.type}
-                                      </span>
-                                    )}
-                                  </div>
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  {dataEntries.length === 0 ? (
-                                    <p className="text-xs text-slate-400 text-center py-2">
-                                      No parameters to display
-                                    </p>
-                                  ) : (
-                                    <div className="space-y-3 pb-2">
-                                      {dataEntries.map(
-                                        ([key, value, propConfig]) => {
-                                          const currentValue = getEditedValue(
-                                            node.id,
-                                            String(key),
-                                            value,
-                                          );
-                                          const config =
-                                            propConfig as NodePropertyConfig | null;
+                                      <div className="space-y-3 pb-2">
+                                        {dataEntries.map(
+                                          ([key, value, propConfig]) => {
+                                            const currentValue = getEditedValue(
+                                              node.id,
+                                              String(key),
+                                              value,
+                                            );
+                                            const config =
+                                              propConfig as NodePropertyConfig | null;
 
-                                          return (
-                                            <div
-                                              key={String(key)}
-                                              className="space-y-1"
-                                            >
-                                              <label className="text-xs font-medium text-slate-300 block">
-                                                {config?.label ?? String(key)}
-                                              </label>
-                                              {config?.type === "select" ? (
-                                                <select
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                >
-                                                  {config.options?.map(
-                                                    (option) => (
-                                                      <option
-                                                        key={option}
-                                                        value={option}
-                                                      >
-                                                        {option}
-                                                      </option>
-                                                    ),
-                                                  )}
-                                                </select>
-                                              ) : config?.type === "boolean" ? (
-                                                <div className="flex items-center gap-2">
-                                                  <Checkbox
-                                                    checked={
-                                                      currentValue === true ||
-                                                      currentValue === "true"
-                                                    }
-                                                    onCheckedChange={(
-                                                      checked,
-                                                    ) =>
+                                            return (
+                                              <div
+                                                key={String(key)}
+                                                className="space-y-1"
+                                              >
+                                                <label className="text-xs font-medium text-slate-300 block">
+                                                  {config?.label ?? String(key)}
+                                                </label>
+                                                {String(key) === "model" ? (
+                                                  <select
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
                                                       handleValueChange(
                                                         node.id,
                                                         String(key),
-                                                        checked,
+                                                        e.target.value,
                                                       )
                                                     }
-                                                    className={colors.checkbox}
-                                                  />
-                                                  <span className="text-xs text-slate-400">
-                                                    {config.description}
-                                                  </span>
-                                                </div>
-                                              ) : config?.type ===
-                                                "textarea" ? (
-                                                <textarea
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
-                                                  placeholder={
-                                                    config.description
-                                                  }
-                                                />
-                                              ) : config?.type === "number" ? (
-                                                <input
-                                                  type="number"
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      parseFloat(
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  >
+                                                    <option value="">
+                                                      Select {config?.label}
+                                                    </option>
+                                                    {models
+                                                      .filter(
+                                                        (model) =>
+                                                          model.category ===
+                                                          config?.params
+                                                            ?.filter,
+                                                      )
+                                                      .map((model) => (
+                                                        <option
+                                                          key={model.name}
+                                                          value={
+                                                            model.display_name ??
+                                                            model.name
+                                                          }
+                                                        >
+                                                          {model.display_name ??
+                                                            model.name}
+                                                        </option>
+                                                      ))}
+                                                  </select>
+                                                ) : config?.type ===
+                                                  "select" ? (
+                                                  <select
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
                                                         e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  >
+                                                    {config.options?.map(
+                                                      (option) => (
+                                                        <option
+                                                          key={option}
+                                                          value={option}
+                                                        >
+                                                          {option}
+                                                        </option>
                                                       ),
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  placeholder={
-                                                    config.description
-                                                  }
-                                                />
-                                              ) : (
-                                                <input
-                                                  type="text"
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  placeholder={
-                                                    config?.description ??
-                                                    "Enter value"
-                                                  }
-                                                />
-                                              )}
+                                                    )}
+                                                  </select>
+                                                ) : config?.type ===
+                                                  "boolean" ? (
+                                                  <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                      checked={
+                                                        currentValue === true ||
+                                                        currentValue === "true"
+                                                      }
+                                                      onCheckedChange={(
+                                                        checked,
+                                                      ) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
+                                                          checked,
+                                                        )
+                                                      }
+                                                      className={
+                                                        colors.checkbox
+                                                      }
+                                                    />
+                                                    <span className="text-xs text-slate-400">
+                                                      {config.description}
+                                                    </span>
+                                                  </div>
+                                                ) : config?.type ===
+                                                  "textarea" ? (
+                                                  <textarea
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
+                                                    placeholder={
+                                                      config.description
+                                                    }
+                                                  />
+                                                ) : config?.type ===
+                                                  "number" ? (
+                                                  <input
+                                                    type="number"
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        parseFloat(
+                                                          e.target.value,
+                                                        ),
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    placeholder={
+                                                      config.description
+                                                    }
+                                                  />
+                                                ) : (
+                                                  <input
+                                                    type="text"
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    placeholder={
+                                                      config?.description ??
+                                                      "Enter value"
+                                                    }
+                                                  />
+                                                )}
+                                              </div>
+                                            );
+                                          },
+                                        )}
+                                      </div>
+                                    )}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+
+                          {/* Run Configuration Section */}
+                          <div className="mt-4 border-t border-slate-400/30 pt-4">
+                            <p
+                              className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
+                            >
+                              Run Configuration
+                            </p>
+                            <div className="w-full">
+                              <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActiveTest("performance-test")
+                                  }
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                    activeTest === "performance-test"
+                                      ? "bg-blue-600 text-white"
+                                      : "text-slate-300 hover:text-white"
+                                  }`}
+                                >
+                                  Performance Test
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTest("density-test")}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                    activeTest === "density-test"
+                                      ? "bg-blue-600 text-white"
+                                      : "text-slate-300 hover:text-white"
+                                  }`}
+                                >
+                                  Density Test
+                                </button>
+                              </div>
+
+                              {activeTest === "performance-test" ? (
+                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                  <div className="space-y-3">
+                                    {/* Streams per pipeline */}
+                                    <div className="space-y-2">
+                                      {pipelineSelections.map((selection) => {
+                                        const pipeline = pipelines.find(
+                                          (p) => p.id === selection.pipelineId,
+                                        );
+
+                                        return (
+                                          <div
+                                            key={selection.pipelineId}
+                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                          >
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                              <span className="text-xs text-slate-300 font-semibold">
+                                                {pipeline?.name ?? "Pipeline"}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">
+                                                Streams
+                                              </span>
                                             </div>
-                                          );
-                                        },
+                                            <StreamsSlider
+                                              value={
+                                                performanceStreams[
+                                                  selection.pipelineId
+                                                ] ?? 8
+                                              }
+                                              onChange={(val) =>
+                                                handlePerformanceStreamsChange(
+                                                  selection.pipelineId,
+                                                  val,
+                                                )
+                                              }
+                                              min={1}
+                                              max={64}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Live Preview */}
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={
+                                            performanceLivePreviewEnabled
+                                          }
+                                          onCheckedChange={(checked) =>
+                                            setPerformanceLivePreviewEnabled(
+                                              checked === true,
+                                            )
+                                          }
+                                          className={colors.checkbox}
+                                        />
+                                        <label className="text-xs text-slate-300">
+                                          Enable live preview
+                                        </label>
+                                      </div>
+                                    </div>
+
+                                    {/* Save Output */}
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={
+                                            performanceVideoOutputEnabled
+                                          }
+                                          onCheckedChange={(checked) =>
+                                            setPerformanceVideoOutputEnabled(
+                                              checked === true,
+                                            )
+                                          }
+                                          className={colors.checkbox}
+                                        />
+                                        <label className="text-xs text-slate-300">
+                                          Save output
+                                        </label>
+                                      </div>
+                                      {performanceVideoOutputEnabled && (
+                                        <div className="mt-2">
+                                          <SaveOutputWarning />
+                                        </div>
                                       )}
                                     </div>
-                                  )}
-                                </AccordionContent>
-                              </AccordionItem>
-                            );
-                          })}
-                        </Accordion>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                  <div className="space-y-3">
+                                    {/* Participation rate per pipeline */}
+                                    <div className="space-y-2">
+                                      {pipelineSelections.map((selection) => {
+                                        const pipeline = pipelines.find(
+                                          (p) => p.id === selection.pipelineId,
+                                        );
+
+                                        return (
+                                          <div
+                                            key={selection.pipelineId}
+                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                          >
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                              <span className="text-xs text-slate-300 font-semibold">
+                                                {pipeline?.name ?? "Pipeline"}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">
+                                                Participation rate
+                                              </span>
+                                            </div>
+                                            <ParticipationSlider
+                                              value={selection.stream_rate}
+                                              onChange={(val) =>
+                                                handleStreamRateChange(
+                                                  selection.pipelineId,
+                                                  val,
+                                                )
+                                              }
+                                              min={0}
+                                              max={100}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* FPS Floor */}
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-medium text-slate-300 block">
+                                        Target FPS
+                                      </label>
+                                      <input
+                                        type="number"
+                                        value={fpsFloor}
+                                        onChange={(e) =>
+                                          setFpsFloor(
+                                            parseFloat(e.target.value) || 0,
+                                          )
+                                        }
+                                        className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                        placeholder="Minimum FPS threshold"
+                                        min={0}
+                                      />
+                                    </div>
+
+                                    {/* Video Output */}
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={videoOutputEnabled}
+                                          onCheckedChange={(checked) =>
+                                            setVideoOutputEnabled(!!checked)
+                                          }
+                                          className={colors.checkbox}
+                                        />
+                                        <label className="text-xs text-slate-300">
+                                          Save output
+                                        </label>
+                                      </div>
+                                      {videoOutputEnabled && (
+                                        <div className="mt-2">
+                                          <SaveOutputWarning />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Run Button */}
+                              <button
+                                onClick={handleRunTest}
+                                disabled={isRunDisabled}
+                                className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-3 ${colors.runButton}`}
+                              >
+                                <div
+                                  className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
+                                ></div>
+                                <span className="relative">
+                                  {isRunDisabled ? "Running..." : "Run Test"}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        </>
                       );
                     })()
                   ) : (
@@ -916,84 +1406,6 @@ const DemoMode = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Run Configuration Section */}
-                {selectedConfigPipelineId && (
-                  <div className="mt-4 border-t border-slate-400/30 pt-4">
-                    <p
-                      className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
-                    >
-                      Run Configuration
-                    </p>
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem
-                        value="run-config"
-                        className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
-                      >
-                        <AccordionTrigger className="hover:no-underline py-2">
-                          <span className="font-medium text-white">
-                            Test Parameters
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-3 pb-2">
-                            {/* FPS Floor */}
-                            <div className="space-y-1">
-                              <label className="text-xs font-medium text-slate-300 block">
-                                FPS Floor
-                              </label>
-                              <input
-                                type="number"
-                                value={fpsFloor}
-                                onChange={(e) =>
-                                  setFpsFloor(parseFloat(e.target.value) || 0)
-                                }
-                                className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                placeholder="Minimum FPS threshold"
-                                min={0}
-                              />
-                            </div>
-
-                            {/* Video Output */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={videoOutputEnabled}
-                                  onCheckedChange={(checked) =>
-                                    setVideoOutputEnabled(!!checked)
-                                  }
-                                  className={colors.checkbox}
-                                />
-                                <label className="text-xs text-slate-300">
-                                  Enable video output
-                                </label>
-                              </div>
-                              {videoOutputEnabled && (
-                                <div className="mt-2">
-                                  <SaveOutputWarning />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Run Button */}
-                            <button
-                              onClick={handleRunTest}
-                              disabled={isRunning}
-                              className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-2 ${colors.runButton}`}
-                            >
-                              <div
-                                className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
-                              ></div>
-                              <span className="relative">
-                                {isRunning ? "Running..." : "Run Test"}
-                              </span>
-                            </button>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  </div>
-                )}
               </div>
 
               {/* BOTTOM RIGHT - Results */}
@@ -1007,86 +1419,347 @@ const DemoMode = () => {
                 </p>
 
                 <div className="flex-1 overflow-y-auto">
-                  {jobId && jobStatus?.state === "RUNNING" && (
-                    <div className="mb-3 flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div
-                          className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                        ></div>
-                        <div
-                          className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                          style={{ animationDelay: "0.1s" }}
-                        ></div>
-                        <div
-                          className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                          style={{ animationDelay: "0.2s" }}
-                        ></div>
-                      </div>
-                      <span className="text-neutral-300 text-xs">
-                        Running test...
-                      </span>
-                    </div>
-                  )}
-
-                  {errorMessage && (
-                    <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3 mb-3">
-                      <p className="text-sm font-bold text-white mb-1">
-                        Test Failed
-                      </p>
-                      <p className="text-xs text-neutral-300">{errorMessage}</p>
-                    </div>
-                  )}
-
-                  {!testResult && !jobId && !errorMessage && (
-                    <div className="flex items-center justify-center h-full text-slate-400">
-                      <p className="text-sm">
-                        Results will appear here after running the test
-                      </p>
-                    </div>
-                  )}
-
-                  {(jobId || testResult) && (
+                  {lastRunTest === "performance-test" ? (
                     <div className="space-y-3">
+                      {performanceJobId && performanceJobStatus && (
+                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <p className="text-sm font-bold text-white mb-1">
+                            Test Status: {performanceJobStatus.state}
+                          </p>
+                          {performanceJobStatus.state === "RUNNING" && (
+                            <div className="mt-2">
+                              <div className="mb-2 flex items-center gap-2">
+                                <div className="flex gap-1">
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                  ></div>
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    style={{ animationDelay: "0.1s" }}
+                                  ></div>
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    style={{ animationDelay: "0.2s" }}
+                                  ></div>
+                                </div>
+                                <span className="text-neutral-300 text-xs">
+                                  Running performance test...
+                                </span>
+                              </div>
+                              <TestProgressIndicator />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {performanceErrorMessage && (
+                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <p className="text-sm font-bold text-white mb-1">
+                            Test Failed
+                          </p>
+                          <p className="text-xs text-neutral-300">
+                            {performanceErrorMessage}
+                          </p>
+                        </div>
+                      )}
+
+                      {!performanceResult &&
+                        !performanceJobId &&
+                        !performanceErrorMessage && (
+                          <div className="flex items-center justify-center h-full text-slate-400">
+                            <p className="text-sm">
+                              Results will appear here after running the test
+                            </p>
+                          </div>
+                        )}
+
+                      {performanceResult && (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div
+                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                            >
+                              <div
+                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                              ></div>
+                              <div className="relative text-center">
+                                <p
+                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                >
+                                  Total FPS
+                                </p>
+                                <p
+                                  className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                >
+                                  {performanceResult.total_fps?.toFixed(2) ??
+                                    "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                            <div
+                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                            >
+                              <div
+                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                              ></div>
+                              <div className="relative text-center">
+                                <p
+                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                >
+                                  Per Stream FPS
+                                </p>
+                                <p
+                                  className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                >
+                                  {performanceResult.per_stream_fps?.toFixed(
+                                    2,
+                                  ) ?? "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {performanceLivePreviewEnabled &&
+                            performanceResult.live_stream_urls &&
+                            Object.keys(performanceResult.live_stream_urls)
+                              .length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-300">
+                                  Live previews
+                                </p>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {Object.entries(
+                                    performanceResult.live_stream_urls,
+                                  ).map(([pipelineId, url]) => (
+                                    <div
+                                      key={pipelineId}
+                                      className="rounded-md border border-slate-400/30 bg-slate-900/60 p-2"
+                                    >
+                                      <p className="text-[10px] text-slate-400 mb-2">
+                                        <PipelineName pipelineId={pipelineId} />
+                                      </p>
+                                      <video
+                                        controls
+                                        className="w-full"
+                                        src={url}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                          {performanceVideoOutputEnabled &&
+                            performanceResult.video_output_paths &&
+                            Object.keys(performanceResult.video_output_paths)
+                              .length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-300">
+                                  Output Videos
+                                </p>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {Object.entries(
+                                    performanceResult.video_output_paths,
+                                  ).map(([pipelineId, paths]) => {
+                                    const videoPath =
+                                      paths && paths.length > 0
+                                        ? [...paths].pop()
+                                        : null;
+
+                                    return (
+                                      <div
+                                        key={pipelineId}
+                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
+                                      >
+                                        <div className="px-3 py-2 border-b border-slate-400/20">
+                                          <p className="text-[10px] text-slate-400">
+                                            <PipelineName
+                                              pipelineId={pipelineId}
+                                            />
+                                          </p>
+                                        </div>
+                                        {videoPath ? (
+                                          <video
+                                            controls
+                                            className="w-full"
+                                            src={`/assets${videoPath}`}
+                                          >
+                                            Your browser does not support the
+                                            video tag.
+                                          </video>
+                                        ) : (
+                                          <div className="p-3 text-center text-xs text-slate-400">
+                                            no streams
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {densityJobId && jobStatus && (
+                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <p className="text-sm font-bold text-white mb-1">
+                            Test Status: {jobStatus.state}
+                          </p>
+                          {jobStatus.state === "RUNNING" && (
+                            <div className="mt-2">
+                              <div className="mb-2 flex items-center gap-2">
+                                <div className="flex gap-1">
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                  ></div>
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    style={{ animationDelay: "0.1s" }}
+                                  ></div>
+                                  <div
+                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    style={{ animationDelay: "0.2s" }}
+                                  ></div>
+                                </div>
+                                <span className="text-neutral-300 text-xs">
+                                  Running density test...
+                                </span>
+                              </div>
+                              <TestProgressIndicator />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {errorMessage && (
+                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <p className="text-sm font-bold text-white mb-1">
+                            Test Failed
+                          </p>
+                          <p className="text-xs text-neutral-300">
+                            {errorMessage}
+                          </p>
+                        </div>
+                      )}
+
+                      {!testResult && !densityJobId && !errorMessage && (
+                        <div className="flex items-center justify-center h-full text-slate-400">
+                          <p className="text-sm">
+                            Results will appear here after running the test
+                          </p>
+                        </div>
+                      )}
+
                       {testResult && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div
-                            className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
-                          >
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
                             <div
-                              className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
-                            ></div>
-                            <div className="relative text-center">
-                              <p
-                                className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
-                              >
-                                Per Stream FPS
-                              </p>
-                              <p
-                                className={`text-xl font-bold ${colors.summaryFpsText}`}
-                              >
-                                {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
-                              </p>
+                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                            >
+                              <div
+                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                              ></div>
+                              <div className="relative text-center">
+                                <p
+                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                >
+                                  Per Stream FPS
+                                </p>
+                                <p
+                                  className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                >
+                                  {testResult.per_stream_fps?.toFixed(2) ??
+                                    "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                            <div
+                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                            >
+                              <div
+                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                              ></div>
+                              <div className="relative text-center">
+                                <p
+                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                >
+                                  Total Streams
+                                </p>
+                                <p
+                                  className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                >
+                                  {testResult.total_streams ?? "N/A"}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                          <div
-                            className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
-                          >
-                            <div
-                              className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
-                            ></div>
-                            <div className="relative text-center">
-                              <p
-                                className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
-                              >
-                                Total Streams
+
+                          {testResult.streams_per_pipeline && (
+                            <div className="rounded-lg border border-slate-400/30 bg-slate-900/60 p-2">
+                              <p className="text-xs text-slate-300 font-semibold mb-2">
+                                Streams per Pipeline
                               </p>
-                              <p
-                                className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
-                              >
-                                {testResult.total_streams ?? "N/A"}
-                              </p>
+                              <PipelineStreamsSummary
+                                streamsPerPipeline={
+                                  testResult.streams_per_pipeline
+                                }
+                                pipelines={pipelines ?? []}
+                              />
                             </div>
-                          </div>
+                          )}
+
+                          {videoOutputEnabled &&
+                            testResult.video_output_paths &&
+                            Object.keys(testResult.video_output_paths).length >
+                              0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-300">
+                                  Output Videos
+                                </p>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {Object.entries(
+                                    testResult.video_output_paths,
+                                  ).map(([pipelineId, paths]) => {
+                                    const videoPath =
+                                      paths && paths.length > 0
+                                        ? [...paths].pop()
+                                        : null;
+
+                                    return (
+                                      <div
+                                        key={pipelineId}
+                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
+                                      >
+                                        <div className="px-3 py-2 border-b border-slate-400/20">
+                                          <p className="text-[10px] text-slate-400">
+                                            <PipelineName
+                                              pipelineId={pipelineId}
+                                            />
+                                          </p>
+                                        </div>
+                                        {videoPath ? (
+                                          <video
+                                            controls
+                                            className="w-full"
+                                            src={`/assets${videoPath}`}
+                                          >
+                                            Your browser does not support the
+                                            video tag.
+                                          </video>
+                                        ) : (
+                                          <div className="p-3 text-center text-xs text-slate-400">
+                                            no streams
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>
