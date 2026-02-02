@@ -15,6 +15,23 @@ class PipelineSource(str, Enum):
     USER_CREATED = "USER_CREATED"
 
 
+class AppStatus(str, Enum):
+    """
+    Application status enum for tracking initialization progress.
+
+    Values:
+        STARTING: Application is starting, no initialization yet.
+        INITIALIZING: Application is initializing resources (e.g., loading videos).
+        READY: Application is fully initialized and ready to serve requests.
+        SHUTDOWN: Application is shutting down.
+    """
+
+    STARTING = "starting"
+    INITIALIZING = "initializing"
+    READY = "ready"
+    SHUTDOWN = "shutdown"
+
+
 class TestJobState(str, Enum):
     """
     Generic state of a long-running test job (performance or density).

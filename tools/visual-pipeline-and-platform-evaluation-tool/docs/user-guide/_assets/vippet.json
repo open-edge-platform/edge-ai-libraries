@@ -11,6 +11,50 @@
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Health",
+        "description": "Health check endpoint for Docker healthcheck.\n\nReturns healthy=true as long as the application is not in shutdown state.\nThis allows the container to remain healthy during initialization.\n\nReturns:\n    200 OK: Health status response.\n\nExample response:\n    .. code-block:: json\n\n        {\n          \"healthy\": true\n        }",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Status",
+        "description": "Detailed status endpoint for monitoring initialization progress.\n\nReturns:\n    200 OK: Detailed status response.\n\nExample response (during initialization):\n    .. code-block:: json\n\n        {\n          \"status\": \"initializing\",\n          \"message\": \"Loading video metadata...\",\n          \"ready\": false\n        }\n\nExample response (when ready):\n    .. code-block:: json\n\n        {\n          \"status\": \"ready\",\n          \"message\": null,\n          \"ready\": true\n        }",
+        "operationId": "get_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/convert/to-graph": {
       "post": {
         "tags": [
@@ -1452,6 +1496,17 @@
   },
   "components": {
     "schemas": {
+      "AppStatus": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "initializing",
+          "ready",
+          "shutdown"
+        ],
+        "title": "AppStatus",
+        "description": "Application status enum for tracking initialization progress.\n\nValues:\n    STARTING: Application is starting, no initialization yet.\n    INITIALIZING: Application is initializing resources (e.g., loading videos).\n    READY: Application is fully initialized and ready to serve requests.\n    SHUTDOWN: Application is shutting down."
+      },
       "DensityJobStatus": {
         "properties": {
           "id": {
@@ -1800,6 +1855,20 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "healthy": {
+            "type": "boolean",
+            "title": "Healthy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "healthy"
+        ],
+        "title": "HealthResponse",
+        "description": "Response model for health endpoint.\n\nAttributes:\n    healthy: True if application is healthy (not shutdown)."
       },
       "MessageResponse": {
         "properties": {
@@ -2773,6 +2842,36 @@
         ],
         "title": "PipelineValidation",
         "description": "Request body for pipeline validation.\n\nAttributes:\n    type: Pipeline type (default is GStreamer).\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
+      },
+      "StatusResponse": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AppStatus"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "ready"
+        ],
+        "title": "StatusResponse",
+        "description": "Response model for status endpoint.\n\nAttributes:\n    status: Current application status.\n    message: Optional message describing current activity.\n    ready: True if application is ready to serve API requests."
       },
       "TestJobResponse": {
         "properties": {

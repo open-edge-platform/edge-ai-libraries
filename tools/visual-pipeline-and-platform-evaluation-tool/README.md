@@ -67,9 +67,9 @@ configurations and optimization of settings.
 
 ## Learn More
 
-- [System Requirements](docs/user-guide/system-requirements.md)
+- [System Requirements](docs/user-guide/get-started/system-requirements.md)
 - [Get Started](docs/user-guide/get-started.md)
-- [How to Build Source](docs/user-guide/how-to-build-source.md)
-- [How to Use ViPPET](docs/user-guide/using-vippet.md)
-- [How to use Video Generator](docs/user-guide/how-to-use-video-generator.md)
+- [How to Build Source](docs/user-guide/get-started/build-from-source.md)
+- [How to Use ViPPET](docs/user-guide/use-vippet.md)
+- [How to Use Video Generator](docs/user-guide/how-to-guides/use-video-generator.md)
 - [Release Notes](docs/user-guide/release-notes.md)
