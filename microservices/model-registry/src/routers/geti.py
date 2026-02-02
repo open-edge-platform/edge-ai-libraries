@@ -4,7 +4,7 @@ from typing import List, Annotated
 from fastapi import APIRouter, Response, status, Depends
 from fastapi.responses import PlainTextResponse
 from managers.mlflow_manager import MLflowManager
-from managers.geti_manager import GetiManager
+from managers.geti_sdk import GetiSdk
 from models.project import ProjectOut
 from models.model_identifiers import ModelIdentifiersIn
 from utils.logging_config import logger
@@ -20,17 +20,17 @@ ProjectIDDep = Annotated[str, Depends(validate_resource_id(ResourceType.PROJECT)
          response_model=List[ProjectOut])
 def get_projects():
     """Get projects in a remote Intel® Geti workspace.\n\n
-    In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`."""
+    In order to execute successful requests to this endpoint, the following environment variables are
+    required to be set before starting the model registry microservice: `GETI_HOST` and `GETI_TOKEN`."""
     log_msg_prefix = "GET /projects"
     logger.info(f"{log_msg_prefix} endpoint started.")
-    geti_manager = GetiManager()
+    geti_sdk = GetiSdk()
     try:
-        projects = geti_manager.get_projects()
+        projects = geti_sdk.get_projects()
     except Exception as exc:
         return get_exception_response(log_msg_prefix, exc)
     logger.info(f"{log_msg_prefix} successful. Returned Intel Geti projects' details.")
     return projects
-
 
 @router.get("/projects/{project_id}",
          summary="Get a project by ID in a remote Intel® Geti workspace",
@@ -47,12 +47,13 @@ def get_projects():
              }})
 def get_project_by_id(project_id: ProjectIDDep):
     """Get a project by ID in a remote Intel® Geti workspace.\n\n
-    In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`."""
+    In order to execute successful requests to this endpoint, the following environment variables are
+    required to be set before starting the model registry microservice: `GETI_HOST` and `GETI_TOKEN`."""
     log_msg_prefix = f"GET /projects/{project_id}"
     logger.info(f"{log_msg_prefix} endpoint started.")
-    geti_manager = GetiManager()
+    geti_sdk = GetiSdk()
     try:
-        projects = geti_manager.get_projects(project_id=project_id)
+        projects = geti_sdk.get_projects(project_id=project_id)
 
         if len(projects) == 0:
             s_code = status.HTTP_404_NOT_FOUND
@@ -120,9 +121,9 @@ def save_project_and_models_by_ids(response: Response,
                                    project_id: ProjectIDDep):
     """
     Store the metadata and artifacts for 1 or more OpenVINO optimized model(s) from a remote Intel® Geti workspace into the registry. \n\n
-    
-    In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.\n\n
-    
+    In order to execute successful requests to this endpoint, the following environment variables are
+    required to be set before starting the model registry microservice: `GETI_HOST` and `GETI_TOKEN`.\n\n
+
     For more information about these environment variables, review the [get_server_details_from_env](https://github.com/openvinotoolkit/geti-sdk/blob/675d1e39c1bea7173934bb81db358efa2c40e813/geti_sdk/utils/credentials_helpers.py#L52C5-L52C32) function in the Intel® Geti™ SDK.
 
     If the `models` object contains a list of contains 1 or more `{"id":"<model_identifier>", "group_id": "model_group_identifier"}`, 1 or more models
@@ -130,10 +131,11 @@ def save_project_and_models_by_ids(response: Response,
     """
     log_msg_prefix = f"POST /projects/{project_id}/geti-models/download"
     logger.info(f"{log_msg_prefix} endpoint started.")
-    geti_manager = GetiManager()
+    geti_sdk = GetiSdk()
     try:
         # Get the projects and their models from Geti
-        projects = geti_manager.get_projects(project_id=project_id)
+        projects = geti_sdk.get_projects(project_id=project_id)
+
         if len(projects) == 1:
             project = projects[0]
             # Get all of the model ids for the project
@@ -173,7 +175,7 @@ def save_project_and_models_by_ids(response: Response,
                     logger.error(f"{log_msg_prefix} failed with status code: {response.status_code}. {resp_content}")
                     return resp_content+"\n"
 
-                result = geti_manager.save_models(project_id=project_id, model_identifiers_in=p)
+                result = geti_sdk.save_models(project_id=project_id, model_identifiers_in=p)
 
                 if result is None:
                     response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
