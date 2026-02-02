@@ -144,12 +144,18 @@ spec:
           name: dlstreamer-pipeline-server-config-input
       - name: vol-pipeline-root-tmpfs0
         emptyDir: {}
+      {{- if $.Values.privileged_access_required }}
+      {{- if not $.Values.gpu.enabled }}
       - name: dev-dri
         hostPath:
           path: /dev/dri
+      {{- end }}
+      {{- if not $.Values.npu.enabled }}
       - name: dev-accel
         hostPath:
           path: /dev/accel
+      {{- end }}
+      {{- end }}
       - name: dev-shm
         hostPath:
           path: /dev/shm
