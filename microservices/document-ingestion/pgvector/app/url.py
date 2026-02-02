@@ -90,7 +90,8 @@ def validate_url(url: str) -> bool:
 
         # Parse the cleaned URL
         parsed_url = urlparse(url_cleaned)
-        if parsed_url.scheme not in ["http", "https"]:
+        # Ensure the URL are secure (https only)
+        if parsed_url.scheme != "https":
             return False
 
         hostname = parsed_url.hostname
