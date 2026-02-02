@@ -7,15 +7,15 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from utils import generate_unique_filename
-from videos import get_videos_manager, OUTPUT_VIDEO_DIR
 from models import get_supported_models_manager
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from resources import (
     get_labels_manager,
-    get_scripts_manager,
     get_public_model_proc_manager,
+    get_scripts_manager,
 )
+from utils import generate_unique_filename
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+from videos import OUTPUT_VIDEO_DIR, get_videos_manager
 
 logger = logging.getLogger(__name__)
 models_manager = get_supported_models_manager()
@@ -29,6 +29,52 @@ model_proc_manager = get_public_model_proc_manager()
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink"
+)
+
+# Configuration for Simple View: comma-separated regex patterns for invisible elements.
+# Elements matching these patterns will be excluded from Simple View even if they
+# match SIMPLE_VIEW_VISIBLE_ELEMENTS. This allows fine-grained control over which
+# elements are shown. Evaluation order: VISIBLE first, then INVISIBLE exclusions.
+SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
+    "SIMPLE_VIEW_INVISIBLE_ELEMENTS",
+    "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
+)
+
+
+def _compile_visibility_patterns(pattern_string: str) -> list[re.Pattern]:
+    """
+    Parse comma-separated wildcard patterns and compile them into regex patterns.
+
+    Args:
+        pattern_string: Comma-separated string of wildcard patterns (e.g., "*src,gva*")
+
+    Returns:
+        list[re.Pattern]: List of compiled regex patterns
+
+    Examples:
+        "*src" becomes regex "^.*src$"
+        "gva*" becomes regex "^gva.*$"
+    """
+    if not pattern_string or not pattern_string.strip():
+        return []
+
+    patterns = [
+        pattern.strip() for pattern in pattern_string.split(",") if pattern.strip()
+    ]
+    compiled_patterns = []
+
+    for pattern in patterns:
+        # Convert wildcard pattern to regex: * matches any sequence of characters
+        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
+        compiled_patterns.append(re.compile(regex_pattern))
+
+    return compiled_patterns
+
+
+# Compile visibility patterns once at module initialization
+_COMPILED_VISIBLE_PATTERNS = _compile_visibility_patterns(SIMPLE_VIEW_VISIBLE_ELEMENTS)
+_COMPILED_INVISIBLE_PATTERNS = _compile_visibility_patterns(
+    SIMPLE_VIEW_INVISIBLE_ELEMENTS
 )
 
 
@@ -349,6 +395,87 @@ class Graph:
 
         return pipeline_description
 
+    def apply_looping_modifications(self) -> "Graph":
+        """
+        Apply modifications to make pipeline suitable for looping playback.
+
+        Changes applied:
+        - Replace filesrc with multifilesrc loop=true
+        - Change input file extension to .ts in location (ensures TS file exists)
+        - Replace qtdemux with tsdemux
+
+        Returns:
+            Modified Graph object with looping support
+
+        Raises:
+            ValueError: If TS file cannot be created for any video source
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+            If TS file does not exist, it will be created automatically.
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            # Replace filesrc with multifilesrc loop=true
+            if node.type == "filesrc":
+                node.type = "multifilesrc"
+                node.data["loop"] = "true"
+
+                if "location" in node.data:
+                    location = node.data["location"]
+
+                    # Ensure TS file exists before using it
+                    ts_path = videos_manager.get_ts_path(location)
+                    if ts_path is None:
+                        raise ValueError(
+                            f"Cannot get TS path for video '{location}'. "
+                            f"Ensure the video file exists and has a supported format."
+                        )
+
+                    # Verify TS file actually exists on disk
+                    if not os.path.isfile(ts_path):
+                        # Try to create TS file
+                        source_filename = os.path.basename(location)
+                        source_path = videos_manager.get_video_path(source_filename)
+
+                        if source_path is None:
+                            raise ValueError(
+                                f"Cannot find source video '{source_filename}' for TS conversion."
+                            )
+
+                        ts_path = videos_manager.ensure_ts_file(source_path)
+                        if ts_path is None:
+                            raise ValueError(
+                                f"Failed to create TS file for video '{source_filename}'."
+                            )
+
+                    # Store only the filename, not the full path
+                    # _input_video_name_to_path will convert it back to full path later
+                    ts_filename = os.path.basename(ts_path)
+                    node.data["location"] = ts_filename
+                    logger.debug(
+                        f"Modified filesrc to multifilesrc with location: {ts_filename}"
+                    )
+
+            # Replace demuxers with tsdemux for looping support
+            elif node.type in {"qtdemux", "matroskademux", "avidemux", "flvdemux"}:
+                node.type = "tsdemux"
+                logger.debug("Replaced demuxer with tsdemux for looping support")
+
+            # Replace splitmuxsink with appsink (no output files during looping)
+            # fakesink can't be used to avoid misunderstanding which sink to override for live output
+            elif node.type == "splitmuxsink":
+                node.data.clear()  # Clear all properties to avoid invalid args for appsink
+                node.type = "appsink"
+                # Make appsink behave like fakesink: no signals and no backpressure
+                node.data["emit-signals"] = "false"
+                node.data["drop"] = "true"
+                node.data["max-buffers"] = "1"
+                logger.debug("Replaced splitmuxsink with appsink for looping support")
+
+        return modified_graph
+
     def prepare_output_sinks(self) -> tuple["Graph", list[str]]:
         """
         Prepare output sink nodes with unique filenames in the output directory.
@@ -464,15 +591,10 @@ class Graph:
         logger.debug("Generating simple view from advanced graph")
         logger.debug(f"Visible element patterns: {SIMPLE_VIEW_VISIBLE_ELEMENTS}")
 
-        # Parse the comma-separated patterns into a list
-        visible_patterns = [
-            pattern.strip() for pattern in SIMPLE_VIEW_VISIBLE_ELEMENTS.split(",")
-        ]
-
-        # Determine which nodes should be visible in simple view
+        # Use precompiled patterns for visibility check
         visible_node_ids = set()
         for node in self.nodes:
-            if _is_node_visible(node, visible_patterns):
+            if _is_node_visible(node, _COMPILED_VISIBLE_PATTERNS):
                 visible_node_ids.add(node.id)
                 logger.debug(f"Node {node.id} ({node.type}) is visible in simple view")
             else:
@@ -710,7 +832,7 @@ class Graph:
         return result_advanced
 
 
-def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
+def _is_node_visible(node: Node, visible_patterns: list[re.Pattern]) -> bool:
     """
     Determine if a node should be visible in Simple View based on pattern matching.
 
@@ -719,7 +841,7 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
 
     Args:
         node: The node to check for visibility
-        visible_patterns: List of wildcard patterns (e.g., "*src", "gva*") to match against node type
+        visible_patterns: List of compiled regex patterns to match against node type
 
     Returns:
         bool: True if node should be visible in simple view, False if it should be hidden
@@ -734,16 +856,24 @@ def _is_node_visible(node: Node, visible_patterns: list[str]) -> bool:
     if node.data.get(NODE_KIND_KEY) == NODE_KIND_CAPS:
         return False
 
-    # Check if node type matches any visible pattern
     node_type = node.type
-    for pattern in visible_patterns:
-        # Convert wildcard pattern to regex
-        # * matches any sequence of characters
-        regex_pattern = "^" + pattern.replace("*", ".*") + "$"
-        if re.match(regex_pattern, node_type):
-            return True
 
-    return False
+    # Step 1: Check if node type matches any visible pattern
+    matches_visible = False
+    for pattern in visible_patterns:
+        if pattern.match(node_type):
+            matches_visible = True
+            break
+
+    if not matches_visible:
+        return False
+
+    # Step 2: Check if node type matches any invisible pattern (exclusion)
+    for pattern in _COMPILED_INVISIBLE_PATTERNS:
+        if pattern.match(node_type):
+            return False
+
+    return True
 
 
 def _find_visible_targets(

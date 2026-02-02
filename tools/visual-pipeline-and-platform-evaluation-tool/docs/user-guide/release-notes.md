@@ -17,7 +17,7 @@
 
 4. **GitHub Copilot Tool Can Help**:
    - **For Style Adherence**:
-     - This template specifys the style guide to be followed, ask GitHub Copilot tool to check.
+     - This template specifies the style guide to be followed, ask GitHub Copilot tool to check.
      - GitHub Copilot tool can generate suggestions in line with the specified writing style.
    - **To Validate Content Completeness**:
      - The template includes in comments the user stories and acceptance criteria to be fulfilled by its content in

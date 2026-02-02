@@ -13,7 +13,8 @@ from pipeline_runner import PipelineRunner, PipelineRunResult
 from api.api_schemas import (
     PipelineDensitySpec,
     PipelinePerformanceSpec,
-    VideoOutputConfig,
+    ExecutionConfig,
+    OutputMode,
 )
 from managers.pipeline_manager import get_pipeline_manager
 
@@ -90,7 +91,7 @@ class Benchmark:
         self,
         pipeline_benchmark_specs: list[PipelineDensitySpec],
         fps_floor: float,
-        video_config: VideoOutputConfig,
+        execution_config: ExecutionConfig,
     ) -> BenchmarkResult:
         """
         Run the benchmark and return the best configuration.
@@ -98,10 +99,23 @@ class Benchmark:
         Args:
             pipeline_benchmark_specs: List of PipelineDensitySpec with stream_rate ratios.
             fps_floor: Minimum FPS threshold per stream.
+            execution_config: Execution configuration for output and runtime.
+                Note: output_mode=live_stream is not supported for density tests.
 
         Returns:
             BenchmarkResult with optimal stream configuration.
+
+        Raises:
+            ValueError: If output_mode is live_stream (not supported for density tests).
+            ValueError: If stream_rate ratios don't sum to 100.
+            RuntimeError: If pipeline execution fails.
         """
+        # Validate that live_stream is not used for density tests
+        if execution_config.output_mode == OutputMode.LIVE_STREAM:
+            raise ValueError(
+                "Density tests do not support output_mode='live_stream'. "
+                "Use output_mode='disabled' or output_mode='file' instead."
+            )
 
         n_streams = 1
         per_stream_fps = 0.0
@@ -136,8 +150,8 @@ class Benchmark:
             )
 
             # Build pipeline command
-            pipeline_command, video_output_paths = (
-                pipeline_manager.build_pipeline_command(run_specs, video_config)
+            pipeline_command, video_output_paths, _ = (
+                pipeline_manager.build_pipeline_command(run_specs, execution_config)
             )
 
             # Run the pipeline

@@ -151,9 +151,10 @@ const DensityTests = () => {
     setErrorMessage(null);
     try {
       const result = await runDensityTest({
-        densityTestSpec: {
-          video_output: {
-            enabled: videoOutputEnabled,
+        densityTestSpecInput: {
+          execution_config: {
+            output_mode: videoOutputEnabled ? "file" : "disabled",
+            max_runtime: 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({

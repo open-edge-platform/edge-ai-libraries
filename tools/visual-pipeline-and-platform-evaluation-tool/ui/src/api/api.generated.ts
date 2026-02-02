@@ -1,5 +1,6 @@
 import { apiSlice as api } from "./apiSlice";
 export const addTagTypes = [
+  "health",
   "convert",
   "devices",
   "jobs",
@@ -14,6 +15,14 @@ const injectedRtkApi = api
   })
   .injectEndpoints({
     endpoints: (build) => ({
+      getHealth: build.query<GetHealthApiResponse, GetHealthApiArg>({
+        query: () => ({ url: `/health` }),
+        providesTags: ["health"],
+      }),
+      getStatus: build.query<GetStatusApiResponse, GetStatusApiArg>({
+        query: () => ({ url: `/status` }),
+        providesTags: ["health"],
+      }),
       toGraph: build.mutation<ToGraphApiResponse, ToGraphApiArg>({
         query: (queryArg) => ({
           url: `/convert/to-graph`,
@@ -224,7 +233,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/performance`,
           method: "POST",
-          body: queryArg.performanceTestSpec,
+          body: queryArg.performanceTestSpecInput,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -235,7 +244,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/density`,
           method: "POST",
-          body: queryArg.densityTestSpec,
+          body: queryArg.densityTestSpecInput,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -247,6 +256,12 @@ const injectedRtkApi = api
     overrideExisting: false,
   });
 export { injectedRtkApi as api };
+export type GetHealthApiResponse =
+  /** status 200 Successful Response */ HealthResponse;
+export type GetHealthApiArg = void;
+export type GetStatusApiResponse =
+  /** status 200 Successful Response */ StatusResponse;
+export type GetStatusApiArg = void;
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
@@ -333,9 +348,9 @@ export type CreatePipelineApiResponse =
 export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
-export type ValidatePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline validation started */ ValidationJobResponse;
+export type ValidatePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -355,9 +370,9 @@ export type DeletePipelineApiResponse =
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
-export type OptimizePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
+export type OptimizePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
 export type OptimizePipelineApiArg = {
   pipelineId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;
@@ -365,16 +380,25 @@ export type OptimizePipelineApiArg = {
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
 export type RunPerformanceTestApiArg = {
-  performanceTestSpec: PerformanceTestSpec;
+  performanceTestSpecInput: PerformanceTestSpec2;
 };
 export type RunDensityTestApiResponse =
   /** status 202 Density test job created */ TestJobResponse;
 export type RunDensityTestApiArg = {
-  densityTestSpec: DensityTestSpec;
+  densityTestSpecInput: DensityTestSpec2;
 };
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
+export type HealthResponse = {
+  healthy: boolean;
+};
+export type AppStatus = "starting" | "initializing" | "ready" | "shutdown";
+export type StatusResponse = {
+  status: AppStatus;
+  message: string | null;
+  ready: boolean;
+};
 export type Node = {
   id: string;
   type: string;
@@ -444,16 +468,22 @@ export type PerformanceJobStatus = {
     [key: string]: string[];
   } | null;
   error_message: string | null;
+  live_stream_urls: {
+    [key: string]: string;
+  } | null;
 };
-export type VideoOutputConfig = {
-  /** Flag to enable or disable video output generation. */
-  enabled?: boolean;
+export type OutputMode = "disabled" | "file" | "live_stream";
+export type ExecutionConfig = {
+  /** Mode for pipeline output generation. */
+  output_mode?: OutputMode;
+  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
+  max_runtime?: number;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
   pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Video output configuration. */
-  video_output?: VideoOutputConfig;
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -484,8 +514,8 @@ export type DensityTestSpec = {
   fps_floor: number;
   /** List of pipelines with relative stream_rate percentages that must sum to 100. */
   pipeline_density_specs: PipelineDensitySpec[];
-  /** Video output configuration. */
-  video_output?: VideoOutputConfig;
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
 };
 export type DensityJobSummary = {
   id: string;
@@ -609,6 +639,20 @@ export type TestJobResponse = {
   /** Identifier of the created test job. */
   job_id: string;
 };
+export type PerformanceTestSpec2 = {
+  /** List of pipelines with number of streams for each. */
+  pipeline_performance_specs: PipelinePerformanceSpec[];
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
+};
+export type DensityTestSpec2 = {
+  /** Minimum acceptable FPS per stream. */
+  fps_floor: number;
+  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
+  pipeline_density_specs: PipelineDensitySpec[];
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
+};
 export type Video = {
   filename: string;
   width: number;
@@ -619,6 +663,10 @@ export type Video = {
   duration: number;
 };
 export const {
+  useGetHealthQuery,
+  useLazyGetHealthQuery,
+  useGetStatusQuery,
+  useLazyGetStatusQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,

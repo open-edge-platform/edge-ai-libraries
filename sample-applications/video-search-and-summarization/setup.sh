@@ -186,7 +186,11 @@ export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
 export PM_LLM_MAX_CONTEXT_LENGTH=${PM_LLM_MAX_CONTEXT_LENGTH:-90000}
 export PM_LLM_CONCURRENT=2
 export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
+PM_MULTI_FRAME_COUNT_DEFAULTED=false
+if [[ -z "${PM_MULTI_FRAME_COUNT+x}" ]]; then
+    export PM_MULTI_FRAME_COUNT=12
+    PM_MULTI_FRAME_COUNT_DEFAULTED=true
+fi
 export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
@@ -260,6 +264,8 @@ export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 
 # Application configuration
 export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
+export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
 export ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
 export ALLOW_METHODS=${ALLOW_METHODS:-*}
 export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
@@ -559,7 +565,33 @@ export_model_for_ovms() {
     source ovms_venv/bin/activate
     
     # Install requirements in the virtual environment
-    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt
+    local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt"
+    local tmp_requirements
+    tmp_requirements=$(mktemp)
+
+    if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
+        echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}"
+        deactivate
+        rm -rf ovms_venv
+        rm -f "$tmp_requirements"
+        return 1
+    fi
+
+    if grep -q '^transformers' "$tmp_requirements"; then
+        sed -i 's/^transformers.*/transformers==4.53.3/' "$tmp_requirements"
+    else
+        echo 'transformers==4.53.3' >> "$tmp_requirements"
+    fi
+
+    pip install --no-cache-dir -r "$tmp_requirements"
+    local pip_status=$?
+    rm -f "$tmp_requirements"
+    if [ $pip_status -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}"
+        deactivate
+        rm -rf ovms_venv
+        return 1
+    fi
     if [ "$GATED_MODEL" = true ]; then
         pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 # Install huggingface-hub for downloading gated models
         echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
@@ -747,7 +779,9 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export PM_VLM_CONCURRENT=1
         export PM_LLM_CONCURRENT=1
         export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-        export PM_MULTI_FRAME_COUNT=6
+        if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
+            export PM_MULTI_FRAME_COUNT=6
+        fi
         export WORKERS=1        
         echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
     else
