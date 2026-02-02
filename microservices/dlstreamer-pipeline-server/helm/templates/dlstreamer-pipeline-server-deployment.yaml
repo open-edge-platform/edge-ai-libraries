@@ -78,7 +78,7 @@ spec:
               - ALL
         {{- end }}
         terminationMessagePath: /tmp/termination-log
-        {{- if $.Values.gpu.enabled or $.Values.npu.enabled }}
+        {{- if or $.Values.gpu.enabled $.Values.npu.enabled }}
         resources:
           limits:
             {{- if $.Values.gpu.enabled }}
