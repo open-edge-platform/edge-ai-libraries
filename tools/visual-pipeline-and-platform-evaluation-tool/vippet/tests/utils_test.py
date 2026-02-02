@@ -4,63 +4,104 @@ import unittest
 import utils
 
 
-class TestUtils(unittest.TestCase):
-    def test_generate_unique_id_format(self):
-        # Test that the generated ID follows the expected format: prefix-hash
-        prefix = "test"
-        unique_id = utils.generate_unique_id(prefix)
+class TestGenerateUniqueId(unittest.TestCase):
+    """Tests for generate_unique_id function."""
 
-        # Should start with the prefix
-        self.assertTrue(unique_id.startswith(f"{prefix}-"))
+    def test_generate_unique_id_basic_slugify(self):
+        # Test that text is properly slugified
+        result = utils.generate_unique_id("My Test Pipeline", [])
+        self.assertEqual(result, "my-test-pipeline")
 
-        # Should have exactly 8 hexadecimal characters after the prefix and dash
-        pattern = rf"^{re.escape(prefix)}-[0-9a-f]{{8}}$"
-        self.assertIsNotNone(re.match(pattern, unique_id))
+    def test_generate_unique_id_with_prefix(self):
+        # Test that prefix is prepended correctly
+        result = utils.generate_unique_id("test", [], prefix="pipeline")
+        self.assertEqual(result, "pipeline-test")
 
-    def test_generate_unique_id_uniqueness(self):
-        # Test that multiple calls generate different IDs
-        prefix = "pipeline"
-        ids = [utils.generate_unique_id(prefix) for _ in range(100)]
+    def test_generate_unique_id_max_length(self):
+        # Test that slugify respects max_length of 32 characters
+        long_text = "This is a very long pipeline name that exceeds the limit"
+        result = utils.generate_unique_id(long_text, [])
+        # Slug part should be max 32 chars
+        self.assertLessEqual(len(result), 32)
 
-        # All IDs should be unique
-        self.assertEqual(len(ids), len(set(ids)))
+    def test_generate_unique_id_no_collision(self):
+        # Test that ID is returned as-is when no collision
+        result = utils.generate_unique_id("unique-name", ["other-name"])
+        self.assertEqual(result, "unique-name")
 
-    def test_generate_unique_id_different_prefixes(self):
-        # Test that different prefixes produce different IDs
-        id1 = utils.generate_unique_id("prefix1")
-        id2 = utils.generate_unique_id("prefix2")
+    def test_generate_unique_id_with_collision(self):
+        # Test that hash suffix is added on collision
+        existing = ["test"]
+        result = utils.generate_unique_id("test", existing)
 
-        self.assertTrue(id1.startswith("prefix1-"))
-        self.assertTrue(id2.startswith("prefix2-"))
-        self.assertNotEqual(id1, id2)
+        # Should start with "test-" and have 6 hex chars suffix
+        self.assertTrue(result.startswith("test-"))
+        self.assertNotEqual(result, "test")
 
-    def test_generate_unique_id_empty_prefix(self):
-        # Test with an empty prefix
-        unique_id = utils.generate_unique_id("")
+        # Pattern: test-<6 hex chars>
+        pattern = r"^test-[0-9a-f]{6}$"
+        self.assertIsNotNone(re.match(pattern, result))
 
-        # Should start with a dash and have 8 hex characters
-        pattern = r"^-[0-9a-f]{8}$"
-        self.assertIsNotNone(re.match(pattern, unique_id))
+    def test_generate_unique_id_multiple_collisions(self):
+        # Test that function handles multiple collisions
+        # Create a list with many potential collisions
+        existing = ["test", "test-000000", "test-111111"]
+        result = utils.generate_unique_id("test", existing)
 
-    def test_generate_unique_id_special_chars_prefix(self):
-        # Test with special characters in prefix
-        prefix = "test_prefix-123"
-        unique_id = utils.generate_unique_id(prefix)
+        # Result should not be in existing list
+        self.assertNotIn(result, existing)
 
-        self.assertTrue(unique_id.startswith(f"{prefix}-"))
-        pattern = rf"^{re.escape(prefix)}-[0-9a-f]{{8}}$"
-        self.assertIsNotNone(re.match(pattern, unique_id))
+        # Should still match the expected pattern
+        self.assertTrue(result.startswith("test-"))
 
-    def test_generate_unique_id_rapid_succession(self):
-        # Test that IDs generated in rapid succession are still unique
-        prefix = "rapid"
-        ids = []
+    def test_generate_unique_id_special_chars(self):
+        # Test that special characters are properly handled by slugify
+        result = utils.generate_unique_id("Test@Pipeline#123!", [])
+        # Slugify converts special characters to dashes and cleans up
+        self.assertEqual(result, "test-pipeline-123")
+
+    def test_generate_unique_id_unicode(self):
+        # Test with unicode characters
+        result = utils.generate_unique_id("Тест Pipeline", [])
+        # Slugify handles unicode by transliterating or removing
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 0)
+
+    def test_generate_unique_id_empty_text(self):
+        # Test with empty text
+        result = utils.generate_unique_id("", [])
+        # Empty slug should still work
+        self.assertEqual(result, "")
+
+    def test_generate_unique_id_whitespace(self):
+        # Test that whitespace is converted to dashes
+        result = utils.generate_unique_id("my test pipeline", [])
+        self.assertEqual(result, "my-test-pipeline")
+
+    def test_generate_unique_id_prefix_with_collision(self):
+        # Test prefix with collision
+        existing = ["pipeline-test"]
+        result = utils.generate_unique_id("test", existing, prefix="pipeline")
+
+        # Should have hash suffix due to collision
+        self.assertTrue(result.startswith("pipeline-test-"))
+        pattern = r"^pipeline-test-[0-9a-f]{6}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_id_collision_produces_unique(self):
+        # Test that collision resolution produces unique results
+        existing = ["test"]
+        results = set()
         for _ in range(10):
-            ids.append(utils.generate_unique_id(prefix))
-            # No sleep to test rapid generation
+            result = utils.generate_unique_id("test", existing)
+            results.add(result)
 
-        # All should be unique despite being generated rapidly
-        self.assertEqual(len(ids), len(set(ids)))
+        # All results should be unique (not equal to "test")
+        self.assertNotIn("test", results)
+
+
+class TestIsYolov10Model(unittest.TestCase):
+    """Tests for is_yolov10_model function."""
 
     def test_yolov10_model(self):
         # Test with a valid YOLO v10 model path
@@ -81,6 +122,10 @@ class TestUtils(unittest.TestCase):
     def test_no_yolo_in_path(self):
         # Test with a path that does not contain "yolov10"
         self.assertFalse(utils.is_yolov10_model("/path/to/yolo_model.xml"))
+
+
+class TestMakeTeeNamesUnique(unittest.TestCase):
+    """Tests for make_tee_names_unique function."""
 
     def test_make_tee_names_unique_single_tee(self):
         # Test with single tee element
@@ -130,6 +175,10 @@ class TestUtils(unittest.TestCase):
         self.assertIn("t1205", result1)
         self.assertIn("t3405", result2)
         self.assertNotEqual(result1, result2)
+
+
+class TestGenerateUniqueFilename(unittest.TestCase):
+    """Tests for generate_unique_filename function."""
 
     def test_generate_unique_filename_basic(self):
         # Test basic filename generation with extension
@@ -231,6 +280,212 @@ class TestUtils(unittest.TestCase):
 
         # All characters should be valid hex
         self.assertTrue(all(c in "0123456789abcdef" for c in hex_suffix))
+
+
+class TestGeneratePipelineGraphId(unittest.TestCase):
+    """Tests for generate_pipeline_graph_id function.
+
+    This function generates synthetic pipeline IDs from inline graph hashes.
+    Used when pipelines are provided inline instead of referencing stored variants.
+    """
+
+    def test_generate_pipeline_graph_id_format(self):
+        # Test that the generated ID follows the expected format: __graph-<16-char-hash>
+        pipeline_graph = {
+            "nodes": [{"id": "0", "type": "filesrc", "data": {}}],
+            "edges": [],
+        }
+        result = utils.generate_pipeline_graph_id(pipeline_graph)
+
+        # Should start with __graph- prefix
+        self.assertTrue(result.startswith("__graph-"))
+
+        # Should match pattern: __graph-<16 hex chars>
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_hash_length(self):
+        # Test that hash part is exactly 16 characters
+        pipeline_graph = {
+            "nodes": [{"id": "0", "type": "videotestsrc", "data": {}}],
+            "edges": [],
+        }
+        result = utils.generate_pipeline_graph_id(pipeline_graph)
+
+        # Extract hash part after "__graph-"
+        hash_part = result[len("__graph-") :]
+        self.assertEqual(len(hash_part), 16)
+
+        # All characters should be valid hex
+        self.assertTrue(all(c in "0123456789abcdef" for c in hash_part))
+
+    def test_generate_pipeline_graph_id_consistency(self):
+        # Test that same input produces same output (deterministic)
+        pipeline_graph = {
+            "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "/video.mp4"}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+
+        # Generate ID multiple times
+        result1 = utils.generate_pipeline_graph_id(pipeline_graph)
+        result2 = utils.generate_pipeline_graph_id(pipeline_graph)
+        result3 = utils.generate_pipeline_graph_id(pipeline_graph)
+
+        # All should be identical
+        self.assertEqual(result1, result2)
+        self.assertEqual(result2, result3)
+
+    def test_generate_pipeline_graph_id_different_inputs(self):
+        # Test that different inputs produce different outputs
+        graph1 = {
+            "nodes": [{"id": "0", "type": "filesrc", "data": {}}],
+            "edges": [],
+        }
+        graph2 = {
+            "nodes": [{"id": "0", "type": "videotestsrc", "data": {}}],
+            "edges": [],
+        }
+        graph3 = {
+            "nodes": [
+                {"id": "0", "type": "filesrc", "data": {}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+
+        id1 = utils.generate_pipeline_graph_id(graph1)
+        id2 = utils.generate_pipeline_graph_id(graph2)
+        id3 = utils.generate_pipeline_graph_id(graph3)
+
+        # All IDs should be different
+        self.assertNotEqual(id1, id2)
+        self.assertNotEqual(id2, id3)
+        self.assertNotEqual(id1, id3)
+
+    def test_generate_pipeline_graph_id_empty_graph(self):
+        # Test with empty graph (edge case)
+        empty_graph = {"nodes": [], "edges": []}
+        result = utils.generate_pipeline_graph_id(empty_graph)
+
+        # Should still return valid format
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_empty_dict(self):
+        # Test with completely empty dict (edge case)
+        empty_dict: dict = {}
+        result = utils.generate_pipeline_graph_id(empty_dict)
+
+        # Should still return valid format
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_complex_graph(self):
+        # Test with complex graph structure similar to real pipelines
+        complex_graph = {
+            "nodes": [
+                {
+                    "id": "0",
+                    "type": "filesrc",
+                    "data": {"location": "/videos/input/test.mp4"},
+                },
+                {"id": "1", "type": "decodebin", "data": {}},
+                {"id": "2", "type": "videoconvert", "data": {}},
+                {
+                    "id": "3",
+                    "type": "gvadetect",
+                    "data": {
+                        "model": "/models/yolo.xml",
+                        "device": "CPU",
+                        "threshold": "0.5",
+                    },
+                },
+                {"id": "4", "type": "gvawatermark", "data": {}},
+                {"id": "5", "type": "fakesink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+                {"id": "2", "source": "2", "target": "3"},
+                {"id": "3", "source": "3", "target": "4"},
+                {"id": "4", "source": "4", "target": "5"},
+            ],
+        }
+
+        result = utils.generate_pipeline_graph_id(complex_graph)
+
+        # Should return valid format
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_key_order_independence(self):
+        # Test that key order in dict does not affect the hash (sorted keys)
+        graph1 = {
+            "nodes": [{"id": "0", "type": "src", "data": {}}],
+            "edges": [],
+        }
+        graph2 = {
+            "edges": [],
+            "nodes": [{"data": {}, "id": "0", "type": "src"}],
+        }
+
+        id1 = utils.generate_pipeline_graph_id(graph1)
+        id2 = utils.generate_pipeline_graph_id(graph2)
+
+        # Both should produce the same ID because JSON is sorted
+        self.assertEqual(id1, id2)
+
+    def test_generate_pipeline_graph_id_with_special_chars_in_data(self):
+        # Test with special characters in node data
+        graph = {
+            "nodes": [
+                {
+                    "id": "0",
+                    "type": "filesrc",
+                    "data": {"location": "/path/with spaces/file (1).mp4"},
+                }
+            ],
+            "edges": [],
+        }
+
+        result = utils.generate_pipeline_graph_id(graph)
+
+        # Should return valid format
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_with_unicode(self):
+        # Test with unicode characters in data
+        graph = {
+            "nodes": [{"id": "0", "type": "src", "data": {"name": "тест"}}],
+            "edges": [],
+        }
+
+        result = utils.generate_pipeline_graph_id(graph)
+
+        # Should return valid format
+        pattern = r"^__graph-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_graph_id_small_data_change(self):
+        # Test that small data changes produce different IDs
+        graph1 = {
+            "nodes": [{"id": "0", "type": "gvadetect", "data": {"threshold": "0.5"}}],
+            "edges": [],
+        }
+        graph2 = {
+            "nodes": [{"id": "0", "type": "gvadetect", "data": {"threshold": "0.6"}}],
+            "edges": [],
+        }
+
+        id1 = utils.generate_pipeline_graph_id(graph1)
+        id2 = utils.generate_pipeline_graph_id(graph2)
+
+        # Different threshold values should produce different IDs
+        self.assertNotEqual(id1, id2)
 
 
 if __name__ == "__main__":

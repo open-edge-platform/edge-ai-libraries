@@ -13,9 +13,13 @@ from pipeline_runner import PipelineRunner, PipelineRunResult
 from api.api_schemas import (
     PipelineDensitySpec,
     PipelinePerformanceSpec,
+    PipelineStreamSpec,
     ExecutionConfig,
     OutputMode,
+    VariantReference,
+    GraphInline,
 )
+from utils import generate_pipeline_graph_id
 from managers.pipeline_manager import get_pipeline_manager
 
 pipeline_manager = get_pipeline_manager()
@@ -23,8 +27,22 @@ pipeline_manager = get_pipeline_manager()
 
 @dataclass
 class BenchmarkResult:
+    """
+    Result of a density benchmark run.
+
+    Attributes:
+        n_streams: Total number of streams across all pipelines.
+        streams_per_pipeline: List of pipeline IDs with their stream counts.
+            Pipeline IDs follow the format:
+            * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+            * For inline graph: "__graph-{16-char-hash}"
+        per_stream_fps: Average FPS per stream achieved.
+        video_output_paths: Mapping from pipeline ID to list of output file paths.
+            Keys use the same ID format as streams_per_pipeline entries.
+    """
+
     n_streams: int
-    streams_per_pipeline: List[PipelinePerformanceSpec]
+    streams_per_pipeline: List[PipelineStreamSpec]
     per_stream_fps: float
     video_output_paths: dict[str, List[str]]
 
@@ -98,12 +116,16 @@ class Benchmark:
 
         Args:
             pipeline_benchmark_specs: List of PipelineDensitySpec with stream_rate ratios.
+                Each spec.pipeline must be either VariantReference or GraphInline.
             fps_floor: Minimum FPS threshold per stream.
             execution_config: Execution configuration for output and runtime.
                 Note: output_mode=live_stream is not supported for density tests.
 
         Returns:
-            BenchmarkResult with optimal stream configuration.
+            BenchmarkResult with optimal stream configuration. The streams_per_pipeline
+            field contains pipeline IDs in the format:
+            * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+            * For inline graph: "__graph-{16-char-hash}"
 
         Raises:
             ValueError: If output_mode is live_stream (not supported for density tests).
@@ -123,11 +145,14 @@ class Benchmark:
         lower_bound = 1
         # We'll set this once we fall below the fps_floor
         higher_bound = -1
-        best_config: tuple[int, list[PipelinePerformanceSpec], float] = (
+        best_config: tuple[
+            int, list[PipelineStreamSpec], float, dict[str, List[str]]
+        ] = (
             0,
             [],
             0.0,
-        )  # (total_streams, run_specs, fps)
+            {},
+        )  # (total_streams, streams_per_pipeline, fps, video_output_paths)
 
         while True:
             # Calculate streams per pipeline based on ratios
@@ -136,8 +161,12 @@ class Benchmark:
             )
 
             # Build run specs with calculated stream counts
+            # Copy pipeline source from density spec to performance spec
             run_specs = [
-                PipelinePerformanceSpec(id=spec.id, streams=streams)
+                PipelinePerformanceSpec(
+                    pipeline=spec.pipeline,  # Copy the discriminated union
+                    streams=streams,
+                )
                 for spec, streams in zip(
                     pipeline_benchmark_specs, streams_per_pipeline_counts
                 )
@@ -183,13 +212,33 @@ class Benchmark:
                 higher_bound,
             )
 
+            # Build streams_per_pipeline with proper pipeline IDs
+            streams_per_pipeline_with_ids = []
+            for spec, stream_count in zip(
+                pipeline_benchmark_specs, streams_per_pipeline_counts
+            ):
+                match spec.pipeline:
+                    case VariantReference(pipeline_id=pid, variant_id=vid):
+                        # Use variant path format for ID
+                        pipeline_id = f"/pipelines/{pid}/variants/{vid}"
+                    case GraphInline(pipeline_graph=graph):
+                        # Generate synthetic ID from graph hash
+                        pipeline_id = generate_pipeline_graph_id(graph.model_dump())
+                    case _:
+                        raise ValueError("Invalid pipeline source type")
+
+                streams_per_pipeline_with_ids.append(
+                    PipelineStreamSpec(id=pipeline_id, streams=stream_count)
+                )
+
             # increase number of streams exponentially until we drop below fps_floor
             if exponential:
                 if per_stream_fps >= fps_floor:
                     best_config = (
                         n_streams,
-                        run_specs,
+                        streams_per_pipeline_with_ids,
                         per_stream_fps,
+                        video_output_paths,
                     )
                     n_streams *= 2
                 else:
@@ -202,8 +251,9 @@ class Benchmark:
                 if per_stream_fps >= fps_floor:
                     best_config = (
                         n_streams,
-                        run_specs,
+                        streams_per_pipeline_with_ids,
                         per_stream_fps,
+                        video_output_paths,
                     )
                     lower_bound = n_streams + 1
                 else:
@@ -219,31 +269,33 @@ class Benchmark:
 
         if best_config[0] > 0:
             # Use the best configuration found
-            total_streams = best_config[0]
-            best_run_specs = best_config[1]
-
-            # Build streams_per_pipeline dict from best_run_specs
-            streams_per_pipeline = [
-                PipelinePerformanceSpec(id=spec.id, streams=spec.streams)
-                for spec in best_run_specs
-            ]
-
             bm_result = BenchmarkResult(
-                n_streams=total_streams,
-                streams_per_pipeline=streams_per_pipeline,
+                n_streams=best_config[0],
+                streams_per_pipeline=best_config[1],
                 per_stream_fps=best_config[2],
-                video_output_paths=video_output_paths,
+                video_output_paths=best_config[3],
             )
         else:
-            # Fallback to last attempt - build streams_per_pipeline from last run_specs
-            streams_per_pipeline = [
-                PipelinePerformanceSpec(id=spec.id, streams=spec.streams)
-                for spec in run_specs
-            ]
+            # Fallback to last attempt - build streams_per_pipeline from last run
+            streams_per_pipeline_with_ids = []
+            for spec, stream_count in zip(
+                pipeline_benchmark_specs, streams_per_pipeline_counts
+            ):
+                match spec.pipeline:
+                    case VariantReference(pipeline_id=pid, variant_id=vid):
+                        pipeline_id = f"/pipelines/{pid}/variants/{vid}"
+                    case GraphInline(pipeline_graph=graph):
+                        pipeline_id = generate_pipeline_graph_id(graph.model_dump())
+                    case _:
+                        raise ValueError("Invalid pipeline source type")
+
+                streams_per_pipeline_with_ids.append(
+                    PipelineStreamSpec(id=pipeline_id, streams=stream_count)
+                )
 
             bm_result = BenchmarkResult(
                 n_streams=n_streams,
-                streams_per_pipeline=streams_per_pipeline,
+                streams_per_pipeline=streams_per_pipeline_with_ids,
                 per_stream_fps=per_stream_fps,
                 video_output_paths=video_output_paths,
             )

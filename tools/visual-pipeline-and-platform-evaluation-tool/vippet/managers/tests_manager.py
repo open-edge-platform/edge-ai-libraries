@@ -14,10 +14,13 @@ from api.api_schemas import (
     PerformanceJobStatus,
     PerformanceJobSummary,
     PerformanceTestSpec,
-    PipelinePerformanceSpec,
+    PipelineStreamSpec,
     TestJobState,
     TestsJobStatus,
+    VariantReference,
+    GraphInline,
 )
+from utils import generate_pipeline_graph_id
 from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
 from managers.pipeline_manager import get_pipeline_manager
@@ -54,6 +57,10 @@ class PerformanceJob:
 
     This mirrors what is exposed through :class:`PerformanceJobStatus`
     and :class:`PerformanceJobSummary`, with a few runtime-only fields.
+
+    The streams_per_pipeline field contains pipeline IDs in the format:
+    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+    * For inline graph: "__graph-{16-char-hash}"
     """
 
     id: str
@@ -64,7 +71,7 @@ class PerformanceJob:
     total_fps: float | None = None
     per_stream_fps: float | None = None
     total_streams: int | None = None
-    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    streams_per_pipeline: list[PipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
     error_message: str | None = None
@@ -78,6 +85,10 @@ class DensityJob:
     This mirrors what is exposed through :class:`DensityJobStatus`
     and :class:`DensityJobSummary`, with a few runtime-only fields.
 
+    The streams_per_pipeline field contains pipeline IDs in the format:
+    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+    * For inline graph: "__graph-{16-char-hash}"
+
     Note: live_stream_urls is not included because density tests do not support
     live-streaming output mode.
     """
@@ -90,7 +101,7 @@ class DensityJob:
     total_fps: float | None = None
     per_stream_fps: float | None = None
     total_streams: int | None = None
-    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    streams_per_pipeline: list[PipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     error_message: str | None = None
 
@@ -257,14 +268,22 @@ class TestsManager:
                 )
             )
 
-            # Build streams distribution per pipeline
-            streams_per_pipeline = [
-                PipelinePerformanceSpec(
-                    id=spec.id,
-                    streams=spec.streams,
+            # Build streams_per_pipeline with proper pipeline IDs
+            streams_per_pipeline = []
+            for spec in performance_request.pipeline_performance_specs:
+                match spec.pipeline:
+                    case VariantReference(pipeline_id=pid, variant_id=vid):
+                        # Use variant path format for ID
+                        pipeline_id = f"/pipelines/{pid}/variants/{vid}"
+                    case GraphInline(pipeline_graph=graph):
+                        # Generate synthetic ID from graph hash
+                        pipeline_id = generate_pipeline_graph_id(graph.model_dump())
+                    case _:
+                        raise ValueError("Invalid pipeline source type")
+
+                streams_per_pipeline.append(
+                    PipelineStreamSpec(id=pipeline_id, streams=spec.streams)
                 )
-                for spec in performance_request.pipeline_performance_specs
-            ]
 
             # Update job with live_stream_urls and streams_per_pipeline immediately
             with self.lock:

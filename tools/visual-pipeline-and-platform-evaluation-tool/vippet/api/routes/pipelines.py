@@ -29,7 +29,7 @@ logger = logging.getLogger("api.routes.pipelines")
             "model": schemas.PipelineCreationResponse,
         },
         400: {
-            "description": "Invalid pipeline definition or version conflict",
+            "description": "Invalid pipeline definition",
             "model": schemas.MessageResponse,
         },
         500: {"description": "Internal server error", "model": schemas.MessageResponse},
@@ -37,56 +37,58 @@ logger = logging.getLogger("api.routes.pipelines")
 )
 def create_pipeline(body: schemas.PipelineDefinition):
     """
-    Create a new user-defined pipeline from a GStreamer pipeline string.
+    Create a new user-defined pipeline.
+
+    Operation:
+        * Enforce USER_CREATED source
+        * Validate that no variant has read_only=true
+        * Delegate to PipelineManager.add_pipeline()
+        * Return generated pipeline ID
 
     Request body:
         body: PipelineDefinition
             * name – non-empty pipeline name.
-            * version – positive integer. Must be exactly 1 for a new name,
-              or "last_version + 1" for an existing name.
             * description – non-empty human-readable text describing what the pipeline does.
             * source – ignored and forced to USER_CREATED by this endpoint.
-            * type – pipeline type (currently GStreamer is used).
-            * pipeline_description – complete GStreamer pipeline string with elements
-              separated by '!' symbols (e.g., "filesrc location=input.mp4 ! decodebin ! fakesink").
-            * parameters – optional default parameters for this pipeline.
+            * tags – list of tags for categorizing the pipeline.
+            * variants – list of pipeline variants with their graphs.
+                Note: read_only field in variants will be set to false and cannot be changed.
 
     Returns:
         201 Created:
             PipelineCreationResponse with generated pipeline id.
         400 Bad Request:
-            MessageResponse when:
-            * versioning rules are violated (e.g. version not next in sequence),
-            * pipeline name or description is invalid at manager level,
-            * GStreamer pipeline string cannot be parsed.
+            MessageResponse when pipeline definition is invalid or when
+            attempting to set read_only=true.
         500 Internal Server Error:
-            MessageResponse when an unexpected error occurs while creating
-            the pipeline.
+            MessageResponse when an unexpected error occurs.
 
     Success conditions:
-        * PipelineDefinition is structurally valid.
-        * PipelineManager successfully adds the pipeline and converts the
-          GStreamer pipeline string to a graph.
+        * PipelineDefinition is structurally valid
+        * No variant has read_only=true
+        * PipelineManager successfully creates pipeline
 
-    Failure conditions (high level):
-        * Version conflicts or invalid name → 400.
-        * Invalid GStreamer pipeline string → 400.
-        * Any other unhandled error in PipelineManager / Graph → 500.
+    Failure conditions:
+        * Any variant has read_only=true → 400
+        * Invalid pipeline definition at manager level → 400
+        * Any other unhandled error → 500
 
     Request example:
         .. code-block:: json
 
             {
               "name": "vehicle-detection",
-              "version": 1,
               "description": "Simple vehicle detection pipeline",
-              "type": "GStreamer",
-              "pipeline_description": "filesrc location=input.mp4 ! decodebin ! videoconvert ! fakesink",
-              "parameters": {
-                "default": {
-                  "max-runtime": 60
+              "tags": ["detection", "vehicle"],
+              "variants": [
+                {
+                  "id": "variant-1",
+                  "name": "CPU",
+                  "read_only": false,
+                  "pipeline_graph": {...},
+                  "pipeline_graph_simple": {...}
                 }
-              }
+              ]
             }
 
     Successful response example (201):
@@ -100,12 +102,26 @@ def create_pipeline(body: schemas.PipelineDefinition):
         .. code-block:: json
 
             {
-              "message": "Invalid version '2' for pipeline 'vehicle-detection'. Expected version '1' for a new pipeline."
+              "message": "Cannot set read_only=true for user-created pipeline variants. This field is reserved for PREDEFINED pipelines only."
             }
     """
     try:
         # Enforce USER_CREATED source for pipelines created via API
         body.source = schemas.PipelineSource.USER_CREATED
+
+        # Reject any attempt to set read_only=true for user-created pipelines
+        for variant in body.variants:
+            if variant.read_only:
+                return JSONResponse(
+                    content=schemas.MessageResponse(
+                        message="Cannot set read_only=true for user-created pipeline variants. "
+                        "This field is reserved for PREDEFINED pipelines only."
+                    ).model_dump(),
+                    status_code=400,
+                )
+            # Ensure read_only is false
+            variant.read_only = False
+
         pipeline = pipeline_manager.add_pipeline(body)
 
         return JSONResponse(
@@ -156,7 +172,6 @@ def validate_pipeline(body: schemas.PipelineValidation):
 
     Request body:
         body: PipelineValidation
-            * type – pipeline type (currently GStreamer).
             * pipeline_graph – nodes and edges representation of the pipeline.
             * parameters – optional dict, e.g. ``{"max-runtime": 10}``.
               Note: max-runtime must be greater than 0 for validation mode.
@@ -184,7 +199,6 @@ def validate_pipeline(body: schemas.PipelineValidation):
         .. code-block:: json
 
             {
-              "type": "GStreamer",
               "pipeline_graph": {
                 "nodes": [
                   {"id": "0", "type": "filesrc", "data": {"location": "/videos/input.mp4"}},
@@ -254,10 +268,10 @@ def get_pipelines():
 
     Returns:
         200 OK:
-            JSON array of Pipeline objects.
+            JSON array of Pipeline objects with all variants.
 
     Success conditions:
-        * PipelineManager is initialized.
+        * PipelineManager is initialized and has pipelines loaded.
 
     Failure conditions:
         * Unexpected errors will be propagated as 500 by FastAPI.
@@ -269,19 +283,18 @@ def get_pipelines():
               {
                 "id": "pipeline-a3f5d9e1",
                 "name": "vehicle-detection",
-                "version": 1,
                 "description": "Simple vehicle detection pipeline",
                 "source": "PREDEFINED",
-                "type": "GStreamer",
-                "pipeline_graph": {
-                  "nodes": [...],
-                  "edges": [...]
-                },
-                "pipeline_graph_simple": {
-                  "nodes": [...],
-                  "edges": [...]
-                },
-                "parameters": null
+                "tags": ["detection"],
+                "variants": [
+                  {
+                    "id": "variant-1",
+                    "name": "CPU",
+                    "read_only": true,
+                    "pipeline_graph": {...},
+                    "pipeline_graph_simple": {...}
+                  }
+                ]
               }
             ]
     """
@@ -302,8 +315,8 @@ def get_pipeline(pipeline_id: str):
     Get details of a single pipeline by its id.
 
     Operation:
-        Retrieve the full pipeline definition including both advanced and simple
-        graph views, metadata, and parameters.
+        Retrieve the full pipeline definition including all variants,
+        metadata, and tags.
 
     Path parameters:
         pipeline_id: Unique identifier of the pipeline (for example
@@ -311,9 +324,8 @@ def get_pipeline(pipeline_id: str):
 
     Returns:
         200 OK:
-            Pipeline object with full graph (both views) and metadata:
-            - pipeline_graph: Advanced view
-            - pipeline_graph_simple: Simple view
+            Pipeline object with all variants:
+            - Each variant contains both pipeline_graph and pipeline_graph_simple
         404 Not Found:
             MessageResponse if pipeline with given id does not exist.
         500 Internal Server Error:
@@ -321,7 +333,7 @@ def get_pipeline(pipeline_id: str):
 
     Success conditions:
         * Pipeline with the given id is present in PipelineManager.
-        * Both graph views are available.
+        * All variants are available.
 
     Failure conditions:
         * Unknown id → 404.
@@ -333,23 +345,18 @@ def get_pipeline(pipeline_id: str):
             {
               "id": "pipeline-a3f5d9e1",
               "name": "vehicle-detection",
-              "version": 1,
               "description": "Simple vehicle detection pipeline",
               "source": "USER_CREATED",
-              "type": "GStreamer",
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              },
-              "pipeline_graph_simple": {
-                "nodes": [...],
-                "edges": [...]
-              },
-              "parameters": {
-                "default": {
-                  "max-runtime": 60
+              "tags": ["detection", "vehicle"],
+              "variants": [
+                {
+                  "id": "variant-1",
+                  "name": "CPU",
+                  "read_only": false,
+                  "pipeline_graph": {...},
+                  "pipeline_graph_simple": {...}
                 }
-              }
+              ]
             }
 
     Error response example (404):
@@ -393,9 +400,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     """
     Partially update selected fields of an existing pipeline.
 
-    Important: Only ONE of pipeline_graph or pipeline_graph_simple should be provided
-    when updating graph structure. If both are provided, the request will fail with
-    400 error.
+    Operation:
+        * Validate that at least one field is provided
+        * Validate field values if provided
+        * Delegate to PipelineManager.update_pipeline()
 
     Path parameters:
         pipeline_id: ID of the pipeline to update.
@@ -404,28 +412,16 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         body: PipelineUpdate
             Any combination of:
             * name – new pipeline name (non-empty string).
-            * description – new human-readable text describing what the pipeline does (non-empty string).
-            * pipeline_graph – new advanced graph. When provided, simple view is
-              auto-generated from it. Graph must contain at least one node and one edge.
-            * pipeline_graph_simple – modified simple graph with property changes only.
-              When provided, changes are merged into advanced view using
-              apply_simple_view_changes(), and both views are regenerated.
-              Structural changes (add/remove nodes or edges) are not allowed and will
-              result in 400 error.
-            * parameters – new pipeline parameters.
+            * description – new human-readable text (non-empty string).
+            * tags – list of tags (can be empty).
 
     Returns:
         200 OK:
-            Updated Pipeline object with both graph views.
+            Updated Pipeline object with all fields.
         400 Bad Request:
             MessageResponse when:
             * none of the updatable fields is provided,
-            * both pipeline_graph and pipeline_graph_simple are provided,
-            * provided name or description is empty,
-            * provided pipeline_graph has no nodes/edges or cannot be
-              converted to a valid GStreamer pipeline string,
-            * provided pipeline_graph_simple contains structural changes
-              (add/remove nodes or edges, modify edge endpoints).
+            * provided name or description is empty.
         404 Not Found:
             MessageResponse when pipeline id does not exist.
         500 Internal Server Error:
@@ -434,66 +430,43 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     Success conditions:
         * Pipeline with the given id exists.
         * At least one valid field is provided and passes validation.
-        * For pipeline_graph, Graph.to_pipeline_description() succeeds and produces
-          a valid GStreamer pipeline string.
-        * For pipeline_graph_simple, Graph.apply_simple_view_changes() succeeds.
 
     Failure conditions:
-        * Validation failures in this handler or PipelineManager.update_pipeline.
-        * Both graph fields provided → 400.
-        * Structural changes in simple view → 400.
-        * Unknown id → 404.
-        * Any other exception → 500.
+        * No fields provided → 400
+        * Empty name or description → 400
+        * Unknown id → 404
+        * Any other exception → 500
 
-    Request example (updating advanced view):
+    Request example:
         .. code-block:: json
 
             {
               "name": "vehicle-detection-v2",
               "description": "Updated pipeline with better preprocessing",
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              }
+              "tags": ["updated", "v2"]
             }
 
-    Request example (updating simple view):
+    Successful response example (200):
         .. code-block:: json
 
             {
-              "description": "Updated inference parameters",
-              "pipeline_graph_simple": {
-                "nodes": [
-                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
-                  {"id": "2", "type": "gvadetect", "data": {"model": "yolo", "device": "CPU"}},
-                  {"id": "3", "type": "fakesink", "data": {}}
-                ],
-                "edges": [...]
-              }
+              "id": "pipeline-a3f5d9e1",
+              "name": "vehicle-detection-v2",
+              "description": "Updated pipeline with better preprocessing",
+              "source": "USER_CREATED",
+              "tags": ["updated", "v2"],
+              "variants": [...]
             }
 
-    Error response example (400, both graphs provided):
+    Error response example (400):
         .. code-block:: json
 
             {
-              "message": "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
-            }
-
-    Error response example (400, structural change in simple view):
-        .. code-block:: json
-
-            {
-              "message": "Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes."
+              "message": "At least one of 'name', 'description', or 'tags' must be provided."
             }
     """
-    if (
-        body.name is None
-        and body.description is None
-        and body.parameters is None
-        and body.pipeline_graph is None
-        and body.pipeline_graph_simple is None
-    ):
-        message = "At least one of 'name', 'description', 'parameters', 'pipeline_graph' or 'pipeline_graph_simple' must be provided."
+    if body.name is None and body.description is None and body.tags is None:
+        message = "At least one of 'name', 'description', or 'tags' must be provided."
         logger.error(
             "Invalid update request for pipeline %s: %s",
             pipeline_id,
@@ -504,20 +477,6 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             status_code=400,
         )
 
-    # Validate that only one graph type is provided
-    if body.pipeline_graph is not None and body.pipeline_graph_simple is not None:
-        message = "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
-        logger.error(
-            "Invalid update request for pipeline %s: %s",
-            pipeline_id,
-            message,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=message).model_dump(),
-            status_code=400,
-        )
-
-    # Additional lightweight validation to avoid accepting empty values.
     if body.name is not None and body.name.strip() == "":
         message = "Field 'name' must not be empty."
         logger.error(
@@ -542,42 +501,12 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             status_code=400,
         )
 
-    if body.pipeline_graph is not None:
-        if not body.pipeline_graph.nodes or not body.pipeline_graph.edges:
-            message = (
-                "Field 'pipeline_graph' must contain at least one node and one edge."
-            )
-            logger.error(
-                "Invalid update request for pipeline %s: %s",
-                pipeline_id,
-                message,
-            )
-            return JSONResponse(
-                content=schemas.MessageResponse(message=message).model_dump(),
-                status_code=400,
-            )
-
-    if body.pipeline_graph_simple is not None:
-        if not body.pipeline_graph_simple.nodes or not body.pipeline_graph_simple.edges:
-            message = "Field 'pipeline_graph_simple' must contain at least one node and one edge."
-            logger.error(
-                "Invalid update request for pipeline %s: %s",
-                pipeline_id,
-                message,
-            )
-            return JSONResponse(
-                content=schemas.MessageResponse(message=message).model_dump(),
-                status_code=400,
-            )
-
     try:
         updated_pipeline = pipeline_manager.update_pipeline(
             pipeline_id=pipeline_id,
             name=body.name,
             description=body.description,
-            pipeline_graph=body.pipeline_graph,
-            pipeline_graph_simple=body.pipeline_graph_simple,
-            parameters=body.parameters,
+            tags=body.tags,
         )
         return updated_pipeline
     except ValueError as e:
@@ -595,7 +524,6 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
                 status_code=404,
             )
         else:
-            # Validation error (e.g. from apply_simple_view_changes)
             logger.warning(
                 "Failed to update pipeline %s due to invalid input: %s",
                 pipeline_id,
@@ -618,23 +546,34 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
 
 
 @router.post(
-    "/{pipeline_id}/optimize",
-    operation_id="optimize_pipeline",
+    "/{pipeline_id}/variants/{variant_id}/optimize",
+    operation_id="optimize_variant",
     responses={
         202: {
-            "description": "Pipeline optimization started",
+            "description": "Variant optimization started",
             "model": schemas.OptimizationJobResponse,
         },
-        404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
         500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
-def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
+def optimize_variant(
+    pipeline_id: str, variant_id: str, body: schemas.PipelineRequestOptimize
+):
     """
-    Start an asynchronous optimization job for a given pipeline.
+    Start an asynchronous optimization job for a specific pipeline variant.
+
+    Operation:
+        * Validate that pipeline and variant exist
+        * Delegate to OptimizationManager.run_optimization() with variant
+        * Return generated job ID
 
     Path parameters:
-        pipeline_id: ID of the pipeline to optimize.
+        pipeline_id: ID of the pipeline containing the variant.
+        variant_id: ID of the variant to optimize.
 
     Request body:
         body: PipelineRequestOptimize
@@ -653,18 +592,19 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
         202 Accepted:
             OptimizationJobResponse with job_id of the created optimization job.
         404 Not Found:
-            MessageResponse if pipeline with given id does not exist.
+            MessageResponse if pipeline or variant with given IDs do not exist.
         500 Internal Server Error:
             MessageResponse for unexpected errors when starting optimization
             (e.g. Graph conversion, external optimizer issues thrown early).
 
     Success conditions:
-        * Pipeline exists and its graph can be converted to a launch string.
-        * OptimizationManager.run_optimization() starts a background job.
+        * Pipeline and variant exist
+        * Variant's graph can be converted to a launch string
+        * OptimizationManager.run_optimization() starts a background job
 
     Failure conditions:
-        * Unknown pipeline id → 404.
-        * Any unhandled exception in pipeline lookup or job creation → 500.
+        * Unknown pipeline or variant ID → 404
+        * Any unhandled exception in pipeline/variant lookup or job creation → 500
 
     Request example:
         .. code-block:: json
@@ -686,21 +626,46 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
     """
     try:
         pipeline = pipeline_manager.get_pipeline_by_id(pipeline_id)
-        job_id = optimization_manager.run_optimization(pipeline, body)
+
+        # Find the variant
+        variant_to_optimize = None
+        for variant in pipeline.variants:
+            if variant.id == variant_id:
+                variant_to_optimize = variant
+                break
+
+        if variant_to_optimize is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Variant '{variant_id}' not found in pipeline '{pipeline_id}'."
+                ).model_dump(),
+                status_code=404,
+            )
+
+        job_id = optimization_manager.run_optimization(variant_to_optimize, body)
         return schemas.OptimizationJobResponse(job_id=job_id)
+
     except ValueError as e:
-        logger.warning(
-            "Pipeline %s not found for optimization request: %s",
-            pipeline_id,
-            e,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=str(e)).model_dump(),
-            status_code=404,
-        )
+        if "not found" in str(e).lower():
+            logger.warning(
+                "Pipeline %s not found for optimization request: %s",
+                pipeline_id,
+                e,
+            )
+            return JSONResponse(
+                content=schemas.MessageResponse(message=str(e)).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.error("Optimization request validation failed: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=str(e)).model_dump(),
+                status_code=400,
+            )
     except Exception as e:
         logger.error(
-            "Unexpected error while starting optimization for pipeline %s",
+            "Unexpected error while starting optimization for variant %s in pipeline %s",
+            variant_id,
             pipeline_id,
             exc_info=True,
         )
@@ -717,6 +682,10 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
     operation_id="delete_pipeline",
     responses={
         200: {"description": "Pipeline deleted", "model": schemas.MessageResponse},
+        400: {
+            "description": "Cannot delete PREDEFINED pipeline",
+            "model": schemas.MessageResponse,
+        },
         404: {
             "description": "Pipeline not found",
             "model": schemas.MessageResponse,
@@ -727,26 +696,45 @@ def delete_pipeline(pipeline_id: str):
     """
     Delete a pipeline by its id.
 
+    Operation:
+        * Validate that pipeline exists
+        * Validate that pipeline is not PREDEFINED
+        * Delegate to PipelineManager.delete_pipeline_by_id()
+
     Path parameters:
         pipeline_id: ID of the pipeline to delete.
 
     Returns:
         200 OK:
             MessageResponse when the pipeline was successfully deleted.
+        400 Bad Request:
+            MessageResponse when trying to delete PREDEFINED pipeline.
         404 Not Found:
             MessageResponse when a pipeline with given id does not exist.
 
     Success conditions:
-        * Pipeline with the given id is found and removed from manager.
+        * Pipeline with the given id is found
+        * Pipeline is USER_CREATED (not PREDEFINED)
+        * Pipeline is removed from manager
 
     Failure conditions:
-        * Unknown id → 404.
+        * Pipeline is PREDEFINED → 400
+        * Unknown id → 404
+
+    Note: PREDEFINED pipelines cannot be deleted.
 
     Successful response example (200):
         .. code-block:: json
 
             {
               "message": "Pipeline deleted"
+            }
+
+    Error response example (400):
+        .. code-block:: json
+
+            {
+              "message": "Cannot delete PREDEFINED pipeline 'pipeline-a3f5d9e1'."
             }
 
     Error response example (404):
@@ -759,9 +747,371 @@ def delete_pipeline(pipeline_id: str):
     try:
         pipeline_manager.delete_pipeline_by_id(pipeline_id)
     except ValueError as e:
-        logger.warning("Pipeline %s not found for deletion: %s", pipeline_id, e)
-        return JSONResponse(
-            content=schemas.MessageResponse(message=str(e)).model_dump(),
-            status_code=404,
-        )
+        error_message = str(e)
+        if "PREDEFINED" in error_message:
+            logger.warning("Cannot delete PREDEFINED pipeline %s: %s", pipeline_id, e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
+        else:
+            logger.warning("Pipeline %s not found for deletion: %s", pipeline_id, e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
     return schemas.MessageResponse(message="Pipeline deleted")
+
+
+@router.post(
+    "/{pipeline_id}/variants",
+    operation_id="create_variant",
+    status_code=201,
+    responses={
+        201: {
+            "description": "Variant created",
+            "model": schemas.Variant,
+        },
+        400: {
+            "description": "Invalid variant definition",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline not found",
+            "model": schemas.MessageResponse,
+        },
+        500: {"description": "Internal server error", "model": schemas.MessageResponse},
+    },
+)
+def create_variant(pipeline_id: str, body: schemas.VariantCreate):
+    """
+    Create a new variant for an existing pipeline.
+
+    Operation:
+        * Validate that pipeline exists
+        * Delegate to PipelineManager.add_variant()
+        * Return created variant with generated ID
+
+    The backend automatically generates the variant ID and sets read_only=false.
+    These fields must not be included in the request.
+
+    Path parameters:
+        pipeline_id: ID of the pipeline to add variant to.
+
+    Request body:
+        body: VariantCreate
+            * name – variant name (required, non-empty).
+            * pipeline_graph – advanced graph representation (required).
+            * pipeline_graph_simple – simplified graph representation (required).
+
+    Returns:
+        201 Created:
+            Complete Variant object with generated id and read_only=false.
+        400 Bad Request:
+            MessageResponse when variant definition is invalid.
+        404 Not Found:
+            MessageResponse when pipeline does not exist.
+        500 Internal Server Error:
+            MessageResponse for unexpected errors.
+
+    Success conditions:
+        * Pipeline exists
+        * Variant definition is valid
+        * Variant is successfully added
+
+    Failure conditions:
+        * Pipeline not found → 404
+        * Invalid variant definition → 400
+        * Any other exception → 500
+
+    Request example:
+        .. code-block:: json
+
+            {
+              "name": "GPU",
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              },
+              "pipeline_graph_simple": {
+                "nodes": [...],
+                "edges": [...]
+              }
+            }
+
+    Successful response example (201):
+        .. code-block:: json
+
+            {
+              "id": "variant-abc123",
+              "name": "GPU",
+              "read_only": false,
+              "pipeline_graph": {...},
+              "pipeline_graph_simple": {...}
+            }
+    """
+    try:
+        new_variant = pipeline_manager.add_variant(
+            pipeline_id=pipeline_id,
+            name=body.name,
+            pipeline_graph=body.pipeline_graph,
+            pipeline_graph_simple=body.pipeline_graph_simple,
+        )
+
+        logger.info(f"Created variant {new_variant.id} for pipeline {pipeline_id}")
+        return JSONResponse(
+            content=new_variant.model_dump(),
+            status_code=201,
+        )
+
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            logger.warning("Pipeline %s not found for variant creation", pipeline_id)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=str(e)).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.error("Invalid variant definition: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=str(e)).model_dump(),
+                status_code=400,
+            )
+    except Exception as e:
+        logger.error("Unexpected error while creating variant", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to create variant: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
+@router.delete(
+    "/{pipeline_id}/variants/{variant_id}",
+    operation_id="delete_variant",
+    responses={
+        200: {"description": "Variant deleted", "model": schemas.MessageResponse},
+        400: {
+            "description": "Cannot delete read-only variant or last variant",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def delete_variant(pipeline_id: str, variant_id: str):
+    """
+    Delete a variant from a pipeline.
+
+    Operation:
+        * Validate that pipeline and variant exist
+        * Check that variant is not read-only
+        * Check that variant is not the last one
+        * Delegate to PipelineManager.delete_variant()
+
+    Path parameters:
+        pipeline_id: ID of the pipeline containing the variant.
+        variant_id: ID of the variant to delete.
+
+    Cannot delete:
+    * Read-only variants (from PREDEFINED pipelines)
+    * The last remaining variant of a pipeline
+
+    Returns:
+        200 OK:
+            MessageResponse confirming deletion.
+        400 Bad Request:
+            MessageResponse when trying to delete read-only variant or last variant.
+        404 Not Found:
+            MessageResponse when pipeline or variant not found.
+
+    Success conditions:
+        * Pipeline and variant exist
+        * Variant is not read-only
+        * Variant is not the last one
+        * Variant is successfully deleted
+
+    Failure conditions:
+        * Pipeline or variant not found → 404
+        * Variant is read-only → 400
+        * Variant is last one → 400
+
+    Successful response example (200):
+        .. code-block:: json
+
+            {
+              "message": "Variant deleted"
+            }
+
+    Error response example (400, read-only):
+        .. code-block:: json
+
+            {
+              "message": "Cannot delete read-only variant 'variant-1'."
+            }
+
+    Error response example (400, last variant):
+        .. code-block:: json
+
+            {
+              "message": "Cannot delete variant 'variant-1' as it is the last variant in pipeline 'pipeline-a3f5d9e1'."
+            }
+    """
+    try:
+        pipeline_manager.delete_variant(pipeline_id, variant_id)
+        logger.info(f"Deleted variant {variant_id} from pipeline {pipeline_id}")
+        return schemas.MessageResponse(message="Variant deleted")
+
+    except ValueError as e:
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            logger.warning("Pipeline or variant not found for deletion: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.warning("Cannot delete variant: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
+
+
+@router.patch(
+    "/{pipeline_id}/variants/{variant_id}",
+    operation_id="update_variant",
+    responses={
+        200: {"description": "Variant updated", "model": schemas.Variant},
+        400: {
+            "description": "Invalid request or cannot update read-only variant",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdate):
+    """
+    Update an existing variant.
+
+    Operation:
+        * Validate that pipeline and variant exist
+        * Check that variant is not read-only
+        * Validate request body (checked by VariantUpdate model)
+        * Delegate to PipelineManager.update_variant()
+
+    Path parameters:
+        pipeline_id: ID of the pipeline containing the variant.
+        variant_id: ID of the variant to update.
+
+    Request body:
+        body: VariantUpdate (validated by Pydantic)
+            * name: Optional variant name
+            * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)
+            * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)
+
+    Allowed fields:
+    * name: Variant name
+    * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)
+    * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)
+
+    Only one of pipeline_graph or pipeline_graph_simple can be provided per request.
+    Cannot update read-only variants.
+
+    Returns:
+        200 OK:
+            Updated Variant object.
+        400 Bad Request:
+            MessageResponse when request is invalid, variant is read-only, or
+            both graphs are provided (validated by VariantUpdate model).
+        404 Not Found:
+            MessageResponse when pipeline or variant not found.
+
+    Success conditions:
+        * Pipeline and variant exist
+        * Variant is not read-only
+        * At least one field provided
+        * At most one graph field provided
+        * Variant is successfully updated
+
+    Failure conditions:
+        * Pipeline or variant not found → 404
+        * Variant is read-only → 400
+        * Invalid request (no fields or both graphs) → 400
+        * Any other exception → 500
+
+    Request example (update name):
+        .. code-block:: json
+
+            {
+              "name": "GPU-optimized"
+            }
+
+    Request example (update advanced graph):
+        .. code-block:: json
+
+            {
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              }
+            }
+
+    Successful response example (200):
+        .. code-block:: json
+
+            {
+              "id": "variant-1",
+              "name": "GPU-optimized",
+              "read_only": false,
+              "pipeline_graph": {...},
+              "pipeline_graph_simple": {...}
+            }
+
+    Error response example (400, read-only):
+        .. code-block:: json
+
+            {
+              "message": "Cannot update read-only variant 'variant-1'."
+            }
+    """
+    try:
+        updated_variant = pipeline_manager.update_variant(
+            pipeline_id=pipeline_id,
+            variant_id=variant_id,
+            name=body.name,
+            pipeline_graph=body.pipeline_graph,
+            pipeline_graph_simple=body.pipeline_graph_simple,
+        )
+
+        logger.info(f"Updated variant {variant_id} in pipeline {pipeline_id}")
+        return updated_variant
+
+    except ValueError as e:
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            logger.warning("Pipeline or variant not found for update: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.error("Invalid variant update: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
+    except Exception as e:
+        logger.error("Unexpected error while updating variant", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to update variant: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )

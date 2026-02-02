@@ -1,22 +1,67 @@
 import unittest
 from unittest.mock import patch
 
-from api.api_schemas import ExecutionConfig, OutputMode
+from api.api_schemas import (
+    ExecutionConfig,
+    OutputMode,
+    PipelineDensitySpec,
+    PipelineStreamSpec,
+    VariantReference,
+    GraphInline,
+    PipelineGraph,
+    Node,
+    Edge,
+)
 from benchmark import (
     Benchmark,
     BenchmarkResult,
-    PipelineDensitySpec,
-    PipelinePerformanceSpec,
 )
 from pipeline_runner import PipelineRunResult
+
+
+def create_variant_density_spec(
+    pipeline_id: str, variant_id: str, stream_rate: int = 100
+) -> PipelineDensitySpec:
+    """Helper to create PipelineDensitySpec with VariantReference."""
+    return PipelineDensitySpec(
+        pipeline=VariantReference(
+            pipeline_id=pipeline_id,
+            variant_id=variant_id,
+        ),
+        stream_rate=stream_rate,
+    )
+
+
+def create_simple_graph() -> PipelineGraph:
+    """Helper to create a simple test pipeline graph."""
+    return PipelineGraph(
+        nodes=[
+            Node(id="0", type="filesrc", data={"location": "/videos/test.mp4"}),
+            Node(id="1", type="fakesink", data={}),
+        ],
+        edges=[
+            Edge(id="0", source="0", target="1"),
+        ],
+    )
+
+
+def create_inline_density_spec(stream_rate: int = 100) -> PipelineDensitySpec:
+    """Helper to create PipelineDensitySpec with inline graph."""
+    return PipelineDensitySpec(
+        pipeline=GraphInline(
+            pipeline_graph=create_simple_graph(),
+        ),
+        stream_rate=stream_rate,
+    )
 
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.fps_floor = 30
+        # Use new format with VariantReference
         self.pipeline_benchmark_specs = [
-            PipelineDensitySpec(id="pipeline-test1", stream_rate=50),
-            PipelineDensitySpec(id="pipeline-test2", stream_rate=50),
+            create_variant_density_spec("pipeline-test1", "variant-1", stream_rate=50),
+            create_variant_density_spec("pipeline-test2", "variant-2", stream_rate=50),
         ]
         self.benchmark = Benchmark()
 
@@ -24,15 +69,17 @@ class TestBenchmark(unittest.TestCase):
     def test_run_successful_scaling(self, mock_build_command):
         # Return tuple with 3 elements: command, video_output_paths, live_stream_urls
         mock_build_command.return_value = ("", {}, {})
+
+        # Expected result uses PipelineStreamSpec with variant path format
         expected_result = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelinePerformanceSpec(
-                    id="pipeline-test1",
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test1/variants/variant-1",
                     streams=2,
                 ),
-                PipelinePerformanceSpec(
-                    id="pipeline-test2",
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test2/variants/variant-2",
                     streams=1,
                 ),
             ],
@@ -140,10 +187,11 @@ class TestBenchmark(unittest.TestCase):
                 )
 
     def test_calculate_streams_per_pipeline(self):
+        # Use new format with VariantReference
         pipeline_benchmark_specs = [
-            PipelineDensitySpec(id="pipeline-1", stream_rate=50),
-            PipelineDensitySpec(id="pipeline-2", stream_rate=30),
-            PipelineDensitySpec(id="pipeline-3", stream_rate=20),
+            create_variant_density_spec("pipeline-1", "variant-1", stream_rate=50),
+            create_variant_density_spec("pipeline-2", "variant-2", stream_rate=30),
+            create_variant_density_spec("pipeline-3", "variant-3", stream_rate=20),
         ]
 
         # Test with total_streams = 10
@@ -185,30 +233,11 @@ class TestBenchmark(unittest.TestCase):
         """Test benchmark run with file output mode."""
         mock_build_command.return_value = (
             "",
-            {"pipeline-test1": ["/output/file.mp4"]},
+            {"/pipelines/pipeline-test1/variants/variant-1": ["/output/file.mp4"]},
             {},
         )
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
-            # The benchmark algorithm:
-            # 1. n_streams=1, fps=30 >= floor=30 -> best_config=(1,...), scale up to n_streams=2
-            # 2. n_streams=2, fps=20 < 30 -> switch to binary search, higher_bound=2, lower_bound=1, n_streams=1
-            # 3. n_streams=1, fps=30 >= 30 -> best_config=(1,...), lower_bound=2
-            # 4. lower_bound(2) > higher_bound(1) -> exit loop
-            # So we need exactly 3 results, but the last iteration sets lower_bound=2 which > higher_bound=1
-            # Actually after step 3: lower_bound becomes n_streams+1 = 2, higher_bound stays 1
-            # Since 2 > 1, loop exits. So 3 results should be enough but let's trace again:
-
-            # Actually the issue is the binary search logic. Let me trace more carefully:
-            # Initial: n_streams=1, exponential=True, lower_bound=1, higher_bound=-1
-            # Iter 1: n_streams=1, fps=30 >= 30 -> best_config=(1,...), n_streams=2
-            # Iter 2: n_streams=2, fps=20 < 30 -> exponential=False, higher_bound=2, lower_bound=max(1,1)=1, n_streams=(1+2)//2=1
-            # Iter 3: n_streams=1, fps=30 >= 30 -> best_config=(1,...), lower_bound=2
-            # Check: lower_bound(2) > higher_bound(2)? No, 2 > 2 is False
-            # Wait, after iter 2: higher_bound=2. After iter 3: lower_bound=n_streams+1=2
-            # Check: 2 > 2? False. So n_streams=(2+2)//2=2
-            # Iter 4: n_streams=2 (need another result)
-
             mock_runner.side_effect = [
                 # Iter 1: n_streams=1, exponential phase
                 PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
@@ -236,7 +265,6 @@ class TestBenchmark(unittest.TestCase):
         mock_build_command.return_value = ("", {}, {})
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
-            # Same logic as above - need 4 results for the benchmark to complete
             mock_runner.side_effect = [
                 # Iter 1: n_streams=1, exponential phase
                 PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
@@ -257,6 +285,103 @@ class TestBenchmark(unittest.TestCase):
             )
 
             self.assertIsInstance(result, BenchmarkResult)
+
+    @patch("benchmark.pipeline_manager.build_pipeline_command")
+    def test_run_with_inline_graph(self, mock_build_command):
+        """Test benchmark run with inline graph pipeline source."""
+        mock_build_command.return_value = ("", {}, {})
+
+        # Create specs with inline graphs
+        inline_specs = [
+            create_inline_density_spec(stream_rate=100),
+        ]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                # First run - above fps_floor
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                # Second run - drops below fps_floor
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                # Binary search midpoint
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                # Continue binary search
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                inline_specs,
+                fps_floor=self.fps_floor,
+                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+            )
+
+            self.assertIsInstance(result, BenchmarkResult)
+            # Check that pipeline ID starts with __graph- prefix for inline graphs
+            self.assertTrue(result.streams_per_pipeline[0].id.startswith("__graph-"))
+
+    @patch("benchmark.pipeline_manager.build_pipeline_command")
+    def test_result_pipeline_ids_use_variant_path_format(self, mock_build_command):
+        """Test that result pipeline IDs use the correct variant path format."""
+        mock_build_command.return_value = ("", {}, {})
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                # Single iteration that meets fps_floor then exits
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                self.pipeline_benchmark_specs,
+                fps_floor=self.fps_floor,
+                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+            )
+
+            # Check that all pipeline IDs use the variant path format
+            for stream_spec in result.streams_per_pipeline:
+                self.assertTrue(
+                    stream_spec.id.startswith("/pipelines/"),
+                    f"Expected pipeline ID to start with '/pipelines/', got: {stream_spec.id}",
+                )
+                self.assertIn(
+                    "/variants/",
+                    stream_spec.id,
+                    f"Expected pipeline ID to contain '/variants/', got: {stream_spec.id}",
+                )
+
+    @patch("benchmark.pipeline_manager.build_pipeline_command")
+    def test_mixed_variant_and_inline_specs(self, mock_build_command):
+        """Test benchmark with mixed variant reference and inline graph specs."""
+        mock_build_command.return_value = ("", {}, {})
+
+        # Mix of variant reference and inline graph
+        mixed_specs = [
+            create_variant_density_spec("pipeline-1", "variant-1", stream_rate=50),
+            create_inline_density_spec(stream_rate=50),
+        ]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                mixed_specs,
+                fps_floor=self.fps_floor,
+                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+            )
+
+            self.assertIsInstance(result, BenchmarkResult)
+            self.assertEqual(len(result.streams_per_pipeline), 2)
+
+            # First should be variant path format
+            self.assertTrue(result.streams_per_pipeline[0].id.startswith("/pipelines/"))
+            # Second should be inline graph format
+            self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
 
 
 if __name__ == "__main__":

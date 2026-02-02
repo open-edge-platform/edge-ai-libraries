@@ -45,7 +45,9 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
     Request body:
         body: PerformanceTestSpec
             * pipeline_performance_specs – list of pipelines and number of
-              streams per pipeline.
+              streams per pipeline. Each pipeline can be specified as:
+              - variant reference: {"source": "variant", "pipeline_id": "...", "variant_id": "..."}
+              - inline graph: {"source": "graph", "pipeline_graph": {...}}
             * execution_config – configuration for output mode and runtime limits:
               - output_mode: disabled (default), file, or live_stream
               - max_runtime: maximum runtime in seconds (0 = run until EOS)
@@ -57,7 +59,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             MessageResponse if the request is invalid at manager level, for
             example:
             * all stream counts are zero,
-            * pipeline ids do not exist (if validated up front in future),
+            * referenced variant does not exist,
             * output_mode=file combined with max_runtime > 0.
         500 Internal Server Error:
             MessageResponse if an unexpected error occurs when creating the
@@ -71,13 +73,41 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
         * Validation or configuration error inside TestsManager → 400.
         * Any unhandled exception in job creation → 500.
 
-    Request example:
+    Request example (variant reference):
         .. code-block:: json
 
             {
               "pipeline_performance_specs": [
-                {"id": "pipeline-a3f5d9e1", "streams": 8},
-                {"id": "pipeline-b7c2e114", "streams": 4}
+                {
+                  "pipeline": {
+                    "source": "variant",
+                    "pipeline_id": "pipeline-a3f5d9e1",
+                    "variant_id": "variant-abc123"
+                  },
+                  "streams": 8
+                }
+              ],
+              "execution_config": {
+                "output_mode": "disabled",
+                "max_runtime": 0
+              }
+            }
+
+    Request example (inline graph):
+        .. code-block:: json
+
+            {
+              "pipeline_performance_specs": [
+                {
+                  "pipeline": {
+                    "source": "graph",
+                    "pipeline_graph": {
+                      "nodes": [...],
+                      "edges": [...]
+                    }
+                  },
+                  "streams": 4
+                }
               ],
               "execution_config": {
                 "output_mode": "disabled",
@@ -154,7 +184,9 @@ def run_density_test(body: schemas.DensityTestSpec):
         body: DensityTestSpec
             * fps_floor – minimum acceptable FPS per stream.
             * pipeline_density_specs – list of pipelines with stream_rate
-              percentages that must sum to 100.
+              percentages that must sum to 100. Each pipeline can be specified as:
+              - variant reference: {"source": "variant", "pipeline_id": "...", "variant_id": "..."}
+              - inline graph: {"source": "graph", "pipeline_graph": {...}}
             * execution_config – configuration for output mode and runtime limits:
               - output_mode: disabled (default) or file (live_stream not supported)
               - max_runtime: maximum runtime in seconds (0 = run until EOS)
@@ -165,6 +197,7 @@ def run_density_test(body: schemas.DensityTestSpec):
         400 Bad Request:
             MessageResponse when:
             * pipeline_density_specs.stream_rate values do not sum to 100,
+            * referenced variant does not exist,
             * output_mode is live_stream (not supported for density tests),
             * output_mode=file combined with max_runtime > 0,
             * other validation errors raised by Benchmark or TestsManager.
@@ -182,14 +215,51 @@ def run_density_test(body: schemas.DensityTestSpec):
           TestsManager.test_density() → 400.
         * Any other unhandled exception → 500.
 
-    Request example:
+    Request example (variant reference):
         .. code-block:: json
 
             {
               "fps_floor": 30,
               "pipeline_density_specs": [
-                {"id": "pipeline-a3f5d9e1", "stream_rate": 50},
-                {"id": "pipeline-b7c2e114", "stream_rate": 50}
+                {
+                  "pipeline": {
+                    "source": "variant",
+                    "pipeline_id": "pipeline-a3f5d9e1",
+                    "variant_id": "variant-abc123"
+                  },
+                  "stream_rate": 50
+                },
+                {
+                  "pipeline": {
+                    "source": "variant",
+                    "pipeline_id": "pipeline-b7c2e114",
+                    "variant_id": "variant-def456"
+                  },
+                  "stream_rate": 50
+                }
+              ],
+              "execution_config": {
+                "output_mode": "disabled",
+                "max_runtime": 0
+              }
+            }
+
+    Request example (inline graph):
+        .. code-block:: json
+
+            {
+              "fps_floor": 30,
+              "pipeline_density_specs": [
+                {
+                  "pipeline": {
+                    "source": "graph",
+                    "pipeline_graph": {
+                      "nodes": [...],
+                      "edges": [...]
+                    }
+                  },
+                  "stream_rate": 100
+                }
               ],
               "execution_config": {
                 "output_mode": "disabled",

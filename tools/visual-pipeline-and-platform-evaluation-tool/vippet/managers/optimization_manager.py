@@ -1,22 +1,21 @@
+import logging
 import sys
+import threading
 import time
 import uuid
-import threading
-import logging
-from typing import Dict, Optional
 from dataclasses import dataclass
-
-from graph import Graph
+from typing import Dict, Optional
 
 from api.api_schemas import (
-    Pipeline,
     PipelineRequestOptimize,
     OptimizationType,
     OptimizationJobStatus,
     OptimizationJobSummary,
     OptimizationJobState,
     PipelineGraph,
+    Variant,
 )
+from graph import Graph
 
 DEFAULT_SEARCH_DURATION = 300  # seconds
 DEFAULT_SAMPLE_DURATION = 10  # seconds
@@ -184,14 +183,14 @@ class OptimizationRunner:
 
 class OptimizationManager:
     """
-    Manage optimization jobs for GStreamer pipelines.
+    Manage optimization jobs for pipeline variants.
 
     Responsibilities:
 
     * create and track :class:`OptimizationJob` instances,
-    * run optimizations asynchronously in background threads,
+    * run optimizations asynchronously in background threads on specific variants,
     * expose job status and summaries in a thread-safe manner,
-    * maintain both advanced and simple views of pipelines throughout optimization,
+    * maintain both advanced and simple views of variant graphs throughout optimization,
     * convert between GStreamer pipeline strings and graph representations.
     """
 
@@ -213,7 +212,7 @@ class OptimizationManager:
 
     def run_optimization(
         self,
-        pipeline: Pipeline,
+        variant: Variant,
         optimization_request: PipelineRequestOptimize,
     ) -> str:
         """
@@ -221,30 +220,34 @@ class OptimizationManager:
 
         The method:
 
+        * uses the variant's pipeline_graph,
         * converts the pipeline graph to a GStreamer pipeline string,
-        * extracts both advanced and simple views from the pipeline,
+        * extracts both advanced and simple views from the variant,
         * creates a new :class:`OptimizationJob` with RUNNING state,
         * spawns a background thread that executes the optimization.
 
         Args:
-            pipeline: Pipeline object containing both graph views.
+            variant: Variant object containing graph views to optimize.
             optimization_request: Optimization parameters (type and optional settings).
 
         Returns:
             str: Unique job identifier for tracking the optimization.
+
+        Raises:
+            ValueError: If pipeline has no variants.
         """
         job_id = self._generate_job_id()
 
         # Convert PipelineGraph to pipeline description string once and reuse.
         pipeline_description = Graph.from_dict(
-            pipeline.pipeline_graph.model_dump()
+            variant.pipeline_graph.model_dump()
         ).to_pipeline_description()
 
-        # Create job record with both views
+        # Create job record with both views from variant
         job = OptimizationJob(
             id=job_id,
-            original_pipeline_graph=pipeline.pipeline_graph,
-            original_pipeline_graph_simple=pipeline.pipeline_graph_simple,
+            original_pipeline_graph=variant.pipeline_graph,
+            original_pipeline_graph_simple=variant.pipeline_graph_simple,
             original_pipeline_description=pipeline_description,
             request=optimization_request,
             state=OptimizationJobState.RUNNING,
@@ -254,8 +257,7 @@ class OptimizationManager:
         with self.lock:
             self.jobs[job_id] = job
 
-        # Start execution in background thread.  The thread itself will
-        # update the job entry once finished or on error.
+        # Start execution in background thread
         thread = threading.Thread(
             target=self._execute_optimization,
             args=(job_id, pipeline_description, optimization_request),
