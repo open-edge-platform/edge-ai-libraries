@@ -44,8 +44,8 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
 
     const url = new URL(
       "whep",
-      // `${window.location.protocol}//${window.location.host}/streams/stream_${pipelineId}/`,
-      `http://10.123.233.214:8889/stream_${pipelineId}/`,
+      `${window.location.protocol}//${window.location.host}/streams/stream_${pipelineId}/`,
+      //`http://<ip>:8889/stream_${pipelineId}/`,
     );
 
     const reader = new MediaMTXWebRTCReader({
