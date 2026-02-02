@@ -125,7 +125,6 @@ async def download_models(
                 extra_kwargs["token"] = hf_token
                 # Remove fields that shouldn't be passed to plugins
                 extra_kwargs.pop("hub", None)
-                extra_kwargs.pop("config", None)
                 extra_kwargs.pop("is_ovms", None)
                 
                 model_download_path = os.path.join(

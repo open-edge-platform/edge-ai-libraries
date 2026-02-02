@@ -44,8 +44,6 @@ The Model Download Service is a microservice that enables downloading models fro
     - For using the GETI plugin set the below environment variables
       ```bash
       export GETI_HOST=<GETI_HOST_ADDRESS>
-      export GETI_ORGANIZATION_ID=<YOUR_GETI_ORGANIZATION_ID>
-      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
       export GETI_TOKEN=<GETI_ACCESS_TOKEN>
       export GETI_SERVER_API_VERSION=v1
       export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
@@ -76,8 +74,8 @@ The Model Download Service is a microservice that enables downloading models fro
         |--------------------------|--------------------------------------------------------------------------------------------------|
         | `--build`                | Build the Docker image before running                                                            |
         | `--rebuild`              | This flag instructs to ignore any existing cached images and rebuild them from scratch using the Dockerfile definitions|
-        | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics,geti`) or `all` to enable all available plugins |
+        | `--model-path <path>`    | Set custom model path (default: `$HOME/models/`)                                           |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,geti`) or `all` to enable all available plugins |
         | `--help`                 | Show this help message                                                                           |
       
       **Examples**:
@@ -172,6 +170,26 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     "parallel_downloads": false
   }'
 ```
+
+**Download models from GETI optimized with openvino:**
+```bash
+curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_folder' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+        {
+            "name": "yolox-tiny",
+            "hub": "geti",
+            "revision": "1",
+            "config":{
+                "precision": "fp32",
+            }
+        }
+    ],
+    "parallel_downloads": true
+  }'
+```
+  **Note:** The default precision is FP16.
 
 **Query Parameter:**
 - `download_path` (string): Specify a local file system path where the downloaded model should be saved. If not provided, the model will be saved to a default location.

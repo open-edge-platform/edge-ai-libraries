@@ -104,7 +104,7 @@ install_dependencies() {
             ;;
         geti)
             print_info "Geti plugin dependencies will be installed via uv sync"
-            print_info "Geti plugin requires: GETI_HOST, GETI_ORGANIZATION_ID, GETI_WORKSPACE_ID, GETI_TOKEN, GETI_SERVER_API_VERSION"
+            print_info "Geti plugin requires: GETI_HOST,GETI_TOKEN, GETI_SERVER_API_VERSION"
             ;;
         *)
             print_error "Unknown plugin: $plugin"
