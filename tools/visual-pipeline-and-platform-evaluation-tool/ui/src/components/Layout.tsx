@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 
-export const Layout = () => {
+const Layout = () => {
   usePipelinesLoader();
   useModelsLoader();
   useDevicesLoader();
@@ -61,3 +61,5 @@ export const Layout = () => {
     </div>
   );
 };
+
+export { Layout };

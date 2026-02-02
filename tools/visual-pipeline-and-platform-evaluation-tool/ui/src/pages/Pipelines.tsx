@@ -46,7 +46,7 @@ type UrlParams = {
   id: string;
 };
 
-const Pipelines = () => {
+export const Pipelines = () => {
   const { id } = useParams<UrlParams>();
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
@@ -734,5 +734,3 @@ const Pipelines = () => {
 
   return <div>Loading pipeline: {id}</div>;
 };
-
-export default Pipelines;
