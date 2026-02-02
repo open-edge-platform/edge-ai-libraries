@@ -529,7 +529,7 @@ class GetiPlugin(ModelDownloadPlugin):
         try:
             # Extract config dict from kwargs (all parameters except model_name, hub, type)
             config = kwargs.get("config", {})
-            logger.info
+
             project_id = config.get("project_id")
             model_group_id = config.get("model_group_id")
             export_type = (config.get("export_type") or "base").lower()
