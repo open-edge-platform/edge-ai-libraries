@@ -28,18 +28,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
-        "/stream_pipeline-": {
-          target: env.VITE_API_URL || "http://localhost:8889",
-          changeOrigin: true,
-          secure: false,
-          ws: true,
-        },
-        "/streams": {
-          target: env.VITE_API_URL || "http://localhost:8889",
-          changeOrigin: true,
-          secure: false,
-          ws: true,
-        },
         "/assets/videos": {
           target: env.VITE_API_URL || "http://localhost:7860",
           changeOrigin: true,

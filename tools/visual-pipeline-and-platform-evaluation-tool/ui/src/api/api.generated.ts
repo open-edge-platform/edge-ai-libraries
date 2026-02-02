@@ -224,7 +224,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/performance`,
           method: "POST",
-          body: queryArg.performanceTestSpecInput,
+          body: queryArg.performanceTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -235,7 +235,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/density`,
           method: "POST",
-          body: queryArg.densityTestSpecInput,
+          body: queryArg.densityTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -365,12 +365,12 @@ export type OptimizePipelineApiArg = {
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
 export type RunPerformanceTestApiArg = {
-  performanceTestSpecInput: PerformanceTestSpec2;
+  performanceTestSpec: PerformanceTestSpec;
 };
 export type RunDensityTestApiResponse =
   /** status 202 Density test job created */ TestJobResponse;
 export type RunDensityTestApiArg = {
-  densityTestSpecInput: DensityTestSpec2;
+  densityTestSpec: DensityTestSpec;
 };
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
@@ -444,22 +444,16 @@ export type PerformanceJobStatus = {
     [key: string]: string[];
   } | null;
   error_message: string | null;
-  live_stream_urls: {
-    [key: string]: string;
-  } | null;
 };
-export type OutputMode = "disabled" | "file" | "live_stream";
-export type ExecutionConfig = {
-  /** Mode for pipeline output generation. */
-  output_mode?: OutputMode;
-  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
-  max_runtime?: number;
+export type VideoOutputConfig = {
+  /** Flag to enable or disable video output generation. */
+  enabled?: boolean;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
   pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
+  /** Video output configuration. */
+  video_output?: VideoOutputConfig;
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -490,8 +484,8 @@ export type DensityTestSpec = {
   fps_floor: number;
   /** List of pipelines with relative stream_rate percentages that must sum to 100. */
   pipeline_density_specs: PipelineDensitySpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
+  /** Video output configuration. */
+  video_output?: VideoOutputConfig;
 };
 export type DensityJobSummary = {
   id: string;
@@ -614,20 +608,6 @@ export type OptimizationJobResponse = {
 export type TestJobResponse = {
   /** Identifier of the created test job. */
   job_id: string;
-};
-export type PerformanceTestSpec2 = {
-  /** List of pipelines with number of streams for each. */
-  pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
-};
-export type DensityTestSpec2 = {
-  /** Minimum acceptable FPS per stream. */
-  fps_floor: number;
-  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
-  pipeline_density_specs: PipelineDensitySpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
 };
 export type Video = {
   filename: string;

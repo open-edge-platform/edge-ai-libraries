@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader";
+import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader.ts";
 
-interface WebRTCVideoProps {
+interface WebRTCVideoPlayerProps {
   pipelineId?: string;
 }
 
-const WebRTCVideo = ({ pipelineId }: WebRTCVideoProps) => {
+const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [message, setMessage] = useState<string>("");
   const [defaultControls, setDefaultControls] = useState<boolean>(true);
@@ -44,7 +44,8 @@ const WebRTCVideo = ({ pipelineId }: WebRTCVideoProps) => {
 
     const url = new URL(
       "whep",
-      `${window.location.protocol}//${window.location.host}/streams/stream_${pipelineId}/`,
+      // `${window.location.protocol}//${window.location.host}/streams/stream_${pipelineId}/`,
+      `http://10.123.233.214:8889/stream_${pipelineId}/`,
     );
 
     const reader = new MediaMTXWebRTCReader({
@@ -79,4 +80,4 @@ const WebRTCVideo = ({ pipelineId }: WebRTCVideoProps) => {
   );
 };
 
-export default WebRTCVideo;
+export default WebRTCVideoPlayer;

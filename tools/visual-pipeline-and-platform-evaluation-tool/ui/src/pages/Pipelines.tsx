@@ -424,11 +424,9 @@ const Pipelines = () => {
       }).unwrap();
 
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
-          execution_config: {
-            output_mode: "live_stream",
-            max_runtime: 10000,
-            //enabled: videoOutputEnabled,
+        performanceTestSpec: {
+          video_output: {
+            enabled: videoOutputEnabled,
           },
           pipeline_performance_specs: [
             {
@@ -716,7 +714,6 @@ const Pipelines = () => {
               >
                 {showDetailsPanel && !selectedNode ? (
                   <PerformanceTestPanel
-                    pipelineId={id}
                     isRunning={performanceTestJobId != null}
                     completedVideoPath={completedVideoPath}
                   />

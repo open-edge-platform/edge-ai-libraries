@@ -1,22 +1,17 @@
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
-import WebRTCVideo from "@/features/WebRTCVideo.tsx";
 
 type PerformanceTestPanelProps = {
-  pipelineId?: string;
   isRunning: boolean;
   completedVideoPath: string | null;
 };
 
 const PerformanceTestPanel = ({
-  pipelineId,
   isRunning,
   completedVideoPath,
 }: PerformanceTestPanelProps) => {
   return (
     <div className="w-full h-full bg-background p-4 space-y-4">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
-
-      <WebRTCVideo pipelineId={pipelineId} />
 
       <div className="space-y-4">
         {completedVideoPath && (
