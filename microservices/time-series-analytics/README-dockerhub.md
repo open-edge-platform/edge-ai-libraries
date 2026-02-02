@@ -3,10 +3,8 @@
 It is a powerful, flexible solution for real-time analysis of time series data. Built on top of Kapacitor, it enables both streaming and batch processing, seamlessly integrating with InfluxDB for efficient data storage and retrieval.
 
 > **Note**:
-As this docker image is using ubuntu packages coming from Kapacitor base docker image, please note that the usage
-of this docker image is intended for demo purposes only and not intended for production use. To receive expanded
-security maintenance from Canonical on the Ubuntu base layer, you may follow the [how-to guide to enable Ubuntu Pro
-in a Dockerfile](https://documentation.ubuntu.com/pro-client/en/docs/howtoguides/enable_in_dockerfile/) which require the image to be rebuilt
+Please note this prebuilt docker image is not intended for production. For production use, build the docker image yourself using the [Dockerfile](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/time-series-analytics/Dockerfile)
+by following these [build instructions](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/time-series-analytics/get-started.html#build-docker-image).
 
 ## Supported versions
 ---
@@ -44,3 +42,5 @@ Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. 
 
 
 *Other names and brands may be claimed as the property of others.
+
+

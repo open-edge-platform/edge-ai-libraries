@@ -1,4 +1,4 @@
-# Known issues, limitations and troubleshooting
+# Troubleshooting
 
 ## Known issues
 
