@@ -968,6 +968,10 @@ const DemoMode = () => {
                                 }));
                               };
 
+                              if (dataEntries.length === 0) {
+                                return null;
+                              }
+
                               return (
                                 <AccordionItem
                                   key={node.id}
@@ -993,183 +997,171 @@ const DemoMode = () => {
                                     </div>
                                   </AccordionTrigger>
                                   <AccordionContent>
-                                    {dataEntries.length === 0 ? (
-                                      <p className="text-xs text-slate-400 text-center py-2">
-                                        No parameters to display
-                                      </p>
-                                    ) : (
-                                      <div className="space-y-3 pb-2">
-                                        {dataEntries.map(
-                                          ([key, value, propConfig]) => {
-                                            const currentValue = getEditedValue(
-                                              node.id,
-                                              String(key),
-                                              value,
-                                            );
-                                            const config =
-                                              propConfig as NodePropertyConfig | null;
+                                    <div className="space-y-3 pb-2">
+                                      {dataEntries.map(
+                                        ([key, value, propConfig]) => {
+                                          const currentValue = getEditedValue(
+                                            node.id,
+                                            String(key),
+                                            value,
+                                          );
+                                          const config =
+                                            propConfig as NodePropertyConfig | null;
 
-                                            return (
-                                              <div
-                                                key={String(key)}
-                                                className="space-y-1"
-                                              >
-                                                <label className="text-xs font-medium text-slate-300 block">
-                                                  {config?.label ?? String(key)}
-                                                </label>
-                                                {String(key) === "model" ? (
-                                                  <select
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
+                                          return (
+                                            <div
+                                              key={String(key)}
+                                              className="space-y-1"
+                                            >
+                                              <label className="text-xs font-medium text-slate-300 block">
+                                                {config?.label ?? String(key)}
+                                              </label>
+                                              {String(key) === "model" ? (
+                                                <select
+                                                  value={String(
+                                                    currentValue ?? "",
+                                                  )}
+                                                  onChange={(e) =>
+                                                    handleValueChange(
+                                                      node.id,
+                                                      String(key),
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                >
+                                                  <option value="">
+                                                    Select {config?.label}
+                                                  </option>
+                                                  {models
+                                                    .filter(
+                                                      (model) =>
+                                                        model.category ===
+                                                        config?.params?.filter,
+                                                    )
+                                                    .map((model) => (
+                                                      <option
+                                                        key={model.name}
+                                                        value={
+                                                          model.display_name ??
+                                                          model.name
+                                                        }
+                                                      >
+                                                        {model.display_name ??
+                                                          model.name}
+                                                      </option>
+                                                    ))}
+                                                </select>
+                                              ) : config?.type === "select" ? (
+                                                <select
+                                                  value={String(
+                                                    currentValue ?? "",
+                                                  )}
+                                                  onChange={(e) =>
+                                                    handleValueChange(
+                                                      node.id,
+                                                      String(key),
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                >
+                                                  {config.options?.map(
+                                                    (option) => (
+                                                      <option
+                                                        key={option}
+                                                        value={option}
+                                                      >
+                                                        {option}
+                                                      </option>
+                                                    ),
+                                                  )}
+                                                </select>
+                                              ) : config?.type === "boolean" ? (
+                                                <div className="flex items-center gap-2">
+                                                  <Checkbox
+                                                    checked={
+                                                      currentValue === true ||
+                                                      currentValue === "true"
+                                                    }
+                                                    onCheckedChange={(
+                                                      checked,
+                                                    ) =>
                                                       handleValueChange(
                                                         node.id,
                                                         String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  >
-                                                    <option value="">
-                                                      Select {config?.label}
-                                                    </option>
-                                                    {models
-                                                      .filter(
-                                                        (model) =>
-                                                          model.category ===
-                                                          config?.params
-                                                            ?.filter,
-                                                      )
-                                                      .map((model) => (
-                                                        <option
-                                                          key={model.name}
-                                                          value={
-                                                            model.display_name ??
-                                                            model.name
-                                                          }
-                                                        >
-                                                          {model.display_name ??
-                                                            model.name}
-                                                        </option>
-                                                      ))}
-                                                  </select>
-                                                ) : config?.type ===
-                                                  "select" ? (
-                                                  <select
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  >
-                                                    {config.options?.map(
-                                                      (option) => (
-                                                        <option
-                                                          key={option}
-                                                          value={option}
-                                                        >
-                                                          {option}
-                                                        </option>
-                                                      ),
-                                                    )}
-                                                  </select>
-                                                ) : config?.type ===
-                                                  "boolean" ? (
-                                                  <div className="flex items-center gap-2">
-                                                    <Checkbox
-                                                      checked={
-                                                        currentValue === true ||
-                                                        currentValue === "true"
-                                                      }
-                                                      onCheckedChange={(
                                                         checked,
-                                                      ) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          checked,
-                                                        )
-                                                      }
-                                                      className={
-                                                        colors.checkbox
-                                                      }
-                                                    />
-                                                    <span className="text-xs text-slate-400">
-                                                      {config.description}
-                                                    </span>
-                                                  </div>
-                                                ) : config?.type ===
-                                                  "textarea" ? (
-                                                  <textarea
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
+                                                      )
+                                                    }
+                                                    className={colors.checkbox}
+                                                  />
+                                                  <span className="text-xs text-slate-400">
+                                                    {config.description}
+                                                  </span>
+                                                </div>
+                                              ) : config?.type ===
+                                                "textarea" ? (
+                                                <textarea
+                                                  value={String(
+                                                    currentValue ?? "",
+                                                  )}
+                                                  onChange={(e) =>
+                                                    handleValueChange(
+                                                      node.id,
+                                                      String(key),
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
+                                                  placeholder={
+                                                    config.description
+                                                  }
+                                                />
+                                              ) : config?.type === "number" ? (
+                                                <input
+                                                  type="number"
+                                                  value={String(
+                                                    currentValue ?? "",
+                                                  )}
+                                                  onChange={(e) =>
+                                                    handleValueChange(
+                                                      node.id,
+                                                      String(key),
+                                                      parseFloat(
                                                         e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
-                                                    placeholder={
-                                                      config.description
-                                                    }
-                                                  />
-                                                ) : config?.type ===
-                                                  "number" ? (
-                                                  <input
-                                                    type="number"
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        parseFloat(
-                                                          e.target.value,
-                                                        ),
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                    placeholder={
-                                                      config.description
-                                                    }
-                                                  />
-                                                ) : (
-                                                  <input
-                                                    type="text"
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                    placeholder={
-                                                      config?.description ??
-                                                      "Enter value"
-                                                    }
-                                                  />
-                                                )}
-                                              </div>
-                                            );
-                                          },
-                                        )}
-                                      </div>
-                                    )}
+                                                      ),
+                                                    )
+                                                  }
+                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  placeholder={
+                                                    config.description
+                                                  }
+                                                />
+                                              ) : (
+                                                <input
+                                                  type="text"
+                                                  value={String(
+                                                    currentValue ?? "",
+                                                  )}
+                                                  onChange={(e) =>
+                                                    handleValueChange(
+                                                      node.id,
+                                                      String(key),
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  placeholder={
+                                                    config?.description ??
+                                                    "Enter value"
+                                                  }
+                                                />
+                                              )}
+                                            </div>
+                                          );
+                                        },
+                                      )}
+                                    </div>
                                   </AccordionContent>
                                 </AccordionItem>
                               );
@@ -1254,49 +1246,50 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* Live Preview */}
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <Checkbox
-                                          checked={
-                                            performanceLivePreviewEnabled
-                                          }
-                                          onCheckedChange={(checked) =>
-                                            setPerformanceLivePreviewEnabled(
-                                              checked === true,
-                                            )
-                                          }
-                                          className={colors.checkbox}
-                                        />
-                                        <label className="text-xs text-slate-300">
-                                          Enable live preview
-                                        </label>
-                                      </div>
-                                    </div>
-
-                                    {/* Save Output */}
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <Checkbox
-                                          checked={
-                                            performanceVideoOutputEnabled
-                                          }
-                                          onCheckedChange={(checked) =>
-                                            setPerformanceVideoOutputEnabled(
-                                              checked === true,
-                                            )
-                                          }
-                                          className={colors.checkbox}
-                                        />
-                                        <label className="text-xs text-slate-300">
-                                          Save output
-                                        </label>
-                                      </div>
-                                      {performanceVideoOutputEnabled && (
-                                        <div className="mt-2">
-                                          <SaveOutputWarning />
+                                    {/* Live Preview + Save Output */}
+                                    <div className="flex flex-wrap items-start gap-3">
+                                      <div className="space-y-1 min-h-[72px]">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceLivePreviewEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setPerformanceLivePreviewEnabled(
+                                                checked === true,
+                                              )
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs text-slate-300">
+                                            Enable live preview
+                                          </label>
                                         </div>
-                                      )}
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceVideoOutputEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setPerformanceVideoOutputEnabled(
+                                                checked === true,
+                                              )
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs text-slate-300">
+                                            Save output
+                                          </label>
+                                        </div>
+                                        {performanceVideoOutputEnabled && (
+                                          <div className="mt-2">
+                                            <SaveOutputWarning />
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1339,44 +1332,45 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* FPS Floor */}
-                                    <div className="space-y-1">
-                                      <label className="text-xs font-medium text-slate-300 block">
-                                        Target FPS
-                                      </label>
-                                      <input
-                                        type="number"
-                                        value={fpsFloor}
-                                        onChange={(e) =>
-                                          setFpsFloor(
-                                            parseFloat(e.target.value) || 0,
-                                          )
-                                        }
-                                        className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                        placeholder="Minimum FPS threshold"
-                                        min={0}
-                                      />
-                                    </div>
-
-                                    {/* Video Output */}
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <Checkbox
-                                          checked={videoOutputEnabled}
-                                          onCheckedChange={(checked) =>
-                                            setVideoOutputEnabled(!!checked)
-                                          }
-                                          className={colors.checkbox}
-                                        />
-                                        <label className="text-xs text-slate-300">
-                                          Save output
+                                    {/* FPS Floor + Video Output */}
+                                    <div className="flex flex-wrap items-start gap-3">
+                                      <div className="space-y-1 min-h-[72px]">
+                                        <label className="text-xs font-medium text-slate-300 block">
+                                          Target FPS
                                         </label>
+                                        <input
+                                          type="number"
+                                          value={fpsFloor}
+                                          onChange={(e) =>
+                                            setFpsFloor(
+                                              parseFloat(e.target.value) || 0,
+                                            )
+                                          }
+                                          className="w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                          placeholder="Minimum FPS threshold"
+                                          min={0}
+                                        />
                                       </div>
-                                      {videoOutputEnabled && (
-                                        <div className="mt-2">
-                                          <SaveOutputWarning />
+
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={videoOutputEnabled}
+                                            onCheckedChange={(checked) =>
+                                              setVideoOutputEnabled(!!checked)
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs text-slate-300">
+                                            Save output
+                                          </label>
                                         </div>
-                                      )}
+                                        {videoOutputEnabled && (
+                                          <div className="mt-2">
+                                            <SaveOutputWarning />
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
