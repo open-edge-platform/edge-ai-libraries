@@ -231,6 +231,12 @@ const DemoMode = () => {
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
+  const showResultsPanel = testStarted;
+  const showPreviewPanel =
+    testStarted &&
+    lastRunTest === "performance-test" &&
+    performanceLivePreviewEnabled;
+  const showPreRunLayout = !testStarted;
 
   const colorModes = {
     first: "180,230,255",
@@ -832,648 +838,843 @@ const DemoMode = () => {
               </div>
             </div>
           ) : demoStep === "configuration" ? (
-            /* 4-PART GRID LAYOUT */
-            <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
-              {/* TOP LEFT - Selected Pipelines Cards */}
-              <div className="overflow-y-auto">
-                <div className="flex flex-wrap gap-2">
-                  {pipelineSelections.map((selection) => {
-                    const pipeline = pipelines.find(
-                      (p) => p.id === selection.pipelineId,
-                    );
-                    if (!pipeline) return null;
-                    const pipelineIndex = pipelines.findIndex(
-                      (p) => p.id === selection.pipelineId,
-                    );
-                    const isSelected =
-                      selectedConfigPipelineId === selection.pipelineId;
-
-                    return (
-                      <Card
-                        key={selection.pipelineId}
-                        onClick={() =>
-                          setSelectedConfigPipelineId(selection.pipelineId)
-                        }
-                        className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
-                          isSelected
-                            ? "border-blue-500 ring-2 ring-blue-500/50"
-                            : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
-                        }`}
-                      >
-                        {pipelineImages[
-                          pipelineIndex % pipelineImages.length
-                        ] && (
-                          <div className="p-2 pb-0">
-                            <img
-                              src={
-                                pipelineImages[
-                                  pipelineIndex % pipelineImages.length
-                                ]
-                              }
-                              alt={pipeline.name}
-                              className="w-full h-24 object-cover rounded-md"
-                            />
-                          </div>
-                        )}
-                        <CardHeader className="p-3 pt-2">
-                          <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
-                            {pipeline.name}
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* TOP RIGHT - Preview */}
-              <div
-                className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col ${colors.gridPreviewBorder}`}
-              >
-                <p
-                  className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
-                >
-                  Preview
-                </p>
-                <div className="flex-1 flex items-center justify-center text-slate-400">
-                  <p className="text-sm">Preview content will appear here</p>
-                </div>
-              </div>
-
-              {/* BOTTOM LEFT - Pipeline Configuration */}
-              <div
-                className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 ${colors.testBorder}`}
-              >
-                <p
-                  className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
-                >
-                  Pipeline Configuration
-                </p>
-                <div className="flex-1 min-h-0 flex flex-col">
-                  {selectedConfigPipelineId ? (
-                    (() => {
+            (() => {
+              const pipelineCardsSection = (
+                <div className="overflow-y-auto">
+                  <div className="flex flex-wrap gap-2">
+                    {pipelineSelections.map((selection) => {
                       const pipeline = pipelines.find(
-                        (p) => p.id === selectedConfigPipelineId,
+                        (p) => p.id === selection.pipelineId,
                       );
                       if (!pipeline) return null;
+                      const pipelineIndex = pipelines.findIndex(
+                        (p) => p.id === selection.pipelineId,
+                      );
+                      const isSelected =
+                        selectedConfigPipelineId === selection.pipelineId;
 
                       return (
-                        <>
-                          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                            <Accordion
-                              type="single"
-                              collapsible
-                              className="w-full space-y-2"
-                            >
-                              {pipeline.pipeline_graph?.nodes?.map((node) => {
-                                const nodeTag =
-                                  nodeTypeToTag[node.type] || null;
-                                const nodeConfig = getNodeConfig(node.type);
-                                const editableProperties =
-                                  nodeConfig?.editableProperties ?? [];
-
-                                const dataEntries = nodeConfig
-                                  ? editableProperties.map((prop) => [
-                                      prop.key,
-                                      node.data[prop.key] ?? prop.defaultValue,
-                                      prop,
-                                    ])
-                                  : Object.entries(node.data ?? {})
-                                      .filter(
-                                        ([key]) =>
-                                          !["label"].includes(key) &&
-                                          !key.startsWith("__"),
-                                      )
-                                      .map(([key, value]) => [
-                                        key,
-                                        value,
-                                        null,
-                                      ]);
-
-                                const getEditedValue = (
-                                  nodeId: string,
-                                  key: string,
-                                  originalValue: unknown,
-                                ) => {
-                                  return (
-                                    nodeDataEdits[nodeId]?.[key] ??
-                                    originalValue
-                                  );
-                                };
-
-                                const handleValueChange = (
-                                  nodeId: string,
-                                  key: string,
-                                  value: unknown,
-                                ) => {
-                                  setNodeDataEdits((prev) => ({
-                                    ...prev,
-                                    [nodeId]: {
-                                      ...prev[nodeId],
-                                      [key]: value,
-                                    },
-                                  }));
-                                };
-
-                                if (dataEntries.length === 0) {
-                                  return null;
+                        <Card
+                          key={selection.pipelineId}
+                          onClick={() =>
+                            setSelectedConfigPipelineId(selection.pipelineId)
+                          }
+                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-blue-500 ring-2 ring-blue-500/50"
+                              : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
+                          }`}
+                        >
+                          {pipelineImages[
+                            pipelineIndex % pipelineImages.length
+                          ] && (
+                            <div className="p-2 pb-0">
+                              <img
+                                src={
+                                  pipelineImages[
+                                    pipelineIndex % pipelineImages.length
+                                  ]
                                 }
+                                alt={pipeline.name}
+                                className="w-full h-24 object-cover rounded-md"
+                              />
+                            </div>
+                          )}
+                          <CardHeader className="p-3 pt-2">
+                            <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
+                              {pipeline.name}
+                            </CardTitle>
+                          </CardHeader>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
 
-                                return (
-                                  <AccordionItem
-                                    key={node.id}
-                                    value={node.id}
-                                    className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
-                                  >
-                                    <AccordionTrigger className="hover:no-underline py-2">
-                                      <div className="flex flex-col items-start">
-                                        {nodeTag ? (
-                                          <>
+              const previewSection = (
+                <div
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col ${colors.gridPreviewBorder}`}
+                >
+                  <p
+                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
+                  >
+                    Preview
+                  </p>
+                  <div className="flex-1 flex items-center justify-center text-slate-400">
+                    <p className="text-sm">Preview content will appear here</p>
+                  </div>
+                </div>
+              );
+
+              const pipelineConfigSection = (
+                <div
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder}`}
+                >
+                  <p
+                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
+                  >
+                    Pipeline Configuration
+                  </p>
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    {selectedConfigPipelineId ? (
+                      (() => {
+                        const pipeline = pipelines.find(
+                          (p) => p.id === selectedConfigPipelineId,
+                        );
+                        if (!pipeline) return null;
+
+                        return (
+                          <>
+                            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                              <Accordion
+                                type="single"
+                                collapsible
+                                className="w-full space-y-2"
+                              >
+                                {pipeline.pipeline_graph?.nodes?.map((node) => {
+                                  const nodeTag =
+                                    nodeTypeToTag[node.type] || null;
+                                  const nodeConfig = getNodeConfig(node.type);
+                                  const editableProperties =
+                                    nodeConfig?.editableProperties ?? [];
+
+                                  const dataEntries = nodeConfig
+                                    ? editableProperties.map((prop) => [
+                                        prop.key,
+                                        node.data[prop.key] ??
+                                          prop.defaultValue,
+                                        prop,
+                                      ])
+                                    : Object.entries(node.data ?? {})
+                                        .filter(
+                                          ([key]) =>
+                                            !["label"].includes(key) &&
+                                            !key.startsWith("__"),
+                                        )
+                                        .map(([key, value]) => [
+                                          key,
+                                          value,
+                                          null,
+                                        ]);
+
+                                  const getEditedValue = (
+                                    nodeId: string,
+                                    key: string,
+                                    originalValue: unknown,
+                                  ) => {
+                                    return (
+                                      nodeDataEdits[nodeId]?.[key] ??
+                                      originalValue
+                                    );
+                                  };
+
+                                  const handleValueChange = (
+                                    nodeId: string,
+                                    key: string,
+                                    value: unknown,
+                                  ) => {
+                                    setNodeDataEdits((prev) => ({
+                                      ...prev,
+                                      [nodeId]: {
+                                        ...prev[nodeId],
+                                        [key]: value,
+                                      },
+                                    }));
+                                  };
+
+                                  if (dataEntries.length === 0) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <AccordionItem
+                                      key={node.id}
+                                      value={node.id}
+                                      className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                                    >
+                                      <AccordionTrigger className="hover:no-underline py-2">
+                                        <div className="flex flex-col items-start">
+                                          {nodeTag ? (
+                                            <>
+                                              <span className="font-medium text-white">
+                                                {nodeTag}
+                                              </span>
+                                              <span className="text-xs text-slate-400 font-light">
+                                                {node.type}
+                                              </span>
+                                            </>
+                                          ) : (
                                             <span className="font-medium text-white">
-                                              {nodeTag}
-                                            </span>
-                                            <span className="text-xs text-slate-400 font-light">
                                               {node.type}
                                             </span>
-                                          </>
-                                        ) : (
-                                          <span className="font-medium text-white">
-                                            {node.type}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                      <div className="space-y-3 pb-2">
-                                        {dataEntries.map(
-                                          ([key, value, propConfig]) => {
-                                            const currentValue = getEditedValue(
-                                              node.id,
-                                              String(key),
-                                              value,
-                                            );
-                                            const config =
-                                              propConfig as NodePropertyConfig | null;
+                                          )}
+                                        </div>
+                                      </AccordionTrigger>
+                                      <AccordionContent>
+                                        <div className="space-y-3 pb-2">
+                                          {dataEntries.map(
+                                            ([key, value, propConfig]) => {
+                                              const currentValue =
+                                                getEditedValue(
+                                                  node.id,
+                                                  String(key),
+                                                  value,
+                                                );
+                                              const config =
+                                                propConfig as NodePropertyConfig | null;
 
-                                            return (
-                                              <div
-                                                key={String(key)}
-                                                className="space-y-1"
-                                              >
-                                                <label className="text-xs font-medium text-slate-300 block">
-                                                  {config?.label ?? String(key)}
-                                                </label>
-                                                {String(key) === "model" ? (
-                                                  <select
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  >
-                                                    <option value="">
-                                                      Select {config?.label}
-                                                    </option>
-                                                    {models
-                                                      .filter(
-                                                        (model) =>
-                                                          model.category ===
-                                                          config?.params
-                                                            ?.filter,
-                                                      )
-                                                      .map((model) => (
-                                                        <option
-                                                          key={model.name}
-                                                          value={
-                                                            model.display_name ??
-                                                            model.name
-                                                          }
-                                                        >
-                                                          {model.display_name ??
-                                                            model.name}
-                                                        </option>
-                                                      ))}
-                                                  </select>
-                                                ) : config?.type ===
-                                                  "select" ? (
-                                                  <select
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  >
-                                                    {config.options?.map(
-                                                      (option) => (
-                                                        <option
-                                                          key={option}
-                                                          value={option}
-                                                        >
-                                                          {option}
-                                                        </option>
-                                                      ),
-                                                    )}
-                                                  </select>
-                                                ) : config?.type ===
-                                                  "boolean" ? (
-                                                  <div className="flex items-center gap-2">
-                                                    <Checkbox
-                                                      checked={
-                                                        currentValue === true ||
-                                                        currentValue === "true"
-                                                      }
-                                                      onCheckedChange={(
-                                                        checked,
-                                                      ) =>
+                                              return (
+                                                <div
+                                                  key={String(key)}
+                                                  className="space-y-1"
+                                                >
+                                                  <label className="text-xs font-medium text-slate-300 block">
+                                                    {config?.label ??
+                                                      String(key)}
+                                                  </label>
+                                                  {String(key) === "model" ? (
+                                                    <select
+                                                      value={String(
+                                                        currentValue ?? "",
+                                                      )}
+                                                      onChange={(e) =>
                                                         handleValueChange(
                                                           node.id,
                                                           String(key),
-                                                          checked,
+                                                          e.target.value,
                                                         )
                                                       }
-                                                      className={
-                                                        colors.checkbox
+                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    >
+                                                      <option value="">
+                                                        Select {config?.label}
+                                                      </option>
+                                                      {models
+                                                        .filter(
+                                                          (model) =>
+                                                            model.category ===
+                                                            config?.params
+                                                              ?.filter,
+                                                        )
+                                                        .map((model) => (
+                                                          <option
+                                                            key={model.name}
+                                                            value={
+                                                              model.display_name ??
+                                                              model.name
+                                                            }
+                                                          >
+                                                            {model.display_name ??
+                                                              model.name}
+                                                          </option>
+                                                        ))}
+                                                    </select>
+                                                  ) : config?.type ===
+                                                    "select" ? (
+                                                    <select
+                                                      value={String(
+                                                        currentValue ?? "",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    >
+                                                      {config.options?.map(
+                                                        (option) => (
+                                                          <option
+                                                            key={option}
+                                                            value={option}
+                                                          >
+                                                            {option}
+                                                          </option>
+                                                        ),
+                                                      )}
+                                                    </select>
+                                                  ) : config?.type ===
+                                                    "boolean" ? (
+                                                    <div className="flex items-center gap-2">
+                                                      <Checkbox
+                                                        checked={
+                                                          currentValue ===
+                                                            true ||
+                                                          currentValue ===
+                                                            "true"
+                                                        }
+                                                        onCheckedChange={(
+                                                          checked,
+                                                        ) =>
+                                                          handleValueChange(
+                                                            node.id,
+                                                            String(key),
+                                                            checked,
+                                                          )
+                                                        }
+                                                        className={
+                                                          colors.checkbox
+                                                        }
+                                                      />
+                                                      <span className="text-xs text-slate-400">
+                                                        {config.description}
+                                                      </span>
+                                                    </div>
+                                                  ) : config?.type ===
+                                                    "textarea" ? (
+                                                    <textarea
+                                                      value={String(
+                                                        currentValue ?? "",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
+                                                      placeholder={
+                                                        config.description
                                                       }
                                                     />
-                                                    <span className="text-xs text-slate-400">
-                                                      {config.description}
-                                                    </span>
-                                                  </div>
-                                                ) : config?.type ===
-                                                  "textarea" ? (
-                                                  <textarea
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
-                                                    placeholder={
-                                                      config.description
-                                                    }
-                                                  />
-                                                ) : config?.type ===
-                                                  "number" ? (
-                                                  <input
-                                                    type="number"
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        parseFloat(
+                                                  ) : config?.type ===
+                                                    "number" ? (
+                                                    <input
+                                                      type="number"
+                                                      value={String(
+                                                        currentValue ?? "",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
+                                                          parseFloat(
+                                                            e.target.value,
+                                                          ),
+                                                        )
+                                                      }
+                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      placeholder={
+                                                        config.description
+                                                      }
+                                                    />
+                                                  ) : (
+                                                    <input
+                                                      type="text"
+                                                      value={String(
+                                                        currentValue ?? "",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
                                                           e.target.value,
-                                                        ),
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                    placeholder={
-                                                      config.description
-                                                    }
-                                                  />
-                                                ) : (
-                                                  <input
-                                                    type="text"
-                                                    value={String(
-                                                      currentValue ?? "",
-                                                    )}
-                                                    onChange={(e) =>
-                                                      handleValueChange(
-                                                        node.id,
-                                                        String(key),
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                    placeholder={
-                                                      config?.description ??
-                                                      "Enter value"
-                                                    }
-                                                  />
-                                                )}
+                                                        )
+                                                      }
+                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      placeholder={
+                                                        config?.description ??
+                                                        "Enter value"
+                                                      }
+                                                    />
+                                                  )}
+                                                </div>
+                                              );
+                                            },
+                                          )}
+                                        </div>
+                                      </AccordionContent>
+                                    </AccordionItem>
+                                  );
+                                })}
+                              </Accordion>
+                            </div>
+
+                            {/* Run Configuration Section */}
+                            <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0 bg-slate-900/95">
+                              <p
+                                className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
+                              >
+                                Run Configuration
+                              </p>
+                              <div className="w-full">
+                                <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setActiveTest("performance-test")
+                                    }
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                      activeTest === "performance-test"
+                                        ? "bg-blue-600 text-white"
+                                        : "text-slate-300 hover:text-white"
+                                    }`}
+                                  >
+                                    Performance Test
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setActiveTest("density-test")
+                                    }
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                      activeTest === "density-test"
+                                        ? "bg-blue-600 text-white"
+                                        : "text-slate-300 hover:text-white"
+                                    }`}
+                                  >
+                                    Density Test
+                                  </button>
+                                </div>
+
+                                {activeTest === "performance-test" ? (
+                                  <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                    <div className="space-y-3">
+                                      {/* Streams per pipeline */}
+                                      <div className="space-y-2">
+                                        {pipelineSelections.map((selection) => {
+                                          const pipeline = pipelines.find(
+                                            (p) =>
+                                              p.id === selection.pipelineId,
+                                          );
+
+                                          return (
+                                            <div
+                                              key={selection.pipelineId}
+                                              className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                            >
+                                              <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-xs text-slate-300 font-semibold">
+                                                  {pipeline?.name ?? "Pipeline"}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">
+                                                  Streams
+                                                </span>
                                               </div>
-                                            );
-                                          },
-                                        )}
-                                      </div>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                );
-                              })}
-                            </Accordion>
-                          </div>
-
-                          {/* Run Configuration Section */}
-                          <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0 bg-slate-900/95">
-                            <p
-                              className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
-                            >
-                              Run Configuration
-                            </p>
-                            <div className="w-full">
-                              <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setActiveTest("performance-test")
-                                  }
-                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                                    activeTest === "performance-test"
-                                      ? "bg-blue-600 text-white"
-                                      : "text-slate-300 hover:text-white"
-                                  }`}
-                                >
-                                  Performance Test
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveTest("density-test")}
-                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                                    activeTest === "density-test"
-                                      ? "bg-blue-600 text-white"
-                                      : "text-slate-300 hover:text-white"
-                                  }`}
-                                >
-                                  Density Test
-                                </button>
-                              </div>
-
-                              {activeTest === "performance-test" ? (
-                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
-                                  <div className="space-y-3">
-                                    {/* Streams per pipeline */}
-                                    <div className="space-y-2">
-                                      {pipelineSelections.map((selection) => {
-                                        const pipeline = pipelines.find(
-                                          (p) => p.id === selection.pipelineId,
-                                        );
-
-                                        return (
-                                          <div
-                                            key={selection.pipelineId}
-                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
-                                          >
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                              <span className="text-xs text-slate-300 font-semibold">
-                                                {pipeline?.name ?? "Pipeline"}
-                                              </span>
-                                              <span className="text-[10px] text-slate-500">
-                                                Streams
-                                              </span>
+                                              <StreamsSlider
+                                                value={
+                                                  performanceStreams[
+                                                    selection.pipelineId
+                                                  ] ?? 8
+                                                }
+                                                onChange={(val) =>
+                                                  handlePerformanceStreamsChange(
+                                                    selection.pipelineId,
+                                                    val,
+                                                  )
+                                                }
+                                                min={1}
+                                                max={64}
+                                              />
                                             </div>
-                                            <StreamsSlider
-                                              value={
-                                                performanceStreams[
-                                                  selection.pipelineId
-                                                ] ?? 8
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* Live Preview + Save Output */}
+                                      <div className="flex flex-wrap items-start gap-3">
+                                        <div className="space-y-1 min-h-[72px]">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={
+                                                performanceLivePreviewEnabled
                                               }
-                                              onChange={(val) =>
-                                                handlePerformanceStreamsChange(
-                                                  selection.pipelineId,
-                                                  val,
+                                              onCheckedChange={(checked) =>
+                                                setPerformanceLivePreviewEnabled(
+                                                  checked === true,
                                                 )
                                               }
-                                              min={1}
-                                              max={64}
+                                              className={colors.checkbox}
                                             />
+                                            <label className="text-xs text-slate-300">
+                                              Enable live preview
+                                            </label>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
-
-                                    {/* Live Preview + Save Output */}
-                                    <div className="flex flex-wrap items-start gap-3">
-                                      <div className="space-y-1 min-h-[72px]">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceLivePreviewEnabled
-                                            }
-                                            onCheckedChange={(checked) =>
-                                              setPerformanceLivePreviewEnabled(
-                                                checked === true,
-                                              )
-                                            }
-                                            className={colors.checkbox}
-                                          />
-                                          <label className="text-xs text-slate-300">
-                                            Enable live preview
-                                          </label>
                                         </div>
-                                      </div>
 
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceVideoOutputEnabled
-                                            }
-                                            onCheckedChange={(checked) =>
-                                              setPerformanceVideoOutputEnabled(
-                                                checked === true,
-                                              )
-                                            }
-                                            className={colors.checkbox}
-                                          />
-                                          <label className="text-xs text-slate-300">
-                                            Save output
-                                          </label>
-                                        </div>
-                                        {performanceVideoOutputEnabled && (
-                                          <div className="mt-2">
-                                            <SaveOutputWarning />
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={
+                                                performanceVideoOutputEnabled
+                                              }
+                                              onCheckedChange={(checked) =>
+                                                setPerformanceVideoOutputEnabled(
+                                                  checked === true,
+                                                )
+                                              }
+                                              className={colors.checkbox}
+                                            />
+                                            <label className="text-xs text-slate-300">
+                                              Save output
+                                            </label>
                                           </div>
-                                        )}
+                                          {performanceVideoOutputEnabled && (
+                                            <div className="mt-2">
+                                              <SaveOutputWarning />
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              ) : (
-                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
-                                  <div className="space-y-3">
-                                    {/* Participation rate per pipeline */}
-                                    <div className="space-y-2">
-                                      {pipelineSelections.map((selection) => {
-                                        const pipeline = pipelines.find(
-                                          (p) => p.id === selection.pipelineId,
-                                        );
+                                ) : (
+                                  <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                    <div className="space-y-3">
+                                      {/* Participation rate per pipeline */}
+                                      <div className="space-y-2">
+                                        {pipelineSelections.map((selection) => {
+                                          const pipeline = pipelines.find(
+                                            (p) =>
+                                              p.id === selection.pipelineId,
+                                          );
 
-                                        return (
-                                          <div
-                                            key={selection.pipelineId}
-                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
-                                          >
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                              <span className="text-xs text-slate-300 font-semibold">
-                                                {pipeline?.name ?? "Pipeline"}
-                                              </span>
-                                              <span className="text-[10px] text-slate-500">
-                                                Participation rate
-                                              </span>
+                                          return (
+                                            <div
+                                              key={selection.pipelineId}
+                                              className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                            >
+                                              <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-xs text-slate-300 font-semibold">
+                                                  {pipeline?.name ?? "Pipeline"}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">
+                                                  Participation rate
+                                                </span>
+                                              </div>
+                                              <ParticipationSlider
+                                                value={selection.stream_rate}
+                                                onChange={(val) =>
+                                                  handleStreamRateChange(
+                                                    selection.pipelineId,
+                                                    val,
+                                                  )
+                                                }
+                                                min={0}
+                                                max={100}
+                                              />
                                             </div>
-                                            <ParticipationSlider
-                                              value={selection.stream_rate}
-                                              onChange={(val) =>
-                                                handleStreamRateChange(
-                                                  selection.pipelineId,
-                                                  val,
-                                                )
-                                              }
-                                              min={0}
-                                              max={100}
-                                            />
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                          );
+                                        })}
+                                      </div>
 
-                                    {/* FPS Floor + Video Output */}
-                                    <div className="flex flex-wrap items-start gap-3">
-                                      <div className="space-y-1 min-h-[72px]">
-                                        <label className="text-xs font-medium text-slate-300 block">
-                                          Target FPS
-                                        </label>
-                                        <input
-                                          type="number"
-                                          value={fpsFloor}
-                                          onChange={(e) =>
-                                            setFpsFloor(
-                                              parseFloat(e.target.value) || 0,
-                                            )
-                                          }
-                                          className="w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                          placeholder="Minimum FPS threshold"
-                                          min={0}
+                                      {/* FPS Floor + Video Output */}
+                                      <div className="flex flex-wrap items-start gap-3">
+                                        <div className="space-y-1 min-h-[72px]">
+                                          <label className="text-xs font-medium text-slate-300 block">
+                                            Target FPS
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={fpsFloor}
+                                            onChange={(e) =>
+                                              setFpsFloor(
+                                                parseFloat(e.target.value) || 0,
+                                              )
+                                            }
+                                            className="w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                            placeholder="Minimum FPS threshold"
+                                            min={0}
+                                          />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={videoOutputEnabled}
+                                              onCheckedChange={(checked) =>
+                                                setVideoOutputEnabled(!!checked)
+                                              }
+                                              className={colors.checkbox}
+                                            />
+                                            <label className="text-xs text-slate-300">
+                                              Save output
+                                            </label>
+                                          </div>
+                                          {videoOutputEnabled && (
+                                            <div className="mt-2">
+                                              <SaveOutputWarning />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Run Button */}
+                                <button
+                                  onClick={handleRunTest}
+                                  disabled={isRunDisabled}
+                                  className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-3 ${colors.runButton}`}
+                                >
+                                  <div
+                                    className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
+                                  ></div>
+                                  <span className="relative">
+                                    {isRunDisabled ? "Running..." : "Run Test"}
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-slate-400">
+                        <p className="text-sm">
+                          Select a pipeline to configure
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+
+              const resultsSection = showResultsPanel ? (
+                <div
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden ${colors.gridResultsBorder}`}
+                >
+                  <p
+                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
+                  >
+                    Results
+                  </p>
+
+                  <div className="flex-1 overflow-y-auto">
+                    {lastRunTest === "performance-test" ? (
+                      <div className="space-y-3">
+                        {performanceJobId && performanceJobStatus && (
+                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                            <p className="text-sm font-bold text-white mb-1">
+                              Test Status: {performanceJobStatus.state}
+                            </p>
+                            {performanceJobStatus.state === "RUNNING" && (
+                              <div className="mt-2">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <div className="flex gap-1">
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    ></div>
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      style={{ animationDelay: "0.1s" }}
+                                    ></div>
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      style={{ animationDelay: "0.2s" }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-neutral-300 text-xs">
+                                    Running performance test...
+                                  </span>
+                                </div>
+                                <TestProgressIndicator />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {performanceErrorMessage && (
+                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                            <p className="text-sm font-bold text-white mb-1">
+                              Test Failed
+                            </p>
+                            <p className="text-xs text-neutral-300">
+                              {performanceErrorMessage}
+                            </p>
+                          </div>
+                        )}
+
+                        {!performanceResult &&
+                          !performanceJobId &&
+                          !performanceErrorMessage && (
+                            <div className="flex items-center justify-center h-full text-slate-400">
+                              <p className="text-sm">
+                                Results will appear here after running the test
+                              </p>
+                            </div>
+                          )}
+
+                        {performanceResult && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div
+                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                              >
+                                <div
+                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                                ></div>
+                                <div className="relative text-center">
+                                  <p
+                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                  >
+                                    Total FPS
+                                  </p>
+                                  <p
+                                    className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                  >
+                                    {performanceResult.total_fps?.toFixed(2) ??
+                                      "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div
+                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                              >
+                                <div
+                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                                ></div>
+                                <div className="relative text-center">
+                                  <p
+                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                  >
+                                    Per Stream FPS
+                                  </p>
+                                  <p
+                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                  >
+                                    {performanceResult.per_stream_fps?.toFixed(
+                                      2,
+                                    ) ?? "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {performanceLivePreviewEnabled &&
+                              performanceResult.live_stream_urls &&
+                              Object.keys(performanceResult.live_stream_urls)
+                                .length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-semibold text-slate-300">
+                                    Live previews
+                                  </p>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {Object.entries(
+                                      performanceResult.live_stream_urls,
+                                    ).map(([pipelineId, url]) => (
+                                      <div
+                                        key={pipelineId}
+                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 p-2"
+                                      >
+                                        <p className="text-[10px] text-slate-400 mb-2">
+                                          <PipelineName
+                                            pipelineId={pipelineId}
+                                          />
+                                        </p>
+                                        <video
+                                          controls
+                                          className="w-full"
+                                          src={url}
                                         />
                                       </div>
-
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={videoOutputEnabled}
-                                            onCheckedChange={(checked) =>
-                                              setVideoOutputEnabled(!!checked)
-                                            }
-                                            className={colors.checkbox}
-                                          />
-                                          <label className="text-xs text-slate-300">
-                                            Save output
-                                          </label>
-                                        </div>
-                                        {videoOutputEnabled && (
-                                          <div className="mt-2">
-                                            <SaveOutputWarning />
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                    ))}
                                   </div>
                                 </div>
                               )}
 
-                              {/* Run Button */}
-                              <button
-                                onClick={handleRunTest}
-                                disabled={isRunDisabled}
-                                className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-3 ${colors.runButton}`}
-                              >
-                                <div
-                                  className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
-                                ></div>
-                                <span className="relative">
-                                  {isRunDisabled ? "Running..." : "Run Test"}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-slate-400">
-                      <p className="text-sm">Select a pipeline to configure</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                            {performanceVideoOutputEnabled &&
+                              performanceResult.video_output_paths &&
+                              Object.keys(performanceResult.video_output_paths)
+                                .length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-semibold text-slate-300">
+                                    Output Videos
+                                  </p>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {Object.entries(
+                                      performanceResult.video_output_paths,
+                                    ).map(([pipelineId, paths]) => {
+                                      const videoPath =
+                                        paths && paths.length > 0
+                                          ? [...paths].pop()
+                                          : null;
 
-              {/* BOTTOM RIGHT - Results */}
-              <div
-                className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden ${colors.gridResultsBorder}`}
-              >
-                <p
-                  className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
-                >
-                  Results
-                </p>
-
-                <div className="flex-1 overflow-y-auto">
-                  {lastRunTest === "performance-test" ? (
-                    <div className="space-y-3">
-                      {performanceJobId && performanceJobStatus && (
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                          <p className="text-sm font-bold text-white mb-1">
-                            Test Status: {performanceJobStatus.state}
-                          </p>
-                          {performanceJobStatus.state === "RUNNING" && (
-                            <div className="mt-2">
-                              <div className="mb-2 flex items-center gap-2">
-                                <div className="flex gap-1">
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                  ></div>
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                    style={{ animationDelay: "0.1s" }}
-                                  ></div>
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                    style={{ animationDelay: "0.2s" }}
-                                  ></div>
+                                      return (
+                                        <div
+                                          key={pipelineId}
+                                          className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
+                                        >
+                                          <div className="px-3 py-2 border-b border-slate-400/20">
+                                            <p className="text-[10px] text-slate-400">
+                                              <PipelineName
+                                                pipelineId={pipelineId}
+                                              />
+                                            </p>
+                                          </div>
+                                          {videoPath ? (
+                                            <video
+                                              controls
+                                              className="w-full"
+                                              src={`/assets${videoPath}`}
+                                            >
+                                              Your browser does not support the
+                                              video tag.
+                                            </video>
+                                          ) : (
+                                            <div className="p-3 text-center text-xs text-slate-400">
+                                              no streams
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                                <span className="text-neutral-300 text-xs">
-                                  Running performance test...
-                                </span>
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {densityJobId && jobStatus && (
+                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                            <p className="text-sm font-bold text-white mb-1">
+                              Test Status: {jobStatus.state}
+                            </p>
+                            {jobStatus.state === "RUNNING" && (
+                              <div className="mt-2">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <div className="flex gap-1">
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                    ></div>
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      style={{ animationDelay: "0.1s" }}
+                                    ></div>
+                                    <div
+                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      style={{ animationDelay: "0.2s" }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-neutral-300 text-xs">
+                                    Running density test...
+                                  </span>
+                                </div>
+                                <TestProgressIndicator />
                               </div>
-                              <TestProgressIndicator />
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        )}
 
-                      {performanceErrorMessage && (
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                          <p className="text-sm font-bold text-white mb-1">
-                            Test Failed
-                          </p>
-                          <p className="text-xs text-neutral-300">
-                            {performanceErrorMessage}
-                          </p>
-                        </div>
-                      )}
+                        {errorMessage && (
+                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                            <p className="text-sm font-bold text-white mb-1">
+                              Test Failed
+                            </p>
+                            <p className="text-xs text-neutral-300">
+                              {errorMessage}
+                            </p>
+                          </div>
+                        )}
 
-                      {!performanceResult &&
-                        !performanceJobId &&
-                        !performanceErrorMessage && (
+                        {!testResult && !densityJobId && !errorMessage && (
                           <div className="flex items-center justify-center h-full text-slate-400">
                             <p className="text-sm">
                               Results will appear here after running the test
@@ -1481,300 +1682,155 @@ const DemoMode = () => {
                           </div>
                         )}
 
-                      {performanceResult && (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div
-                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
-                            >
+                        {testResult && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
                               <div
-                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
-                              ></div>
-                              <div className="relative text-center">
-                                <p
-                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
-                                >
-                                  Total FPS
-                                </p>
-                                <p
-                                  className={`text-xl font-bold ${colors.summaryFpsText}`}
-                                >
-                                  {performanceResult.total_fps?.toFixed(2) ??
-                                    "N/A"}
-                                </p>
-                              </div>
-                            </div>
-                            <div
-                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
-                            >
-                              <div
-                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
-                              ></div>
-                              <div className="relative text-center">
-                                <p
-                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
-                                >
-                                  Per Stream FPS
-                                </p>
-                                <p
-                                  className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
-                                >
-                                  {performanceResult.per_stream_fps?.toFixed(
-                                    2,
-                                  ) ?? "N/A"}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {performanceLivePreviewEnabled &&
-                            performanceResult.live_stream_urls &&
-                            Object.keys(performanceResult.live_stream_urls)
-                              .length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-semibold text-slate-300">
-                                  Live previews
-                                </p>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {Object.entries(
-                                    performanceResult.live_stream_urls,
-                                  ).map(([pipelineId, url]) => (
-                                    <div
-                                      key={pipelineId}
-                                      className="rounded-md border border-slate-400/30 bg-slate-900/60 p-2"
-                                    >
-                                      <p className="text-[10px] text-slate-400 mb-2">
-                                        <PipelineName pipelineId={pipelineId} />
-                                      </p>
-                                      <video
-                                        controls
-                                        className="w-full"
-                                        src={url}
-                                      />
-                                    </div>
-                                  ))}
+                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                              >
+                                <div
+                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                                ></div>
+                                <div className="relative text-center">
+                                  <p
+                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                  >
+                                    Per Stream FPS
+                                  </p>
+                                  <p
+                                    className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                  >
+                                    {testResult.per_stream_fps?.toFixed(2) ??
+                                      "N/A"}
+                                  </p>
                                 </div>
+                              </div>
+                              <div
+                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                              >
+                                <div
+                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                                ></div>
+                                <div className="relative text-center">
+                                  <p
+                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                  >
+                                    Total Streams
+                                  </p>
+                                  <p
+                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                  >
+                                    {testResult.total_streams ?? "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {testResult.streams_per_pipeline && (
+                              <div className="rounded-lg border border-slate-400/30 bg-slate-900/60 p-2">
+                                <p className="text-xs text-slate-300 font-semibold mb-2">
+                                  Streams per Pipeline
+                                </p>
+                                <PipelineStreamsSummary
+                                  streamsPerPipeline={
+                                    testResult.streams_per_pipeline
+                                  }
+                                  pipelines={pipelines ?? []}
+                                />
                               </div>
                             )}
 
-                          {performanceVideoOutputEnabled &&
-                            performanceResult.video_output_paths &&
-                            Object.keys(performanceResult.video_output_paths)
-                              .length > 0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-semibold text-slate-300">
-                                  Output Videos
-                                </p>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {Object.entries(
-                                    performanceResult.video_output_paths,
-                                  ).map(([pipelineId, paths]) => {
-                                    const videoPath =
-                                      paths && paths.length > 0
-                                        ? [...paths].pop()
-                                        : null;
+                            {videoOutputEnabled &&
+                              testResult.video_output_paths &&
+                              Object.keys(testResult.video_output_paths)
+                                .length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-semibold text-slate-300">
+                                    Output Videos
+                                  </p>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {Object.entries(
+                                      testResult.video_output_paths,
+                                    ).map(([pipelineId, paths]) => {
+                                      const videoPath =
+                                        paths && paths.length > 0
+                                          ? [...paths].pop()
+                                          : null;
 
-                                    return (
-                                      <div
-                                        key={pipelineId}
-                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
-                                      >
-                                        <div className="px-3 py-2 border-b border-slate-400/20">
-                                          <p className="text-[10px] text-slate-400">
-                                            <PipelineName
-                                              pipelineId={pipelineId}
-                                            />
-                                          </p>
-                                        </div>
-                                        {videoPath ? (
-                                          <video
-                                            controls
-                                            className="w-full"
-                                            src={`/assets${videoPath}`}
-                                          >
-                                            Your browser does not support the
-                                            video tag.
-                                          </video>
-                                        ) : (
-                                          <div className="p-3 text-center text-xs text-slate-400">
-                                            no streams
+                                      return (
+                                        <div
+                                          key={pipelineId}
+                                          className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
+                                        >
+                                          <div className="px-3 py-2 border-b border-slate-400/20">
+                                            <p className="text-[10px] text-slate-400">
+                                              <PipelineName
+                                                pipelineId={pipelineId}
+                                              />
+                                            </p>
                                           </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {densityJobId && jobStatus && (
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                          <p className="text-sm font-bold text-white mb-1">
-                            Test Status: {jobStatus.state}
-                          </p>
-                          {jobStatus.state === "RUNNING" && (
-                            <div className="mt-2">
-                              <div className="mb-2 flex items-center gap-2">
-                                <div className="flex gap-1">
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                  ></div>
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                    style={{ animationDelay: "0.1s" }}
-                                  ></div>
-                                  <div
-                                    className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                    style={{ animationDelay: "0.2s" }}
-                                  ></div>
-                                </div>
-                                <span className="text-neutral-300 text-xs">
-                                  Running density test...
-                                </span>
-                              </div>
-                              <TestProgressIndicator />
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {errorMessage && (
-                        <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                          <p className="text-sm font-bold text-white mb-1">
-                            Test Failed
-                          </p>
-                          <p className="text-xs text-neutral-300">
-                            {errorMessage}
-                          </p>
-                        </div>
-                      )}
-
-                      {!testResult && !densityJobId && !errorMessage && (
-                        <div className="flex items-center justify-center h-full text-slate-400">
-                          <p className="text-sm">
-                            Results will appear here after running the test
-                          </p>
-                        </div>
-                      )}
-
-                      {testResult && (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div
-                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
-                            >
-                              <div
-                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
-                              ></div>
-                              <div className="relative text-center">
-                                <p
-                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
-                                >
-                                  Per Stream FPS
-                                </p>
-                                <p
-                                  className={`text-xl font-bold ${colors.summaryFpsText}`}
-                                >
-                                  {testResult.per_stream_fps?.toFixed(2) ??
-                                    "N/A"}
-                                </p>
-                              </div>
-                            </div>
-                            <div
-                              className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
-                            >
-                              <div
-                                className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
-                              ></div>
-                              <div className="relative text-center">
-                                <p
-                                  className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
-                                >
-                                  Total Streams
-                                </p>
-                                <p
-                                  className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
-                                >
-                                  {testResult.total_streams ?? "N/A"}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {testResult.streams_per_pipeline && (
-                            <div className="rounded-lg border border-slate-400/30 bg-slate-900/60 p-2">
-                              <p className="text-xs text-slate-300 font-semibold mb-2">
-                                Streams per Pipeline
-                              </p>
-                              <PipelineStreamsSummary
-                                streamsPerPipeline={
-                                  testResult.streams_per_pipeline
-                                }
-                                pipelines={pipelines ?? []}
-                              />
-                            </div>
-                          )}
-
-                          {videoOutputEnabled &&
-                            testResult.video_output_paths &&
-                            Object.keys(testResult.video_output_paths).length >
-                              0 && (
-                              <div className="space-y-2">
-                                <p className="text-xs font-semibold text-slate-300">
-                                  Output Videos
-                                </p>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {Object.entries(
-                                    testResult.video_output_paths,
-                                  ).map(([pipelineId, paths]) => {
-                                    const videoPath =
-                                      paths && paths.length > 0
-                                        ? [...paths].pop()
-                                        : null;
-
-                                    return (
-                                      <div
-                                        key={pipelineId}
-                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
-                                      >
-                                        <div className="px-3 py-2 border-b border-slate-400/20">
-                                          <p className="text-[10px] text-slate-400">
-                                            <PipelineName
-                                              pipelineId={pipelineId}
-                                            />
-                                          </p>
+                                          {videoPath ? (
+                                            <video
+                                              controls
+                                              className="w-full"
+                                              src={`/assets${videoPath}`}
+                                            >
+                                              Your browser does not support the
+                                              video tag.
+                                            </video>
+                                          ) : (
+                                            <div className="p-3 text-center text-xs text-slate-400">
+                                              no streams
+                                            </div>
+                                          )}
                                         </div>
-                                        {videoPath ? (
-                                          <video
-                                            controls
-                                            className="w-full"
-                                            src={`/assets${videoPath}`}
-                                          >
-                                            Your browser does not support the
-                                            video tag.
-                                          </video>
-                                        ) : (
-                                          <div className="p-3 text-center text-xs text-slate-400">
-                                            no streams
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              ) : null;
+
+              if (showPreRunLayout) {
+                return (
+                  <div className="grid grid-cols-[minmax(240px,320px)_1fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+                    {pipelineCardsSection}
+                    {pipelineConfigSection}
+                  </div>
+                );
+              }
+
+              if (showPreviewPanel) {
+                return (
+                  <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+                    {pipelineCardsSection}
+                    {previewSection}
+                    {pipelineConfigSection}
+                    {resultsSection}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+                  <div className="row-start-1 col-start-1">
+                    {pipelineCardsSection}
+                  </div>
+                  <div className="row-start-2 col-start-1 h-full min-h-0">
+                    <div className="h-full min-h-0">
+                      {pipelineConfigSection}
+                    </div>
+                  </div>
+                  <div className="row-span-2 col-start-2">{resultsSection}</div>
+                </div>
+              );
+            })()
           ) : null}
         </div>
       </div>
