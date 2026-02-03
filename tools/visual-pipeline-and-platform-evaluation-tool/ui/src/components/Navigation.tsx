@@ -1,5 +1,5 @@
 import logoLight from "@/assets/app-logo-classic-blue.svg";
-import logoDark from "@/assets/app-logo-energy-blue.svg";
+import logoDark from "@/assets/app-logo-var-4.svg";
 import { useTheme } from "next-themes";
 import { NavLink } from "react-router";
 import { menuItems } from "@/config/navigation.ts";
