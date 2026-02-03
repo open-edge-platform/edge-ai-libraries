@@ -65,6 +65,7 @@ enable comparison of configurations and optimization of settings.
 - [System Requirements](./system-requirements)
 - [Get Started](./get-started)
 - [How to Build Source](./how-to-build-source)
+- [How to use gvapython scripts](./how-to-use-gvapython-scripts)
 - [How to use Video Generator](./how-to-use-video-generator)
 - [Release Notes](./release-notes)
 
@@ -77,6 +78,7 @@ get-started
 release-notes
 how-to-build-source
 using-vippet
+how-to-use-gvapython-scripts
 how-to-use-video-generator
 api-reference
 disclaimers

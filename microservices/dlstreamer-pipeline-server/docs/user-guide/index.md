@@ -29,7 +29,7 @@ detection, classification, identification, counting, and tracking on the input v
 
 ## How it Works
 
-![DL Streamer Pipeline Server architecture](./images/dls-pipelineserver-simplified-arch.png)
+![DL Streamer Pipeline Server architecture](./_assets/dls-pipelineserver-simplified-arch.png)
 
 Here is the high level description of functionality of DL Streamer Pipeline Server module:
 
@@ -74,30 +74,28 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 :::{toctree}
 :hidden:
 
-overview-architecture
-system-requirements
 get-started
-troubleshooting-guide
+how-to-build-from-source
+how-to-deploy-with-helm
+how-to-launch-and-manage-pipeline
+how-to-launch-configurable-pipelines
 how-to-change-dlstreamer-pipeline
+how-to-autostart-pipelines
+how-to-run-udf-pipelines
 how-to-use-gpu-for-decode-and-inference
 how-to-use-cpu-for-decode-and-inference
-how-to-autostart-pipelines
-how-to-launch-configurable-pipelines
 how-to-perform-webrtc-frame-streaming
 how-to-start-dlsps-mqtt-publish
 how-to-store-s3-frame
 how-to-store-metadata-influxdb
 how-to-publish-metadata-over-ros2
-how-to-launch-and-manage-pipeline
 how-to-use-rtsp-camera-as-video-source
-how-to-run-udf-pipelines
-how-to-deploy-with-helm
 how-to-use-image-file-as-source-over-request-payload
 how-to-download-and-run-yolo-models
-how-to-build-from-source
 how-to-add-system-timestamps-to-metadata
 api-reference
 environment-variables
+troubleshooting
 advanced-guide/Overview
 release_notes/Overview
 

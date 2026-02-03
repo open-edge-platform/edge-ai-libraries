@@ -3,14 +3,14 @@
 The Image ingestion feature is responsible for ingesting the images coming from a directory into DL Streamer Pipeline Server for further processing.
 Image ingestion supports the following image formats:
 
-- Jpg
-- Jpeg
-- Jpe
-- Bmp
-- Png
+- JPG
+- JPEG
+- JPE
+- BMP
+- PNG
 
 Volume mount the image directory present on the host system. To do this, provide the absolute path of the images directory in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`.
-Refer the following snippet of the `dlstreamer-pipeline-server` service to add the required changes. 
+Refer the following snippet of the `dlstreamer-pipeline-server` service to add the required changes.
 
 ```yaml
 dlstreamer-pipeline-server:
@@ -25,7 +25,7 @@ dlstreamer-pipeline-server:
     ...
 ```
 
-Refer the following snippet for enabling the image ingestion feature for Jpg images and and modify the appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
+Refer the following snippet for enabling the image ingestion feature for Jpg images and and modify the appropriate `config.json` file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
   ```javascript
     "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%02d.jpg\" index=1 name=source ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
@@ -63,7 +63,7 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 
 - For BMP Images
 
-Refer to the following snippet for enabling the image ingestion feature for bmp image and modify the appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
+Refer to the following snippet for enabling the image ingestion feature for bmp image and modify the appropriate `config.json` file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
 ```javascript
     "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%03d.bmp\" start-index=1 framerate=1/1 ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",

@@ -10,6 +10,7 @@ from typing import Any, Tuple
 from unittest import mock
 
 import gst_runner
+from gi.repository import Gst as RealGst  # type: ignore[import]
 
 
 class TestParseArgs(unittest.TestCase):
@@ -124,8 +125,6 @@ class TestParsePipeline(unittest.TestCase):
 
     def test_parse_pipeline_failure_on_logged_error(self) -> None:
         """_parse_log_collector should mark error_seen when an ERROR log is observed."""
-        from gi.repository import Gst as RealGst  # type: ignore[import]
-
         state = gst_runner._ParseLogState()
         message = mock.Mock()
         message.get.return_value = "simulated parse error"
@@ -245,6 +244,25 @@ class TestRunPipeline(unittest.TestCase):
             )
 
 
+class TestRunState(unittest.TestCase):
+    """Tests for the _RunState dataclass."""
+
+    def test_run_state_defaults(self) -> None:
+        """_RunState should have correct default values."""
+        state = gst_runner._RunState()
+        self.assertFalse(state.error_seen)
+        self.assertFalse(state.eos_seen)
+        self.assertFalse(state.max_runtime_triggered)
+        self.assertFalse(state.shutdown_in_progress)
+        self.assertIsNone(state.reason)
+
+    def test_run_state_shutdown_in_progress(self) -> None:
+        """_RunState should track shutdown_in_progress flag."""
+        state = gst_runner._RunState()
+        state.shutdown_in_progress = True
+        self.assertTrue(state.shutdown_in_progress)
+
+
 class TestPipelineRunner(unittest.TestCase):
     """Tests for the internal _PipelineRunner helper."""
 
@@ -289,6 +307,112 @@ class TestPipelineRunner(unittest.TestCase):
 
         self.assertFalse(ok)
         self.assertEqual(reason, "error")
+
+    def test_pipeline_runner_ignores_errors_during_shutdown(self) -> None:
+        """_PipelineRunner should ignore errors when shutdown_in_progress is True."""
+        # Create a fake pipeline that passes isinstance(..., Gst.Pipeline).
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+
+        # No messages on the bus initially
+        fake_bus.pop.return_value = None
+
+        # get_state should eventually succeed
+        fake_pipeline.get_state.return_value = (
+            gst_runner.Gst.StateChangeReturn.SUCCESS,
+            gst_runner.Gst.State.PLAYING,
+            gst_runner.Gst.State.VOID_PENDING,
+        )
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+            mock_loop.run.side_effect = lambda: None
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="validation"
+            )
+
+            # Manually set shutdown_in_progress to True
+            runner._state.shutdown_in_progress = True
+
+            # Create a fake ERROR message
+            fake_error_message = mock.Mock()
+            fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+            fake_error = mock.Mock()
+            fake_error.message = "simulated-shutdown-error"
+            fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+
+            # Call the bus message handler directly
+            result = runner._on_bus_message(fake_bus, fake_error_message, mock_loop)
+
+            # Should return True (continue processing) and NOT mark error_seen
+            self.assertTrue(result)
+            self.assertFalse(runner._state.error_seen)
+
+    def test_pipeline_runner_records_error_when_not_shutting_down(self) -> None:
+        """_PipelineRunner should record errors when shutdown_in_progress is False."""
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+        fake_bus.pop.return_value = None
+
+        fake_pipeline.get_state.return_value = (
+            gst_runner.Gst.StateChangeReturn.SUCCESS,
+            gst_runner.Gst.State.PLAYING,
+            gst_runner.Gst.State.VOID_PENDING,
+        )
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+            mock_loop.run.side_effect = lambda: None
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="validation"
+            )
+
+            # shutdown_in_progress is False by default
+            self.assertFalse(runner._state.shutdown_in_progress)
+
+            # Create a fake ERROR message
+            fake_error_message = mock.Mock()
+            fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+            fake_error = mock.Mock()
+            fake_error.message = "simulated-runtime-error"
+            fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+
+            # Call the bus message handler directly
+            runner._on_bus_message(fake_bus, fake_error_message, mock_loop)
+
+            # Should mark error_seen and quit the loop
+            self.assertTrue(runner._state.error_seen)
+            self.assertEqual(runner._state.reason, "error")
+            mock_loop.quit.assert_called_once()
+
+    def test_max_runtime_sets_shutdown_in_progress(self) -> None:
+        """_max_runtime_enforcement_thread should set shutdown_in_progress before stopping."""
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.001, mode="normal"
+            )
+
+            # Mock time.sleep to avoid actual waiting
+            with mock.patch.object(gst_runner.time, "sleep"):
+                runner._max_runtime_enforcement_thread(mock_loop)
+
+            # Verify shutdown_in_progress was set
+            self.assertTrue(runner._state.shutdown_in_progress)
+            self.assertTrue(runner._state.max_runtime_triggered)
+            self.assertEqual(runner._state.reason, "max_runtime")
 
 
 class TestMain(unittest.TestCase):

@@ -224,7 +224,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/performance`,
           method: "POST",
-          body: queryArg.performanceTestSpec,
+          body: queryArg.performanceTestSpecInput,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -235,7 +235,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/density`,
           method: "POST",
-          body: queryArg.densityTestSpec,
+          body: queryArg.densityTestSpecInput,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -333,9 +333,9 @@ export type CreatePipelineApiResponse =
 export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
-export type ValidatePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline validation started */ ValidationJobResponse;
+export type ValidatePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -355,9 +355,9 @@ export type DeletePipelineApiResponse =
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
-export type OptimizePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
+export type OptimizePipelineApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
 export type OptimizePipelineApiArg = {
   pipelineId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;
@@ -365,12 +365,12 @@ export type OptimizePipelineApiArg = {
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
 export type RunPerformanceTestApiArg = {
-  performanceTestSpec: PerformanceTestSpec;
+  performanceTestSpecInput: PerformanceTestSpec2;
 };
 export type RunDensityTestApiResponse =
   /** status 202 Density test job created */ TestJobResponse;
 export type RunDensityTestApiArg = {
-  densityTestSpec: DensityTestSpec;
+  densityTestSpecInput: DensityTestSpec2;
 };
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
@@ -444,16 +444,22 @@ export type PerformanceJobStatus = {
     [key: string]: string[];
   } | null;
   error_message: string | null;
+  live_stream_urls: {
+    [key: string]: string;
+  } | null;
 };
-export type VideoOutputConfig = {
-  /** Flag to enable or disable video output generation. */
-  enabled?: boolean;
+export type OutputMode = "disabled" | "file" | "live_stream";
+export type ExecutionConfig = {
+  /** Mode for pipeline output generation. */
+  output_mode?: OutputMode;
+  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
+  max_runtime?: number;
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
   pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Video output configuration. */
-  video_output?: VideoOutputConfig;
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -484,8 +490,8 @@ export type DensityTestSpec = {
   fps_floor: number;
   /** List of pipelines with relative stream_rate percentages that must sum to 100. */
   pipeline_density_specs: PipelineDensitySpec[];
-  /** Video output configuration. */
-  video_output?: VideoOutputConfig;
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
 };
 export type DensityJobSummary = {
   id: string;
@@ -608,6 +614,20 @@ export type OptimizationJobResponse = {
 export type TestJobResponse = {
   /** Identifier of the created test job. */
   job_id: string;
+};
+export type PerformanceTestSpec2 = {
+  /** List of pipelines with number of streams for each. */
+  pipeline_performance_specs: PipelinePerformanceSpec[];
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
+};
+export type DensityTestSpec2 = {
+  /** Minimum acceptable FPS per stream. */
+  fps_floor: number;
+  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
+  pipeline_density_specs: PipelineDensitySpec[];
+  /** Execution configuration for output and runtime. */
+  execution_config?: ExecutionConfig;
 };
 export type Video = {
   filename: string;
