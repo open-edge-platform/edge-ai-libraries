@@ -56,7 +56,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
                           }
                         >
                           {item.icon && <item.icon />}
-                          <span>{item.title}</span>
+                          <span className="px-2">{item.title}</span>
                         </SidebarMenuButton>
                       )}
                     </NavLink>
