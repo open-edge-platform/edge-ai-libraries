@@ -531,7 +531,7 @@ wheels = [
 
 [[package]]
 name = "huggingface-hub"
-version = "0.36.0"
+version = "0.36.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -543,9 +543,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/63/4910c5fa9128fdadf6a9c5ac138e8b1b6cee4ca44bf7915bbfbce4e355ee/huggingface_hub-0.36.0.tar.gz", hash = "sha256:47b3f0e2539c39bf5cde015d63b72ec49baff67b6931c3d97f3f84532e2b8d25", size = 463358, upload-time = "2025-10-23T12:12:01.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/54/096903f02ca14eb2670a4d11729da44a026c0bababec8c15f160441124c5/huggingface_hub-0.36.1.tar.gz", hash = "sha256:5a3b8bf87e182ad6f1692c196bb9ec9ade7755311d5d5e792dc45045f77283ad", size = 649681, upload-time = "2026-02-02T10:46:58.287Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/bd/1a875e0d592d447cbc02805fd3fe0f497714d6a2583f59d14fa9ebad96eb/huggingface_hub-0.36.0-py3-none-any.whl", hash = "sha256:7bcc9ad17d5b3f07b57c78e79d527102d08313caa278a641993acddcb894548d", size = 566094, upload-time = "2025-10-23T12:11:59.557Z" },
+    { url = "https://files.pythonhosted.org/packages/94/cb/8f5141b3c21d1ecdf87852506eb583fec497c7e9803a168fe4aec64252bb/huggingface_hub-0.36.1-py3-none-any.whl", hash = "sha256:c6fa8a8f7b8559bc624ebb7e218fb72171b30f6049ebe08f8bfc2a44b38ece50", size = 566283, upload-time = "2026-02-02T10:46:56.459Z" },
 ]
 
 [package.optional-dependencies]
@@ -773,6 +773,7 @@ version = "1.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "geti-sdk" },
     { name = "huggingface-hub", extra = ["cli", "hf-transfer", "hf-xet"] },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -795,17 +796,10 @@ dev = [
     { name = "pytest-mock" },
     { name = "responses" },
 ]
-geti = [
-    { name = "geti-sdk" },
-]
-huggingface = [
-    { name = "huggingface-hub", extra = ["cli", "hf-transfer", "hf-xet"] },
-]
 openvino = [
     { name = "accelerate" },
     { name = "diffusers" },
     { name = "einops" },
-    { name = "huggingface-hub", extra = ["cli", "hf-transfer", "hf-xet"] },
     { name = "nncf" },
     { name = "numpy" },
     { name = "openvino" },
@@ -820,7 +814,6 @@ openvino = [
     { name = "transformers" },
 ]
 ultralytics = [
-    { name = "huggingface-hub", extra = ["cli", "hf-transfer", "hf-xet"] },
     { name = "torch" },
     { name = "torchvision" },
     { name = "ultralytics" },
@@ -833,12 +826,9 @@ requires-dist = [
     { name = "einops", marker = "extra == 'openvino'", specifier = "==0.8.1" },
     { name = "fastapi", specifier = "==0.121.3" },
     { name = "freezegun", marker = "extra == 'dev'", specifier = ">=1.5.0,<2.0.0" },
-    { name = "geti-sdk", marker = "extra == 'geti'", specifier = "==2.13.0" },
+    { name = "geti-sdk", specifier = "==2.13.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.1,<1.0.0" },
-    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], specifier = "==0.36.0" },
-    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'huggingface'", specifier = "==0.36.0" },
-    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'openvino'", specifier = "==0.36.0" },
-    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], marker = "extra == 'ultralytics'", specifier = "==0.36.0" },
+    { name = "huggingface-hub", extras = ["cli", "hf-transfer", "hf-xet"], specifier = "==0.36.1" },
     { name = "nncf", marker = "extra == 'openvino'", specifier = "==2.19.0" },
     { name = "numpy", marker = "extra == 'openvino'", specifier = "==2.2.6" },
     { name = "openvino", marker = "extra == 'openvino'", specifier = "==2025.4.0" },

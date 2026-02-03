@@ -148,7 +148,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         # Step 1: Log in to Hugging Face,
-        logger.info("Logging in to Hugging Face...")
+        logger.info(f"Logging in to Hugging Face with token...")
         check_login = subprocess.run(
             ["hf", "auth", "whoami"],
             capture_output=True,
@@ -158,7 +158,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         if check_login.returncode != 0:
             # Not logged in, proceed with login
             logger.info("Not logged in, authenticating with Hugging Face...")
-            result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
+            result = subprocess.run(["hf", "auth", "login", "--token ", huggingface_token])
             if result.returncode != 0:
                 raise RuntimeError(
                     "Failed to authenticate with Hugging Face. Please check your token."

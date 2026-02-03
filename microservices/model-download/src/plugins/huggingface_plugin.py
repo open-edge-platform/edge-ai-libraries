@@ -39,6 +39,8 @@ class HuggingFacePlugin(ModelDownloadPlugin):
             revision=revision,
         )
 
+        logger.info(f"Model {model_name} downloaded to {model_downloaded_path}")
+
         host_path = hub_dir
         if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
             host_prefix = os.getenv("MODEL_PATH", "models")

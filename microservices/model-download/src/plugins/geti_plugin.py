@@ -188,7 +188,7 @@ class GetiPlugin(ModelDownloadPlugin):
             return projects
 
         except GetiRequestException as e:
-            logger.error(f"Geti API error retrieving projects: {e.message}")
+            logger.error(f"Geti API error retrieving projects: {e}")
             raise
         except Exception as e:
             logger.error(f"Error retrieving projects: {type(e).__name__}: {e}")
@@ -229,7 +229,7 @@ class GetiPlugin(ModelDownloadPlugin):
 
     async def search_model(self, model_name: str, export_type: Optional[str] = None, 
                          precision: Optional[str] = None,
-                         revision: Optional[int] = None, model_format: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+                         revision: Optional[int] = None, model_format: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
         """
         Search model by lookup across all projects and model groups.
         Used for minimal request payloads where project_id and model_group_id are not provided.
@@ -243,7 +243,7 @@ class GetiPlugin(ModelDownloadPlugin):
             model_format (str, optional): Model format to filter by (default: 'OpenVINO')
 
         Returns:
-            Tuple[Optional[str], Optional[str], Optional[str]]: (project_id, model_group_id, model_id) or (None, None, None)
+            Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]: (project_id, model_group_id, model_id, error) or (None, None, None, error_msg)
         """
         try:
             await self._validate_env_vars()
@@ -255,7 +255,7 @@ class GetiPlugin(ModelDownloadPlugin):
             projects = await self.get_projects()
             if not projects:
                 logger.warning("No projects found in Geti server")
-                return None, None, None
+                return None, None, None, None
             
             # Search across each project and its model groups
             for project_info in projects:
@@ -291,23 +291,28 @@ class GetiPlugin(ModelDownloadPlugin):
                                     optimized_model = openvino_models[0]
                                     model_group_id = model.model_group_id
                                     logger.info(f"Found optimized model '{optimized_model.name}' in project={project_id}, model_group={model_group_id}, model_id={optimized_model.id}")
-                                    return project_id, model_group_id, optimized_model.id
+                                    return project_id, model_group_id, optimized_model.id, None
                             
                             # Fall back to base model if no optimized models found
                             model_group_id = model.model_group_id
                             logger.info(f"Found base model '{model_name}' in project={project_id}, model_group={model_group_id}, model_id={model.id}")
-                            return project_id, model_group_id, model.id
+                            return project_id, model_group_id, model.id, None
                     
                 except Exception as e:
                     logger.debug(f"Error searching project {project_id}: {type(e).__name__}: {e}")
                     continue
             
             logger.warning(f"Model '{model_name}' not found in any project or model group")
-            return None, None, None
+            return None, None, None, None
             
+        except GetiRequestException as e:
+            error_msg = f"Geti connection error: {e.message}"
+            logger.error(error_msg)
+            return None, None, None, error_msg
         except Exception as e:
-            logger.error(f"Error during model discovery: {type(e).__name__}: {e}")
-            return None, None, None
+            error_msg = f"Geti initialization/discovery error: {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            return None, None, None, error_msg
 
     async def get_model_group(self, project_id: str, model_group_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -371,7 +376,7 @@ class GetiPlugin(ModelDownloadPlugin):
             return result
 
         except GetiRequestException as e:
-            logger.error(f"Geti API error: {e.message}")
+            logger.error(f"Geti API error: {e}")
             return None
         except Exception as e:
             logger.error(f"Error retrieving model group: {type(e).__name__}: {e}")
@@ -441,7 +446,7 @@ class GetiPlugin(ModelDownloadPlugin):
             return model_dir
 
         except GetiRequestException as e:
-            logger.error(f"Geti API error: {e.message}")
+            logger.error(f"Geti API error: {e}")
             raise
         except Exception as e:
             logger.error(f"Download failed: {type(e).__name__}: {e}")
@@ -559,7 +564,7 @@ class GetiPlugin(ModelDownloadPlugin):
                 # If project_id and model_group_id not provided, search them
                 if not project_id or not model_group_id:
                     logger.info("Searching model location ")
-                    search_project_id, search_model_group_id, search_model_id = await self.search_model(model_name)
+                    search_project_id, search_model_group_id, search_model_id, search_error = await self.search_model(model_name)
                     
                     if search_model_id:
                         project_id = search_project_id
@@ -567,7 +572,8 @@ class GetiPlugin(ModelDownloadPlugin):
                         model_id = search_model_id
                         logger.info(f"Search successful: project={project_id}, group={model_group_id}")
                     else:
-                        return {"success": False, "error": f"Model not found: {model_name}"}
+                        error_msg = search_error or f"Model not found: {model_name}"
+                        return {"success": False, "error": error_msg}
                 else:
                     # Use the provided IDs to look up model
                     model_id = await self.get_model_id_by_name(project_id, model_group_id, model_name)
@@ -578,11 +584,13 @@ class GetiPlugin(ModelDownloadPlugin):
                 # If only model_id provided but not project/group, search those
                 if not project_id or not model_group_id:
                     logger.info("Searching project and model group for provided model_id")
-                    search_project_id, search_model_group_id, _ = await self.search_model(model_name)
+                    search_project_id, search_model_group_id, _, search_error = await self.search_model(model_name)
                     if search_project_id and search_model_group_id:
                         project_id = search_project_id
                         model_group_id = search_model_group_id
                         logger.info(f"Search successful: project={project_id}, group={model_group_id}")
+                    elif search_error:
+                        return {"success": False, "error": search_error}
 
             # Download model
             model_path = await self.download_model_from_geti(

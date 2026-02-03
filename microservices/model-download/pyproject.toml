@@ -13,7 +13,8 @@ dependencies = [
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "geti-sdk==2.13.0"
 ]
 
 [project.optional-dependencies]
@@ -34,18 +35,16 @@ cpu = [
 ]
 
 huggingface = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    # Add dependencices here
 ]
 
 ultralytics = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "ultralytics==8.2.3",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
 ]
 
 openvino = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "optimum-intel==1.27.0",
     "accelerate==1.11.0",
     "diffusers==0.35.2",  # for image generation
@@ -68,7 +67,7 @@ ollama = [
 ]
 
 geti = [
-    "geti-sdk==2.13.0",
+    # Add dependencices here
 ]
 
 [tool.uv]
