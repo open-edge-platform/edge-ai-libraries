@@ -8,7 +8,6 @@ import {
   useUpdatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
-import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { selectModels } from "@/store/reducers/models";
@@ -165,7 +164,6 @@ const DemoMode = () => {
   useDevicesLoader();
   const pipelines = useAppSelector(selectPipelines);
   const models = useAppSelector(selectModels);
-  const history = useMetricHistory();
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
   const [runPerformanceTest, { isLoading: isPerformanceRunning }] =
@@ -201,12 +199,7 @@ const DemoMode = () => {
   const [performanceErrorMessage, setPerformanceErrorMessage] = useState<
     string | null
   >(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
   const [testStarted, setTestStarted] = useState(false);
-  const [metricHistorySnapshot, setMetricHistorySnapshot] = useState<
-    typeof history
-  >([]);
   const [selectedModels, setSelectedModels] = useState<Map<string, string>>(
     new Map(),
   ); // Map<baseName, selectedPipelineId>
@@ -224,10 +217,10 @@ const DemoMode = () => {
     activeTest === "performance-test"
       ? isPerformanceRunning || !!performanceJobId
       : isDensityRunning || !!densityJobId;
+  const isReadOnly = isRunDisabled;
   const [selectedConfigPipelineId, setSelectedConfigPipelineId] = useState<
     string | null
   >(null);
-  const [openNodeId, setOpenNodeId] = useState<string | null>(null);
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
@@ -297,26 +290,12 @@ const DemoMode = () => {
     summaryStreamsValueText: "text-slate-300",
   };
 
-  // Parse pipeline names to extract model and device
-  const parsePipelineName = (name: string) => {
-    // Match device in square brackets [CPU], [GPU], [NPU], etc.
-    const deviceMatch = name.match(/\[(.*?)\]/);
-
-    if (deviceMatch) {
-      const device = deviceMatch[1].toUpperCase();
-      const model = name.replace(/\s*\[.*?\]\s*/, "").trim();
-      return { model: model, device: device };
-    }
-
-    return { model: name, device: "" };
-  };
-
   // Group pipelines by base name
   const groupedPipelines = pipelines.reduce(
     (acc, pipeline) => {
       const match = pipeline.name.match(/^(.+?)\s*(\[.+?\])?$/);
       const baseName = match ? match[1].trim() : pipeline.name;
-      const tag = match && match[2] ? match[2].replace(/[\[\]]/g, "") : null;
+      const tag = match && match[2] ? match[2].replace(/[[\]]/g, "") : null;
 
       const existing = acc.find((group) => group.baseName === baseName);
       if (existing) {
@@ -340,32 +319,6 @@ const DemoMode = () => {
       description: string;
     }>,
   );
-
-  // Get unique models and devices
-  const uniqueModels = Array.from(
-    new Set(pipelines.map((p) => parsePipelineName(p.name).model)),
-  );
-
-  const getDevicesForModel = (model: string) => {
-    return pipelines
-      .filter((p) => parsePipelineName(p.name).model === model)
-      .map((p) => ({
-        device: parsePipelineName(p.name).device,
-        pipelineId: p.id,
-      }));
-  };
-
-  const selectedPipeline = pipelineSelections[0];
-  const selectedPipelineData = pipelines.find(
-    (p) => p.id === selectedPipeline?.pipelineId,
-  );
-  const currentModel = selectedPipelineData
-    ? parsePipelineName(selectedPipelineData.name).model
-    : "";
-  const currentDevice = selectedPipelineData
-    ? parsePipelineName(selectedPipelineData.name).device
-    : "";
-  const availableDevices = getDevicesForModel(currentModel);
 
   const { data: jobStatus } = useGetDensityJobStatusQuery(
     { jobId: densityJobId! },
@@ -391,8 +344,6 @@ const DemoMode = () => {
         streams_per_pipeline: jobStatus.streams_per_pipeline,
         video_output_paths: jobStatus.video_output_paths,
       });
-      // Save snapshot of metric history
-      setMetricHistorySnapshot([...history]);
       setErrorMessage(null);
       setDensityJobId(null);
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
@@ -401,7 +352,7 @@ const DemoMode = () => {
       setTestResult(null);
       setDensityJobId(null);
     }
-  }, [jobStatus, history]);
+  }, [jobStatus]);
 
   useEffect(() => {
     if (performanceJobStatus?.state === "COMPLETED") {
@@ -467,33 +418,6 @@ const DemoMode = () => {
       return changed ? next : prev;
     });
   }, [pipelineSelections]);
-
-  const handlePipelineChange = (
-    oldPipelineId: string,
-    newPipelineId: string,
-  ) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === oldPipelineId
-          ? { ...sel, pipelineId: newPipelineId }
-          : sel,
-      ),
-    );
-  };
-
-  const handleModelChange = (model: string) => {
-    const devicesForModel = getDevicesForModel(model);
-    if (devicesForModel.length > 0) {
-      handlePipelineChange(
-        selectedPipeline.pipelineId,
-        devicesForModel[0].pipelineId,
-      );
-    }
-  };
-
-  const handleDeviceChange = (pipelineId: string) => {
-    handlePipelineChange(selectedPipeline.pipelineId, pipelineId);
-  };
 
   const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
     setPipelineSelections((prev) =>
@@ -634,7 +558,7 @@ const DemoMode = () => {
     setErrorMessage(null);
     try {
       const result = await runDensityTest({
-        densityTestSpec: {
+        densityTestSpecInput: {
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
             max_runtime: 0,
@@ -863,7 +787,7 @@ const DemoMode = () => {
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
-                          }`}
+                          } ${isReadOnly ? "opacity-70" : ""}`}
                         >
                           {pipelineImages[
                             pipelineIndex % pipelineImages.length
@@ -1045,7 +969,8 @@ const DemoMode = () => {
                                                           e.target.value,
                                                         )
                                                       }
-                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      disabled={isReadOnly}
+                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                     >
                                                       <option value="">
                                                         Select {config?.label}
@@ -1083,7 +1008,8 @@ const DemoMode = () => {
                                                           e.target.value,
                                                         )
                                                       }
-                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      disabled={isReadOnly}
+                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                     >
                                                       {config.options?.map(
                                                         (option) => (
@@ -1115,6 +1041,7 @@ const DemoMode = () => {
                                                             checked,
                                                           )
                                                         }
+                                                        disabled={isReadOnly}
                                                         className={
                                                           colors.checkbox
                                                         }
@@ -1136,7 +1063,8 @@ const DemoMode = () => {
                                                           e.target.value,
                                                         )
                                                       }
-                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
+                                                      disabled={isReadOnly}
+                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                       placeholder={
                                                         config.description
                                                       }
@@ -1157,7 +1085,8 @@ const DemoMode = () => {
                                                           ),
                                                         )
                                                       }
-                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      disabled={isReadOnly}
+                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                       placeholder={
                                                         config.description
                                                       }
@@ -1175,7 +1104,8 @@ const DemoMode = () => {
                                                           e.target.value,
                                                         )
                                                       }
-                                                      className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                      disabled={isReadOnly}
+                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                       placeholder={
                                                         config?.description ??
                                                         "Enter value"
@@ -1208,11 +1138,12 @@ const DemoMode = () => {
                                     onClick={() =>
                                       setActiveTest("performance-test")
                                     }
+                                    disabled={isReadOnly}
                                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                                       activeTest === "performance-test"
                                         ? "bg-blue-600 text-white"
                                         : "text-slate-300 hover:text-white"
-                                    }`}
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                                   >
                                     Performance Test
                                   </button>
@@ -1221,11 +1152,12 @@ const DemoMode = () => {
                                     onClick={() =>
                                       setActiveTest("density-test")
                                     }
+                                    disabled={isReadOnly}
                                     className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                                       activeTest === "density-test"
                                         ? "bg-blue-600 text-white"
                                         : "text-slate-300 hover:text-white"
-                                    }`}
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                                   >
                                     Density Test
                                   </button>
@@ -1269,6 +1201,7 @@ const DemoMode = () => {
                                                 }
                                                 min={1}
                                                 max={64}
+                                                disabled={isReadOnly}
                                               />
                                             </div>
                                           );
@@ -1288,6 +1221,7 @@ const DemoMode = () => {
                                                   checked === true,
                                                 )
                                               }
+                                              disabled={isReadOnly}
                                               className={colors.checkbox}
                                             />
                                             <label className="text-xs text-slate-300">
@@ -1307,6 +1241,7 @@ const DemoMode = () => {
                                                   checked === true,
                                                 )
                                               }
+                                              disabled={isReadOnly}
                                               className={colors.checkbox}
                                             />
                                             <label className="text-xs text-slate-300">
@@ -1356,6 +1291,7 @@ const DemoMode = () => {
                                                 }
                                                 min={0}
                                                 max={100}
+                                                disabled={isReadOnly}
                                               />
                                             </div>
                                           );
@@ -1376,7 +1312,8 @@ const DemoMode = () => {
                                                 parseFloat(e.target.value) || 0,
                                               )
                                             }
-                                            className="w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                            disabled={isReadOnly}
+                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                             placeholder="Minimum FPS threshold"
                                             min={0}
                                           />
@@ -1389,6 +1326,7 @@ const DemoMode = () => {
                                               onCheckedChange={(checked) =>
                                                 setVideoOutputEnabled(!!checked)
                                               }
+                                              disabled={isReadOnly}
                                               className={colors.checkbox}
                                             />
                                             <label className="text-xs text-slate-300">

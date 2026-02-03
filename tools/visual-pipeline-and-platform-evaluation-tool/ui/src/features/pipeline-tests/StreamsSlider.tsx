@@ -5,6 +5,7 @@ interface StreamsSliderProps {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  disabled?: boolean;
 }
 
 export const StreamsSlider = ({
@@ -12,19 +13,27 @@ export const StreamsSlider = ({
   onChange,
   min = 1,
   max = 64,
+  disabled = false,
 }: StreamsSliderProps) => {
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className={`flex items-center gap-3 ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+    >
       <span className="text-sm text-neutral-500 min-w-[2ch] text-center font-semibold">
         {min}
       </span>
       <Slider
         value={[value]}
-        onValueChange={(val) => onChange(val[0])}
+        onValueChange={(val) => {
+          if (!disabled) {
+            onChange(val[0]);
+          }
+        }}
         min={min}
         max={max}
         step={1}
         className="flex-1"
+        disabled={disabled}
       />
       <span className="text-sm text-neutral-500 min-w-[3ch] text-center font-semibold">
         {max}
@@ -33,6 +42,7 @@ export const StreamsSlider = ({
         type="number"
         value={value}
         onChange={(e) => {
+          if (disabled) return;
           const newValue = parseInt(e.target.value, 10);
           if (!isNaN(newValue) && newValue >= min && newValue <= max) {
             onChange(newValue);
@@ -42,7 +52,7 @@ export const StreamsSlider = ({
         max={max}
         className="w-[4rem] px-3 py-1.5 text-sm font-bold border border-neutral-700 bg-neutral-950/80 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ textAlign: "center" }}
-        disabled={true}
+        disabled={disabled}
       />
     </div>
   );
