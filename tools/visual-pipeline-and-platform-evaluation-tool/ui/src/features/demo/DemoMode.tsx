@@ -909,7 +909,7 @@ const DemoMode = () => {
                 >
                   Pipeline Configuration
                 </p>
-                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <div className="flex-1 min-h-0 flex flex-col">
                   {selectedConfigPipelineId ? (
                     (() => {
                       const pipeline = pipelines.find(
@@ -919,257 +919,271 @@ const DemoMode = () => {
 
                       return (
                         <>
-                          <Accordion
-                            type="single"
-                            collapsible
-                            className="w-full space-y-2"
-                          >
-                            {pipeline.pipeline_graph?.nodes?.map((node) => {
-                              const nodeTag = nodeTypeToTag[node.type] || null;
-                              const nodeConfig = getNodeConfig(node.type);
-                              const editableProperties =
-                                nodeConfig?.editableProperties ?? [];
+                          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                            <Accordion
+                              type="single"
+                              collapsible
+                              className="w-full space-y-2"
+                            >
+                              {pipeline.pipeline_graph?.nodes?.map((node) => {
+                                const nodeTag =
+                                  nodeTypeToTag[node.type] || null;
+                                const nodeConfig = getNodeConfig(node.type);
+                                const editableProperties =
+                                  nodeConfig?.editableProperties ?? [];
 
-                              const dataEntries = nodeConfig
-                                ? editableProperties.map((prop) => [
-                                    prop.key,
-                                    node.data[prop.key] ?? prop.defaultValue,
-                                    prop,
-                                  ])
-                                : Object.entries(node.data ?? {})
-                                    .filter(
-                                      ([key]) =>
-                                        !["label"].includes(key) &&
-                                        !key.startsWith("__"),
-                                    )
-                                    .map(([key, value]) => [key, value, null]);
+                                const dataEntries = nodeConfig
+                                  ? editableProperties.map((prop) => [
+                                      prop.key,
+                                      node.data[prop.key] ?? prop.defaultValue,
+                                      prop,
+                                    ])
+                                  : Object.entries(node.data ?? {})
+                                      .filter(
+                                        ([key]) =>
+                                          !["label"].includes(key) &&
+                                          !key.startsWith("__"),
+                                      )
+                                      .map(([key, value]) => [
+                                        key,
+                                        value,
+                                        null,
+                                      ]);
 
-                              const getEditedValue = (
-                                nodeId: string,
-                                key: string,
-                                originalValue: unknown,
-                              ) => {
+                                const getEditedValue = (
+                                  nodeId: string,
+                                  key: string,
+                                  originalValue: unknown,
+                                ) => {
+                                  return (
+                                    nodeDataEdits[nodeId]?.[key] ??
+                                    originalValue
+                                  );
+                                };
+
+                                const handleValueChange = (
+                                  nodeId: string,
+                                  key: string,
+                                  value: unknown,
+                                ) => {
+                                  setNodeDataEdits((prev) => ({
+                                    ...prev,
+                                    [nodeId]: {
+                                      ...prev[nodeId],
+                                      [key]: value,
+                                    },
+                                  }));
+                                };
+
+                                if (dataEntries.length === 0) {
+                                  return null;
+                                }
+
                                 return (
-                                  nodeDataEdits[nodeId]?.[key] ?? originalValue
-                                );
-                              };
-
-                              const handleValueChange = (
-                                nodeId: string,
-                                key: string,
-                                value: unknown,
-                              ) => {
-                                setNodeDataEdits((prev) => ({
-                                  ...prev,
-                                  [nodeId]: {
-                                    ...prev[nodeId],
-                                    [key]: value,
-                                  },
-                                }));
-                              };
-
-                              if (dataEntries.length === 0) {
-                                return null;
-                              }
-
-                              return (
-                                <AccordionItem
-                                  key={node.id}
-                                  value={node.id}
-                                  className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
-                                >
-                                  <AccordionTrigger className="hover:no-underline py-2">
-                                    <div className="flex flex-col items-start">
-                                      {nodeTag ? (
-                                        <>
+                                  <AccordionItem
+                                    key={node.id}
+                                    value={node.id}
+                                    className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                                  >
+                                    <AccordionTrigger className="hover:no-underline py-2">
+                                      <div className="flex flex-col items-start">
+                                        {nodeTag ? (
+                                          <>
+                                            <span className="font-medium text-white">
+                                              {nodeTag}
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-light">
+                                              {node.type}
+                                            </span>
+                                          </>
+                                        ) : (
                                           <span className="font-medium text-white">
-                                            {nodeTag}
-                                          </span>
-                                          <span className="text-xs text-slate-400 font-light">
                                             {node.type}
                                           </span>
-                                        </>
-                                      ) : (
-                                        <span className="font-medium text-white">
-                                          {node.type}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <div className="space-y-3 pb-2">
-                                      {dataEntries.map(
-                                        ([key, value, propConfig]) => {
-                                          const currentValue = getEditedValue(
-                                            node.id,
-                                            String(key),
-                                            value,
-                                          );
-                                          const config =
-                                            propConfig as NodePropertyConfig | null;
+                                        )}
+                                      </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                      <div className="space-y-3 pb-2">
+                                        {dataEntries.map(
+                                          ([key, value, propConfig]) => {
+                                            const currentValue = getEditedValue(
+                                              node.id,
+                                              String(key),
+                                              value,
+                                            );
+                                            const config =
+                                              propConfig as NodePropertyConfig | null;
 
-                                          return (
-                                            <div
-                                              key={String(key)}
-                                              className="space-y-1"
-                                            >
-                                              <label className="text-xs font-medium text-slate-300 block">
-                                                {config?.label ?? String(key)}
-                                              </label>
-                                              {String(key) === "model" ? (
-                                                <select
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                >
-                                                  <option value="">
-                                                    Select {config?.label}
-                                                  </option>
-                                                  {models
-                                                    .filter(
-                                                      (model) =>
-                                                        model.category ===
-                                                        config?.params?.filter,
-                                                    )
-                                                    .map((model) => (
-                                                      <option
-                                                        key={model.name}
-                                                        value={
-                                                          model.display_name ??
-                                                          model.name
-                                                        }
-                                                      >
-                                                        {model.display_name ??
-                                                          model.name}
-                                                      </option>
-                                                    ))}
-                                                </select>
-                                              ) : config?.type === "select" ? (
-                                                <select
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                >
-                                                  {config.options?.map(
-                                                    (option) => (
-                                                      <option
-                                                        key={option}
-                                                        value={option}
-                                                      >
-                                                        {option}
-                                                      </option>
-                                                    ),
-                                                  )}
-                                                </select>
-                                              ) : config?.type === "boolean" ? (
-                                                <div className="flex items-center gap-2">
-                                                  <Checkbox
-                                                    checked={
-                                                      currentValue === true ||
-                                                      currentValue === "true"
-                                                    }
-                                                    onCheckedChange={(
-                                                      checked,
-                                                    ) =>
+                                            return (
+                                              <div
+                                                key={String(key)}
+                                                className="space-y-1"
+                                              >
+                                                <label className="text-xs font-medium text-slate-300 block">
+                                                  {config?.label ?? String(key)}
+                                                </label>
+                                                {String(key) === "model" ? (
+                                                  <select
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
                                                       handleValueChange(
                                                         node.id,
                                                         String(key),
-                                                        checked,
+                                                        e.target.value,
                                                       )
                                                     }
-                                                    className={colors.checkbox}
-                                                  />
-                                                  <span className="text-xs text-slate-400">
-                                                    {config.description}
-                                                  </span>
-                                                </div>
-                                              ) : config?.type ===
-                                                "textarea" ? (
-                                                <textarea
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
-                                                  placeholder={
-                                                    config.description
-                                                  }
-                                                />
-                                              ) : config?.type === "number" ? (
-                                                <input
-                                                  type="number"
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      parseFloat(
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  >
+                                                    <option value="">
+                                                      Select {config?.label}
+                                                    </option>
+                                                    {models
+                                                      .filter(
+                                                        (model) =>
+                                                          model.category ===
+                                                          config?.params
+                                                            ?.filter,
+                                                      )
+                                                      .map((model) => (
+                                                        <option
+                                                          key={model.name}
+                                                          value={
+                                                            model.display_name ??
+                                                            model.name
+                                                          }
+                                                        >
+                                                          {model.display_name ??
+                                                            model.name}
+                                                        </option>
+                                                      ))}
+                                                  </select>
+                                                ) : config?.type ===
+                                                  "select" ? (
+                                                  <select
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
                                                         e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                  >
+                                                    {config.options?.map(
+                                                      (option) => (
+                                                        <option
+                                                          key={option}
+                                                          value={option}
+                                                        >
+                                                          {option}
+                                                        </option>
                                                       ),
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  placeholder={
-                                                    config.description
-                                                  }
-                                                />
-                                              ) : (
-                                                <input
-                                                  type="text"
-                                                  value={String(
-                                                    currentValue ?? "",
-                                                  )}
-                                                  onChange={(e) =>
-                                                    handleValueChange(
-                                                      node.id,
-                                                      String(key),
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
-                                                  placeholder={
-                                                    config?.description ??
-                                                    "Enter value"
-                                                  }
-                                                />
-                                              )}
-                                            </div>
-                                          );
-                                        },
-                                      )}
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              );
-                            })}
-                          </Accordion>
+                                                    )}
+                                                  </select>
+                                                ) : config?.type ===
+                                                  "boolean" ? (
+                                                  <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                      checked={
+                                                        currentValue === true ||
+                                                        currentValue === "true"
+                                                      }
+                                                      onCheckedChange={(
+                                                        checked,
+                                                      ) =>
+                                                        handleValueChange(
+                                                          node.id,
+                                                          String(key),
+                                                          checked,
+                                                        )
+                                                      }
+                                                      className={
+                                                        colors.checkbox
+                                                      }
+                                                    />
+                                                    <span className="text-xs text-slate-400">
+                                                      {config.description}
+                                                    </span>
+                                                  </div>
+                                                ) : config?.type ===
+                                                  "textarea" ? (
+                                                  <textarea
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px]"
+                                                    placeholder={
+                                                      config.description
+                                                    }
+                                                  />
+                                                ) : config?.type ===
+                                                  "number" ? (
+                                                  <input
+                                                    type="number"
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        parseFloat(
+                                                          e.target.value,
+                                                        ),
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    placeholder={
+                                                      config.description
+                                                    }
+                                                  />
+                                                ) : (
+                                                  <input
+                                                    type="text"
+                                                    value={String(
+                                                      currentValue ?? "",
+                                                    )}
+                                                    onChange={(e) =>
+                                                      handleValueChange(
+                                                        node.id,
+                                                        String(key),
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className="w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+                                                    placeholder={
+                                                      config?.description ??
+                                                      "Enter value"
+                                                    }
+                                                  />
+                                                )}
+                                              </div>
+                                            );
+                                          },
+                                        )}
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                );
+                              })}
+                            </Accordion>
+                          </div>
 
                           {/* Run Configuration Section */}
-                          <div className="mt-4 border-t border-slate-400/30 pt-4">
+                          <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0 bg-slate-900/95">
                             <p
                               className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
                             >
