@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router";
-import { Layout } from "@/Layout.tsx";
 import { routeConfig } from "@/config/navigation.ts";
+import { Layout } from "@/components/Layout.tsx";
 
 export default createBrowserRouter([
   {
