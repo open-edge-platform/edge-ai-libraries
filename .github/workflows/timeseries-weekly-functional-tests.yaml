@@ -43,6 +43,9 @@ jobs:
         rm -rf /tmp/test_report/report.html
         ls -al
         pytest --collect-only test_docker.py
+        docker images
+        echo "------------------------"
+        crictl images
         pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html "${TEST_PATTERN}"
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
