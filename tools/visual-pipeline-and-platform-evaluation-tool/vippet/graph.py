@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from models import get_supported_models_manager
+from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
     get_public_model_proc_manager,
@@ -15,11 +15,9 @@ from resources import (
 )
 from utils import generate_unique_filename
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
-from videos import OUTPUT_VIDEO_DIR, get_videos_manager
+from videos import OUTPUT_VIDEO_DIR, VideosManager
 
 logger = logging.getLogger(__name__)
-models_manager = get_supported_models_manager()
-videos_manager = get_videos_manager()
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
 model_proc_manager = get_public_model_proc_manager()
@@ -426,7 +424,7 @@ class Graph:
                     location = node.data["location"]
 
                     # Ensure TS file exists before using it
-                    ts_path = videos_manager.get_ts_path(location)
+                    ts_path = VideosManager().get_ts_path(location)
                     if ts_path is None:
                         raise ValueError(
                             f"Cannot get TS path for video '{location}'. "
@@ -437,14 +435,14 @@ class Graph:
                     if not os.path.isfile(ts_path):
                         # Try to create TS file
                         source_filename = os.path.basename(location)
-                        source_path = videos_manager.get_video_path(source_filename)
+                        source_path = VideosManager().get_video_path(source_filename)
 
                         if source_path is None:
                             raise ValueError(
                                 f"Cannot find source video '{source_filename}' for TS conversion."
                             )
 
-                        ts_path = videos_manager.ensure_ts_file(source_path)
+                        ts_path = VideosManager().ensure_ts_file(source_path)
                         if ts_path is None:
                             raise ValueError(
                                 f"Failed to create TS file for video '{source_filename}'."
@@ -1424,7 +1422,7 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
             continue
 
         model_proc_path = node.data.get("model-proc", None)
-        model = models_manager.find_installed_model_by_model_and_proc_path(
+        model = SupportedModelsManager().find_installed_model_by_model_and_proc_path(
             model_path, model_proc_path
         )
 
@@ -1476,7 +1474,7 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
             continue
 
         # model handling
-        model = models_manager.find_installed_model_by_display_name(name)
+        model = SupportedModelsManager().find_installed_model_by_display_name(name)
         if not model:
             raise ValueError(
                 f"Can't find model '{name}' for {node.type}. Choose an installed model or install it first."
@@ -1569,7 +1567,7 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
                 f"Model name is required for {node.type}. Select a model to continue."
             )
 
-        if not models_manager.is_model_supported_on_device(name, device):
+        if not SupportedModelsManager().is_model_supported_on_device(name, device):
             raise ValueError(
                 f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
             )
@@ -1610,7 +1608,7 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
             if path is None:
                 continue
 
-            if filename := videos_manager.get_video_filename(path):
+            if filename := VideosManager().get_video_filename(path):
                 node.data[key] = filename
                 logger.debug(f"Converted video path to filename: {path} -> {filename}")
             else:
@@ -1654,7 +1652,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
             if name is None:
                 continue
 
-            path = videos_manager.get_video_path(name)
+            path = VideosManager().get_video_path(name)
             if not path:
                 raise ValueError(
                     f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
