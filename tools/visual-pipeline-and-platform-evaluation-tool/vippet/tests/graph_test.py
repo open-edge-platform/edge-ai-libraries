@@ -8,8 +8,9 @@ from unittest.mock import MagicMock, patch
 from graph import Edge, Graph, Node
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
-mock_models_manager = MagicMock()
-mock_videos_manager = MagicMock()
+# Create mock instances for SupportedModelsManager and VideosManager
+mock_models_manager_instance = MagicMock()
+mock_videos_manager_instance = MagicMock()
 
 
 def _mock_get_video_filename(path: str) -> str:
@@ -69,14 +70,14 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager.find_installed_model_by_model_and_proc_path.side_effect = (
+mock_models_manager_instance.find_installed_model_by_model_and_proc_path.side_effect = (
     _mock_find_installed_model_by_model_and_proc_path
 )
-mock_models_manager.find_installed_model_by_display_name.side_effect = (
+mock_models_manager_instance.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
 )
-mock_videos_manager.get_video_filename.side_effect = _mock_get_video_filename
-mock_videos_manager.get_video_path.side_effect = _mock_get_video_path
+mock_videos_manager_instance.get_video_filename.side_effect = _mock_get_video_filename
+mock_videos_manager_instance.get_video_path.side_effect = _mock_get_video_path
 
 
 @dataclass
@@ -2675,9 +2676,12 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
-    @patch("graph.models_manager", mock_models_manager)
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_graph_to_description(self):
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_graph_to_description(self, mock_videos_cls, mock_models_cls):
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
         self.maxDiff = None
 
         for tc in parse_test_cases + unsorted_nodes_edges:
@@ -2686,9 +2690,12 @@ class TestGraphToDescription(unittest.TestCase):
 
 
 class TestDescriptionToGraph(unittest.TestCase):
-    @patch("graph.models_manager", mock_models_manager)
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_description_to_graph(self):
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_description_to_graph(self, mock_videos_cls, mock_models_cls):
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
         self.maxDiff = None
 
         for tc in parse_test_cases:
@@ -2829,9 +2836,11 @@ class TestParseDescription(unittest.TestCase):
 
 
 class TestNegativeCases(unittest.TestCase):
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_circular_graph_raises_error(self):
+    @patch("graph.VideosManager")
+    def test_circular_graph_raises_error(self, mock_videos_cls):
         """Test that a circular graph is detected and raises an error."""
+        mock_videos_cls.return_value = mock_videos_manager_instance
+
         # Create a circular graph: node 0 -> node 1 -> node 2 -> node 0
         circular_graph = Graph(
             nodes=[
@@ -3402,10 +3411,13 @@ class TestApplySimpleViewChanges(unittest.TestCase):
 class TestApplyLoopingModifications(unittest.TestCase):
     """Test cases for Graph.apply_looping_modifications method."""
 
-    @patch("graph.videos_manager")
-    def test_filesrc_replaced_with_multifilesrc(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_filesrc_replaced_with_multifilesrc(self, mock_videos_cls, mock_isfile):
         """Test that filesrc is replaced with multifilesrc loop=true."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3424,12 +3436,16 @@ class TestApplyLoopingModifications(unittest.TestCase):
         # Check filesrc is replaced with multifilesrc
         self.assertEqual(result.nodes[0].type, "multifilesrc")
         self.assertEqual(result.nodes[0].data["loop"], "true")
+        # Location should be just filename (basename of ts_path)
         self.assertEqual(result.nodes[0].data["location"], "video.ts")
 
-    @patch("graph.videos_manager")
-    def test_qtdemux_replaced_with_tsdemux(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_qtdemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
         """Test that qtdemux is replaced with tsdemux."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3449,10 +3465,13 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
         self.assertEqual(result.nodes[1].type, "tsdemux")
 
-    @patch("graph.videos_manager")
-    def test_matroskademux_replaced_with_tsdemux(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_matroskademux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
         """Test that matroskademux is replaced with tsdemux."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3470,10 +3489,13 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
         self.assertEqual(result.nodes[1].type, "tsdemux")
 
-    @patch("graph.videos_manager")
-    def test_avidemux_replaced_with_tsdemux(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_avidemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
         """Test that avidemux is replaced with tsdemux."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3491,10 +3513,13 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
         self.assertEqual(result.nodes[1].type, "tsdemux")
 
-    @patch("graph.videos_manager")
-    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_cls, mock_isfile):
         """Test that splitmuxsink is replaced with appsink."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3524,10 +3549,13 @@ class TestApplyLoopingModifications(unittest.TestCase):
         self.assertEqual(result.nodes[2].data["drop"], "true")
         self.assertEqual(result.nodes[2].data["max-buffers"], "1")
 
-    @patch("graph.videos_manager")
-    def test_original_graph_not_modified(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_original_graph_not_modified(self, mock_videos_cls, mock_isfile):
         """Test that apply_looping_modifications creates a deep copy."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         original_graph = Graph(
             nodes=[
@@ -3559,10 +3587,12 @@ class TestApplyLoopingModifications(unittest.TestCase):
         self.assertEqual(result.nodes[0].type, "multifilesrc")
         self.assertEqual(result.nodes[0].data["loop"], "true")
 
-    @patch("graph.videos_manager")
-    def test_ts_path_not_found_keeps_original_location(self, mock_videos_manager):
-        """Test that original location is kept when ts_path returns None."""
-        mock_videos_manager.get_ts_path.return_value = None
+    @patch("graph.VideosManager")
+    def test_ts_path_not_found_raises_error(self, mock_videos_cls):
+        """Test that ValueError is raised when get_ts_path returns None."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = None
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[
@@ -3574,18 +3604,100 @@ class TestApplyLoopingModifications(unittest.TestCase):
             ],
         )
 
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot get TS path", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_ts_file_created_when_not_exists(self, mock_isfile, mock_videos_cls):
+        """Test that TS file is created when it does not exist on disk."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_instance.ensure_ts_file.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+        # First call (checking if ts exists) returns False, subsequent calls return True
+        mock_isfile.side_effect = [False, True]
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
         result = graph.apply_looping_modifications()
 
-        # Type should still be changed to multifilesrc
-        self.assertEqual(result.nodes[0].type, "multifilesrc")
-        self.assertEqual(result.nodes[0].data["loop"], "true")
-        # Location should remain unchanged since get_ts_path returned None
-        self.assertEqual(result.nodes[0].data["location"], "video.xyz")
+        # Verify ensure_ts_file was called
+        mock_videos_instance.ensure_ts_file.assert_called_once()
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
 
-    @patch("graph.videos_manager")
-    def test_multiple_modifications_in_complex_pipeline(self, mock_videos_manager):
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_ts_conversion_failure_raises_error(self, mock_isfile, mock_videos_cls):
+        """Test that ValueError is raised when TS conversion fails."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_instance.ensure_ts_file.return_value = None  # Conversion failed
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Failed to create TS file", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_source_video_not_found_raises_error(self, mock_isfile, mock_videos_cls):
+        """Test that ValueError is raised when source video cannot be found."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = None  # Source not found
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot find source video", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_multiple_modifications_in_complex_pipeline(
+        self, mock_isfile, mock_videos_cls
+    ):
         """Test looping modifications in a complex pipeline with tee."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = True  # TS file exists
 
         graph = Graph(
             nodes=[
@@ -3634,9 +3746,12 @@ class TestApplyLoopingModifications(unittest.TestCase):
         self.assertEqual(result.nodes[7].type, "gvadetect")
         self.assertEqual(result.nodes[8].type, "fakesink")
 
-    @patch("graph.videos_manager")
-    def test_filesrc_without_location(self, mock_videos_manager):
+    @patch("graph.VideosManager")
+    def test_filesrc_without_location(self, mock_videos_cls):
         """Test filesrc without location property is still modified."""
+        mock_videos_instance = MagicMock()
+        mock_videos_cls.return_value = mock_videos_instance
+
         graph = Graph(
             nodes=[
                 Node(id="0", type="filesrc", data={}),
@@ -3655,12 +3770,15 @@ class TestApplyLoopingModifications(unittest.TestCase):
         # No location to modify
         self.assertNotIn("location", result.nodes[0].data)
         # get_ts_path should not be called
-        mock_videos_manager.get_ts_path.assert_not_called()
+        mock_videos_instance.get_ts_path.assert_not_called()
 
-    @patch("graph.videos_manager")
-    def test_flvdemux_replaced_with_tsdemux(self, mock_videos_manager):
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_flvdemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
         """Test that flvdemux is replaced with tsdemux."""
-        mock_videos_manager.get_ts_path.return_value = "video.ts"
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
 
         graph = Graph(
             nodes=[

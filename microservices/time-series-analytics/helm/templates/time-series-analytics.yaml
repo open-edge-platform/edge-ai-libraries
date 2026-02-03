@@ -51,7 +51,7 @@ spec:
       {{- end }}
       containers:
       - name: ia-time-series-analytics-microservice
-        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image }}{{ if .Values.images.image_suffix }}-{{ .Values.images.image_suffix }}{{ end }}
+        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image }}:{{ .Values.images.image_suffix | default "latest" }}{{ if .Values.images.weekly_build_date }}-{{ .Values.images.weekly_build_date }}-weekly{{ end }}
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         securityContext:
           readOnlyRootFilesystem: true

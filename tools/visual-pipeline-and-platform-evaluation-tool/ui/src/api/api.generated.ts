@@ -1,5 +1,6 @@
 import { apiSlice as api } from "./apiSlice";
 export const addTagTypes = [
+  "health",
   "convert",
   "devices",
   "jobs",
@@ -14,6 +15,14 @@ const injectedRtkApi = api
   })
   .injectEndpoints({
     endpoints: (build) => ({
+      getHealth: build.query<GetHealthApiResponse, GetHealthApiArg>({
+        query: () => ({ url: `/health` }),
+        providesTags: ["health"],
+      }),
+      getStatus: build.query<GetStatusApiResponse, GetStatusApiArg>({
+        query: () => ({ url: `/status` }),
+        providesTags: ["health"],
+      }),
       toGraph: build.mutation<ToGraphApiResponse, ToGraphApiArg>({
         query: (queryArg) => ({
           url: `/convert/to-graph`,
@@ -247,6 +256,12 @@ const injectedRtkApi = api
     overrideExisting: false,
   });
 export { injectedRtkApi as api };
+export type GetHealthApiResponse =
+  /** status 200 Successful Response */ HealthResponse;
+export type GetHealthApiArg = void;
+export type GetStatusApiResponse =
+  /** status 200 Successful Response */ StatusResponse;
+export type GetStatusApiArg = void;
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
@@ -375,6 +390,15 @@ export type RunDensityTestApiArg = {
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
+export type HealthResponse = {
+  healthy: boolean;
+};
+export type AppStatus = "starting" | "initializing" | "ready" | "shutdown";
+export type StatusResponse = {
+  status: AppStatus;
+  message: string | null;
+  ready: boolean;
+};
 export type Node = {
   id: string;
   type: string;
@@ -639,6 +663,10 @@ export type Video = {
   duration: number;
 };
 export const {
+  useGetHealthQuery,
+  useLazyGetHealthQuery,
+  useGetStatusQuery,
+  useLazyGetStatusQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,

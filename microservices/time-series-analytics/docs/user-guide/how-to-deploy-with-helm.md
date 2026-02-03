@@ -21,11 +21,14 @@
 
     1. Download helm chart with the following command
 
-        `helm pull oci://registry-1.docker.io/intel/time-series-analytics-microservice --version 1.1.0-weekly`
+        `helm pull oci://registry-1.docker.io/intel/time-series-analytics-microservice --version 2026.0.0-<date>-weekly`
+
+        Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
+        `helm pull oci://registry-1.docker.io/intel/time-series-analytics-microservice --version 2026.0.0-20260120-weekly`
 
     2. unzip the package using the following command
 
-        `tar -xvzf time-series-analytics-microservice-1.1.0-weekly.tgz`
+        `tar -xvzf time-series-analytics-microservice-2026.0.0-<date>-weekly.tgz`
 
     - Get into the helm directory
 
