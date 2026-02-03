@@ -34,7 +34,11 @@ and their usage in the Visual Pipeline and Platform Evaluation tool.
 
 ### Third Party Software
 
-This section contains the list of third party software ("third party programs") contained in the Intel software and their required notices and/or license terms. This third party software, even if included with the distribution of the Intel software, may be governed by separate license terms, including without limitation, third party license terms, other Intel software license terms, and open source software license terms. These separate license terms govern your use of the third party programs as set forth in the "third-party-programs.txt" or other similarly-named text file.
+This section contains the list of third party software ("third party programs") contained in the Intel software and
+their required notices and/or license terms. This third party software, even if included with the distribution of the
+Intel software, may be governed by separate license terms, including without limitation, third party license terms,
+other Intel software license terms, and open source software license terms. These separate license terms govern your
+use of the third party programs as set forth in the "third-party-programs.txt" or other similarly-named text file.
 
 Third party programs and their corresponding required notices and/or license terms are listed below.
 

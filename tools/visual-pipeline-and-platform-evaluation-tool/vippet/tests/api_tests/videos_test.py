@@ -42,9 +42,11 @@ class TestVideosAPI(unittest.TestCase):
                 "video2.mkv", 1280, 720, 25.0, 250, "h265", 10.0
             ),
         }
-        with patch("api.routes.videos.get_videos_manager") as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.videos.VideosManager") as mock_videos_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_videos.return_value = mock_videos
+            mock_videos_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/videos")
             self.assertEqual(response.status_code, 200)
             data = response.json()
@@ -59,9 +61,11 @@ class TestVideosAPI(unittest.TestCase):
             self.assertEqual(data[0]["duration"], 10.0)
 
     def test_get_videos_empty_list(self):
-        with patch("api.routes.videos.get_videos_manager") as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.videos.VideosManager") as mock_videos_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_videos.return_value = {}
+            mock_videos_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/videos")
             self.assertEqual(response.status_code, 200)
             data = response.json()
@@ -73,9 +77,11 @@ class TestVideosAPI(unittest.TestCase):
                 "sample.mp4", 640, 480, 24.0, 240, "h264", 10.0
             ),
         }
-        with patch("api.routes.videos.get_videos_manager") as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.videos.VideosManager") as mock_videos_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_videos.return_value = mock_videos
+            mock_videos_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/videos")
             self.assertEqual(response.status_code, 200)
             data = response.json()

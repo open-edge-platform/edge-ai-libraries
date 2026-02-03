@@ -4,10 +4,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.tests_manager import get_tests_manager
+from managers.tests_manager import TestsManager
 
 router = APIRouter()
-test_manager = get_tests_manager()
 logger = logging.getLogger("api.routes.tests")
 
 
@@ -100,7 +99,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             }
     """
     try:
-        job_id = test_manager.test_performance(body)
+        job_id = TestsManager().test_performance(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
         logger.error("Invalid performance test request: %s", e)
@@ -212,7 +211,7 @@ def run_density_test(body: schemas.DensityTestSpec):
             }
     """
     try:
-        job_id = test_manager.test_density(body)
+        job_id = TestsManager().test_density(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
         logger.error("Invalid density test request: %s", e)

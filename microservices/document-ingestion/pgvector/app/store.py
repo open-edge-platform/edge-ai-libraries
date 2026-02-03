@@ -7,7 +7,6 @@ from fastapi import UploadFile, HTTPException
 from http import HTTPStatus
 from .logger import logger
 from .config import Settings
-import boto3
 import pathlib
 import shortuuid
 

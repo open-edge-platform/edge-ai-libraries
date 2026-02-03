@@ -6,16 +6,13 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.optimization_manager import get_optimization_manager
-from managers.pipeline_manager import get_pipeline_manager
-from managers.validation_manager import get_validation_manager
+from managers.optimization_manager import OptimizationManager
+from managers.pipeline_manager import PipelineManager
+from managers.validation_manager import ValidationManager
 
 TEMP_DIR = tempfile.gettempdir()
 
 router = APIRouter()
-pipeline_manager = get_pipeline_manager()
-optimization_manager = get_optimization_manager()
-validation_manager = get_validation_manager()
 logger = logging.getLogger("api.routes.pipelines")
 
 
@@ -106,7 +103,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
     try:
         # Enforce USER_CREATED source for pipelines created via API
         body.source = schemas.PipelineSource.USER_CREATED
-        pipeline = pipeline_manager.add_pipeline(body)
+        pipeline = PipelineManager().add_pipeline(body)
 
         return JSONResponse(
             content=schemas.PipelineCreationResponse(id=pipeline.id).model_dump(),
@@ -216,7 +213,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
             }
     """
     try:
-        job_id = validation_manager.run_validation(body)
+        job_id = ValidationManager().run_validation(body)
         return JSONResponse(
             content=schemas.ValidationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
@@ -285,7 +282,7 @@ def get_pipelines():
               }
             ]
     """
-    return pipeline_manager.get_pipelines()
+    return PipelineManager().get_pipelines()
 
 
 @router.get(
@@ -360,7 +357,7 @@ def get_pipeline(pipeline_id: str):
             }
     """
     try:
-        return pipeline_manager.get_pipeline_by_id(pipeline_id)
+        return PipelineManager().get_pipeline_by_id(pipeline_id)
     except ValueError as e:
         logger.warning("Pipeline %s not found: %s", pipeline_id, e)
         return JSONResponse(
@@ -571,7 +568,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             )
 
     try:
-        updated_pipeline = pipeline_manager.update_pipeline(
+        updated_pipeline = PipelineManager().update_pipeline(
             pipeline_id=pipeline_id,
             name=body.name,
             description=body.description,
@@ -685,8 +682,8 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
             }
     """
     try:
-        pipeline = pipeline_manager.get_pipeline_by_id(pipeline_id)
-        job_id = optimization_manager.run_optimization(pipeline, body)
+        pipeline = PipelineManager().get_pipeline_by_id(pipeline_id)
+        job_id = OptimizationManager().run_optimization(pipeline, body)
         return schemas.OptimizationJobResponse(job_id=job_id)
     except ValueError as e:
         logger.warning(
@@ -757,7 +754,7 @@ def delete_pipeline(pipeline_id: str):
             }
     """
     try:
-        pipeline_manager.delete_pipeline_by_id(pipeline_id)
+        PipelineManager().delete_pipeline_by_id(pipeline_id)
     except ValueError as e:
         logger.warning("Pipeline %s not found for deletion: %s", pipeline_id, e)
         return JSONResponse(

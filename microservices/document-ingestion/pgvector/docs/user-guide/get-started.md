@@ -273,6 +273,8 @@ commands from the same shell as where the environment variables are set.
  pages (social media feeds, Single Page Applications), the API may indicate a successful request
  but the actual content might not be captured. Such pages should be avoided or handled separately.
 
+ > **Security Note**: This microservice only allows secure URLs using the HTTPS protocol.
+
 1. **Upload URLs to create and store embeddings**:
    Submit one or more URLs to be processed for embedding creation.
    ```bash
