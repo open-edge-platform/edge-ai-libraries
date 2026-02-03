@@ -2,6 +2,11 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
 import { Slot } from "radix-ui";
+import { useAppDispatch, useAppSelector } from "@/store/hooks.ts";
+import {
+  setSidebarOpen,
+  selectSidebarOpen,
+} from "@/store/reducers/uiConfig.ts";
 
 import { useIsMobile } from "@/hooks/useMobile.ts";
 import { cn } from "@/lib/utils";
@@ -23,8 +28,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state";
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "14rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
@@ -52,7 +55,6 @@ function useSidebar() {
 }
 
 function SidebarProvider({
-  defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -60,30 +62,25 @@ function SidebarProvider({
   children,
   ...props
 }: React.ComponentProps<"div"> & {
-  defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
+  const dispatch = useAppDispatch();
+  const sidebarOpen = useAppSelector(selectSidebarOpen);
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
-  const open = openProp ?? _open;
+  const open = openProp ?? sidebarOpen;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value;
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
-        _setOpen(openState);
+        dispatch(setSidebarOpen(openState));
       }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     },
-    [setOpenProp, open],
+    [setOpenProp, open, dispatch],
   );
 
   // Helper to toggle the sidebar.
