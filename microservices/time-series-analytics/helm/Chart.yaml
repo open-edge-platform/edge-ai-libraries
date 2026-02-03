@@ -31,7 +31,7 @@ type: application
 #   version: 2026.0.0-20260202-weekly
 #   appVersion: "2026.0.0-20260202-weekly"
 #   values.yaml -> images.weekly_build_date: "20260202"
-version: 2026.0.0-weekly
+version: 2026.0.0
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
@@ -44,4 +44,4 @@ version: 2026.0.0-weekly
 #
 # Example: If the release date is February 2, 2026:
 #   appVersion: "2026.0.0-20260202-weekly"
-appVersion: "2026.0.0-weekly"
+appVersion: "2026.0.0"
