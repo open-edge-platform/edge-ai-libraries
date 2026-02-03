@@ -35,11 +35,16 @@ x-vippet: &vippet
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+  device_cgroup_rules:
+    - 'c 189:* rmw'
+    - 'a 189:* rwm'
   volumes:
+    - "/dev:/dev"
     - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
+    - ./shared/onvif/:/onvif
 
 services:
   vippet-ui:
@@ -152,3 +157,32 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+  onvif-discovery:
+    profiles: [do-not-start]
+    image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
+    build:
+      context: ./onvif_discovery
+      dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    container_name: onvif-discovery
+    network_mode: host
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      OUTPUT_FILE: /out/onvif_cameras.json
+      DISCOVERY_INTERVAL: 10
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./shared/onvif:/out

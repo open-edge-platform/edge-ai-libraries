@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI
 
-from api.routes import convert, devices, jobs, metrics, models, pipelines, tests, videos
+from api.routes import cameras, convert, devices, jobs, metrics, models, pipelines, tests, videos
 from videos import get_videos_manager
 
 # Configure logging
@@ -42,6 +42,7 @@ app = FastAPI(
 )
 
 # Include routers from different modules
+app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 app.include_router(convert.router, prefix="/convert", tags=["convert"])
 app.include_router(devices.router, prefix="/devices", tags=["devices"])
 app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])

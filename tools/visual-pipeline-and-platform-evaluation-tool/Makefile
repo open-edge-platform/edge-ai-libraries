@@ -85,13 +85,19 @@ build-videogenerator: env-setup ## Build videogenerator image
 build-models: env-setup ## Build model image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
 
-docker-build: build build-videogenerator build-models ## Build all images
+build-onvif-discovery: env-setup ## Build ONVIF discovery image
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+
+docker-build: build build-videogenerator build-models build-onvif-discovery ## Build all images
 
 run: env-setup install-models-once ## Run the docker compose services
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
+
+run-onvif-discovery: ## Run only the ONVIF discovery service
+	docker compose -f $(COMPOSE_FILE) up -d onvif-discovery
 
 run-dev: env-setup install-models-once ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
@@ -130,7 +136,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down models collector videogenerator mediamtx vippet-ui vippet
+	docker compose down models collector videogenerator mediamtx vippet-ui vippet onvif-discovery
 
 clean: ## Clean all build artifacts
 	rm -rf shared/collector-signals shared/models/output/ shared/videos/input shared/videos/video-generator
