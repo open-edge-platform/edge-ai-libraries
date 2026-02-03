@@ -1136,14 +1136,14 @@ class TestBuildPipelineCommandLoopingWithFilesrc(unittest.TestCase):
         mock_videos_instance.get_video_path.return_value = "/videos/input/test.mp4"
         mock_videos_cls.return_value = mock_videos_instance
 
-        # Add pipeline with videotestsrc - use a path that won't trigger validation
+        # Add pipeline with filesrc - use a path that won't trigger validation
         test_pipeline = PipelineDefinition(
             name="test-filesrc-looping",
             version=1,
             description="Test filesrc looping",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="filesrc ! fakesink",
             parameters=None,
         )
         added = self.manager.add_pipeline(test_pipeline)

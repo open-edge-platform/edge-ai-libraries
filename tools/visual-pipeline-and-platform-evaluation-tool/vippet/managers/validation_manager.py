@@ -257,7 +257,7 @@ class ValidationManager:
         """
         Return statuses for all known validation jobs.
 
-        Access is protected by a lock to avoid reading partial updates.
+        Access is protected by a _jobs_lock to avoid reading partial updates.
         """
         with self._jobs_lock:
             statuses = [self._build_job_status(job) for job in self.jobs.values()]

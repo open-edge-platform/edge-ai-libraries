@@ -412,6 +412,7 @@ class Graph:
             This creates a deep copy of the graph to avoid modifying the original.
             If TS file does not exist, it will be created automatically.
         """
+        videos_manager = VideosManager()
         modified_graph = copy.deepcopy(self)
 
         for node in modified_graph.nodes:
@@ -424,7 +425,7 @@ class Graph:
                     location = node.data["location"]
 
                     # Ensure TS file exists before using it
-                    ts_path = VideosManager().get_ts_path(location)
+                    ts_path = videos_manager.get_ts_path(location)
                     if ts_path is None:
                         raise ValueError(
                             f"Cannot get TS path for video '{location}'. "
@@ -435,14 +436,14 @@ class Graph:
                     if not os.path.isfile(ts_path):
                         # Try to create TS file
                         source_filename = os.path.basename(location)
-                        source_path = VideosManager().get_video_path(source_filename)
+                        source_path = videos_manager.get_video_path(source_filename)
 
                         if source_path is None:
                             raise ValueError(
                                 f"Cannot find source video '{source_filename}' for TS conversion."
                             )
 
-                        ts_path = VideosManager().ensure_ts_file(source_path)
+                        ts_path = videos_manager.ensure_ts_file(source_path)
                         if ts_path is None:
                             raise ValueError(
                                 f"Failed to create TS file for video '{source_filename}'."
