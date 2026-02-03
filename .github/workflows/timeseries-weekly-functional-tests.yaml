@@ -47,6 +47,9 @@ jobs:
         echo "------------------------"
         sudo k3s crictl images
         pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html "${TEST_PATTERN}"
+        docker images
+        echo "------------------------"
+        sudo k3s crictl images
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:
