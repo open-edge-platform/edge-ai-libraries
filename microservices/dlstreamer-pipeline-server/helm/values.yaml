@@ -14,10 +14,17 @@ env:
   http_proxy:
   https_proxy:
   no_proxy: "intel.com,.intel.com,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,192.168.49.2"
+# yamllint disable-line rule:line-length
+# Set to true if direct access to /dev is required (e.g., for GPU/NPU access without device plugins)
 privileged_access_required: false
 gpu:
+# Set to true only when K8S GPU device plugin is installed and configured
   enabled: false
   type: "gpu.intel.com/i915"
+  count: 1
+npu:
+# Set to true only when K8S NPU device plugin is installed and configured
+  enabled: false
   count: 1
 config:
   dlstreamer_pipeline_server:
