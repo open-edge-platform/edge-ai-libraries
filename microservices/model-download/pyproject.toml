@@ -39,7 +39,6 @@ huggingface = [
 ]
 
 ultralytics = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "ultralytics==8.2.3",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
