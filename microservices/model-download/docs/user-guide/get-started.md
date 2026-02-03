@@ -35,19 +35,20 @@ The Model Download Service is a microservice that enables downloading models fro
       cd edge-ai-libraries/microservices/model-download
       ```
 3. **Configure the environment variables**
-    - Set the below environment variables
+    - Set the following environment variables:
       ```bash
       export REGISTRY="intel/"
       export TAG=1.0.1
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
-    - For using the GETI plugin set the below environment variables
+    - To use the GETI plugin, set these variables:
       ```bash
       export GETI_HOST=<GETI_HOST_ADDRESS>
       export GETI_TOKEN=<GETI_ACCESS_TOKEN>
       export GETI_SERVER_API_VERSION=v1
-      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
+      export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
       ```
+      **Note:** For GETI setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
       ```bash
