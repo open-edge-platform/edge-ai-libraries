@@ -1,5 +1,5 @@
-import logoLight from "@/assets/digital-unboxed-classicblue.svg";
-import logoDark from "@/assets/digital-unboxed-energyblue-white.svg";
+import logoLight from "@/assets/app-logo-classic-blue.svg";
+import logoDark from "@/assets/app-logo-energy-blue.svg";
 import { useTheme } from "next-themes";
 import { NavLink } from "react-router";
 import { menuItems } from "@/config/navigation.ts";
@@ -26,16 +26,18 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-4 h-[60px] group-data-[collapsible=icon]:px-2 transition-[padding] duration-200 ease-linear">
-          <img
-            src={theme === "dark" ? logoDark : logoLight}
-            alt="Intel"
-            className="h-7 shrink-0"
-          />
-          <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">
-            ViPPET
-          </span>
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="h-[60px] group-data-[collapsible=icon]:h-[60px] hover:bg-transparent active:bg-transparent pl-[7px]">
+              <img
+                src={theme === "dark" ? logoDark : logoLight}
+                alt="Intel"
+                className="h-8 shrink-0"
+              />
+              <span className="font-semibold text-lg">ViPPET</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
