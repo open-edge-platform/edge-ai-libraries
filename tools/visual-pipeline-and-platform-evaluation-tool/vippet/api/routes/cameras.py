@@ -62,22 +62,23 @@ def get_cameras():
 
             [
               {
-                "device_path": "/dev/video0",
+                "device_id": "usb_camera_0",
                 "device_name": "Integrated Camera",
                 "device_type": "USB",
-                "device_id": "usb_camera_0",
-                "url": null,
-                "resolution": null,
-                "status": "AVAILABLE"
+                "details": {
+                  "device_path": "/dev/video0",
+                  "resolution": "1920x1080"
+                }
               },
               {
-                "device_path": null,
-                "device_name": "Axis Camera M1065-L",
+                "device_id": "network_camera_192.168.1.100_80",
+                "device_name": "ONVIF Camera 192.168.1.100",
                 "device_type": "NETWORK",
-                "device_id": "network_camera_1",
-                "url": "rtsp://192.168.1.100:554/axis-media/media.amp",
-                "resolution": "1920x1080",
-                "status": "AVAILABLE"
+                "details": {
+                  "ip": "192.168.1.100",
+                  "port": 80,
+                  "profiles": []
+                }
               }
             ]
     """
@@ -182,6 +183,14 @@ def load_camera_profiles(request: schemas.CameraAuthRequest):
                       "encoding": "H264",
                       "framerate": 30,
                       "bitrate": 4096
+                    },
+                    {
+                      "name": "Profile_2",
+                      "rtsp_url": "rtsp://192.168.1.100:554/stream2",
+                      "resolution": "1280x720",
+                      "encoding": "H264",
+                      "framerate": 15,
+                      "bitrate": 2048
                     }
                   ]
                 }
