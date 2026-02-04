@@ -1,10 +1,10 @@
 # Model Download Service
 
-The Model Download Service is a microservice that enables downloading models from multiple hubs: Hugging Face, Ollama, and Ultralytics. It also supports conversion to OpenVINO Model Server (OVMS) format for Hugging Face models. The service exposes a RESTful API for managing model downloads and conversions.
+The Model Download Service is a microservice that enables downloading models from multiple hubs: Hugging Face, Ollama, GETI and Ultralytics. It also supports conversion to OpenVINO Model Server (OVMS) format for Hugging Face models. The service exposes a RESTful API for managing model downloads and conversions.
 
 ## Features
 
-- Download models from Hugging Face, Ollama, and Ultralytics model hubs
+- Download models from Hugging Face, Ollama, GETI and Ultralytics model hubs
 - Convert Hugging Face models to OVMS format
 - Support for multiple model precisions (INT8, FP16, FP32)
 - Support for various device targets (CPU, GPU and NPU)
