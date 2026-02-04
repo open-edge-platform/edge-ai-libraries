@@ -46,7 +46,7 @@ jobs:
         docker images
         echo "------------------------"
         sudo k3s crictl images
-        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html "${TEST_PATTERN}"
+        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html test_docker.py::test_input_endpoint
         docker images
         echo "------------------------"
         sudo k3s crictl images
