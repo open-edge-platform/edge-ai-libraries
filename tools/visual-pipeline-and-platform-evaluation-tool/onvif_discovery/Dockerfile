@@ -26,7 +26,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Configurable output file and discovery interval
 ENV OUTPUT_FILE=/out/onvif_cameras.json \
-    DISCOVERY_INTERVAL=10 
+    DISCOVERY_INTERVAL=20 
 
 # Run as non-root user (will be overridden by docker-compose user directive)
 USER 1000:1000

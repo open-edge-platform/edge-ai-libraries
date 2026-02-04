@@ -169,7 +169,6 @@ def get_camera_profiles(request: schemas.CameraAuthRequest):
         .. code-block:: json
 
             {
-              "success": true,
               "message": "Camera profiles retrieved successfully",
               "camera_id": "network_camera_192.168.1.100_80"
             }
@@ -179,14 +178,13 @@ def get_camera_profiles(request: schemas.CameraAuthRequest):
         camera_manager.get_camera_profiles(
             request.camera_id, request.username, request.password
         )
-        
+
         logger.info(f"Successfully retrieved profiles for camera {request.camera_id}")
         return schemas.CameraAuthResponse(
-            success=True,
             message="Camera profiles retrieved successfully",
-            camera_id=request.camera_id
+            camera_id=request.camera_id,
         )
-        
+
     except ValueError as e:
         logger.warning(f"Invalid camera_id: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -196,9 +194,18 @@ def get_camera_profiles(request: schemas.CameraAuthRequest):
     except Exception as e:
         error_msg = str(e).lower()
         # Check if it's an authentication error
-        if "unauthorized" in error_msg or "authentication" in error_msg or "credentials" in error_msg:
-            logger.warning(f"Failed to retrieve profiles for camera {request.camera_id} - invalid credentials")
-            raise HTTPException(status_code=401, detail="Failed to retrieve profiles - invalid credentials")
-        
+        if (
+            "unauthorized" in error_msg
+            or "authentication" in error_msg
+            or "credentials" in error_msg
+        ):
+            logger.warning(
+                f"Failed to retrieve profiles for camera {request.camera_id} - invalid credentials"
+            )
+            raise HTTPException(
+                status_code=401,
+                detail="Failed to retrieve profiles - invalid credentials",
+            )
+
         logger.error(f"Failed to get camera profile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

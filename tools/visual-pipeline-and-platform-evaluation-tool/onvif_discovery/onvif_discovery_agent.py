@@ -70,7 +70,6 @@ def _extract_xaddrs(xml_text: str) -> Optional[str]:
         pass
 
     # Fallback: cheap string search (works even if XML namespaces differ).
-    marker_open = "<"  # minimal fallback, avoid regex dependency
     if "XAddrs" not in xml_text:
         return None
 
@@ -132,7 +131,10 @@ def _discover_once(listen_seconds: float, verbose: bool) -> list[DiscoveredCamer
 
         sock.sendto(probe, (MCAST_GRP, MCAST_PORT))
         if verbose:
-            print(f"Sent WS-Discovery Probe to {MCAST_GRP}:{MCAST_PORT} (uuid:{probe_id})", flush=True)
+            print(
+                f"Sent WS-Discovery Probe to {MCAST_GRP}:{MCAST_PORT} (uuid:{probe_id})",
+                flush=True,
+            )
 
         discovered: dict[str, DiscoveredCamera] = {}
         deadline = time.time() + listen_seconds
@@ -170,11 +172,24 @@ def _atomic_write_json(path: str, payload: dict) -> None:
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="ONVIF WS-Discovery agent (writes JSON results periodically)")
-    parser.add_argument("--out", required=True, help="Output JSON path (e.g. /out/onvif_cameras.json)")
-    parser.add_argument("--interval", type=float, default=10.0, help="Seconds between discovery runs")
-    parser.add_argument("--listen-seconds", type=float, default=5.0, help="How long to listen for replies per run")
-    parser.add_argument("--verbose", action="store_true", help="Log discoveries to stdout")
+    parser = argparse.ArgumentParser(
+        description="ONVIF WS-Discovery agent (writes JSON results periodically)"
+    )
+    parser.add_argument(
+        "--out", required=True, help="Output JSON path (e.g. /out/onvif_cameras.json)"
+    )
+    parser.add_argument(
+        "--interval", type=float, default=10.0, help="Seconds between discovery runs"
+    )
+    parser.add_argument(
+        "--listen-seconds",
+        type=float,
+        default=5.0,
+        help="How long to listen for replies per run",
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Log discoveries to stdout"
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     signal.signal(signal.SIGINT, _handle_signal)
@@ -195,7 +210,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         try:
             _atomic_write_json(args.out, payload)
         except Exception as e:
-            print(f"ERROR: failed to write {args.out}: {e}", file=sys.stderr, flush=True)
+            print(
+                f"ERROR: failed to write {args.out}: {e}", file=sys.stderr, flush=True
+            )
 
         # Sleep the remaining interval time
         elapsed = time.time() - started

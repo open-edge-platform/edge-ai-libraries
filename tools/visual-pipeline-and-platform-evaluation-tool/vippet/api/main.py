@@ -2,7 +2,17 @@ import os
 import logging
 from fastapi import FastAPI
 
-from api.routes import cameras, convert, devices, jobs, metrics, models, pipelines, tests, videos
+from api.routes import (
+    cameras,
+    convert,
+    devices,
+    jobs,
+    metrics,
+    models,
+    pipelines,
+    tests,
+    videos,
+)
 from videos import get_videos_manager
 
 # Configure logging

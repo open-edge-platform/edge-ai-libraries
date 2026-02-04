@@ -136,6 +136,32 @@ services:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP 
+  onvif-discovery:
+    image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
+    build:
+      context: ./onvif_discovery
+      dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    container_name: onvif-discovery
+    network_mode: host
+    restart: on-failure:5
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      OUTPUT_FILE: /out/onvif_cameras.json
+      DISCOVERY_INTERVAL: 20
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    volumes:
+      - ./shared/onvif:/out
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
@@ -157,32 +183,3 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-  onvif-discovery:
-    profiles: [do-not-start]
-    image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
-    build:
-      context: ./onvif_discovery
-      dockerfile: Dockerfile
-      args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
-    container_name: onvif-discovery
-    network_mode: host
-    restart: unless-stopped
-    user: "${UID:-1000}:${GID:-1000}"
-    environment:
-      OUTPUT_FILE: /out/onvif_cameras.json
-      DISCOVERY_INTERVAL: 10
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy}
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
-    volumes:
-      - ./shared/onvif:/out
