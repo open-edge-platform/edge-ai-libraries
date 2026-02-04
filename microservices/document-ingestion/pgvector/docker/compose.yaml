@@ -44,6 +44,7 @@ services:
       # Raise error if following required env vars is not set
       MINIO_ACCESS_KEY: ${MINIO_USER:?error}
       MINIO_SECRET_KEY: ${MINIO_PASSWD:?error}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?error}
     ports:
       - "${DATAPREP_HOST_PORT:-8000}:8000"
     depends_on:

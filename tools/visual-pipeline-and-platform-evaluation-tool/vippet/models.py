@@ -1,6 +1,6 @@
 import logging
 import os
-import sys
+import threading
 import yaml
 
 from typing import Optional
@@ -13,25 +13,6 @@ SUPPORTED_MODELS_FILE: str = os.environ.get(
 MODELS_PATH: str = os.environ.get("MODELS_PATH", "/models/output")
 
 logger = logging.getLogger("models")
-
-# Singleton instance for SupportedModelsManager.
-# This ensures only one instance is created and used throughout the application.
-_supported_models_manager_instance: Optional["SupportedModelsManager"] = None
-
-
-def get_supported_models_manager() -> "SupportedModelsManager":
-    """
-    Returns the singleton instance of SupportedModelsManager.
-    If it cannot be created, logs an error and exits the application.
-    """
-    global _supported_models_manager_instance
-    if _supported_models_manager_instance is None:
-        try:
-            _supported_models_manager_instance = SupportedModelsManager()
-        except Exception as e:
-            logger.error(f"Failed to initialize SupportedModelsManager: {e}")
-            sys.exit(1)
-    return _supported_models_manager_instance
 
 
 class SupportedModel:
@@ -101,15 +82,40 @@ class SupportedModel:
 
 class SupportedModelsManager:
     """
-    Responsible for reading supported_models.yaml and filtering available models.
+    Thread-safe singleton responsible for reading supported_models.yaml and filtering available models.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with SupportedModelsManager() to get the shared singleton instance.
+
+    Raises:
+        RuntimeError: On file errors or validation failures during first initialization.
     """
+
+    _instance: Optional["SupportedModelsManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "SupportedModelsManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self) -> None:
         """
         Loads and validates the supported models from SUPPORTED_MODELS_FILE.
         Populates self._models with SupportedModel instances.
-        Raises RuntimeError on file errors or validation failures.
+        Protected against multiple initialization.
+
+        Raises:
+            RuntimeError: On file errors or validation failures.
         """
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         self._models: list[SupportedModel] = []
         try:
             with open(SUPPORTED_MODELS_FILE, "r") as f:

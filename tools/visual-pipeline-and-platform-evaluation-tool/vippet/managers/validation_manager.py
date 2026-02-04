@@ -1,9 +1,9 @@
 import logging
-import sys
 import threading
 import time
 import uuid
 from dataclasses import dataclass
+from typing import Optional
 
 from api.api_schemas import (
     PipelineValidation,
@@ -15,29 +15,6 @@ from graph import Graph
 from pipeline_runner import PipelineRunner, PipelineValidationResult
 
 logger = logging.getLogger("validation_manager")
-
-# Singleton instance for ValidationManager
-_validation_manager_instance: "ValidationManager | None" = None
-
-
-def get_validation_manager() -> "ValidationManager":
-    """
-    Return the singleton instance of :class:`ValidationManager`.
-
-    The first call lazily creates the instance.  If initialization fails
-    for any reason the error is logged and the process is terminated.
-
-    Keeping a dedicated accessor function allows tests to patch or
-    replace the singleton if needed.
-    """
-    global _validation_manager_instance
-    if _validation_manager_instance is None:
-        try:
-            _validation_manager_instance = ValidationManager()
-        except Exception as e:  # pragma: no cover - defensive
-            logger.error("Failed to initialize ValidationManager: %s", e)
-            sys.exit(1)
-    return _validation_manager_instance
 
 
 @dataclass
@@ -63,7 +40,10 @@ class ValidationJob:
 
 class ValidationManager:
     """
-    Manage validation jobs that use PipelineRunner to execute pipelines.
+    Thread-safe singleton that manages validation jobs using PipelineRunner to execute pipelines.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with ValidationManager() to get the shared singleton instance.
 
     Responsibilities:
 
@@ -73,11 +53,27 @@ class ValidationManager:
     * expose job status and summaries in a thread-safe manner.
     """
 
+    _instance: Optional["ValidationManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "ValidationManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         # All known jobs keyed by job id
         self.jobs: dict[str, ValidationJob] = {}
         # Shared lock protecting access to ``jobs``
-        self.lock = threading.Lock()
+        self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("ValidationManager")
 
     @staticmethod
@@ -138,7 +134,7 @@ class ValidationManager:
             pipeline_description=pipeline_description,
         )
 
-        with self.lock:
+        with self._jobs_lock:
             self.jobs[job_id] = job
 
         self.logger.info(
@@ -189,7 +185,7 @@ class ValidationManager:
                 )
                 return
 
-            with self.lock:
+            with self._jobs_lock:
                 job = self.jobs.get(job_id)
                 if job is None:
                     # Job might have been pruned in a future extension;
@@ -224,7 +220,7 @@ class ValidationManager:
 
         Used for unexpected exceptions in the manager itself.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is not None:
                 job.state = ValidationJobState.ERROR
@@ -261,9 +257,9 @@ class ValidationManager:
         """
         Return statuses for all known validation jobs.
 
-        Access is protected by a lock to avoid reading partial updates.
+        Access is protected by a _jobs_lock to avoid reading partial updates.
         """
-        with self.lock:
+        with self._jobs_lock:
             statuses = [self._build_job_status(job) for job in self.jobs.values()]
             self.logger.debug(
                 "Current validation job statuses: %s",
@@ -277,7 +273,7 @@ class ValidationManager:
 
         ``None`` is returned when the job id is unknown.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None
@@ -292,7 +288,7 @@ class ValidationManager:
         The summary intentionally contains only the job id and the
         original validation request.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None

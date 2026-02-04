@@ -22,26 +22,6 @@ DEFAULT_SAMPLE_DURATION = 10  # seconds
 
 logger = logging.getLogger("optimization_manager")
 
-# Singleton instance for OptimizationManager
-_optimization_manager_instance: Optional["OptimizationManager"] = None
-
-
-def get_optimization_manager() -> "OptimizationManager":
-    """
-    Return the singleton instance of :class:`OptimizationManager`.
-
-    The first call lazily creates the instance.  If initialization fails
-    for any reason the error is logged and the process is terminated.
-    """
-    global _optimization_manager_instance
-    if _optimization_manager_instance is None:
-        try:
-            _optimization_manager_instance = OptimizationManager()
-        except Exception as e:
-            logger.error(f"Failed to initialize OptimizationManager: {e}")
-            sys.exit(1)
-    return _optimization_manager_instance
-
 
 @dataclass
 class OptimizationJob:
@@ -183,7 +163,10 @@ class OptimizationRunner:
 
 class OptimizationManager:
     """
-    Manage optimization jobs for pipeline variants.
+    Thread-safe singleton that manages optimization jobs for pipeline variants.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with OptimizationManager() to get the shared singleton instance.
 
     Responsibilities:
 
@@ -194,13 +177,29 @@ class OptimizationManager:
     * convert between GStreamer pipeline strings and graph representations.
     """
 
+    _instance: Optional["OptimizationManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "OptimizationManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         # All known jobs keyed by job id
         self.jobs: Dict[str, OptimizationJob] = {}
         # Currently running OptimizationRunner instances keyed by job id
         self.runners: Dict[str, OptimizationRunner] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
-        self.lock = threading.Lock()
+        self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("OptimizationManager")
 
     @staticmethod
@@ -254,7 +253,7 @@ class OptimizationManager:
             start_time=int(time.time() * 1000),  # milliseconds
         )
 
-        with self.lock:
+        with self._jobs_lock:
             self.jobs[job_id] = job
 
         # Start execution in background thread
@@ -309,7 +308,7 @@ class OptimizationManager:
 
         Access is protected by a lock to avoid reading partial updates.
         """
-        with self.lock:
+        with self._jobs_lock:
             statuses = [self._build_job_status(job) for job in self.jobs.values()]
             self.logger.debug(f"Current pipeline optimization job statuses: {statuses}")
             return statuses
@@ -320,7 +319,7 @@ class OptimizationManager:
 
         ``None`` is returned when the job id is unknown.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id not in self.jobs:
                 return None
             job = self.jobs[job_id]
@@ -337,7 +336,7 @@ class OptimizationManager:
         The summary intentionally contains only the job id and the original
         optimization request.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id not in self.jobs:
                 return None
 
@@ -360,7 +359,7 @@ class OptimizationManager:
 
         Used both for validation errors and unexpected exceptions.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
                 job.state = OptimizationJobState.ERROR
@@ -408,7 +407,7 @@ class OptimizationManager:
             runner = OptimizationRunner()
 
             # Store runner for this job so that a future extension could cancel it.
-            with self.lock:
+            with self._jobs_lock:
                 self.runners[job_id] = runner
 
             if optimization_request.type not in [
@@ -438,7 +437,7 @@ class OptimizationManager:
                 )
 
             # Update job with results
-            with self.lock:
+            with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
@@ -485,6 +484,6 @@ class OptimizationManager:
 
         except Exception as e:
             # Clean up runner on error
-            with self.lock:
+            with self._jobs_lock:
                 self.runners.pop(job_id, None)
             self._update_job_error(job_id, str(e))

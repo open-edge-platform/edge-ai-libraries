@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from api.api_schemas import (
     ExecutionConfig,
@@ -65,10 +65,12 @@ class TestBenchmark(unittest.TestCase):
         ]
         self.benchmark = Benchmark()
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_run_successful_scaling(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_run_successful_scaling(self, mock_pipeline_manager_cls):
         # Return tuple with 3 elements: command, video_output_paths, live_stream_urls
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Expected result uses PipelineStreamSpec with variant path format
         expected_result = BenchmarkResult(
@@ -152,10 +154,13 @@ class TestBenchmark(unittest.TestCase):
                 execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
             )
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_zero_total_fps(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_zero_total_fps(self, mock_pipeline_manager_cls):
         # Return tuple with 3 elements
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # First call with 1 stream
@@ -170,10 +175,13 @@ class TestBenchmark(unittest.TestCase):
                     execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
                 )
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_pipeline_returns_none(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_pipeline_returns_none(self, mock_pipeline_manager_cls):
         # Return tuple with 3 elements
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [None]
 
@@ -228,14 +236,16 @@ class TestBenchmark(unittest.TestCase):
             str(context.exception),
         )
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_run_with_file_output_mode(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_run_with_file_output_mode(self, mock_pipeline_manager_cls):
         """Test benchmark run with file output mode."""
-        mock_build_command.return_value = (
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = (
             "",
             {"/pipelines/pipeline-test1/variants/variant-1": ["/output/file.mp4"]},
             {},
         )
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
@@ -259,10 +269,12 @@ class TestBenchmark(unittest.TestCase):
 
             self.assertIsInstance(result, BenchmarkResult)
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_run_with_disabled_output_and_max_runtime(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_run_with_disabled_output_and_max_runtime(self, mock_pipeline_manager_cls):
         """Test benchmark run with disabled output and max_runtime > 0."""
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [

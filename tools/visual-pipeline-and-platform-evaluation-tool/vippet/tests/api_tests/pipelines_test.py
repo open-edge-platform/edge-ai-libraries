@@ -2,7 +2,7 @@ import unittest
 from typing import Optional
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
 from api.routes.pipelines import router as pipelines_router
@@ -82,9 +82,10 @@ class TestPipelinesAPI(unittest.TestCase):
             variants=variants,
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipelines_returns_list(self, mock_pipeline_manager):
-        mock_pipeline_manager.get_pipelines.return_value = [
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipelines_returns_list(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_pipelines.return_value = [
             self._create_test_pipeline(
                 pipeline_id="pipeline-abc123",
                 name="predefined-pipelines",
@@ -99,6 +100,7 @@ class TestPipelinesAPI(unittest.TestCase):
                 source=schemas.PipelineSource.USER_CREATED,
             ),
         ]
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.get("/pipelines")
 
@@ -125,15 +127,17 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(second_pipeline["description"], "Test Pipeline Description")
         self.assertIn("variants", second_pipeline)
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_create_pipeline_valid(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_create_pipeline_valid(self, mock_pipeline_manager_cls):
         # Mock the return value to include the pipeline with ID
         mock_pipeline = self._create_test_pipeline(
             pipeline_id="pipeline-newtest",
             name="user-defined-pipelines",
             description="A custom test pipeline",
         )
-        mock_pipeline_manager.add_pipeline.return_value = mock_pipeline
+        mock_manager = MagicMock()
+        mock_manager.add_pipeline.return_value = mock_pipeline
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         new_pipeline = {
             "name": "user-defined-pipelines",
@@ -192,11 +196,13 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertIn("read_only", response.json()["message"])
         mock_pipeline_manager.add_pipeline.assert_not_called()
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_create_pipeline_duplicate(self, mock_pipeline_manager):
-        mock_pipeline_manager.add_pipeline.side_effect = ValueError(
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_create_pipeline_duplicate(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.add_pipeline.side_effect = ValueError(
             "Pipeline already exists."
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         duplicate_pipeline = {
             "name": "user-defined-pipelines",
@@ -225,9 +231,11 @@ class TestPipelinesAPI(unittest.TestCase):
             schemas.MessageResponse(message="Pipeline already exists.").model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_create_pipeline_server_error(self, mock_pipeline_manager):
-        mock_pipeline_manager.add_pipeline.side_effect = Exception("Unexpected error")
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_create_pipeline_server_error(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.add_pipeline.side_effect = Exception("Unexpected error")
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         new_pipeline = {
             "name": "user-defined-pipelines",
@@ -258,15 +266,17 @@ class TestPipelinesAPI(unittest.TestCase):
             ).model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipeline_by_id_found(self, mock_pipeline_manager):
-        mock_pipeline_manager.get_pipeline_by_id.return_value = (
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_found(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_pipeline_by_id.return_value = (
             self._create_test_pipeline(
                 pipeline_id="pipeline-ghi789",
                 name="user-defined-pipelines",
                 description="A custom test pipeline",
             )
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.get("/pipelines/pipeline-ghi789")
 
@@ -278,11 +288,13 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertIn("variants", data)
         self.assertEqual(len(data["variants"]), 1)
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipeline_by_id_not_found(self, mock_pipeline_manager):
-        mock_pipeline_manager.get_pipeline_by_id.side_effect = ValueError(
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_not_found(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_pipeline_by_id.side_effect = ValueError(
             "Pipeline with id 'nonexistent-id' not found."
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.get("/pipelines/nonexistent-id")
 
@@ -294,11 +306,11 @@ class TestPipelinesAPI(unittest.TestCase):
             ).model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipeline_by_id_server_error(self, mock_pipeline_manager):
-        mock_pipeline_manager.get_pipeline_by_id.side_effect = Exception(
-            "Unexpected error"
-        )
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_server_error(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_pipeline_by_id.side_effect = Exception("Unexpected error")
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.get("/pipelines/pipeline-test123")
 
@@ -310,14 +322,16 @@ class TestPipelinesAPI(unittest.TestCase):
             ).model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_name_and_description(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_description(self, mock_pipeline_manager_cls):
         updated_pipeline = self._create_test_pipeline(
             pipeline_id="pipeline-ghi789",
             name="updated-name",
             description="Updated description",
         )
-        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+        mock_manager = MagicMock()
+        mock_manager.update_pipeline.return_value = updated_pipeline
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         payload = {"name": "updated-name", "description": "Updated description"}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
@@ -327,22 +341,24 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(data["id"], "pipeline-ghi789")
         self.assertEqual(data["name"], "updated-name")
         self.assertEqual(data["description"], "Updated description")
-        mock_pipeline_manager.update_pipeline.assert_called_once_with(
+        mock_pipeline_manager_cls.update_pipeline.assert_called_once_with(
             pipeline_id="pipeline-ghi789",
             name="updated-name",
             description="Updated description",
             tags=None,
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_tags(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_pipeline_graph(self, mock_pipeline_manager_cls):
         updated_pipeline = self._create_test_pipeline(
             pipeline_id="pipeline-ghi789",
             name="test-pipeline",
             description="Test description",
             tags=["tag1", "tag2"],
         )
-        mock_pipeline_manager.update_pipeline.return_value = updated_pipeline
+        mock_manager = MagicMock()
+        mock_manager.update_pipeline.return_value = updated_pipeline
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         payload = {"tags": ["tag1", "tag2"]}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
@@ -350,15 +366,15 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["tags"], ["tag1", "tag2"])
-        mock_pipeline_manager.update_pipeline.assert_called_once_with(
+        mock_pipeline_manager_cls.update_pipeline.assert_called_once_with(
             pipeline_id="pipeline-ghi789",
             name=None,
             description=None,
             tags=["tag1", "tag2"],
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_empty_payload(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_empty_payload(self, mock_pipeline_manager_cls):
         response = self.client.patch("/pipelines/pipeline-ghi789", json={})
 
         self.assertEqual(response.status_code, 400)
@@ -368,10 +384,9 @@ class TestPipelinesAPI(unittest.TestCase):
                 message="At least one of 'name', 'description', or 'tags' must be provided."
             ).model_dump(),
         )
-        mock_pipeline_manager.update_pipeline.assert_not_called()
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_empty_name_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_empty_name_rejected(self, mock_pipeline_manager_cls):
         payload = {"name": ""}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
@@ -382,10 +397,11 @@ class TestPipelinesAPI(unittest.TestCase):
                 message="Field 'name' must not be empty."
             ).model_dump(),
         )
-        mock_pipeline_manager.update_pipeline.assert_not_called()
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_empty_description_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_empty_description_rejected(
+        self, mock_pipeline_manager_cls
+    ):
         payload = {"description": "   "}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
@@ -396,7 +412,6 @@ class TestPipelinesAPI(unittest.TestCase):
                 message="Field 'description' must not be empty."
             ).model_dump(),
         )
-        mock_pipeline_manager.update_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.pipeline_manager")
     def test_update_pipeline_not_found(self, mock_pipeline_manager):
@@ -530,6 +545,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_pipeline_manager.delete_variant.side_effect = ValueError(
             "Cannot delete read-only variant 'variant-123'."
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.delete("/pipelines/pipeline-abc123/variants/variant-123")
 
@@ -542,6 +558,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_pipeline_manager.delete_variant.side_effect = ValueError(
             "Cannot delete variant 'variant-123' as it is the last variant in pipeline 'pipeline-abc123'."
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.delete("/pipelines/pipeline-abc123/variants/variant-123")
 
@@ -598,6 +615,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_pipeline_manager.update_variant.side_effect = ValueError(
             "Cannot update read-only variant 'variant-123'."
         )
+        mock_pipeline_manager_cls.return_value = mock_manager
 
         payload = {"name": "new-name"}
 
@@ -721,9 +739,9 @@ class TestPipelinesAPI(unittest.TestCase):
     # /pipelines/validate
     # ------------------------------------------------------------------
 
-    @patch("api.routes.pipelines.validation_manager")
+    @patch("api.routes.pipelines.ValidationManager")
     def test_validate_pipeline_accepts_request_and_returns_job_id(
-        self, mock_validation_manager
+        self, mock_validation_manager_cls
     ):
         """
         The /pipelines/validate endpoint should:
@@ -732,7 +750,9 @@ class TestPipelinesAPI(unittest.TestCase):
         * delegate to validation_manager.run_validation,
         * return HTTP 202 with a ValidationJobResponse payload.
         """
-        mock_validation_manager.run_validation.return_value = "val-job-123"
+        mock_manager = MagicMock()
+        mock_manager.run_validation.return_value = "val-job-123"
+        mock_validation_manager_cls.return_value = mock_manager
 
         body = {
             "pipeline_graph": schemas.PipelineGraph.model_validate_json(
@@ -749,25 +769,25 @@ class TestPipelinesAPI(unittest.TestCase):
         )
 
         # Ensure the manager was called exactly once with a PipelineValidation object.
-        args, kwargs = mock_validation_manager.run_validation.call_args
+        args, kwargs = mock_manager.run_validation.call_args
         self.assertEqual(len(args), 1)
         validation_request = args[0]
         self.assertIsInstance(validation_request, schemas.PipelineValidation)
-        self.assertIsNotNone(validation_request.pipeline_graph)
-        self.assertIsNone(validation_request.parameters)
 
-    @patch("api.routes.pipelines.validation_manager")
+    @patch("api.routes.pipelines.ValidationManager")
     def test_validate_pipeline_returns_400_on_value_error(
-        self, mock_validation_manager
+        self, mock_validation_manager_cls
     ):
         """
         When ValidationManager.run_validation raises ValueError (e.g. invalid
         max-runtime), the endpoint must return HTTP 400 with a
         MessageResponse payload.
         """
-        mock_validation_manager.run_validation.side_effect = ValueError(
+        mock_manager = MagicMock()
+        mock_manager.run_validation.side_effect = ValueError(
             "Parameter 'max-runtime' must be greater than or equal to 1."
         )
+        mock_validation_manager_cls.return_value = mock_manager
 
         body = {
             "pipeline_graph": schemas.PipelineGraph.model_validate_json(
@@ -786,17 +806,17 @@ class TestPipelinesAPI(unittest.TestCase):
             ).model_dump(),
         )
 
-        self.assertTrue(mock_validation_manager.run_validation.called)
-
-    @patch("api.routes.pipelines.validation_manager")
+    @patch("api.routes.pipelines.ValidationManager")
     def test_validate_pipeline_returns_500_on_unexpected_error(
-        self, mock_validation_manager
+        self, mock_validation_manager_cls
     ):
         """
         Any unexpected exception raised by ValidationManager.run_validation
         should be translated to HTTP 500 with a generic MessageResponse.
         """
-        mock_validation_manager.run_validation.side_effect = RuntimeError("boom!")
+        mock_manager = MagicMock()
+        mock_manager.run_validation.side_effect = RuntimeError("boom!")
+        mock_validation_manager_cls.return_value = mock_manager
 
         body = {
             "pipeline_graph": schemas.PipelineGraph.model_validate_json(

@@ -20,7 +20,7 @@ from api.api_schemas import (
     GraphInline,
 )
 from utils import generate_pipeline_graph_id
-from managers.pipeline_manager import get_pipeline_manager
+from managers.pipeline_manager import PipelineManager
 
 pipeline_manager = get_pipeline_manager()
 
@@ -180,7 +180,7 @@ class Benchmark:
 
             # Build pipeline command
             pipeline_command, video_output_paths, _ = (
-                pipeline_manager.build_pipeline_command(run_specs, execution_config)
+                PipelineManager().build_pipeline_command(run_specs, execution_config)
             )
 
             # Run the pipeline

@@ -1,9 +1,9 @@
 import logging
-import sys
 import threading
 import time
 from dataclasses import dataclass
 import uuid
+from typing import Optional
 
 from api.api_schemas import (
     DensityJobStatus,
@@ -23,31 +23,9 @@ from api.api_schemas import (
 from utils import generate_pipeline_graph_id
 from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
-from managers.pipeline_manager import get_pipeline_manager
+from managers.pipeline_manager import PipelineManager
 
 logger = logging.getLogger("tests_manager")
-
-pipeline_manager = get_pipeline_manager()
-
-# Singleton instance for TestsManager
-_tests_manager_instance: "TestsManager | None" = None
-
-
-def get_tests_manager() -> "TestsManager":
-    """
-    Return the singleton instance of :class:`TestsManager`.
-
-    The first call lazily creates the instance.  If initialization fails
-    for any reason the error is logged and the process is terminated.
-    """
-    global _tests_manager_instance
-    if _tests_manager_instance is None:
-        try:
-            _tests_manager_instance = TestsManager()
-        except Exception as e:
-            logger.error(f"Failed to initialize TestsManager: {e}")
-            sys.exit(1)
-    return _tests_manager_instance
 
 
 @dataclass
@@ -108,7 +86,10 @@ class DensityJob:
 
 class TestsManager:
     """
-    Manage performance and density test jobs for pipelines.
+    Thread-safe singleton that manages performance and density test jobs for pipelines.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with TestsManager() to get the shared singleton instance.
 
     Responsibilities:
 
@@ -117,14 +98,32 @@ class TestsManager:
     * expose job status and summaries in a thread-safe manner.
     """
 
+    _instance: Optional["TestsManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "TestsManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         # All known jobs keyed by job id
         self.jobs: dict[str, PerformanceJob | DensityJob] = {}
         # Currently running PipelineRunner or Benchmark jobs keyed by job id
         self.runners: dict[str, PipelineRunner | Benchmark] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
-        self.lock = threading.Lock()
+        self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("TestsManager")
+        # Pipeline manager instance
+        self.pipeline_manager = PipelineManager()
 
     @staticmethod
     def _generate_job_id() -> str:
@@ -165,7 +164,7 @@ class TestsManager:
                 start_time=int(time.time() * 1000),  # milliseconds
             )
 
-        with self.lock:
+        with self._jobs_lock:
             self.jobs[job_id] = job
 
         # Start execution in background thread
@@ -262,7 +261,7 @@ class TestsManager:
 
             # Build pipeline command from specs
             pipeline_command, video_output_paths, live_stream_urls = (
-                pipeline_manager.build_pipeline_command(
+                self.pipeline_manager.build_pipeline_command(
                     performance_request.pipeline_performance_specs,
                     performance_request.execution_config,
                 )
@@ -286,7 +285,7 @@ class TestsManager:
                 )
 
             # Update job with live_stream_urls and streams_per_pipeline immediately
-            with self.lock:
+            with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
                     job.streams_per_pipeline = streams_per_pipeline
@@ -309,7 +308,7 @@ class TestsManager:
             )
 
             # Store runner for this job so that a future extension could cancel it.
-            with self.lock:
+            with self._jobs_lock:
                 self.runners[job_id] = runner
 
             # Run the pipeline
@@ -327,7 +326,7 @@ class TestsManager:
                 return
 
             # Update job with results
-            with self.lock:
+            with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
@@ -362,7 +361,7 @@ class TestsManager:
 
         except Exception as e:
             # Clean up runner on error
-            with self.lock:
+            with self._jobs_lock:
                 self.runners.pop(job_id, None)
             self._update_job_error(job_id, str(e))
 
@@ -389,7 +388,7 @@ class TestsManager:
             benchmark = Benchmark()
 
             # Store benchmark runner for this job so that a future extension could cancel it.
-            with self.lock:
+            with self._jobs_lock:
                 self.runners[job_id] = benchmark
 
             # Run the benchmark
@@ -400,7 +399,7 @@ class TestsManager:
             )
 
             # Update job with results
-            with self.lock:
+            with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
@@ -435,7 +434,7 @@ class TestsManager:
 
         except Exception as e:
             # Clean up benchmark on error
-            with self.lock:
+            with self._jobs_lock:
                 self.runners.pop(job_id, None)
             self._update_job_error(job_id, str(e))
 
@@ -445,7 +444,7 @@ class TestsManager:
 
         Used both for validation errors and unexpected exceptions.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
                 job.state = TestJobState.ERROR
@@ -517,7 +516,7 @@ class TestsManager:
         or :class:`DensityJob`.  Access is protected by a lock to avoid
         reading partial updates.
         """
-        with self.lock:
+        with self._jobs_lock:
             statuses: list[TestsJobStatus] = []
             for job in self.jobs.values():
                 if job_type == PerformanceJob and isinstance(job, PerformanceJob):
@@ -533,7 +532,7 @@ class TestsManager:
 
         ``None`` is returned when the job id is unknown.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id not in self.jobs:
                 return None
             job = self.jobs[job_id]
@@ -555,7 +554,7 @@ class TestsManager:
         The summary intentionally contains only the job id and the original
         test request.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id not in self.jobs:
                 return None
 
@@ -583,7 +582,7 @@ class TestsManager:
         Returns a tuple of (success, message) indicating whether the
         cancellation was successful and a human-readable status message.
         """
-        with self.lock:
+        with self._jobs_lock:
             if job_id not in self.jobs:
                 msg = f"Job {job_id} not found"
                 self.logger.warning(msg)
