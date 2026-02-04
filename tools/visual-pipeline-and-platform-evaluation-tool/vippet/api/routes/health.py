@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from api.api_schemas import AppStatus
-from managers.app_state_manager import get_app_state_manager
+from managers.app_state_manager import AppStateManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.health")
@@ -62,8 +62,8 @@ def get_health() -> HealthResponse:
               "healthy": true
             }
     """
-    app_state = get_app_state_manager()
-    return HealthResponse(healthy=app_state.is_healthy())
+    app_state_manager = AppStateManager()
+    return HealthResponse(healthy=app_state_manager.is_healthy())
 
 
 @router.get("/status", operation_id="get_status", response_model=StatusResponse)
@@ -92,9 +92,9 @@ def get_status() -> StatusResponse:
               "ready": true
             }
     """
-    app_state = get_app_state_manager()
+    app_state_manager = AppStateManager()
     return StatusResponse(
-        status=app_state.status,
-        message=app_state.message,
-        ready=app_state.is_ready(),
+        status=app_state_manager.status,
+        message=app_state_manager.message,
+        ready=app_state_manager.is_ready(),
     )

@@ -16,7 +16,6 @@ from api.api_schemas import (
 from managers.optimization_manager import (
     OptimizationManager,
     OptimizationRunner,
-    get_optimization_manager,
 )
 
 
@@ -67,6 +66,24 @@ class TestOptimizationManager(unittest.TestCase):
         ]
     }
     """
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        OptimizationManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        OptimizationManager._instance = None
+
+    # ------------------------------------------------------------------
+    # Singleton tests
+    # ------------------------------------------------------------------
+
+    def test_singleton_returns_same_instance(self):
+        """OptimizationManager() should return the same instance on multiple calls."""
+        instance1 = OptimizationManager()
+        instance2 = OptimizationManager()
+        self.assertIs(instance1, instance2)
 
     def test_generate_job_id_returns_unique_ids(self):
         """
@@ -927,27 +944,6 @@ class TestOptimizationManager(unittest.TestCase):
         if updated.error_message is not None:
             self.assertIn("boom", updated.error_message)
         self.assertNotIn(job_id, manager.runners)
-
-    # ------------------------------------------------------------------
-    # Singleton helper
-    # ------------------------------------------------------------------
-
-    @patch("managers.optimization_manager.OptimizationManager")
-    def test_get_optimization_manager_returns_singleton(self, mock_mgr_cls):
-        """
-        get_optimization_manager should lazily create and cache a singleton.
-        """
-        # Reset any global state that might have been set by other tests
-        from managers import optimization_manager as mod
-
-        mod._optimization_manager_instance = None
-
-        instance1 = get_optimization_manager()
-        instance2 = get_optimization_manager()
-
-        # OptimizationManager() must have been called exactly once
-        mock_mgr_cls.assert_called_once()
-        self.assertIs(instance1, instance2)
 
 
 class TestOptimizationRunner(unittest.TestCase):

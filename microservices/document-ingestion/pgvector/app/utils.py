@@ -1,9 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import AsyncHtmlLoader
 from langchain_community.document_transformers import Html2TextTransformer
+from langchain_core.documents import Document
 from .db_config import pool_execution
 
 def check_tables_exist() -> bool:
@@ -45,47 +44,24 @@ def get_separators():
     ]
     return separators
 
-
-def load_html_content(links, chunk_size=1500, chunk_overlap=50):
+def parse_html_content(html_content: str, source_url: str = "") -> str:
     """
-    Loads HTML content from the provided links, processes it into text, and splits it into chunks.
+    Parses HTML content (already fetched) and converts it to plain text.
+    This function does NOT fetch URLs - it only transforms HTML to text.
+
     Args:
-        links (list): A list of URLs to load HTML content from.
-        chunk_size (int, optional): The maximum size of each text chunk. Defaults to 1500.
-        chunk_overlap (int, optional): The number of overlapping characters between consecutive chunks. Defaults to 50.
+        html_content (str): The HTML content to parse.
+        source_url (str, optional): The source URL for metadata purposes only.
+
     Returns:
-        list: A list of processed and split text documents.
+        str: Plain text extracted from the HTML.
     """
 
-    loader = AsyncHtmlLoader(links, ignore_load_errors=True, trust_env=True)
-    docs = loader.load()
     html2text = Html2TextTransformer()
-    docs = list(html2text.transform_documents(docs))
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size, chunk_overlap=chunk_overlap
-    )
-    docs = text_splitter.split_documents(docs)
+    doc = Document(page_content=html_content, metadata={"source": source_url})
+    transformed_docs = html2text.transform_documents([doc])
 
-    return docs
-
-
-def parse_html(input, chunk_size, chunk_overlap):
-    """
-    Parses HTML content from the input and combines it into a single string.
-    Args:
-        input (str): The input source containing the HTML content to be parsed.
-        chunk_size (int): The size of each chunk to process the HTML content.
-        chunk_overlap (int): The overlap size between consecutive chunks.
-    Returns:
-        str: A single string containing the combined HTML content from all chunks.
-    """
-
-    docs = load_html_content(input, chunk_size, chunk_overlap)
-    html_content = ""
-    for doc in docs:
-        html_content += doc.page_content + "\n"
-
-    return html_content
+    return transformed_docs[0].page_content if transformed_docs else ""
 
 class Validation:
     @staticmethod

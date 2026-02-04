@@ -10,7 +10,6 @@ from api.api_schemas import (
 from managers.validation_manager import (
     ValidationManager,
     ValidationJob,
-    get_validation_manager,
 )
 from pipeline_runner import PipelineValidationResult
 
@@ -52,6 +51,14 @@ class TestValidationManager(unittest.TestCase):
     }
     """
 
+    def setUp(self):
+        """Reset singleton state before each test."""
+        ValidationManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        ValidationManager._instance = None
+
     def _build_validation_request(
         self, parameters: dict | None = None
     ) -> PipelineValidation:
@@ -61,6 +68,16 @@ class TestValidationManager(unittest.TestCase):
             pipeline_graph=graph,
             parameters=parameters,
         )
+
+    # ------------------------------------------------------------------
+    # Singleton tests
+    # ------------------------------------------------------------------
+
+    def test_singleton_returns_same_instance(self):
+        """ValidationManager() should return the same instance on multiple calls."""
+        instance1 = ValidationManager()
+        instance2 = ValidationManager()
+        self.assertIs(instance1, instance2)
 
     # ------------------------------------------------------------------
     # Basic job creation
@@ -387,23 +404,6 @@ class TestValidationManager(unittest.TestCase):
         assert summary is not None  # for type checkers
         self.assertEqual(summary.id, job_id)
         self.assertEqual(summary.request, request)
-
-
-class TestGetValidationManagerSingleton(unittest.TestCase):
-    """Tests for get_validation_manager singleton accessor."""
-
-    @patch("managers.validation_manager.ValidationManager")
-    def test_get_validation_manager_returns_singleton(self, mock_mgr_cls):
-        """get_validation_manager should lazily create and cache singleton."""
-        from managers import validation_manager as mod
-
-        mod._validation_manager_instance = None
-
-        instance1 = get_validation_manager()
-        instance2 = get_validation_manager()
-
-        mock_mgr_cls.assert_called_once()
-        self.assertIs(instance1, instance2)
 
 
 if __name__ == "__main__":

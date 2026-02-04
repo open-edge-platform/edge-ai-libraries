@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router";
 import { useGetPerformanceJobStatusQuery } from "@/api/api.generated";
 
-const PerformanceJobDetail = () => {
+export const PerformanceJobDetail = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const {
     data: jobStatus,
@@ -16,7 +16,7 @@ const PerformanceJobDetail = () => {
   );
 
   return (
-    <div className="h-full overflow-auto">
+    <>
       <div className="container mx-auto py-10">
         <div className="mb-6">
           <Link
@@ -45,8 +45,6 @@ const PerformanceJobDetail = () => {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };
-
-export default PerformanceJobDetail;
