@@ -1,6 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 import type { DeviceType } from "@/features/pipeline-editor/nodes/shared-types.ts";
+import { usePipelineEditorContext } from "../PipelineEditorContext.ts";
 
 export const GVAClassifyNodeWidth = 242;
 
@@ -11,60 +12,66 @@ type GVAClassifyNodeProps = {
   };
 };
 
-const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-purple-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
-          GVAClassify
+const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
+  const { simpleGraph } = usePipelineEditorContext();
+
+  return (
+    <div className="px-4 py-2 shadow-md bg-background border-2 border-purple-400 min-w-[220px]">
+      <div className="flex flex-col">
+        {/* Node Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+            {simpleGraph ? "Classification" : "GVAClassify"}
+          </div>
+          {!simpleGraph && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-purple-100 dark:bg-purple-900">
+              Classification
+            </div>
+          )}
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-purple-100 dark:bg-purple-900">
-          Classification
+
+        {/* Model Property */}
+        {data.model && (
+          <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+            <span className="font-medium">Model:</span>
+            <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
+              {data.model.split("/").pop() || data.model}
+            </div>
+          </div>
+        )}
+
+        {data.device && (
+          <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+            <span className="font-medium">Device:</span>
+            <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
+              {data.device}
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        <div className="text-xs text-gray-600 dark:text-gray-300">
+          Intel DL Streamer classification
         </div>
       </div>
 
-      {/* Model Property */}
-      {data.model && (
-        <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
-          <span className="font-medium">Model:</span>
-          <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
-            {data.model.split("/").pop() || data.model}
-          </div>
-        </div>
-      )}
+      {/* Input Handle */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="w-3 h-3 bg-purple-500!"
+        style={{ left: getHandleLeftPosition("gvaclassify") }}
+      />
 
-      {data.device && (
-        <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">
-          <span className="font-medium">Device:</span>
-          <div className="mt-1 p-2 bg-purple-50 dark:bg-purple-900/30 rounded text-xs font-mono">
-            {data.device}
-          </div>
-        </div>
-      )}
-
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        Intel DL Streamer classification
-      </div>
+      {/* Output Handle */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="w-3 h-3 bg-purple-500!"
+        style={{ left: getHandleLeftPosition("gvaclassify") }}
+      />
     </div>
-
-    {/* Input Handle */}
-    <Handle
-      type="target"
-      position={Position.Top}
-      className="w-3 h-3 bg-purple-500!"
-      style={{ left: getHandleLeftPosition("gvaclassify") }}
-    />
-
-    {/* Output Handle */}
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      className="w-3 h-3 bg-purple-500!"
-      style={{ left: getHandleLeftPosition("gvaclassify") }}
-    />
-  </div>
-);
+  );
+};
 
 export default GVAClassifyNode;
