@@ -416,7 +416,7 @@ jobs:
           persist-credentials: false
 
       - name: Run pylint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
+        uses: open-edge-platform/dlstreamer/.github/actions/common/pylint@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
@@ -439,7 +439,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run shellcheck
-        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@6d50b990891fdbe14b7fe42e3d482cabf67ae815
+        uses: open-edge-platform/dlstreamer/.github/actions/common/shellcheck@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: shellcheck-report.txt
@@ -461,7 +461,7 @@ jobs:
           persist-credentials: false
 
       - name: Run yamlint
-        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@6d50b990891fdbe14b7fe42e3d482cabf67ae815
+        uses: open-edge-platform/dlstreamer/.github/actions/common/yamllint@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
         with:
           path: ./microservices/dlstreamer-pipeline-server
           output-file: yamllint-report.txt
