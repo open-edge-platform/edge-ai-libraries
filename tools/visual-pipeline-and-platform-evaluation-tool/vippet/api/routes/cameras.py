@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.camera_manager import get_camera_manager
+from managers.camera_manager import CameraManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.cameras")
@@ -83,8 +83,7 @@ def get_cameras():
             ]
     """
     try:
-        camera_manager = get_camera_manager()
-        cameras = camera_manager.discover_all_cameras()
+        cameras = CameraManager().discover_all_cameras()
         logger.info(f"Discovered total {len(cameras)} camera(s)")
         return cameras
     except Exception:
@@ -198,8 +197,7 @@ def load_camera_profiles(request: schemas.CameraAuthRequest):
             }
     """
     try:
-        camera_manager = get_camera_manager()
-        authenticated_camera = camera_manager.load_camera_profiles(
+        authenticated_camera = CameraManager().load_camera_profiles(
             request.camera_id, request.username, request.password
         )
 

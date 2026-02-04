@@ -1,5 +1,5 @@
 import logging
-import sys
+import threading
 from typing import List, Optional
 
 from api.api_schemas import Camera
@@ -7,28 +7,13 @@ from camera import USBCameraDiscovery, ONVIFCameraDiscovery
 
 logger = logging.getLogger("camera_manager")
 
-# Singleton instance for CameraManager
-_camera_manager_instance: Optional["CameraManager"] = None
-
-
-def get_camera_manager() -> "CameraManager":
-    """
-    Returns the singleton instance of CameraManager.
-    If it cannot be created, logs an error and exits the application.
-    """
-    global _camera_manager_instance
-    if _camera_manager_instance is None:
-        try:
-            _camera_manager_instance = CameraManager()
-        except Exception as e:
-            logger.error(f"Failed to initialize CameraManager: {e}")
-            sys.exit(1)
-    return _camera_manager_instance
-
 
 class CameraManager:
     """
     Manager for camera device discovery and information retrieval.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with CameraManager() to get the shared singleton instance.
 
     Responsibilities:
     * Discover USB cameras connected to the system
@@ -36,8 +21,23 @@ class CameraManager:
     * Provide unified access to all camera devices
     """
 
+    _instance: Optional["CameraManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "CameraManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
-        """Initialize the CameraManager."""
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         self.logger = logging.getLogger("CameraManager")
         self.usb_discovery = USBCameraDiscovery()
         self.onvif_discovery = ONVIFCameraDiscovery()
