@@ -16,6 +16,10 @@ global:
   RERANKER_MODEL:
   OTLP_ENDPOINT:
   OTLP_ENDPOINT_TRACE:
+  #Model Download Service Configuration
+  modelDownload:
+    serviceName: # REQUIRED: e.g., model-download (use service name for same cluster)
+    port: # REQUIRED: e.g., 8200 or 8000 (use service port, not NodePort)
   #Set either one of the below embedding model sever to true by defauly OVMS is enabled
   teiEmbeddingService:
     enabled: false

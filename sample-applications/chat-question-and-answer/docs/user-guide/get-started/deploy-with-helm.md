@@ -63,6 +63,8 @@ Ensure you set the `huggingface.apiToken` and proxy settings as required.
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-minio-password>` (password length should be at least 8 characters) |
 | `global.OTLP_ENDPOINT` | OTLP endpoint | |
 | `global.OTLP_ENDPOINT_TRACE` | OTLP endpoint for trace | |
+| `global.modelDownload.serviceName` | Model download service name (required for OVMS) | `<your-model-download-service-name>`(Ex: model-download) |
+| `global.modelDownload.port` | Model download service port (required for OVMS) | `<your-model-download-service-port>`(Ex: 8000 or 8200) |
 | `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | `false` |
 | `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
