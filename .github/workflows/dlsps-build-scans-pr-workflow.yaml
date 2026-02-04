@@ -34,7 +34,7 @@ jobs:
         git submodule update --init --recursive libraries/dlstreamer
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 #3.7.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -304,7 +304,7 @@ jobs:
         fetch-depth: 0
 
     - name: Check license headers
-      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@6d50b990891fdbe14b7fe42e3d482cabf67ae815
+      uses: open-edge-platform/dlstreamer/.github/actions/common/license-namespace-checker@76c0a55ba0214c1dadbf989d4b0f395e85361bb0
       with:
         name: 'DLSPS_license-check-report'
         path: './microservices/dlstreamer-pipeline-server'
