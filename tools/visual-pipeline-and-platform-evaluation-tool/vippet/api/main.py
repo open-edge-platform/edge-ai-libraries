@@ -69,7 +69,16 @@ def register_routers(app: FastAPI) -> None:
     importing modules that depend on VideosManager before it's initialized.
     """
     # Import routers here to avoid early initialization of VideosManager
-    from api.routes import convert, devices, jobs, models, pipelines, tests, videos, cameras
+    from api.routes import (
+        convert,
+        devices,
+        jobs,
+        models,
+        pipelines,
+        tests,
+        videos,
+        cameras,
+    )
 
     # Include routers from different modules
     app.include_router(convert.router, prefix="/convert", tags=["convert"])

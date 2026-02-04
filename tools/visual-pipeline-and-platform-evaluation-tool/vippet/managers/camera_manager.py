@@ -178,6 +178,11 @@ class CameraManager:
         """
         self.logger.debug(f"Loading profiles for camera {camera_id}")
 
+        if not camera_id.startswith("network_camera_"):
+            error_msg = "Invalid camera type - only network cameras supported"
+            self.logger.error(error_msg)
+            raise ValueError(error_msg)
+
         if camera_id not in [cam.device_id for cam in self._network_cameras]:
             error_msg = f"Camera with ID {camera_id} not found in cached cameras"
             self.logger.error(error_msg)
