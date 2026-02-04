@@ -6,7 +6,7 @@ const FakeSinkNode = () => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="px-4 py-2 shadow-md bg-background border-2 border-gray-400 min-w-[220px]">
+    <div className="px-4 py-2 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[220px]">
       <div className="flex flex-col">
         {/* Node Header */}
         <div className="flex items-center justify-between mb-2">
