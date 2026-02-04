@@ -298,10 +298,12 @@ class TestBenchmark(unittest.TestCase):
 
             self.assertIsInstance(result, BenchmarkResult)
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_run_with_inline_graph(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_run_with_inline_graph(self, mock_pipeline_manager_cls):
         """Test benchmark run with inline graph pipeline source."""
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Create specs with inline graphs
         inline_specs = [
@@ -330,10 +332,14 @@ class TestBenchmark(unittest.TestCase):
             # Check that pipeline ID starts with __graph- prefix for inline graphs
             self.assertTrue(result.streams_per_pipeline[0].id.startswith("__graph-"))
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_result_pipeline_ids_use_variant_path_format(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_result_pipeline_ids_use_variant_path_format(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that result pipeline IDs use the correct variant path format."""
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
@@ -362,10 +368,12 @@ class TestBenchmark(unittest.TestCase):
                     f"Expected pipeline ID to contain '/variants/', got: {stream_spec.id}",
                 )
 
-    @patch("benchmark.pipeline_manager.build_pipeline_command")
-    def test_mixed_variant_and_inline_specs(self, mock_build_command):
+    @patch("benchmark.PipelineManager")
+    def test_mixed_variant_and_inline_specs(self, mock_pipeline_manager_cls):
         """Test benchmark with mixed variant reference and inline graph specs."""
-        mock_build_command.return_value = ("", {}, {})
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
 
         # Mix of variant reference and inline graph
         mixed_specs = [

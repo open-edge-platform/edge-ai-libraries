@@ -166,9 +166,9 @@ class TestPipelinesAPI(unittest.TestCase):
             schemas.PipelineCreationResponse(id="pipeline-newtest").model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
+    @patch("api.routes.pipelines.PipelineManager")
     def test_create_pipeline_with_read_only_variant_rejected(
-        self, mock_pipeline_manager
+        self, mock_pipeline_manager_cls
     ):
         """Test that creating a pipeline with read_only=true variant is rejected."""
         new_pipeline = {
@@ -194,14 +194,12 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("read_only", response.json()["message"])
-        mock_pipeline_manager.add_pipeline.assert_not_called()
+        mock_pipeline_manager_cls.return_value.add_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_create_pipeline_duplicate(self, mock_pipeline_manager_cls):
         mock_manager = MagicMock()
-        mock_manager.add_pipeline.side_effect = ValueError(
-            "Pipeline already exists."
-        )
+        mock_manager.add_pipeline.side_effect = ValueError("Pipeline already exists.")
         mock_pipeline_manager_cls.return_value = mock_manager
 
         duplicate_pipeline = {
@@ -269,12 +267,10 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_get_pipeline_by_id_found(self, mock_pipeline_manager_cls):
         mock_manager = MagicMock()
-        mock_manager.get_pipeline_by_id.return_value = (
-            self._create_test_pipeline(
-                pipeline_id="pipeline-ghi789",
-                name="user-defined-pipelines",
-                description="A custom test pipeline",
-            )
+        mock_manager.get_pipeline_by_id.return_value = self._create_test_pipeline(
+            pipeline_id="pipeline-ghi789",
+            name="user-defined-pipelines",
+            description="A custom test pipeline",
         )
         mock_pipeline_manager_cls.return_value = mock_manager
 
@@ -341,7 +337,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(data["id"], "pipeline-ghi789")
         self.assertEqual(data["name"], "updated-name")
         self.assertEqual(data["description"], "Updated description")
-        mock_pipeline_manager_cls.update_pipeline.assert_called_once_with(
+        mock_manager.update_pipeline.assert_called_once_with(
             pipeline_id="pipeline-ghi789",
             name="updated-name",
             description="Updated description",
@@ -366,7 +362,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["tags"], ["tag1", "tag2"])
-        mock_pipeline_manager_cls.update_pipeline.assert_called_once_with(
+        mock_manager.update_pipeline.assert_called_once_with(
             pipeline_id="pipeline-ghi789",
             name=None,
             description=None,
@@ -413,9 +409,9 @@ class TestPipelinesAPI(unittest.TestCase):
             ).model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_pipeline_not_found(self, mock_pipeline_manager):
-        mock_pipeline_manager.update_pipeline.side_effect = ValueError(
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_not_found(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value.update_pipeline.side_effect = ValueError(
             "Pipeline with id 'pipeline-ghi789' not found."
         )
 
@@ -425,9 +421,9 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_pipeline_success(self, mock_pipeline_manager):
-        mock_pipeline_manager.delete_pipeline_by_id.return_value = None
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_pipeline_success(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value.delete_pipeline_by_id.return_value = None
 
         response = self.client.delete("/pipelines/pipeline-ghi789")
 
@@ -437,10 +433,10 @@ class TestPipelinesAPI(unittest.TestCase):
             schemas.MessageResponse(message="Pipeline deleted").model_dump(),
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_pipeline_not_found(self, mock_pipeline_manager):
-        mock_pipeline_manager.delete_pipeline_by_id.side_effect = ValueError(
-            "Pipeline with id 'nonexistent-id' not found."
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_pipeline_not_found(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value.delete_pipeline_by_id.side_effect = (
+            ValueError("Pipeline with id 'nonexistent-id' not found.")
         )
 
         response = self.client.delete("/pipelines/nonexistent-id")
@@ -448,11 +444,11 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_predefined_pipeline_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_predefined_pipeline_rejected(self, mock_pipeline_manager_cls):
         """Test that deleting a PREDEFINED pipeline is rejected with 400."""
-        mock_pipeline_manager.delete_pipeline_by_id.side_effect = ValueError(
-            "Cannot delete PREDEFINED pipeline 'pipeline-abc123'."
+        mock_pipeline_manager_cls.return_value.delete_pipeline_by_id.side_effect = (
+            ValueError("Cannot delete PREDEFINED pipeline 'pipeline-abc123'.")
         )
 
         response = self.client.delete("/pipelines/pipeline-abc123")
@@ -464,11 +460,11 @@ class TestPipelinesAPI(unittest.TestCase):
     # Variant endpoints tests
     # ------------------------------------------------------------------
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_create_variant_success(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_create_variant_success(self, mock_pipeline_manager_cls):
         """Test successful variant creation."""
         new_variant = self._create_test_variant(variant_id="variant-new123", name="GPU")
-        mock_pipeline_manager.add_variant.return_value = new_variant
+        mock_pipeline_manager_cls.return_value.add_variant.return_value = new_variant
 
         payload = {
             "name": "GPU",
@@ -487,12 +483,12 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(data["id"], "variant-new123")
         self.assertEqual(data["name"], "GPU")
         self.assertEqual(data["read_only"], False)
-        mock_pipeline_manager.add_variant.assert_called_once()
+        mock_pipeline_manager_cls.return_value.add_variant.assert_called_once()
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_create_variant_pipeline_not_found(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_create_variant_pipeline_not_found(self, mock_pipeline_manager_cls):
         """Test variant creation when pipeline does not exist."""
-        mock_pipeline_manager.add_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.add_variant.side_effect = ValueError(
             "Pipeline with id 'nonexistent' not found."
         )
 
@@ -511,10 +507,10 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_variant_success(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_variant_success(self, mock_pipeline_manager_cls):
         """Test successful variant deletion."""
-        mock_pipeline_manager.delete_variant.return_value = None
+        mock_pipeline_manager_cls.return_value.delete_variant.return_value = None
 
         response = self.client.delete("/pipelines/pipeline-abc123/variants/variant-123")
 
@@ -523,14 +519,14 @@ class TestPipelinesAPI(unittest.TestCase):
             response.json(),
             schemas.MessageResponse(message="Variant deleted").model_dump(),
         )
-        mock_pipeline_manager.delete_variant.assert_called_once_with(
+        mock_pipeline_manager_cls.return_value.delete_variant.assert_called_once_with(
             "pipeline-abc123", "variant-123"
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_variant_not_found(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_variant_not_found(self, mock_pipeline_manager_cls):
         """Test variant deletion when variant does not exist."""
-        mock_pipeline_manager.delete_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.delete_variant.side_effect = ValueError(
             "Variant 'variant-123' not found in pipeline 'pipeline-abc123'."
         )
 
@@ -539,39 +535,39 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_variant_read_only_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_variant_read_only_rejected(self, mock_pipeline_manager_cls):
         """Test that deleting a read-only variant is rejected."""
-        mock_pipeline_manager.delete_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.delete_variant.side_effect = ValueError(
             "Cannot delete read-only variant 'variant-123'."
         )
-        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.delete("/pipelines/pipeline-abc123/variants/variant-123")
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("read-only", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_delete_variant_last_variant_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_delete_variant_last_variant_rejected(self, mock_pipeline_manager_cls):
         """Test that deleting the last variant is rejected."""
-        mock_pipeline_manager.delete_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.delete_variant.side_effect = ValueError(
             "Cannot delete variant 'variant-123' as it is the last variant in pipeline 'pipeline-abc123'."
         )
-        mock_pipeline_manager_cls.return_value = mock_manager
 
         response = self.client.delete("/pipelines/pipeline-abc123/variants/variant-123")
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("last variant", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_variant_name_success(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_variant_name_success(self, mock_pipeline_manager_cls):
         """Test successful variant name update."""
         updated_variant = self._create_test_variant(
             variant_id="variant-123", name="GPU-optimized"
         )
-        mock_pipeline_manager.update_variant.return_value = updated_variant
+        mock_pipeline_manager_cls.return_value.update_variant.return_value = (
+            updated_variant
+        )
 
         payload = {"name": "GPU-optimized"}
 
@@ -582,7 +578,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["name"], "GPU-optimized")
-        mock_pipeline_manager.update_variant.assert_called_once_with(
+        mock_pipeline_manager_cls.return_value.update_variant.assert_called_once_with(
             pipeline_id="pipeline-abc123",
             variant_id="variant-123",
             name="GPU-optimized",
@@ -590,11 +586,13 @@ class TestPipelinesAPI(unittest.TestCase):
             pipeline_graph_simple=None,
         )
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_variant_pipeline_graph_success(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_variant_pipeline_graph_success(self, mock_pipeline_manager_cls):
         """Test successful variant pipeline_graph update."""
         updated_variant = self._create_test_variant(variant_id="variant-123")
-        mock_pipeline_manager.update_variant.return_value = updated_variant
+        mock_pipeline_manager_cls.return_value.update_variant.return_value = (
+            updated_variant
+        )
 
         payload = {
             "pipeline_graph": schemas.PipelineGraph.model_validate_json(
@@ -607,15 +605,14 @@ class TestPipelinesAPI(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mock_pipeline_manager.update_variant.assert_called_once()
+        mock_pipeline_manager_cls.return_value.update_variant.assert_called_once()
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_variant_read_only_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_variant_read_only_rejected(self, mock_pipeline_manager_cls):
         """Test that updating a read-only variant is rejected."""
-        mock_pipeline_manager.update_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.update_variant.side_effect = ValueError(
             "Cannot update read-only variant 'variant-123'."
         )
-        mock_pipeline_manager_cls.return_value = mock_manager
 
         payload = {"name": "new-name"}
 
@@ -626,10 +623,10 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("read-only", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_variant_not_found(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_variant_not_found(self, mock_pipeline_manager_cls):
         """Test variant update when variant does not exist."""
-        mock_pipeline_manager.update_variant.side_effect = ValueError(
+        mock_pipeline_manager_cls.return_value.update_variant.side_effect = ValueError(
             "Variant 'variant-123' not found in pipeline 'pipeline-abc123'."
         )
 
@@ -642,8 +639,8 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_update_variant_both_graphs_rejected(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_variant_both_graphs_rejected(self, mock_pipeline_manager_cls):
         """Test that providing both pipeline_graph and pipeline_graph_simple is rejected.
 
         This validation is done by the VariantUpdate pydantic model.
@@ -663,24 +660,28 @@ class TestPipelinesAPI(unittest.TestCase):
 
         # Pydantic validation returns 422
         self.assertEqual(response.status_code, 422)
-        mock_pipeline_manager.update_variant.assert_not_called()
+        mock_pipeline_manager_cls.return_value.update_variant.assert_not_called()
 
     # ------------------------------------------------------------------
     # Optimize variant endpoint tests
     # ------------------------------------------------------------------
 
-    @patch("api.routes.pipelines.optimization_manager")
-    @patch("api.routes.pipelines.pipeline_manager")
+    @patch("api.routes.pipelines.OptimizationManager")
+    @patch("api.routes.pipelines.PipelineManager")
     def test_optimize_variant_success(
-        self, mock_pipeline_manager, mock_optimization_manager
+        self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test successful variant optimization."""
         mock_pipeline = self._create_test_pipeline(
             pipeline_id="pipeline-abc123",
             variants=[self._create_test_variant(variant_id="variant-123")],
         )
-        mock_pipeline_manager.get_pipeline_by_id.return_value = mock_pipeline
-        mock_optimization_manager.run_optimization.return_value = "opt-job-123"
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
+            mock_pipeline
+        )
+        mock_optimization_manager_cls.return_value.run_optimization.return_value = (
+            "opt-job-123"
+        )
 
         payload = {"type": "preprocess", "parameters": None}
 
@@ -690,16 +691,16 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["job_id"], "opt-job-123")
-        mock_optimization_manager.run_optimization.assert_called_once()
+        mock_optimization_manager_cls.return_value.run_optimization.assert_called_once()
 
-    @patch("api.routes.pipelines.optimization_manager")
-    @patch("api.routes.pipelines.pipeline_manager")
+    @patch("api.routes.pipelines.OptimizationManager")
+    @patch("api.routes.pipelines.PipelineManager")
     def test_optimize_variant_pipeline_not_found(
-        self, mock_pipeline_manager, mock_optimization_manager
+        self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test variant optimization when pipeline does not exist."""
-        mock_pipeline_manager.get_pipeline_by_id.side_effect = ValueError(
-            "Pipeline with id 'nonexistent' not found."
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.side_effect = (
+            ValueError("Pipeline with id 'nonexistent' not found.")
         )
 
         payload = {"type": "preprocess", "parameters": None}
@@ -710,19 +711,21 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
-        mock_optimization_manager.run_optimization.assert_not_called()
+        mock_optimization_manager_cls.return_value.run_optimization.assert_not_called()
 
-    @patch("api.routes.pipelines.optimization_manager")
-    @patch("api.routes.pipelines.pipeline_manager")
+    @patch("api.routes.pipelines.OptimizationManager")
+    @patch("api.routes.pipelines.PipelineManager")
     def test_optimize_variant_variant_not_found(
-        self, mock_pipeline_manager, mock_optimization_manager
+        self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test variant optimization when variant does not exist."""
         mock_pipeline = self._create_test_pipeline(
             pipeline_id="pipeline-abc123",
             variants=[self._create_test_variant(variant_id="different-variant")],
         )
-        mock_pipeline_manager.get_pipeline_by_id.return_value = mock_pipeline
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
+            mock_pipeline
+        )
 
         payload = {"type": "preprocess", "parameters": None}
 
@@ -733,7 +736,7 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertIn("not found", response.json()["message"])
-        mock_optimization_manager.run_optimization.assert_not_called()
+        mock_optimization_manager_cls.return_value.run_optimization.assert_not_called()
 
     # ------------------------------------------------------------------
     # /pipelines/validate
@@ -832,16 +835,16 @@ class TestPipelinesAPI(unittest.TestCase):
             schemas.MessageResponse(message="Unexpected error: boom!").model_dump(),
         )
 
-        self.assertTrue(mock_validation_manager.run_validation.called)
+        self.assertTrue(mock_manager.run_validation.called)
 
     # ------------------------------------------------------------------
     # Pipeline with variants structure tests
     # ------------------------------------------------------------------
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipelines_includes_variants(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipelines_includes_variants(self, mock_pipeline_manager_cls):
         """Test that GET /pipelines returns pipelines with variants."""
-        mock_pipeline_manager.get_pipelines.return_value = [
+        mock_pipeline_manager_cls.return_value.get_pipelines.return_value = [
             self._create_test_pipeline(
                 pipeline_id="pipeline-abc123",
                 name="test-pipeline",
@@ -867,10 +870,10 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(pipeline["variants"][0]["name"], "CPU")
         self.assertEqual(pipeline["variants"][1]["name"], "GPU")
 
-    @patch("api.routes.pipelines.pipeline_manager")
-    def test_get_pipeline_by_id_includes_variants(self, mock_pipeline_manager):
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_includes_variants(self, mock_pipeline_manager_cls):
         """Test that GET /pipelines/{id} returns pipeline with variants."""
-        mock_pipeline_manager.get_pipeline_by_id.return_value = (
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
             self._create_test_pipeline(
                 pipeline_id="pipeline-ghi789",
                 name="test-pipeline",

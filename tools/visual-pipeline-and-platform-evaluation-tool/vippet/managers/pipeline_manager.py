@@ -18,7 +18,7 @@ from api.api_schemas import (
 from graph import Graph
 from pipelines.loader import PipelineLoader
 from utils import make_tee_names_unique, generate_unique_id, generate_pipeline_graph_id
-from video_encoder import get_video_encoder
+from video_encoder import VideoEncoder
 
 logger = logging.getLogger("pipeline_manager")
 
@@ -490,7 +490,7 @@ class PipelineManager:
         Raises:
             ValueError: If pipeline with given ID is not found.
         """
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
@@ -536,7 +536,7 @@ class PipelineManager:
             ValueError: If variant is read-only (cannot delete).
             ValueError: If variant is the last one in pipeline (cannot delete).
         """
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
@@ -612,7 +612,7 @@ class PipelineManager:
             ValueError: If pipeline_graph cannot be converted to valid GStreamer string.
             ValueError: If pipeline_graph_simple contains structural changes.
         """
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")

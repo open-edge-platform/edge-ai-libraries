@@ -704,8 +704,14 @@ class TestTestsManager(unittest.TestCase):
         mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelinePerformanceSpec(id="pipeline-test", streams=2),
-                PipelinePerformanceSpec(id="pipeline-test", streams=1),
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test/variants/variant-1",
+                    streams=2,
+                ),
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test/variants/variant-2",
+                    streams=1,
+                ),
             ],
             per_stream_fps=90.0,
             video_output_paths={},
@@ -1040,10 +1046,6 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        expected_urls = {
-            "/pipelines/pipeline-test/variants/variant-test": "rtsp://mediamtx:8554/stream_pipeline-test"
-        }
-
         with (
             patch.object(
                 PipelineRunner,
@@ -1131,8 +1133,21 @@ if __name__ == "__main__":
 class TestGraphInlineSupport(unittest.TestCase):
     """Test cases for GraphInline (inline graph) support in tests."""
 
-    def test_performance_test_with_inline_graph(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_test_with_inline_graph(self, mock_pipeline_manager_cls):
         """Test that performance test accepts inline graph instead of variant reference."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -1157,8 +1172,11 @@ class TestGraphInlineSupport(unittest.TestCase):
         spec = job.request.pipeline_performance_specs[0]
         self.assertIsInstance(spec.pipeline, GraphInline)
 
-    def test_density_test_with_inline_graph(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_test_with_inline_graph(self, mock_pipeline_manager_cls):
         """Test that density test accepts inline graph instead of variant reference."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         density_request = DensityTestSpec(
@@ -1184,8 +1202,11 @@ class TestGraphInlineSupport(unittest.TestCase):
         spec = job.request.pipeline_density_specs[0]
         self.assertIsInstance(spec.pipeline, GraphInline)
 
-    def test_performance_test_with_mixed_sources(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_test_with_mixed_sources(self, mock_pipeline_manager_cls):
         """Test performance test with both variant reference and inline graph."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -1215,8 +1236,19 @@ class TestGraphInlineSupport(unittest.TestCase):
         self.assertIsInstance(specs[0].pipeline, VariantReference)
         self.assertIsInstance(specs[1].pipeline, GraphInline)
 
-    def test_execute_performance_test_generates_correct_ids_for_inline_graphs(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_generates_correct_ids_for_inline_graphs(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that inline graphs get synthetic IDs in __graph-{hash} format."""
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -1239,10 +1271,6 @@ class TestGraphInlineSupport(unittest.TestCase):
         manager.jobs[job_id] = job
 
         with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
             patch.object(
                 PipelineRunner,
                 "run",
@@ -1262,8 +1290,19 @@ class TestGraphInlineSupport(unittest.TestCase):
             self.assertTrue(spec.id.startswith("__graph-"))
             self.assertEqual(len(spec.id), len("__graph-") + 16)  # 16 char hash
 
-    def test_execute_performance_test_generates_correct_ids_for_variant_refs(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_generates_correct_ids_for_variant_refs(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that variant references get IDs in /pipelines/{pid}/variants/{vid} format."""
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -1286,10 +1325,6 @@ class TestGraphInlineSupport(unittest.TestCase):
         manager.jobs[job_id] = job
 
         with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
             patch.object(
                 PipelineRunner,
                 "run",
@@ -1312,8 +1347,23 @@ class TestGraphInlineSupport(unittest.TestCase):
 class TestPipelineStreamSpecInResults(unittest.TestCase):
     """Test cases for PipelineStreamSpec format in job results."""
 
-    def test_streams_per_pipeline_uses_pipeline_stream_spec(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_streams_per_pipeline_uses_pipeline_stream_spec(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that streams_per_pipeline uses PipelineStreamSpec type."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a completed job with streams_per_pipeline

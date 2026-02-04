@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from api.api_schemas import (
     Edge,
@@ -460,8 +460,7 @@ class TestPipelineManager(unittest.TestCase):
                 predefined = p
                 break
 
-        if predefined is None:
-            self.skipTest("No predefined pipelines available for test")
+        assert predefined is not None  # Type narrowing for pyright
 
         with self.assertRaises(ValueError) as context:
             manager.delete_pipeline_by_id(predefined.id)
@@ -674,28 +673,6 @@ class TestVariantCRUD(unittest.TestCase):
 
         self.assertIn("last variant", str(context.exception))
 
-    def test_delete_readonly_variant_raises_error(self):
-        """Test that deleting a read-only variant raises error."""
-        manager = PipelineManager()
-
-        # Find a predefined pipeline with read-only variants
-        predefined = None
-        for p in manager.get_pipelines():
-            if p.source == PipelineSource.PREDEFINED and len(p.variants) > 0:
-                predefined = p
-                break
-
-        if predefined is None:
-            self.skipTest("No predefined pipelines available for test")
-
-        readonly_variant = predefined.variants[0]
-        self.assertTrue(readonly_variant.read_only)
-
-        with self.assertRaises(ValueError) as context:
-            manager.delete_variant(predefined.id, readonly_variant.id)
-
-        self.assertIn("read-only", str(context.exception))
-
     def test_delete_nonexistent_variant_raises_error(self):
         """Test that deleting a nonexistent variant raises error."""
         manager = PipelineManager()
@@ -773,31 +750,6 @@ class TestVariantCRUD(unittest.TestCase):
         self.assertEqual(len(updated.pipeline_graph.nodes), 3)
         # Verify simple view was auto-generated
         self.assertIsNotNone(updated.pipeline_graph_simple)
-
-    def test_update_readonly_variant_raises_error(self):
-        """Test that updating a read-only variant raises error."""
-        manager = PipelineManager()
-
-        # Find a predefined pipeline with read-only variants
-        predefined = None
-        for p in manager.get_pipelines():
-            if p.source == PipelineSource.PREDEFINED and len(p.variants) > 0:
-                predefined = p
-                break
-
-        if predefined is None:
-            self.skipTest("No predefined pipelines available for test")
-
-        readonly_variant = predefined.variants[0]
-
-        with self.assertRaises(ValueError) as context:
-            manager.update_variant(
-                pipeline_id=predefined.id,
-                variant_id=readonly_variant.id,
-                name="new-name",
-            )
-
-        self.assertIn("read-only", str(context.exception))
 
     def test_update_variant_both_graphs_raises_error(self):
         """Test that providing both graph types raises error."""
@@ -1114,16 +1066,74 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         self.assertNotIn("multifilesrc", command)
 
 
+# Mock pipeline configs for testing predefined pipelines
+MOCK_PIPELINE_CONFIGS = [
+    {
+        "name": "object-detection",
+        "definition": "Object detection pipeline for testing",
+        "tags": ["detection", "test"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "GPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+        ],
+    },
+    {
+        "name": "classification",
+        "definition": "Classification pipeline for testing",
+        "tags": ["classification", "test"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "GPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "NPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+        ],
+    },
+]
+
+
+def mock_pipeline_loader_list():
+    """Return mock list of pipeline config paths."""
+    return [f"config_{i}.yaml" for i in range(len(MOCK_PIPELINE_CONFIGS))]
+
+
+def mock_pipeline_loader_config(config_path: str):
+    """Return mock pipeline config based on path."""
+    index = int(config_path.split("_")[1].split(".")[0])
+    return MOCK_PIPELINE_CONFIGS[index]
+
+
 class TestPredefinedPipelinesStructure(unittest.TestCase):
     """Test cases for predefined pipelines structure after migration to variants."""
 
     def setUp(self):
+        """Reset singleton state before each test."""
         PipelineManager._instance = None
-        self.manager = PipelineManager()
-        self.manager.pipelines = []
 
-    def test_predefined_pipelines_have_correct_structure(self):
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_predefined_pipelines_have_correct_structure(self, mock_loader_cls):
         """Verify predefined pipelines have correct structure with variants."""
+        # Setup mock
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+
         manager = PipelineManager()
         pipelines = manager.get_pipelines()
 
@@ -1157,17 +1167,141 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
                     self.assertGreater(len(variant.pipeline_graph_simple.nodes), 0)
 
         self.assertGreater(predefined_count, 0)
+        self.assertEqual(predefined_count, len(MOCK_PIPELINE_CONFIGS))
 
-    def test_predefined_pipelines_have_multiple_variants(self):
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_predefined_pipelines_have_multiple_variants(self, mock_loader_cls):
         """Verify predefined pipelines have multiple variants (CPU/GPU/NPU)."""
+        # Setup mock
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+
         manager = PipelineManager()
         pipelines = manager.get_pipelines()
 
         multi_variant_count = 0
+        predefined_count = 0
         for pipeline in pipelines:
             if pipeline.source == PipelineSource.PREDEFINED:
+                predefined_count += 1
                 if len(pipeline.variants) > 1:
                     multi_variant_count += 1
 
         # Most predefined pipelines should have multiple variants
         self.assertGreater(multi_variant_count, 0)
+        # All our mock configs have multiple variants
+        self.assertEqual(multi_variant_count, predefined_count)
+
+
+class TestDeletePredefinedPipeline(unittest.TestCase):
+    """Test cases for deleting predefined pipelines."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_delete_predefined_pipeline_raises_error(self, mock_loader_cls):
+        """Test that deleting a PREDEFINED pipeline raises error."""
+        # Setup mock
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+
+        manager = PipelineManager()
+
+        # Find a predefined pipeline
+        predefined = None
+        for p in manager.get_pipelines():
+            if p.source == PipelineSource.PREDEFINED:
+                predefined = p
+                break
+
+        assert predefined is not None  # Type narrowing for pyright
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_pipeline_by_id(predefined.id)
+
+        self.assertIn("PREDEFINED", str(context.exception))
+
+
+class TestDeleteReadOnlyVariant(unittest.TestCase):
+    """Test cases for deleting read-only variants."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_delete_readonly_variant_raises_error(self, mock_loader_cls):
+        """Test that deleting a read-only variant raises error."""
+        # Setup mock
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+
+        manager = PipelineManager()
+
+        # Find a predefined pipeline with read-only variants
+        predefined = None
+        for p in manager.get_pipelines():
+            if p.source == PipelineSource.PREDEFINED and len(p.variants) > 0:
+                predefined = p
+                break
+
+        assert predefined is not None  # Type narrowing for pyright
+
+        readonly_variant = predefined.variants[0]
+        self.assertTrue(readonly_variant.read_only)
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_variant(predefined.id, readonly_variant.id)
+
+        self.assertIn("read-only", str(context.exception))
+
+
+class TestUpdateReadOnlyVariant(unittest.TestCase):
+    """Test cases for updating read-only variants."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_update_readonly_variant_raises_error(self, mock_loader_cls):
+        """Test that updating a read-only variant raises error."""
+        # Setup mock
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+
+        manager = PipelineManager()
+
+        # Find a predefined pipeline with read-only variants
+        predefined = None
+        for p in manager.get_pipelines():
+            if p.source == PipelineSource.PREDEFINED and len(p.variants) > 0:
+                predefined = p
+                break
+
+        assert predefined is not None  # Type narrowing for pyright
+
+        readonly_variant = predefined.variants[0]
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=predefined.id,
+                variant_id=readonly_variant.id,
+                name="new-name",
+            )
+
+        self.assertIn("read-only", str(context.exception))

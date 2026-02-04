@@ -848,7 +848,7 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
             }
     """
     try:
-        new_variant = pipeline_manager.add_variant(
+        new_variant = PipelineManager().add_variant(
             pipeline_id=pipeline_id,
             name=body.name,
             pipeline_graph=body.pipeline_graph,
@@ -958,7 +958,7 @@ def delete_variant(pipeline_id: str, variant_id: str):
             }
     """
     try:
-        pipeline_manager.delete_variant(pipeline_id, variant_id)
+        PipelineManager().delete_variant(pipeline_id, variant_id)
         logger.info(f"Deleted variant {variant_id} from pipeline {pipeline_id}")
         return schemas.MessageResponse(message="Variant deleted")
 
@@ -1079,7 +1079,7 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
             }
     """
     try:
-        updated_variant = pipeline_manager.update_variant(
+        updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,
             variant_id=variant_id,
             name=body.name,

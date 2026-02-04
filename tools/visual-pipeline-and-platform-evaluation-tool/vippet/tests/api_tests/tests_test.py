@@ -100,16 +100,18 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(pipeline_spec.pipeline.variant_id, "variant-abc123")
         self.assertEqual(pipeline_spec.streams, 2)
 
-    @patch("api.routes.tests.test_manager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_with_inline_graph_returns_job_id(
-        self, mock_test_manager
+        self, mock_tests_manager_cls
     ):
         """
         The /tests/performance endpoint should accept a PerformanceTestSpec
         with inline graph and return a TestJobResponse with a job_id.
         """
         # Arrange: configure mock to return a job ID
-        mock_test_manager.test_performance.return_value = "graph-job-456"
+        mock_tests_manager_cls.return_value.test_performance.return_value = (
+            "graph-job-456"
+        )
 
         # Act: send a performance test request with inline graph
         request_body = {
@@ -147,8 +149,8 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "graph-job-456")
 
         # Verify manager was called with correct spec
-        mock_test_manager.test_performance.assert_called_once()
-        call_args = mock_test_manager.test_performance.call_args[0][0]
+        mock_tests_manager_cls.return_value.test_performance.assert_called_once()
+        call_args = mock_tests_manager_cls.return_value.test_performance.call_args[0][0]
         self.assertIsInstance(call_args, schemas.PerformanceTestSpec)
 
         # Verify the pipeline is a GraphInline
@@ -433,16 +435,16 @@ class TestTestsAPI(unittest.TestCase):
         )
         self.assertEqual(call_args.execution_config.max_runtime, 120)
 
-    @patch("api.routes.tests.test_manager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_manager_raises_value_error_returns_400(
-        self, mock_test_manager
+        self, mock_tests_manager_cls
     ):
         """
         The /tests/performance endpoint should return 400 if test_manager
         raises ValueError (e.g., variant not found).
         """
         # Arrange: configure mock to raise ValueError
-        mock_test_manager.test_performance.side_effect = ValueError(
+        mock_tests_manager_cls.return_value.test_performance.side_effect = ValueError(
             "Variant 'variant-unknown' not found in pipeline 'pipeline-abc'."
         )
 
@@ -468,16 +470,16 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("message", data)
         self.assertIn("not found", data["message"])
 
-    @patch("api.routes.tests.test_manager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_manager_raises_exception_returns_500(
-        self, mock_test_manager
+        self, mock_tests_manager_cls
     ):
         """
         The /tests/performance endpoint should return 500 if test_manager
         raises an unexpected exception.
         """
         # Arrange: configure mock to raise RuntimeError
-        mock_test_manager.test_performance.side_effect = RuntimeError(
+        mock_tests_manager_cls.return_value.test_performance.side_effect = RuntimeError(
             "Unexpected error"
         )
 
@@ -559,14 +561,18 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(pipeline_spec.pipeline.variant_id, "variant-cpu")
         self.assertEqual(pipeline_spec.stream_rate, 100)
 
-    @patch("api.routes.tests.test_manager")
-    def test_run_density_test_with_inline_graph_returns_job_id(self, mock_test_manager):
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_inline_graph_returns_job_id(
+        self, mock_tests_manager_cls
+    ):
         """
         The /tests/density endpoint should accept a DensityTestSpec
         with inline graph and return a TestJobResponse with a job_id.
         """
         # Arrange: configure mock to return a job ID
-        mock_test_manager.test_density.return_value = "density-graph-job"
+        mock_tests_manager_cls.return_value.test_density.return_value = (
+            "density-graph-job"
+        )
 
         # Act: send a density test request with inline graph
         request_body = {
@@ -604,7 +610,7 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "density-graph-job")
 
         # Verify the pipeline is a GraphInline
-        call_args = mock_test_manager.test_density.call_args[0][0]
+        call_args = mock_tests_manager_cls.return_value.test_density.call_args[0][0]
         pipeline_spec = call_args.pipeline_density_specs[0]
         self.assertIsInstance(pipeline_spec.pipeline, schemas.GraphInline)
         self.assertIsNotNone(pipeline_spec.pipeline.pipeline_graph)
@@ -665,8 +671,9 @@ class TestTestsAPI(unittest.TestCase):
         (variant reference + inline graph) in a single request.
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value.test_density.return_value = "density-mixed-job"
+        mock_tests_manager_cls.return_value.test_density.return_value = (
+            "density-mixed-job"
+        )
 
         # Act: send request with mixed pipeline sources
         request_body = {
@@ -708,7 +715,7 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "density-mixed-job")
 
         # Verify mixed sources
-        call_args = mock_test_manager.test_density.call_args[0][0]
+        call_args = mock_tests_manager_cls.return_value.test_density.call_args[0][0]
         self.assertIsInstance(
             call_args.pipeline_density_specs[0].pipeline, schemas.VariantReference
         )
@@ -717,7 +724,9 @@ class TestTestsAPI(unittest.TestCase):
         )
 
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_with_invalid_body_returns_422(self, mock_tests_manager_cls):
+    def test_run_density_test_with_invalid_body_returns_422(
+        self, mock_tests_manager_cls
+    ):
         """
         The /tests/density endpoint should return 422 if the request body
         is invalid (e.g., missing required fields).
@@ -852,16 +861,16 @@ class TestTestsAPI(unittest.TestCase):
             call_args.execution_config.output_mode, schemas.OutputMode.FILE
         )
 
-    @patch("api.routes.tests.test_manager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_density_test_manager_raises_value_error_returns_400(
-        self, mock_test_manager
+        self, mock_tests_manager_cls
     ):
         """
         The /tests/density endpoint should return 400 if test_manager
         raises ValueError (e.g., stream_rate doesn't sum to 100).
         """
         # Arrange: configure mock to raise ValueError
-        mock_test_manager.test_density.side_effect = ValueError(
+        mock_tests_manager_cls.return_value.test_density.side_effect = ValueError(
             "Pipeline stream_rate ratios must sum to 100%, got 110%"
         )
 
@@ -896,16 +905,18 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("message", data)
         self.assertIn("100%", data["message"])
 
-    @patch("api.routes.tests.test_manager")
+    @patch("api.routes.tests.TestsManager")
     def test_run_density_test_manager_raises_exception_returns_500(
-        self, mock_test_manager
+        self, mock_tests_manager_cls
     ):
         """
         The /tests/density endpoint should return 500 if test_manager
         raises an unexpected exception.
         """
         # Arrange: configure mock to raise RuntimeError
-        mock_test_manager.test_density.side_effect = RuntimeError("Unexpected error")
+        mock_tests_manager_cls.return_value.test_density.side_effect = RuntimeError(
+            "Unexpected error"
+        )
 
         # Act: send a valid request
         request_body = {

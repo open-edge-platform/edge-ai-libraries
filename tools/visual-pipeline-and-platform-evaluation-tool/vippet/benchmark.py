@@ -22,8 +22,6 @@ from api.api_schemas import (
 from utils import generate_pipeline_graph_id
 from managers.pipeline_manager import PipelineManager
 
-pipeline_manager = get_pipeline_manager()
-
 
 @dataclass
 class BenchmarkResult:
@@ -178,7 +176,7 @@ class Benchmark:
                 streams_per_pipeline_counts,
             )
 
-            # Build pipeline command
+            # Build pipeline command using PipelineManager singleton
             pipeline_command, video_output_paths, _ = (
                 PipelineManager().build_pipeline_command(run_specs, execution_config)
             )
