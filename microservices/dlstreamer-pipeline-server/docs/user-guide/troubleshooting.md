@@ -35,7 +35,7 @@ appropriately in order to utilize the underlying GPU.
 ```sh
 gpu:
    enabled: true
-   type: "gpu.intel.com/i915"
+   type: "gpu.intel.com/i915" # for eg. PTL GPU set gpu.intel.com/xe
    count: 1
 ```
 
@@ -47,6 +47,32 @@ If you're deploying a GPU based pipeline (example: with VA-API elements like `va
 ```sh
 privileged_access_required: true
 ```
+Keep in mind that without GPU K8S extension gpu.enable must be set to false
+
+---
+
+### Deploying with Intel NPU K8S Extension
+
+If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+with Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
+appropriately in order to utilize the underlying NPU.
+```sh
+npu:
+   enabled: true
+   count: 1
+```
+
+---
+
+### Deploying without Intel NPU K8S Extension
+
+If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+without Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
+appropriately in order to utilize the underlying NPU.
+```sh
+privileged_access_required: true
+```
+Keep in mind that without NPU K8S extension gpu.enable must be set to false
 
 ---
 

@@ -1,9 +1,11 @@
-# Build and Use Video Generator
+# Use Video Generator
 
 The Visual Pipeline and Platform Evaluation Tool includes a video generator that creates composite videos from images
-stored in subdirectories.
+stored in subdirectories. This guide is intended for developers working directly with the source code.
 
-This guide is intended for developers working directly with the source code.
+> **Important:**
+> Intel provides six images for demo purposes only. You must provide your own
+> images to run the video generator or to create videos.
 
 **Build and start the tool**:
 

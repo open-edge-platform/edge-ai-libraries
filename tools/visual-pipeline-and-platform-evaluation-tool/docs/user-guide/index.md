@@ -11,16 +11,15 @@
 </div>
 hide_directive-->
 
-Assess Intel® hardware options, benchmark performance, and analyze key metrics to optimize hardware selection for AI workloads.
-
-![demonstration of the UI in use](./_assets/ViPPET-README.gif)
-
-## Overview
+Assess Intel® hardware options, benchmark performance, and analyze key metrics to optimize
+hardware selection for AI workloads.
 
 The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads
 by enabling configuration of workload parameters, performance benchmarking, and analysis of key
 metrics such as throughput, CPU usage, and GPU usage. With its intuitive interface, the tool
 provides actionable insights that support optimized hardware selection and performance tuning.
+
+![demonstration of the UI in use](./_assets/ViPPET-README.gif)
 
 ## Use Cases
 
@@ -34,56 +33,40 @@ and resource utilization.
 
 ## Key Features
 
-**Optimized for Intel® AI Edge Systems**: Pipelines can be run directly on target devices for
+**Optimized for Intel® AI Edge Systems**:
+[Pipelines can be run directly on target devices](./how-to-guides/configure-pipelines.md) for
 seamless Intel® hardware integration.
 
 **Comprehensive Hardware Evaluation**: Metrics such as CPU frequency, GPU power usage, and
 memory utilization are available for detailed analysis.
 
 **Configurable AI Pipelines**: Parameters such as input channels, object detection models, and
-inference engines can be adjusted to create tailored performance tests.
+inference engines can be adjusted to create
+[tailored performance tests](./how-to-guides/performance-testing.md).
 
-**Automated Video Generation**: Synthetic test videos can be generated to evaluate system
+**Automated Video Generation**: Synthetic test
+[videos can be generated](./how-to-guides/use-video-generator.md) to evaluate system
 performance under controlled conditions.
-
-### **Workflow Overview**
-
-**Data Ingestion**: Video streams from live cameras or recorded files are provided and pipeline
-parameters are configured to match evaluation needs.
-
-**AI Processing**: AI inference is applied using OpenVINO™ models to detect objects in the
-video streams.
-
-**Performance Evaluation**: Hardware performance metrics are collected, including CPU/GPU usage
-and power consumption.
-
-**Visualization & Analysis**: Real-time performance metrics are displayed on the dashboard to
-enable comparison of configurations and optimization of settings.
 
 ## Learn More
 
-- [System Requirements](./system-requirements)
+- [System Requirements](./get-started/system-requirements)
 - [Get Started](./get-started)
-- [How to Build Source](./how-to-build-source)
-- [How to use gvapython scripts](./how-to-use-gvapython-scripts)
-- [How to use Video Generator](./how-to-use-video-generator)
+- [How to Build Source](./get-started/how-to-build-source)
+- [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
+- [How to use Video Generator](./how-to-guides/how-to-use-video-generator)
 - [Release Notes](./release-notes)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-system-requirements
 get-started
-release-notes
-how-to-build-source
-using-vippet
-how-to-use-gvapython-scripts
-how-to-use-video-generator
+how-it-works
+use-vippet
 api-reference
-disclaimers
-known-issues
-GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool>
+troubleshooting
+release-notes
 
 :::
 hide_directive-->

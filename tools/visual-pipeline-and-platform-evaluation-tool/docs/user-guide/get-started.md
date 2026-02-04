@@ -15,7 +15,7 @@ By following this guide, the following tasks can be completed:
 
 Before starting, ensure the following:
 
-- **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
+- **System requirements**: The system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
@@ -23,15 +23,18 @@ Before starting, ensure the following:
   - **curl**: Command-line tool for transferring data with URLs, typically provided by the `curl` package on Linux.
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
-script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in:
+script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
+[Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
 
-- [Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
+This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
+[Git Documentation](https://git-scm.com/doc).
 
-This guide assumes basic familiarity with Git commands and terminal usage. For more information, see:
+## Setup
 
-- [Git Documentation](https://git-scm.com/doc)
-
-## Set up and First Use
+Follow the steps below to quickly set up the environment and start
+the Visual Pipeline and Platform Evaluation Tool.
+For alternative ways to set up the sample application, refer to
+[How to Build from Source](./get-started/build-from-source.md)
 
 1. **Set up the working directory**:
 
@@ -77,14 +80,8 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 
 ## Validation
 
-1. **Verify build success**:
-   - Check the logs and look for confirmation messages indicating that the microservice has started successfully.
-
-## Advanced Setup Options
-
-For alternative ways to set up the sample application, refer to:
-
-- [How to Build from Source](./how-to-build-source.md)
+**Verify build success**:
+Check the logs and look for confirmation messages indicating that the microservice has started successfully.
 
 ### Model Installation and Management
 
@@ -98,10 +95,23 @@ To manage the installed models again, run the following command:
 make install-models-force
 ```
 
-## Known issues, limitations and troubleshooting
+### Video Generation
 
-- Refer to [Known issues, limitations and troubleshooting](known-issues.md).
+The Visual Pipeline and Platform Evaluation Tool enables you to create
+composite videos from multiple images stored in subdirectories. For more details, refer to
+[the guide](./how-to-guides/use-video-generator.md).
 
 ## Supporting Resources
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Troubleshooting](./troubleshooting.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements
+./get-started/build-from-source
+
+:::
+hide_directive-->

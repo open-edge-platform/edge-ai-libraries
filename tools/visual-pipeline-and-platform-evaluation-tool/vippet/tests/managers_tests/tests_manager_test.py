@@ -1,6 +1,6 @@
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from api.api_schemas import (
     DensityJobStatus,
@@ -15,11 +15,27 @@ from api.api_schemas import (
 )
 from benchmark import BenchmarkResult
 from managers.tests_manager import DensityJob, PerformanceJob, TestsManager
+from managers.pipeline_manager import PipelineManager
 from pipeline_runner import PipelineRunner, PipelineRunResult
 
 
 class TestTestsManager(unittest.TestCase):
-    def test_test_performance_calls_execute_performance_test_and_returns_job_id(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_test_performance_calls_execute_performance_test_and_returns_job_id(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         initial_count = len(manager.jobs)
 
@@ -40,7 +56,12 @@ class TestTestsManager(unittest.TestCase):
             self.assertEqual(initial_count + 1, len(manager.jobs))
             mock_execute.assert_called_once_with(job_id, pipeline_request)
 
-    def test_test_performance_creates_job_with_running_state(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_test_performance_creates_job_with_running_state(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         pipeline_request = PerformanceTestSpec(
             pipeline_performance_specs=[
@@ -65,9 +86,12 @@ class TestTestsManager(unittest.TestCase):
             self.assertIsInstance(job.start_time, int)
             self.assertIsNone(job.end_time)
 
+    @patch("managers.tests_manager.PipelineManager")
     def test_test_density_creates_job_with_running_state_and_returns_job_id(
-        self,
+        self, mock_pipeline_manager_cls
     ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         initial_count = len(manager.jobs)
 
@@ -99,7 +123,12 @@ class TestTestsManager(unittest.TestCase):
 
             mock_execute.assert_called_once_with(job_id, pipeline_request)
 
-    def test_get_job_statuses_by_type_returns_correct_statuses(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_statuses_by_type_returns_correct_statuses(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create two jobs
@@ -151,12 +180,20 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(status_performance.state.name, TestJobState.RUNNING)
         self.assertEqual(status_density.state.name, TestJobState.RUNNING)
 
-    def test_get_job_status_returns_none_for_nonexistent_job(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_status_returns_none_for_nonexistent_job(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         status = manager.get_job_status("nonexistent-job-id")
         self.assertIsNone(status)
 
-    def test_get_job_status_returns_correct_status(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_status_returns_correct_status(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a job manually and add it to the manager
@@ -191,12 +228,20 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(status.total_streams, job.total_streams)
         self.assertEqual(status.streams_per_pipeline, job.streams_per_pipeline)
 
-    def test_get_job_summary_returns_none_for_nonexistent_job(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_summary_returns_none_for_nonexistent_job(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         summary = manager.get_job_summary("nonexistent-job-id")
         self.assertIsNone(summary)
 
-    def test_get_job_summary_returns_correct_summary(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_summary_returns_correct_summary(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a job manually and add it to the manager
@@ -224,7 +269,10 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(summary.id, job.id)
         self.assertEqual(summary.request, job.request)
 
-    def test_stop_job_stops_running_job(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_stop_job_stops_running_job(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a job and runner manually and add them to the manager
@@ -253,13 +301,23 @@ class TestTestsManager(unittest.TestCase):
         self.assertTrue(success)
         self.assertIn(f"Job {job_id} stopped", message)
 
-    def test_stop_job_returns_false_for_nonexistent_job(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_stop_job_returns_false_for_nonexistent_job(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         success, message = manager.stop_job("nonexistent-job-id")
         self.assertFalse(success)
         self.assertIn("not found", message)
 
-    def test_stop_job_returns_false_for_nonexistent_runner(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_stop_job_returns_false_for_nonexistent_runner(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a job without a runner
@@ -289,7 +347,12 @@ class TestTestsManager(unittest.TestCase):
             message,
         )
 
-    def test_stop_job_returns_false_for_not_running_job(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_stop_job_returns_false_for_not_running_job(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         # Create a job that is not running
@@ -318,7 +381,16 @@ class TestTestsManager(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn(f"Job {job_id} is not running", message)
 
-    def test_execute_performance_test_starts_pipeline(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_starts_pipeline(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -340,13 +412,7 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
-            patch.object(PipelineRunner, "run", return_value=None) as mock_run,
-        ):
+        with patch.object(PipelineRunner, "run", return_value=None) as mock_run:
             manager._execute_performance_test(
                 job_id,
                 pipeline_request,
@@ -354,7 +420,18 @@ class TestTestsManager(unittest.TestCase):
             self.assertIn(job_id, manager.jobs)
             mock_run.assert_called_once()
 
-    def test_execute_performance_test_updates_metrics_on_completion(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_updates_metrics_on_completion(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -375,10 +452,6 @@ class TestTestsManager(unittest.TestCase):
         manager.jobs[job_id] = job
 
         with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
             patch.object(
                 PipelineRunner,
                 "run",
@@ -402,7 +475,18 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(len(updated.streams_per_pipeline or []), 2)
         self.assertNotIn(job_id, manager.runners)
 
-    def test_execute_performance_test_aborts_on_cancelled_runner(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_aborts_on_cancelled_runner(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
         pipeline_request = PerformanceTestSpec(
             pipeline_performance_specs=[
@@ -421,10 +505,6 @@ class TestTestsManager(unittest.TestCase):
         manager.jobs[job_id] = job
 
         with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
             patch.object(
                 PipelineRunner,
                 "run",
@@ -444,7 +524,16 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(updated.error_message, "Cancelled by user")
         self.assertNotIn(job_id, manager.runners)
 
-    def test_execute_performance_test_sets_error_on_exception(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_sets_error_on_exception(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.side_effect = ValueError(
+            "boom"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
         pipeline_request = PerformanceTestSpec(
             pipeline_performance_specs=[
@@ -462,25 +551,25 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch(
-            "managers.tests_manager.pipeline_manager.build_pipeline_command",
-            side_effect=ValueError("boom"),
-        ):
-            manager._execute_performance_test(
-                job_id,
-                pipeline_request,
-            )
+        manager._execute_performance_test(
+            job_id,
+            pipeline_request,
+        )
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, TestJobState.ERROR)
         self.assertIn("boom", updated.error_message or "")
         self.assertNotIn(job_id, manager.runners)
 
-    @patch("managers.tests_manager.Benchmark.run")
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
     def test_execute_density_test_updates_metrics_on_completion(
-        self, mock_benchmark_run
+        self, mock_pipeline_manager_cls, mock_benchmark_cls
     ):
-        mock_benchmark_run.return_value = BenchmarkResult(
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_benchmark_instance = MagicMock()
+        mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
                 PipelinePerformanceSpec(id="pipeline-test", streams=2),
@@ -489,6 +578,8 @@ class TestTestsManager(unittest.TestCase):
             per_stream_fps=90.0,
             video_output_paths={},
         )
+        mock_benchmark_instance.runner.is_cancelled.return_value = False
+        mock_benchmark_cls.return_value = mock_benchmark_instance
 
         manager = TestsManager()
         pipeline_request = DensityTestSpec(
@@ -509,16 +600,6 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        mock_benchmark_run.return_value = BenchmarkResult(
-            n_streams=3,
-            streams_per_pipeline=[
-                PipelinePerformanceSpec(id="pipeline-test", streams=2),
-                PipelinePerformanceSpec(id="pipeline-test", streams=1),
-            ],
-            per_stream_fps=90.0,
-            video_output_paths={},
-        )
-
         manager._execute_density_test(job_id, pipeline_request)
 
         updated = manager.jobs[job_id]
@@ -529,7 +610,26 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(updated.total_streams, 3)
         self.assertNotIn(job_id, manager.runners)
 
-    def test_execute_density_test_aborts_on_cancelled_runner(self):
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_density_test_aborts_on_cancelled_runner(
+        self, mock_pipeline_manager_cls, mock_benchmark_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_benchmark_instance = MagicMock()
+        mock_benchmark_instance.run.return_value = BenchmarkResult(
+            n_streams=3,
+            streams_per_pipeline=[
+                PipelinePerformanceSpec(id="pipeline-test", streams=2),
+                PipelinePerformanceSpec(id="pipeline-test", streams=1),
+            ],
+            per_stream_fps=90.0,
+            video_output_paths={},
+        )
+        mock_benchmark_instance.runner.is_cancelled.return_value = True
+        mock_benchmark_cls.return_value = mock_benchmark_instance
+
         manager = TestsManager()
         density_request = DensityTestSpec(
             fps_floor=30,
@@ -548,24 +648,10 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        # Patch the job's runner.is_cancelled to return True
-        with patch("managers.tests_manager.Benchmark") as MockBenchmark:
-            mock_benchmark_job = MockBenchmark.return_value
-            mock_benchmark_job.run.return_value = BenchmarkResult(
-                n_streams=3,
-                streams_per_pipeline=[
-                    PipelinePerformanceSpec(id="pipeline-test", streams=2),
-                    PipelinePerformanceSpec(id="pipeline-test", streams=1),
-                ],
-                per_stream_fps=90.0,
-                video_output_paths={},
-            )
-            mock_benchmark_job.runner.is_cancelled.return_value = True
-
-            manager._execute_density_test(
-                job_id,
-                density_request,
-            )
+        manager._execute_density_test(
+            job_id,
+            density_request,
+        )
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, TestJobState.ABORTED)
@@ -574,7 +660,17 @@ class TestTestsManager(unittest.TestCase):
         self.assertIsNone(updated.streams_per_pipeline)
         self.assertNotIn(job_id, manager.runners)
 
-    def test_execute_density_test_sets_error_on_exception(self):
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_density_test_sets_error_on_exception(
+        self, mock_pipeline_manager_cls, mock_benchmark_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_benchmark_instance = MagicMock()
+        mock_benchmark_instance.run.side_effect = RuntimeError("density test failed")
+        mock_benchmark_cls.return_value = mock_benchmark_instance
+
         manager = TestsManager()
         density_request = DensityTestSpec(
             fps_floor=30,
@@ -593,15 +689,10 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch("managers.tests_manager.Benchmark") as MockBenchmark:
-            mock_benchmark_job = MockBenchmark.return_value
-            # Use side_effect to make the mocked run() raise an exception
-            mock_benchmark_job.run.side_effect = RuntimeError("density test failed")
-
-            manager._execute_density_test(
-                job_id,
-                density_request,
-            )
+        manager._execute_density_test(
+            job_id,
+            density_request,
+        )
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, TestJobState.ERROR)
@@ -612,8 +703,23 @@ class TestTestsManager(unittest.TestCase):
 class TestExecutionConfigValidation(unittest.TestCase):
     """Test cases for ExecutionConfig validation in TestsManager."""
 
-    def test_validate_execution_config_file_with_max_runtime_raises_error(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_file_with_max_runtime_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that file output mode with max_runtime > 0 raises ValueError."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         execution_config = ExecutionConfig(
             output_mode=OutputMode.FILE,
@@ -628,8 +734,13 @@ class TestExecutionConfigValidation(unittest.TestCase):
             str(context.exception),
         )
 
-    def test_validate_execution_config_file_with_zero_runtime_succeeds(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_file_with_zero_runtime_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that file output mode with max_runtime=0 passes validation."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         execution_config = ExecutionConfig(
             output_mode=OutputMode.FILE,
@@ -639,8 +750,13 @@ class TestExecutionConfigValidation(unittest.TestCase):
         # Should not raise any exception
         manager._validate_execution_config(execution_config, is_density_test=False)
 
-    def test_validate_execution_config_live_stream_for_density_raises_error(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_live_stream_for_density_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that live stream output mode raises ValueError for density tests."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         execution_config = ExecutionConfig(
             output_mode=OutputMode.LIVE_STREAM,
@@ -655,8 +771,13 @@ class TestExecutionConfigValidation(unittest.TestCase):
             str(context.exception),
         )
 
-    def test_validate_execution_config_live_stream_for_performance_succeeds(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_live_stream_for_performance_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that live stream output mode passes validation for performance tests."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         execution_config = ExecutionConfig(
             output_mode=OutputMode.LIVE_STREAM,
@@ -666,8 +787,13 @@ class TestExecutionConfigValidation(unittest.TestCase):
         # Should not raise any exception
         manager._validate_execution_config(execution_config, is_density_test=False)
 
-    def test_validate_execution_config_disabled_with_max_runtime_succeeds(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_disabled_with_max_runtime_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that disabled output mode with max_runtime > 0 passes validation."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
         execution_config = ExecutionConfig(
             output_mode=OutputMode.DISABLED,
@@ -682,8 +808,23 @@ class TestExecutionConfigValidation(unittest.TestCase):
 class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
     """Test cases for live_stream_urls handling in performance tests."""
 
-    def test_performance_job_status_includes_live_stream_urls(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_job_status_includes_live_stream_urls(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that PerformanceJobStatus includes live_stream_urls field."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -714,8 +855,13 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
             {"pipeline-test": "rtsp://mediamtx:8554/stream_test"},
         )
 
-    def test_density_job_status_does_not_include_live_stream_urls(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_job_status_does_not_include_live_stream_urls(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that DensityJobStatus does not include live_stream_urls field."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
         manager = TestsManager()
 
         density_request = DensityTestSpec(
@@ -741,8 +887,21 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         self.assertIsInstance(status, DensityJobStatus)
         self.assertFalse(hasattr(status, "live_stream_urls"))
 
-    def test_execute_performance_test_updates_live_stream_urls(self):
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_updates_live_stream_urls(
+        self, mock_pipeline_manager_cls
+    ):
         """Test that _execute_performance_test updates live_stream_urls on job."""
+        expected_urls = {"pipeline-test": "rtsp://mediamtx:8554/stream_pipeline-test"}
+
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            expected_urls,
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -763,13 +922,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        expected_urls = {"pipeline-test": "rtsp://mediamtx:8554/stream_pipeline-test"}
-
         with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, expected_urls),
-            ),
             patch.object(
                 PipelineRunner,
                 "run",
@@ -789,8 +942,37 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
 class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
     """Test cases for max_runtime behavior in tests."""
 
-    def test_execute_performance_test_uses_max_runtime_from_config(self):
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineRunner")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_uses_max_runtime_from_config(
+        self, mock_pipeline_manager_cls, mock_pipeline_runner_cls
+    ):
         """Test that PipelineRunner is created with correct max_runtime."""
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! fakesink",
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = PipelineRunResult(
+            total_fps=100.0, per_stream_fps=100.0, num_streams=1
+        )
+        mock_runner.is_cancelled.return_value = False
+        mock_pipeline_runner_cls.return_value = mock_runner
+
         manager = TestsManager()
 
         pipeline_request = PerformanceTestSpec(
@@ -811,20 +993,11 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with (
-            patch(
-                "managers.tests_manager.pipeline_manager.build_pipeline_command",
-                return_value=("fakesrc ! fakesink", {}, {}),
-            ),
-            patch("managers.tests_manager.PipelineRunner") as MockPipelineRunner,
-        ):
-            mock_runner = MockPipelineRunner.return_value
-            mock_runner.run.return_value = PipelineRunResult(
-                total_fps=100.0, per_stream_fps=100.0, num_streams=1
-            )
-            mock_runner.is_cancelled.return_value = False
+        manager._execute_performance_test(job_id, pipeline_request)
 
-            manager._execute_performance_test(job_id, pipeline_request)
+        # Verify PipelineRunner was created with correct max_runtime
+        mock_pipeline_runner_cls.assert_called_once_with(mode="normal", max_runtime=120)
 
-            # Verify PipelineRunner was created with correct max_runtime
-            MockPipelineRunner.assert_called_once_with(mode="normal", max_runtime=120)
+
+if __name__ == "__main__":
+    unittest.main()

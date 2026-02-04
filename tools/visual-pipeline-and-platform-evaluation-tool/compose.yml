@@ -11,7 +11,7 @@ x-vippet: &vippet
       https_proxy:
       no_proxy:
   healthcheck:
-    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/pipelines"]
+    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/api/v1/health"]
     interval: 10s
     timeout: 5s
     retries: 3

@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/card";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
-import AddPipelineButton from "@/features/pipelines/AddPipelineButton.tsx";
-import CopyPipelineButton from "@/features/pipelines/CopyPipelineButton.tsx";
+import { AddPipelineButton } from "@/features/pipelines/AddPipelineButton.tsx";
+import { CopyPipelineButton } from "@/features/pipelines/CopyPipelineButton.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { BookOpen, Code, Sparkles } from "lucide-react";
@@ -36,7 +36,7 @@ const pipelineImages = [
   pipeline7,
 ];
 
-const Home = () => {
+export const Home = () => {
   const pipelines = useAppSelector(selectPipelines);
 
   const hasNpu = useAppSelector(selectHasNPU);
@@ -78,7 +78,7 @@ const Home = () => {
 
   if (pipelines.length > 0) {
     return (
-      <div className="flex h-full">
+      <>
         <div className="flex-1 overflow-auto">
           <div className="p-4 space-y-8">
             <div>
@@ -89,7 +89,7 @@ const Home = () => {
                 {groupedPredefinedPipelines.map((group, idx) => (
                   <Card
                     key={group.id}
-                    className="flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg overflow-hidden"
+                    className="flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-md overflow-hidden"
                   >
                     <CardHeader className="flex-1">
                       <CardTitle className="min-h-8">
@@ -151,7 +151,7 @@ const Home = () => {
             </div>
           </div>
         </div>
-        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-[#F9F9F9] dark:bg-[#3c3e42]">
+        <div className="w-[25%] border-l p-4 flex flex-col gap-4 bg-sidebar">
           <h1 className="font-medium text-2xl">Resource utilization</h1>
           <CpuUsageProgress />
           <GpuUsageProgress />
@@ -205,11 +205,9 @@ const Home = () => {
             </a>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return <div>Loading pipelines...</div>;
 };
-
-export default Home;

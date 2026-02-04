@@ -5,19 +5,16 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.optimization_manager import get_optimization_manager
-from managers.tests_manager import DensityJob, PerformanceJob, get_tests_manager
-from managers.validation_manager import get_validation_manager
+from managers.optimization_manager import OptimizationManager
+from managers.tests_manager import DensityJob, PerformanceJob, TestsManager
+from managers.validation_manager import ValidationManager
 
 router = APIRouter()
-optimization_manager = get_optimization_manager()
-tests_manager = get_tests_manager()
-validation_manager = get_validation_manager()
 logger = logging.getLogger("api.routes.jobs")
 
 
 def get_job_status_or_404(job_id: str, job_type: str):
-    status = tests_manager.get_job_status(job_id)
+    status = TestsManager().get_job_status(job_id)
     if status is None:
         logger.warning("%s job %s not found", job_type, job_id)
         return JSONResponse(
@@ -48,7 +45,7 @@ def stop_test_job_handler(job_id: str):
         in :class:`JSONResponse` for non-200 cases) describing the result
         of the stop attempt.
     """
-    success, message = tests_manager.stop_job(job_id)
+    success, message = TestsManager().stop_job(job_id)
     response = schemas.MessageResponse(message=message)
     if success:
         return response
@@ -123,7 +120,7 @@ def get_performance_statuses():
               }
             ]
     """
-    return tests_manager.get_job_statuses_by_type(PerformanceJob)
+    return TestsManager().get_job_statuses_by_type(PerformanceJob)
 
 
 @router.get(
@@ -233,7 +230,7 @@ def get_performance_job_summary(job_id: str):
               }
             }
     """
-    summary = tests_manager.get_job_summary(job_id)
+    summary = TestsManager().get_job_summary(job_id)
     if summary is None:
         logger.warning("Performance job summary requested for unknown job %s", job_id)
         return JSONResponse(
@@ -357,7 +354,7 @@ def get_density_statuses():
               }
             ]
     """
-    return tests_manager.get_job_statuses_by_type(DensityJob)
+    return TestsManager().get_job_statuses_by_type(DensityJob)
 
 
 @router.get(
@@ -436,7 +433,7 @@ def get_density_job_summary(job_id: str):
               }
             }
     """
-    summary = tests_manager.get_job_summary(job_id)
+    summary = TestsManager().get_job_summary(job_id)
     if summary is None:
         logger.warning("Density job summary requested for unknown job %s", job_id)
         return JSONResponse(
@@ -537,7 +534,7 @@ def get_optimization_statuses():
     """
     # Delegate to the manager; FastAPI takes care of serializing the
     # resulting Pydantic models into JSON.
-    return optimization_manager.get_all_job_statuses()
+    return OptimizationManager().get_all_job_statuses()
 
 
 @router.get(
@@ -576,7 +573,7 @@ def get_optimization_job_summary(job_id: str):
     """
     # Ask the manager for the summary.  It returns None when the job id
     # is unknown, which we map to a 404 HTTP response.
-    summary = optimization_manager.get_job_summary(job_id)
+    summary = OptimizationManager().get_job_summary(job_id)
     if summary is None:
         logger.warning("Optimization job summary requested for unknown job %s", job_id)
         # The explicit JSONResponse is used instead of raising HTTPException
@@ -621,7 +618,7 @@ def get_optimization_job_status(job_id: str):
     """
     # Query the manager for the job status.  Unknown job ids are mapped
     # to a 404 response, mirroring the behaviour of the summary endpoint.
-    status = optimization_manager.get_job_status(job_id)
+    status = OptimizationManager().get_job_status(job_id)
     if status is None:
         logger.warning("Optimization job status requested for unknown job %s", job_id)
         return JSONResponse(
@@ -669,7 +666,7 @@ def get_validation_statuses():
               }
             ]
     """
-    return validation_manager.get_all_job_statuses()
+    return ValidationManager().get_all_job_statuses()
 
 
 @router.get(
@@ -699,7 +696,7 @@ def get_validation_job_summary(job_id: str):
         404 Not Found:
             MessageResponse when job does not exist.
     """
-    summary = validation_manager.get_job_summary(job_id)
+    summary = ValidationManager().get_job_summary(job_id)
     if summary is None:
         logger.warning("Validation job summary requested for unknown job %s", job_id)
         return JSONResponse(
@@ -746,7 +743,7 @@ def get_validation_job_status(job_id: str):
               "message": "Validation job val001 not found"
             }
     """
-    status = validation_manager.get_job_status(job_id)
+    status = ValidationManager().get_job_status(job_id)
     if status is None:
         logger.warning("Validation job status requested for unknown job %s", job_id)
         return JSONResponse(
