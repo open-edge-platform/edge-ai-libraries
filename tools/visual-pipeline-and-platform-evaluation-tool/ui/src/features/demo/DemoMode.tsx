@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type PipelinePerformanceSpec,
   useGetDensityJobStatusQuery,
@@ -24,7 +24,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Home, ChevronDown, ChevronRight } from "lucide-react";
+import { Home, ChevronRight } from "lucide-react";
 import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
@@ -36,10 +36,11 @@ import pipeline3 from "@/assets/pipeline_3.png";
 import pipeline4 from "@/assets/pipeline_4.png";
 import pipeline5 from "@/assets/pipeline_5.png";
 import type { Pipeline } from "@/api/api.generated";
+import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useNavigate } from "react-router";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
@@ -200,6 +201,16 @@ const DemoMode = () => {
     string | null
   >(null);
   const [testStarted, setTestStarted] = useState(false);
+  const [testStartTimestamp, setTestStartTimestamp] = useState<number | null>(
+    null,
+  );
+  const history = useMetricHistory();
+  const [metricHistorySnapshot, setMetricHistorySnapshot] = useState<
+    typeof history
+  >([]);
+  const [metricsFrozenForJobId, setMetricsFrozenForJobId] = useState<
+    string | null
+  >(null);
   const [selectedModels, setSelectedModels] = useState<Map<string, string>>(
     new Map(),
   ); // Map<baseName, selectedPipelineId>
@@ -230,6 +241,74 @@ const DemoMode = () => {
     lastRunTest === "performance-test" &&
     performanceLivePreviewEnabled;
   const showPreRunLayout = !testStarted;
+  const frozenMetrics = metricHistorySnapshot;
+  const hasFrozenMetrics = frozenMetrics.length > 0;
+  type FrozenGpuMetrics = {
+    compute: number | undefined;
+    render: number | undefined;
+    copy: number | undefined;
+    video: number | undefined;
+    videoEnhance: number | undefined;
+    frequency: number | undefined;
+    gpuPower: number | undefined;
+    pkgPower: number | undefined;
+  };
+
+  const frozenMetricsSummary = useMemo<{
+    fps: number;
+    cpu: number;
+    memory: number;
+    availableGpuIds: string[];
+    gpuDetailedMetrics: Record<string, FrozenGpuMetrics>;
+  } | null>(() => {
+    if (!hasFrozenMetrics) return null;
+
+    const avg = (values: number[]) =>
+      values.length > 0
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
+        : 0;
+
+    const fpsAvg = avg(frozenMetrics.map((point) => point.fps ?? 0));
+    const cpuAvg = avg(frozenMetrics.map((point) => point.cpu ?? 0));
+    const memoryAvg = avg(frozenMetrics.map((point) => point.memory ?? 0));
+
+    const gpuIds = Array.from(
+      new Set(frozenMetrics.flatMap((point) => Object.keys(point.gpus ?? {}))),
+    ).sort();
+
+    const gpuDetailedMetrics = gpuIds.reduce<Record<string, FrozenGpuMetrics>>(
+      (acc, gpuId) => {
+        const metricsPerPoint = frozenMetrics.map((point) => point.gpus[gpuId]);
+        const mapMetric = (key: keyof (typeof metricsPerPoint)[number]) =>
+          avg(
+            metricsPerPoint
+              .map((metric) => metric?.[key])
+              .filter((value): value is number => value !== undefined),
+          );
+
+        acc[gpuId] = {
+          compute: mapMetric("compute"),
+          render: mapMetric("render"),
+          copy: mapMetric("copy"),
+          video: mapMetric("video"),
+          videoEnhance: mapMetric("videoEnhance"),
+          frequency: mapMetric("frequency"),
+          gpuPower: mapMetric("gpuPower"),
+          pkgPower: mapMetric("pkgPower"),
+        };
+        return acc;
+      },
+      {},
+    );
+
+    return {
+      fps: fpsAvg,
+      cpu: cpuAvg,
+      memory: memoryAvg,
+      availableGpuIds: gpuIds,
+      gpuDetailedMetrics,
+    };
+  }, [frozenMetrics, hasFrozenMetrics]);
 
   const colorModes = {
     first: "180,230,255",
@@ -290,6 +369,11 @@ const DemoMode = () => {
     summaryStreamsValueText: "text-slate-300",
   };
 
+  const getBasePipelineName = (name: string) => {
+    const match = name.match(/^(.+?)\s*(\[.+?\])?$/);
+    return match ? match[1].trim() : name;
+  };
+
   // Group pipelines by base name
   const groupedPipelines = pipelines.reduce(
     (acc, pipeline) => {
@@ -344,6 +428,16 @@ const DemoMode = () => {
         streams_per_pipeline: jobStatus.streams_per_pipeline,
         video_output_paths: jobStatus.video_output_paths,
       });
+      if (
+        testStartTimestamp &&
+        densityJobId &&
+        metricsFrozenForJobId !== densityJobId
+      ) {
+        setMetricHistorySnapshot(
+          history.filter((point) => point.timestamp >= testStartTimestamp),
+        );
+        setMetricsFrozenForJobId(densityJobId);
+      }
       setErrorMessage(null);
       setDensityJobId(null);
     } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
@@ -352,7 +446,13 @@ const DemoMode = () => {
       setTestResult(null);
       setDensityJobId(null);
     }
-  }, [jobStatus]);
+  }, [
+    jobStatus,
+    history,
+    testStartTimestamp,
+    densityJobId,
+    metricsFrozenForJobId,
+  ]);
 
   useEffect(() => {
     if (performanceJobStatus?.state === "COMPLETED") {
@@ -362,6 +462,16 @@ const DemoMode = () => {
         video_output_paths: performanceJobStatus.video_output_paths,
         live_stream_urls: performanceJobStatus.live_stream_urls,
       });
+      if (
+        testStartTimestamp &&
+        performanceJobId &&
+        metricsFrozenForJobId !== performanceJobId
+      ) {
+        setMetricHistorySnapshot(
+          history.filter((point) => point.timestamp >= testStartTimestamp),
+        );
+        setMetricsFrozenForJobId(performanceJobId);
+      }
       setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
     } else if (
@@ -378,7 +488,13 @@ const DemoMode = () => {
       setPerformanceResult(null);
       setPerformanceJobId(null);
     }
-  }, [performanceJobStatus]);
+  }, [
+    performanceJobStatus,
+    history,
+    testStartTimestamp,
+    performanceJobId,
+    metricsFrozenForJobId,
+  ]);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -441,6 +557,9 @@ const DemoMode = () => {
     if (pipelineSelections.length === 0) return;
 
     setTestStarted(true);
+    setTestStartTimestamp(Date.now());
+    setMetricHistorySnapshot([]);
+    setMetricsFrozenForJobId(null);
     setLastRunTest(activeTest);
 
     try {
@@ -482,8 +601,13 @@ const DemoMode = () => {
             }
           }
 
+          const hasInvalidDeviceKey =
+            node.type === "gvametaconvert" &&
+            Object.prototype.hasOwnProperty.call(mergedData, "device");
+
           const shouldUpdate =
             !!edits ||
+            hasInvalidDeviceKey ||
             (mergedData.model !== node.data?.model &&
               (node.type === "gvadetect" || node.type === "gvaclassify"));
 
@@ -491,10 +615,15 @@ const DemoMode = () => {
           hasChanges = true;
 
           const normalizedData = Object.fromEntries(
-            Object.entries(mergedData).map(([key, value]) => [
-              key,
-              value === null || value === undefined ? "" : String(value),
-            ]),
+            Object.entries(mergedData)
+              .filter(
+                ([key]) =>
+                  !(node.type === "gvametaconvert" && key === "device"),
+              )
+              .map(([key, value]) => [
+                key,
+                value === null || value === undefined ? "" : String(value),
+              ]),
           ) as { [key: string]: string };
 
           return {
@@ -645,7 +774,22 @@ const DemoMode = () => {
                     return (
                       <Card
                         key={group.id}
-                        className={`flex flex-col transition-all duration-300 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md ${
+                        onClick={() => {
+                          const newSelected = new Map(selectedModels);
+                          if (isSelected) {
+                            newSelected.delete(group.baseName);
+                          } else {
+                            const firstDevice = availableDevices[0];
+                            if (firstDevice) {
+                              newSelected.set(
+                                group.baseName,
+                                group.pipelines[firstDevice].id,
+                              );
+                            }
+                          }
+                          setSelectedModels(newSelected);
+                        }}
+                        className={`flex flex-col transition-all duration-300 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer ${
                           isSelected
                             ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[1.02]"
                             : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[1.02]"
@@ -666,61 +810,7 @@ const DemoMode = () => {
                             {group.description}
                           </CardDescription>
                         </CardHeader>
-                        <div className="px-6 pb-4 flex items-center gap-3">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              const newSelected = new Map(selectedModels);
-                              if (checked) {
-                                // Select first available device by default
-                                const firstDevice = availableDevices[0];
-                                if (firstDevice) {
-                                  newSelected.set(
-                                    group.baseName,
-                                    group.pipelines[firstDevice].id,
-                                  );
-                                }
-                              } else {
-                                newSelected.delete(group.baseName);
-                              }
-                              setSelectedModels(newSelected);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`w-5 h-5 ${colors.checkbox}`}
-                          />
-                          {availableDevices.length > 0 ? (
-                            <div className="relative flex-1">
-                              <select
-                                value={currentDevice}
-                                onChange={(e) => {
-                                  const newDevice = e.target.value;
-                                  const newSelected = new Map(selectedModels);
-                                  newSelected.set(
-                                    group.baseName,
-                                    group.pipelines[newDevice].id,
-                                  );
-                                  setSelectedModels(newSelected);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className={`w-full px-3 py-2 bg-slate-950/90 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer ${colors.dropdown}`}
-                                disabled={!isSelected}
-                              >
-                                {availableDevices.map((device) => (
-                                  <option key={device} value={device}>
-                                    {device}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown
-                                className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${colors.dropdownIcon}`}
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-sm text-slate-400">
-                              Select pipeline
-                            </span>
-                          )}
-                        </div>
+                        <div className="px-6 pb-4"></div>
                       </Card>
                     );
                   })}
@@ -806,7 +896,7 @@ const DemoMode = () => {
                           )}
                           <CardHeader className="p-3 pt-2">
                             <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
-                              {pipeline.name}
+                              {getBasePipelineName(pipeline.name)}
                             </CardTitle>
                           </CardHeader>
                         </Card>
@@ -833,7 +923,7 @@ const DemoMode = () => {
 
               const pipelineConfigSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder} ${showPreRunLayout ? "animate-[softSlideInRight_0.9s_ease-out]" : "animate-[softSlideInLeft_0.9s_ease-out]"}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
@@ -1125,7 +1215,7 @@ const DemoMode = () => {
                             </div>
 
                             {/* Run Configuration Section */}
-                            <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0 bg-slate-900/95">
+                            <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0">
                               <p
                                 className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
                               >
@@ -1181,7 +1271,11 @@ const DemoMode = () => {
                                             >
                                               <div className="flex items-center justify-between gap-2 mb-2">
                                                 <span className="text-xs text-slate-300 font-semibold">
-                                                  {pipeline?.name ?? "Pipeline"}
+                                                  {pipeline?.name
+                                                    ? getBasePipelineName(
+                                                        pipeline.name,
+                                                      )
+                                                    : "Pipeline"}
                                                 </span>
                                                 <span className="text-[10px] text-slate-500">
                                                   Streams
@@ -1275,7 +1369,11 @@ const DemoMode = () => {
                                             >
                                               <div className="flex items-center justify-between gap-2 mb-2">
                                                 <span className="text-xs text-slate-300 font-semibold">
-                                                  {pipeline?.name ?? "Pipeline"}
+                                                  {pipeline?.name
+                                                    ? getBasePipelineName(
+                                                        pipeline.name,
+                                                      )
+                                                    : "Pipeline"}
                                                 </span>
                                                 <span className="text-[10px] text-slate-500">
                                                   Participation rate
@@ -1313,7 +1411,7 @@ const DemoMode = () => {
                                               )
                                             }
                                             disabled={isReadOnly}
-                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                             placeholder="Minimum FPS threshold"
                                             min={0}
                                           />
@@ -1375,12 +1473,12 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden ${colors.gridResultsBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out]`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
                   >
-                    Results
+                    Test Summary
                   </p>
 
                   <div className="flex-1 overflow-y-auto">
@@ -1442,19 +1540,19 @@ const DemoMode = () => {
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                               <div
-                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
                               >
                                 <div
-                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
                                   >
                                     Total FPS
                                   </p>
                                   <p
-                                    className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                    className={`text-xl font-bold ${colors.summaryStreamsValueText}`}
                                   >
                                     {performanceResult.total_fps?.toFixed(2) ??
                                       "N/A"}
@@ -1565,6 +1663,13 @@ const DemoMode = () => {
                                   </div>
                                 </div>
                               )}
+                            {hasFrozenMetrics && frozenMetricsSummary && (
+                              <TestProgressIndicator
+                                className="mt-2"
+                                historyOverride={frozenMetrics}
+                                metricsOverride={frozenMetricsSummary}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -1727,6 +1832,13 @@ const DemoMode = () => {
                                   </div>
                                 </div>
                               )}
+                            {hasFrozenMetrics && frozenMetricsSummary && (
+                              <TestProgressIndicator
+                                className="mt-2"
+                                historyOverride={frozenMetrics}
+                                metricsOverride={frozenMetricsSummary}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -1765,7 +1877,9 @@ const DemoMode = () => {
                       {pipelineConfigSection}
                     </div>
                   </div>
-                  <div className="row-span-2 col-start-2">{resultsSection}</div>
+                  <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
+                    {resultsSection}
+                  </div>
                 </div>
               );
             })()
@@ -1774,12 +1888,22 @@ const DemoMode = () => {
       </div>
       <Toaster position="top-center" richColors />
       <style>{`
+        .no-spin::-webkit-outer-spin-button,
+        .no-spin::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .no-spin {
+          -moz-appearance: textfield;
+        }
         @keyframes float {0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
         @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
         @keyframes spin_reverse {0%{transform:rotate(360deg);}100%{transform:rotate(0deg);}}
         @keyframes fadeIn {from{opacity:0;}to{opacity:1;}}
         @keyframes slideInLeft {from{opacity:0;transform:translateX(-100px);}to{opacity:1;transform:translateX(0);}}
         @keyframes slideInRight {from{opacity:0;transform:translateX(100px);}to{opacity:1;transform:translateX(0);}}
+        @keyframes softSlideInLeft {from{opacity:0;transform:translateX(-40px) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
+        @keyframes softSlideInRight {from{opacity:0;transform:translateX(40px) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
         @keyframes gridAppear {from{opacity:0;}to{opacity:1;}}
         @keyframes slideToPosition {from{opacity:0;transform:scale(1.2);}to{opacity:1;transform:scale(1);}}
         @keyframes slideUp {from{opacity:0;transform:translateY(50px);}to{opacity:1;transform:translateY(0);}}

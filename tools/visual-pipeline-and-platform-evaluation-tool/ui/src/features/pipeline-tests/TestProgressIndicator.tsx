@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
-import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import {
+  useMetricHistory,
+  type MetricHistoryPoint,
+  type GpuMetrics,
+} from "@/hooks/useMetricHistory.ts";
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
 
@@ -33,13 +37,32 @@ const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
 
 interface TestProgressIndicatorProps {
   className?: string;
+  historyOverride?: MetricHistoryPoint[];
+  metricsOverride?: {
+    fps: number;
+    cpu: number;
+    memory: number;
+    availableGpuIds: string[];
+    gpuDetailedMetrics: Record<string, GpuMetrics>;
+  };
 }
 
 export const TestProgressIndicator = ({
   className = "",
+  historyOverride,
+  metricsOverride,
 }: TestProgressIndicatorProps) => {
-  const metrics = useMetrics();
-  const history = useMetricHistory();
+  const isSummary = !!metricsOverride;
+  const liveMetrics = useMetrics();
+  const liveHistory = useMetricHistory();
+  const metrics = metricsOverride ?? {
+    fps: liveMetrics.fps,
+    cpu: liveMetrics.cpu,
+    memory: liveMetrics.memory,
+    availableGpuIds: liveMetrics.availableGpuIds,
+    gpuDetailedMetrics: liveMetrics.gpuDetailedMetrics,
+  };
+  const history = historyOverride ?? liveHistory;
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
   // get available GPU IDs from metrics
@@ -158,7 +181,7 @@ export const TestProgressIndicator = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <div className="space-y-4">
           <MetricCard
-            title="Frame Rate"
+            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
             value={metrics.fps}
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
@@ -187,7 +210,7 @@ export const TestProgressIndicator = ({
 
         <div className="space-y-4">
           <MetricCard
-            title="CPU Usage"
+            title={isSummary ? "CPU Usage Average" : "CPU Usage"}
             value={metrics.cpu}
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
@@ -229,7 +252,7 @@ export const TestProgressIndicator = ({
 
         <div className="space-y-4">
           <MetricCard
-            title="GPU Usage"
+            title={isSummary ? "GPU Usage Average" : "GPU Usage"}
             value={(() => {
               const gpuMetrics =
                 metrics.gpuDetailedMetrics[selectedGpu.toString()];
