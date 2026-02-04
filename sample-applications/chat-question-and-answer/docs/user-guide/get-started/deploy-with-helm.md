@@ -9,6 +9,7 @@ Before you begin, ensure that you have the following prerequisites:
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
+- Model download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Guide](../../../../microservices/model-download/docs/user-guide/deploy-with-helm.md) for deployment instructions.
 
 ## Steps to deploy with Helm
 
