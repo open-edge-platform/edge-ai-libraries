@@ -196,6 +196,11 @@ const PipelineEditorContent = forwardRef<
           colorMode={theme === "dark" ? "dark" : "light"}
           className="h-full w-full"
           defaultViewport={{ x: 0, y: 50, zoom: 1 }}
+          defaultEdgeOptions={{
+            animated: true,
+            style: { strokeWidth: 2 },
+            type: "smoothstep",
+          }}
         >
           <Controls />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />

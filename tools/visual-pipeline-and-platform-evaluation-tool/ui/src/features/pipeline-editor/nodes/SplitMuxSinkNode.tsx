@@ -1,8 +1,16 @@
 import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
-const QueueNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[220px]">
+export const SplitMuxSinkNodeWidth = 255;
+
+type SplitMuxSinkNodeProps = {
+  data: {
+    location?: string;
+  };
+};
+
+const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[255px]">
     <div className="flex gap-3">
       {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-sky-100 dark:bg-sky-900 flex items-center justify-center self-center">
@@ -16,7 +24,7 @@ const QueueNode = () => (
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M4 7h16M4 12h16M4 17h16"
+            d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
           />
         </svg>
       </div>
@@ -25,12 +33,16 @@ const QueueNode = () => (
       <div className="flex-1 flex flex-col">
         {/* Name */}
         <div className="text-xl font-bold text-sky-700 dark:text-sky-300">
-          Queue
+          Splitmuxsink
         </div>
 
         {/* Properties */}
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
+        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          {data.location && (
+            <span className="max-w-[165px] truncate" title={data.location}>
+              {data.location}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -40,17 +52,9 @@ const QueueNode = () => (
       type="target"
       position={Position.Top}
       className="w-3 h-3 bg-sky-500!"
-      style={{ left: getHandleLeftPosition("queue") }}
-    />
-
-    {/* Output Handle */}
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      className="w-3 h-3 bg-sky-500!"
-      style={{ left: getHandleLeftPosition("queue") }}
+      style={{ left: getHandleLeftPosition("splitmuxsink") }}
     />
   </div>
 );
 
-export default QueueNode;
+export default SplitMuxSinkNode;

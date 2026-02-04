@@ -234,3 +234,16 @@
     background: var(--carbon);
   }
 }
+
+@layer components {
+  @keyframes dashedFlow {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+
+  .react-flow__edge-path {
+    stroke-dasharray: 5, 5;
+    animation: dashedFlow 0.5s linear infinite;
+  }
+}
