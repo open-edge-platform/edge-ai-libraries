@@ -154,9 +154,14 @@ class CameraManager:
         )
         return all_cameras
 
-    def get_camera_profiles(self, camera_id: str, username: str, password: str):
+    def load_camera_profiles(
+        self, camera_id: str, username: str, password: str
+    ) -> Camera:
         """
-        Retrieve ONVIF profiles from a specific camera and update the cached camera list.
+        Load ONVIF profiles from a network camera and update the cached camera.
+
+        This method authenticates with the camera, retrieves all available ONVIF profiles,
+        and updates the cached camera object with the profile information.
 
         Args:
             camera_id: Camera identifier (e.g., "network_camera_192.168.1.100_80").
@@ -164,22 +169,22 @@ class CameraManager:
             password: ONVIF password for authentication.
 
         Returns:
-            Tuple of (Updated Camera object with profiles, List of ONVIFProfile objects).
+            Camera: Updated Camera object with populated profiles in details.profiles.
 
         Raises:
-            ValueError: If camera_id is invalid or camera not found.
+            ValueError: If camera_id is invalid or camera not found in cache.
             ConnectionError: If unable to connect to camera.
             Exception: For authentication or profile retrieval failures.
         """
-        self.logger.debug(f"Retrieving profiles for camera {camera_id}")
+        self.logger.debug(f"Loading profiles for camera {camera_id}")
 
         if camera_id not in [cam.device_id for cam in self._network_cameras]:
             error_msg = f"Camera with ID {camera_id} not found in cached cameras"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Get camera profiles
-        authenticated_camera, profiles = self.onvif_discovery.get_camera_profiles(
+        # Load camera profiles from device
+        authenticated_camera = self.onvif_discovery.load_camera_profiles(
             camera_id, username, password
         )
 
@@ -192,4 +197,4 @@ class CameraManager:
                 )
                 break
 
-        return authenticated_camera, profiles
+        return authenticated_camera

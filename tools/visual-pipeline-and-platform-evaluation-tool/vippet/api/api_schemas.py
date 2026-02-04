@@ -1240,18 +1240,40 @@ class CameraAuthResponse(BaseModel):
     """
     Response model for camera authentication attempt.
 
+    Returns the authenticated camera with populated ONVIF profiles.
+    After successful authentication, the camera's profile list is updated
+    with all available ONVIF profiles from the device.
+
     Attributes:
-        message: Descriptive message about the authentication result.
-        camera_id: ID of the camera that was authenticated.
+        camera: Camera object with updated profile information.
 
     Example:
         .. code-block:: json
 
             {
-              "message": "Camera authenticated successfully",
-              "camera_id": "network_camera_192.168.1.100_80"
+              "camera": {
+                "device_id": "network_camera_192.168.1.100_80",
+                "device_name": "ONVIF Camera 192.168.1.100",
+                "device_type": "NETWORK",
+                "details": {
+                  "ip": "192.168.1.100",
+                  "port": 80,
+                  "profiles": [
+                    {
+                      "name": "Profile_1",
+                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                      "resolution": "1920x1080",
+                      "encoding": "H264",
+                      "framerate": 30,
+                      "bitrate": 4096
+                    }
+                  ]
+                }
+              }
             }
     """
 
-    message: str
-    camera_id: str
+    camera: Camera = Field(
+        ...,
+        description="Camera object with populated ONVIF profiles after successful authentication.",
+    )

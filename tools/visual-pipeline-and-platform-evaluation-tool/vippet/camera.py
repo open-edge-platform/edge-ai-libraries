@@ -384,7 +384,7 @@ class ONVIFCameraDiscovery:
         Retrieve discovered ONVIF cameras from the JSON file written by onvif_discovery_agent.
 
         Returns cameras with basic information (IP, port) and empty profiles list.
-        Profiles are populated after authentication via get_camera_profiles().
+        Profiles are populated after authentication via load_camera_profiles().
 
         Returns:
             List[Camera]: List of discovered cameras with IP and port information.
@@ -431,11 +431,11 @@ class ONVIFCameraDiscovery:
             logger.error(f"Error reading ONVIF cameras from JSON: {e}", exc_info=True)
             return []
 
-    def get_camera_profiles(
+    def load_camera_profiles(
         self, camera_id: str, username: str, password: str
-    ) -> tuple[Camera, List["ONVIFProfile"]]:
+    ) -> Camera:
         """
-        Authenticate with a specific ONVIF camera and retrieve its profiles.
+        Authenticate with a specific ONVIF camera and load its profiles.
 
         Args:
             camera_id: Camera identifier (e.g., "network_camera_192.168.1.100_80").
@@ -443,12 +443,12 @@ class ONVIFCameraDiscovery:
             password: ONVIF password for authentication.
 
         Returns:
-            Tuple of (Camera object with populated profiles, List of ONVIFProfile objects).
+            Camera: Updated Camera object with populated profiles in details.profiles.
 
         Raises:
             ValueError: If camera_id is invalid or camera not found.
             ConnectionError: If unable to connect to camera.
-            Exception: For authentication or profile retrieval failures.
+            Exception: For authentication or profile loading failures.
         """
         # Parse camera_id to extract IP and port
         # Expected format: "network_camera_{ip}_{port}"
@@ -504,9 +504,9 @@ class ONVIFCameraDiscovery:
             )
 
             logger.info(
-                f"Successfully authenticated with camera {ip}:{port} and retrieved {len(profiles)} profile(s)"
+                f"Successfully authenticated with camera {ip}:{port} and loaded {len(profiles)} profile(s)"
             )
-            return camera, profiles
+            return camera
 
         except Exception as e:
             logger.error(

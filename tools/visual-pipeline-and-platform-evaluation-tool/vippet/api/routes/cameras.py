@@ -98,12 +98,12 @@ def get_cameras():
 
 @router.post(
     "/profiles",
-    operation_id="get_camera_profiles",
+    operation_id="load_camera_profiles",
     response_model=schemas.CameraAuthResponse,
-    summary="Get camera ONVIF profiles",
+    summary="Load camera ONVIF profiles",
     responses={
         200: {
-            "description": "Camera profiles retrieved successfully.",
+            "description": "Camera profiles loaded successfully.",
             "model": schemas.CameraAuthResponse,
         },
         400: {
@@ -111,7 +111,7 @@ def get_cameras():
             "model": schemas.MessageResponse,
         },
         401: {
-            "description": "Failed to retrieve profiles - invalid credentials.",
+            "description": "Failed to load profiles - invalid credentials.",
             "model": schemas.MessageResponse,
         },
         404: {
@@ -119,39 +119,39 @@ def get_cameras():
             "model": schemas.MessageResponse,
         },
         500: {
-            "description": "Unexpected error when retrieving camera profiles.",
+            "description": "Unexpected error when loading camera profiles.",
             "model": schemas.MessageResponse,
         },
     },
 )
-def get_camera_profiles(request: schemas.CameraAuthRequest):
+def load_camera_profiles(request: schemas.CameraAuthRequest):
     """
-    Retrieve ONVIF profiles from a network camera.
+    Load ONVIF profiles from a network camera.
 
     This endpoint connects to a specific ONVIF-compatible network camera using
-    the provided credentials and retrieves all available media profiles from the camera.
+    the provided credentials and loads all available media profiles from the camera.
 
     Operation:
         * Parse the camera_id to extract IP address and port
         * Establish ONVIF connection with provided credentials
-        * Retrieve all available media profiles from the camera
+        * Load all available media profiles from the camera
         * Update the cached camera with profile information
-        * Return success status
+        * Return updated camera object
 
     Request body:
         JSON object with camera_id, username, and password.
 
     Returns:
         200 OK:
-            CameraAuthResponse indicating success.
+            CameraAuthResponse with updated camera object containing profiles.
         400 Bad Request:
             Invalid camera_id format.
         401 Unauthorized:
-            Failed to retrieve profiles - credentials rejected by camera.
+            Failed to load profiles - credentials rejected by camera.
         404 Not Found:
             Camera with specified ID not found or not reachable.
         500 Internal Server Error:
-            Unexpected error during profile retrieval.
+            Unexpected error during profile loading.
 
     Success conditions:
         * Camera is reachable on the network.
@@ -162,28 +162,40 @@ def get_camera_profiles(request: schemas.CameraAuthRequest):
         * Invalid camera_id format.
         * Camera is offline or unreachable.
         * Invalid credentials.
-        * Camera does not support ONVIF.
-        * Network connectivity issues.
 
     Successful response example (200):
         .. code-block:: json
 
             {
-              "message": "Camera profiles retrieved successfully",
-              "camera_id": "network_camera_192.168.1.100_80"
+              "camera": {
+                "device_id": "network_camera_192.168.1.100_80",
+                "device_name": "ONVIF Camera 192.168.1.100",
+                "device_type": "NETWORK",
+                "details": {
+                  "ip": "192.168.1.100",
+                  "port": 80,
+                  "profiles": [
+                    {
+                      "name": "Profile_1",
+                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                      "resolution": "1920x1080",
+                      "encoding": "H264",
+                      "framerate": 30,
+                      "bitrate": 4096
+                    }
+                  ]
+                }
+              }
             }
     """
     try:
         camera_manager = get_camera_manager()
-        camera_manager.get_camera_profiles(
+        authenticated_camera = camera_manager.load_camera_profiles(
             request.camera_id, request.username, request.password
         )
 
-        logger.info(f"Successfully retrieved profiles for camera {request.camera_id}")
-        return schemas.CameraAuthResponse(
-            message="Camera profiles retrieved successfully",
-            camera_id=request.camera_id,
-        )
+        logger.info(f"Successfully loaded profiles for camera {request.camera_id}")
+        return schemas.CameraAuthResponse(camera=authenticated_camera)
 
     except ValueError as e:
         logger.warning(f"Invalid camera_id: {e}")
@@ -200,12 +212,12 @@ def get_camera_profiles(request: schemas.CameraAuthRequest):
             or "credentials" in error_msg
         ):
             logger.warning(
-                f"Failed to retrieve profiles for camera {request.camera_id} - invalid credentials"
+                f"Failed to load profiles for camera {request.camera_id} - invalid credentials"
             )
             raise HTTPException(
                 status_code=401,
-                detail="Failed to retrieve profiles - invalid credentials",
+                detail="Failed to load profiles - invalid credentials",
             )
 
-        logger.error(f"Failed to get camera profile: {e}", exc_info=True)
+        logger.error(f"Failed to load camera profiles: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
