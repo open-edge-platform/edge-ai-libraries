@@ -309,6 +309,79 @@ Failed to query device
         self.assertEqual(len(cameras), 1)
         self.assertEqual(cameras[0].device_id, "usb_camera_integrated_camera_0")
 
+    @patch("camera.subprocess.run")
+    def test_discover_cameras_normalizes_device_names_for_url(self, mock_run):
+        """discover_cameras should normalize device names to be URL-safe (remove colons and special chars)."""
+        discovery = USBCameraDiscovery()
+
+        # Mock v4l2-ctl --list-devices with device names containing special characters
+        list_devices_result = MagicMock()
+        list_devices_result.returncode = 0
+        list_devices_result.stdout = """Thronmax StreamGo Webcam: Thron (usb-0000:00:14.0-8):
+        /dev/video0
+
+Integrated Camera: Integrated C (usb-0000:00:14.0-9):
+        /dev/video1
+
+USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
+        /dev/video2
+"""
+
+        # Mock v4l2-ctl --all for capability check
+        video_caps = MagicMock()
+        video_caps.returncode = 0
+        video_caps.stdout = """Device Caps      : 0x84a00001
+        Video Capture
+        Streaming"""
+
+        # Mock v4l2-ctl --get-fmt-video for resolution
+        video_fmt = MagicMock()
+        video_fmt.returncode = 0
+        video_fmt.stdout = "Width/Height      : 1920/1080"
+
+        def run_side_effect(*args, **kwargs):
+            cmd = args[0]
+            if "--list-devices" in cmd:
+                return list_devices_result
+            elif "--all" in cmd:
+                return video_caps
+            elif "--get-fmt-video" in cmd:
+                return video_fmt
+            return MagicMock(returncode=1, stdout="")
+
+        mock_run.side_effect = run_side_effect
+
+        cameras = discovery.discover_cameras()
+
+        # Should find 3 cameras
+        self.assertEqual(len(cameras), 3)
+
+        # Verify device IDs are URL-safe (no colons, no special characters)
+        device_ids = [cam.device_id for cam in cameras]
+
+        # Thronmax StreamGo Webcam: Thron -> thronmax_streamgo_webcam__thron
+        self.assertIn("usb_camera_thronmax_streamgo_webcam__thron_0", device_ids)
+        # Integrated Camera: Integrated C -> integrated_camera__integrated_c
+        self.assertIn("usb_camera_integrated_camera__integrated_c_1", device_ids)
+        # USB2.0 HD UVC WebCam: USB2.0 HD -> usb2_0_hd_uvc_webcam__usb2_0_hd
+        self.assertIn("usb_camera_usb2_0_hd_uvc_webcam__usb2_0_hd_2", device_ids)
+
+        # Verify no colons appear in device IDs
+        for device_id in device_ids:
+            self.assertNotIn(":", device_id)
+            # Verify only alphanumeric and underscores
+            for char in device_id:
+                self.assertTrue(
+                    char.isalnum() or char == "_",
+                    f"Character '{char}' in device_id '{device_id}' is not URL-safe",
+                )
+
+        # Verify device_name is preserved (not normalized)
+        camera_names = [cam.device_name for cam in cameras]
+        self.assertIn("Thronmax StreamGo Webcam: Thron", camera_names)
+        self.assertIn("Integrated Camera: Integrated C", camera_names)
+        self.assertIn("USB2.0 HD UVC WebCam: USB2.0 HD", camera_names)
+
 
 class TestONVIFProfile(unittest.TestCase):
     """

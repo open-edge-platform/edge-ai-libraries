@@ -185,13 +185,122 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertEqual(data["message"], "Unexpected error when discovering cameras")
 
     # ------------------------------------------------------------------
-    # POST /cameras/profiles
+    # GET /cameras/{camera_id}
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_camera_returns_usb_camera(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras/{camera_id} returns USB camera when found.
+        """
+        # Arrange
+        mock_camera = self._make_usb_camera(
+            "usb_camera_0", "Integrated Camera", "/dev/video0"
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_camera_by_id.return_value = mock_camera
+        mock_camera_manager_cls.return_value = mock_manager
+
+        # Act
+        response = self.client.get("/cameras/usb_camera_0")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["device_id"], "usb_camera_0")
+        self.assertEqual(data["device_name"], "Integrated Camera")
+        self.assertEqual(data["device_type"], "USB")
+        self.assertEqual(data["details"]["device_path"], "/dev/video0")
+        mock_manager.get_camera_by_id.assert_called_once_with("usb_camera_0")
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_camera_returns_network_camera(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras/{camera_id} returns network camera when found.
+        """
+        # Arrange
+        mock_camera = self._make_network_camera(
+            "network_camera_192.168.1.100_80",
+            "ONVIF Camera 192.168.1.100",
+            "192.168.1.100",
+            80,
+            profiles=[
+                {
+                    "name": "Profile_1",
+                    "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                    "resolution": "1920x1080",
+                    "encoding": "H264",
+                    "framerate": 30,
+                    "bitrate": 4096,
+                }
+            ],
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_camera_by_id.return_value = mock_camera
+        mock_camera_manager_cls.return_value = mock_manager
+
+        # Act
+        response = self.client.get("/cameras/network_camera_192.168.1.100_80")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["device_id"], "network_camera_192.168.1.100_80")
+        self.assertEqual(data["device_type"], "NETWORK")
+        self.assertEqual(data["details"]["ip"], "192.168.1.100")
+        self.assertEqual(data["details"]["port"], 80)
+        self.assertEqual(len(data["details"]["profiles"]), 1)
+        mock_manager.get_camera_by_id.assert_called_once_with(
+            "network_camera_192.168.1.100_80"
+        )
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_camera_returns_404_when_not_found(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras/{camera_id} returns 404 when camera not found.
+        """
+        # Arrange
+        mock_manager = MagicMock()
+        mock_manager.get_camera_by_id.return_value = None
+        mock_camera_manager_cls.return_value = mock_manager
+
+        # Act
+        response = self.client.get("/cameras/nonexistent_camera")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn("detail", data)
+        self.assertIn("nonexistent_camera", data["detail"])
+        mock_manager.get_camera_by_id.assert_called_once_with("nonexistent_camera")
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_camera_handles_exception(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras/{camera_id} returns 500 when unexpected error occurs.
+        """
+        # Arrange
+        mock_manager = MagicMock()
+        mock_manager.get_camera_by_id.side_effect = Exception("Unexpected error")
+        mock_camera_manager_cls.return_value = mock_manager
+
+        # Act
+        response = self.client.get("/cameras/usb_camera_0")
+
+        # Assert
+        self.assertEqual(response.status_code, 500)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertEqual(data["message"], "Unexpected error when retrieving camera")
+
+    # ------------------------------------------------------------------
+    # POST /cameras/{camera_id}/profiles
     # ------------------------------------------------------------------
 
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_success(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles successfully loads profiles from a network camera.
+        Test POST /cameras/{camera_id}/profiles successfully loads profiles from a network camera.
         """
         # Arrange
         camera_with_profiles = self._make_network_camera(
@@ -216,11 +325,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -240,7 +350,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_with_multiple_profiles(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles successfully loads multiple profiles.
+        Test POST /cameras/{camera_id}/profiles successfully loads multiple profiles.
         """
         # Arrange
         camera_with_profiles = self._make_network_camera(
@@ -273,11 +383,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -290,7 +401,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_invalid_camera_id(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 400 for invalid camera_id format.
+        Test POST /cameras/{camera_id}/profiles returns 400 for invalid camera_id format.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -301,11 +412,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "invalid_camera_id",
             "username": "admin",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/invalid_camera_id/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 400)
@@ -315,7 +427,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_camera_not_found(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 404 when camera is not reachable.
+        Test POST /cameras/{camera_id}/profiles returns 404 when camera is not reachable.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -326,11 +438,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.200_80",
             "username": "admin",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.200_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 404)
@@ -341,7 +454,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_invalid_credentials(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 401 for invalid credentials.
+        Test POST /cameras/{camera_id}/profiles returns 401 for invalid credentials.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -350,11 +463,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "wrongpassword",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 401)
@@ -365,7 +479,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_authentication_error(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 401 for authentication error.
+        Test POST /cameras/{camera_id}/profiles returns 401 for authentication error.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -376,11 +490,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "wrongpassword",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 401)
@@ -390,7 +505,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_credentials_error(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 401 for credentials error.
+        Test POST /cameras/{camera_id}/profiles returns 401 for credentials error.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -401,11 +516,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "wrongpassword",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 401)
@@ -415,7 +531,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_unexpected_error(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 500 for unexpected errors.
+        Test POST /cameras/{camera_id}/profiles returns 500 for unexpected errors.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -426,11 +542,12 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert
         self.assertEqual(response.status_code, 500)
@@ -439,26 +556,9 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertIn("Unexpected error", data["detail"])
 
     @patch("api.routes.cameras.CameraManager")
-    def test_load_camera_profiles_missing_camera_id(self, mock_camera_manager_cls):
-        """
-        Test POST /cameras/profiles returns 422 for missing camera_id.
-        """
-        # Arrange
-        mock_manager = MagicMock()
-        mock_camera_manager_cls.return_value = mock_manager
-
-        # Act: send request without camera_id
-        request_body = {"username": "admin", "password": "admin123"}
-        response = self.client.post("/cameras/profiles", json=request_body)
-
-        # Assert: FastAPI validation should reject the request
-        self.assertEqual(response.status_code, 422)
-        mock_manager.load_camera_profiles.assert_not_called()
-
-    @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_missing_username(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 422 for missing username.
+        Test POST /cameras/{camera_id}/profiles returns 422 for missing username.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -466,10 +566,11 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act: send request without username
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "password": "admin123",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
@@ -478,7 +579,7 @@ class TestCamerasAPI(unittest.TestCase):
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_missing_password(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/profiles returns 422 for missing password.
+        Test POST /cameras/{camera_id}/profiles returns 422 for missing password.
         """
         # Arrange
         mock_manager = MagicMock()
@@ -486,10 +587,11 @@ class TestCamerasAPI(unittest.TestCase):
 
         # Act: send request without password
         request_body = {
-            "camera_id": "network_camera_192.168.1.100_80",
             "username": "admin",
         }
-        response = self.client.post("/cameras/profiles", json=request_body)
+        response = self.client.post(
+            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+        )
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)

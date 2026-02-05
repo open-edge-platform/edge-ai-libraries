@@ -437,6 +437,128 @@ class TestCameraManager(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
     # ------------------------------------------------------------------
+    # Get camera by ID tests
+    # ------------------------------------------------------------------
+
+    @patch("managers.camera_manager.USBCameraDiscovery")
+    @patch("managers.camera_manager.ONVIFCameraDiscovery")
+    def test_get_camera_by_id_returns_usb_camera(
+        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
+    ):
+        """
+        get_camera_by_id should return a USB camera if found in cache.
+        """
+        mock_usb_discovery = MagicMock()
+        mock_onvif_discovery = MagicMock()
+        mock_usb_discovery_cls.return_value = mock_usb_discovery
+        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
+
+        usb_camera = self._build_camera("usb_camera_0", CameraType.USB)
+        mock_usb_discovery.discover_cameras.return_value = [usb_camera]
+        mock_onvif_discovery.discover_cameras.return_value = []
+
+        manager = CameraManager()
+        manager.discover_all_cameras()  # Populate cache
+
+        result = manager.get_camera_by_id("usb_camera_0")
+
+        self.assertIsNotNone(result)
+        assert result is not None  # for type checkers
+        self.assertEqual(result.device_id, "usb_camera_0")
+        self.assertEqual(result.device_type, CameraType.USB)
+
+    @patch("managers.camera_manager.USBCameraDiscovery")
+    @patch("managers.camera_manager.ONVIFCameraDiscovery")
+    def test_get_camera_by_id_returns_network_camera(
+        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
+    ):
+        """
+        get_camera_by_id should return a network camera if found in cache.
+        """
+        mock_usb_discovery = MagicMock()
+        mock_onvif_discovery = MagicMock()
+        mock_usb_discovery_cls.return_value = mock_usb_discovery
+        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
+
+        network_camera = self._build_camera(
+            "network_camera_192.168.1.100_80", CameraType.NETWORK
+        )
+        mock_usb_discovery.discover_cameras.return_value = []
+        mock_onvif_discovery.discover_cameras.return_value = [network_camera]
+
+        manager = CameraManager()
+        manager.discover_all_cameras()  # Populate cache
+
+        result = manager.get_camera_by_id("network_camera_192.168.1.100_80")
+
+        self.assertIsNotNone(result)
+        assert result is not None  # for type checkers
+        self.assertEqual(result.device_id, "network_camera_192.168.1.100_80")
+        self.assertEqual(result.device_type, CameraType.NETWORK)
+
+    @patch("managers.camera_manager.USBCameraDiscovery")
+    @patch("managers.camera_manager.ONVIFCameraDiscovery")
+    def test_get_camera_by_id_returns_none_for_unknown_camera(
+        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
+    ):
+        """
+        get_camera_by_id should return None if camera not found in cache.
+        """
+        mock_usb_discovery = MagicMock()
+        mock_onvif_discovery = MagicMock()
+        mock_usb_discovery_cls.return_value = mock_usb_discovery
+        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
+
+        mock_usb_discovery.discover_cameras.return_value = []
+        mock_onvif_discovery.discover_cameras.return_value = []
+
+        manager = CameraManager()
+        manager.discover_all_cameras()  # Populate (empty) cache
+
+        result = manager.get_camera_by_id("nonexistent_camera")
+
+        self.assertIsNone(result)
+
+    @patch("managers.camera_manager.USBCameraDiscovery")
+    @patch("managers.camera_manager.ONVIFCameraDiscovery")
+    def test_get_camera_by_id_works_with_mixed_cameras(
+        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
+    ):
+        """
+        get_camera_by_id should find cameras from both USB and network caches.
+        """
+        mock_usb_discovery = MagicMock()
+        mock_onvif_discovery = MagicMock()
+        mock_usb_discovery_cls.return_value = mock_usb_discovery
+        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
+
+        usb_camera = self._build_camera("usb_camera_0", CameraType.USB)
+        network_camera = self._build_camera(
+            "network_camera_192.168.1.100_80", CameraType.NETWORK
+        )
+        mock_usb_discovery.discover_cameras.return_value = [usb_camera]
+        mock_onvif_discovery.discover_cameras.return_value = [network_camera]
+
+        manager = CameraManager()
+        manager.discover_all_cameras()  # Populate cache
+
+        # Should find USB camera
+        result_usb = manager.get_camera_by_id("usb_camera_0")
+        self.assertIsNotNone(result_usb)
+        assert result_usb is not None  # for type checkers
+        self.assertEqual(result_usb.device_type, CameraType.USB)
+
+        # Should find network camera
+        result_network = manager.get_camera_by_id("network_camera_192.168.1.100_80")
+        self.assertIsNotNone(result_network)
+        assert result_network is not None  # for type checkers
+        self.assertEqual(result_network.device_type, CameraType.NETWORK)
+
+        # Should not find nonexistent camera
+        result_none = manager.get_camera_by_id("nonexistent")
+        self.assertIsNone(result_none)
+
+    # ------------------------------------------------------------------
     # Load camera profiles tests
     # ------------------------------------------------------------------
 

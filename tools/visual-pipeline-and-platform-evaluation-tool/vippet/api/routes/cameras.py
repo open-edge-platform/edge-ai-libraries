@@ -84,7 +84,7 @@ def get_cameras():
     """
     try:
         cameras = CameraManager().discover_all_cameras()
-        logger.info(f"Discovered total {len(cameras)} camera(s)")
+        logger.debug(f"Discovered total {len(cameras)} camera(s)")
         return cameras
     except Exception:
         logger.error("Failed to discover cameras", exc_info=True)
@@ -96,8 +96,92 @@ def get_cameras():
         )
 
 
+@router.get(
+    "/{camera_id}",
+    operation_id="get_camera",
+    response_model=schemas.Camera,
+    summary="Get camera by ID",
+    responses={
+        200: {
+            "description": "Camera successfully retrieved.",
+            "model": schemas.Camera,
+        },
+        404: {
+            "description": "Camera not found.",
+            "model": schemas.MessageResponse,
+        },
+        500: {
+            "description": "Unexpected error when retrieving camera.",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def get_camera(camera_id: str):
+    """
+    Get a specific camera by its ID.
+
+    This endpoint retrieves information about a single camera device using its
+    unique identifier. The camera must be already discovered and cached.
+
+    Operation:
+        * Search for the camera in the cached cameras list.
+        * Return camera details if found.
+
+    Path parameters:
+        camera_id: The unique identifier of the camera (e.g., "usb_camera_0" or
+                   "network_camera_192.168.1.100_80").
+
+    Returns:
+        200 OK:
+            JSON object containing camera details.
+        404 Not Found:
+            MessageResponse if camera with the given ID is not found.
+        500 Internal Server Error:
+            MessageResponse with error description if retrieval fails unexpectedly.
+
+    Success conditions:
+        * Camera with the given ID exists in the cache.
+
+    Failure conditions:
+        * Camera with the given ID does not exist.
+        * System error during retrieval.
+
+    Successful response example (200):
+        .. code-block:: json
+
+            {
+              "device_id": "usb_camera_0",
+              "device_name": "Integrated Camera",
+              "device_type": "USB",
+              "details": {
+                "device_path": "/dev/video0",
+                "resolution": "1920x1080"
+              }
+            }
+    """
+    try:
+        camera = CameraManager().get_camera_by_id(camera_id)
+        if camera is None:
+            logger.debug(f"Camera {camera_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Camera with ID '{camera_id}' not found"
+            )
+        logger.debug(f"Retrieved camera {camera_id}")
+        return camera
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error(f"Failed to retrieve camera {camera_id}", exc_info=True)
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message="Unexpected error when retrieving camera"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
 @router.post(
-    "/profiles",
+    "/{camera_id}/profiles",
     operation_id="load_camera_profiles",
     response_model=schemas.CameraAuthResponse,
     summary="Load camera ONVIF profiles",
@@ -124,7 +208,7 @@ def get_cameras():
         },
     },
 )
-def load_camera_profiles(request: schemas.CameraAuthRequest):
+def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest):
     """
     Load ONVIF profiles from a network camera.
 
@@ -138,8 +222,11 @@ def load_camera_profiles(request: schemas.CameraAuthRequest):
         * Update the cached camera with profile information
         * Return updated camera object
 
+    Path parameters:
+        camera_id: The unique identifier of the camera (e.g., "network_camera_192.168.1.100_80").
+
     Request body:
-        JSON object with camera_id, username, and password.
+        JSON object with username and password.
 
     Returns:
         200 OK:
@@ -198,10 +285,10 @@ def load_camera_profiles(request: schemas.CameraAuthRequest):
     """
     try:
         authenticated_camera = CameraManager().load_camera_profiles(
-            request.camera_id, request.username, request.password
+            camera_id, request.username, request.password
         )
 
-        logger.info(f"Successfully loaded profiles for camera {request.camera_id}")
+        logger.debug(f"Successfully loaded profiles for camera {camera_id}")
         return schemas.CameraAuthResponse(camera=authenticated_camera)
 
     except ValueError as e:
@@ -219,7 +306,7 @@ def load_camera_profiles(request: schemas.CameraAuthRequest):
             or "credentials" in error_msg
         ):
             logger.warning(
-                f"Failed to load profiles for camera {request.camera_id} - invalid credentials"
+                f"Failed to load profiles for camera {camera_id} - invalid credentials"
             )
             raise HTTPException(
                 status_code=401,

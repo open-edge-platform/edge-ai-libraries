@@ -1,6 +1,7 @@
 import json
 import logging
 import subprocess
+import threading
 from typing import List, Optional
 from onvif import ONVIFCamera
 
@@ -11,6 +12,7 @@ from api.api_schemas import (
     NetworkCameraDetails,
     CameraProfileInfo,
 )
+from utils import normalize_device_name_for_url
 
 DEFAULT_ONVIF_JSON_PATH = "/onvif/onvif_cameras.json"
 
@@ -25,11 +27,15 @@ class USBCameraDiscovery:
     their video capture capabilities.
     """
 
-    _instance = None
+    _instance: Optional["USBCameraDiscovery"] = None
+    _lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(USBCameraDiscovery, cls).__new__(cls)
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super(USBCameraDiscovery, cls).__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -225,8 +231,10 @@ class USBCameraDiscovery:
                             # Extract video device number
                             device_num = device_path.replace("/dev/video", "")
 
-                            # Create normalized device name for ID
-                            device_name = current_device_name.lower().replace(" ", "_")
+                            # Create normalized device name for ID (URL-safe)
+                            device_name = normalize_device_name_for_url(
+                                current_device_name
+                            )
 
                             # Get camera resolution
                             resolution = self._get_camera_resolution(device_path)
@@ -357,29 +365,29 @@ class ONVIFCameraDiscovery:
     Uses WS-Discovery protocol to find ONVIF-compliant cameras on the local network.
     """
 
-    _instance = None
+    _instance: Optional["ONVIFCameraDiscovery"] = None
+    _lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(ONVIFCameraDiscovery, cls).__new__(cls)
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super(ONVIFCameraDiscovery, cls).__new__(cls)
         return cls._instance
 
     def __init__(self, json_file_path: str = ""):
-        """Initialize ONVIF camera discovery.
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
 
-        Args:
-            json_file_path: Path to the onvif_cameras.json file. If empty, uses default path.
-        """
-        if not hasattr(self, "initialized"):
-            self.initialized = True
-            if json_file_path == "":
-                # Default path relative to the tool's shared directory
-                self.json_file_path = DEFAULT_ONVIF_JSON_PATH
-            else:
-                self.json_file_path = json_file_path
-            logger.debug(
-                f"ONVIFCameraDiscovery initialized with JSON file: {self.json_file_path}"
-            )
+        # Path to JSON file written by onvif_discovery_agent
+        self.json_file_path = json_file_path or DEFAULT_ONVIF_JSON_PATH
+
+        logger.debug(
+            f"ONVIFCameraDiscovery initialized with JSON file: {self.json_file_path}"
+        )
 
     def discover_cameras(self) -> List[Camera]:
         """

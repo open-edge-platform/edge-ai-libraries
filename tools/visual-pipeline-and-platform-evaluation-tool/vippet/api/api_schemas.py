@@ -1196,12 +1196,11 @@ class Camera(BaseModel):
     details: Union[USBCameraDetails, NetworkCameraDetails]
 
 
-class CameraAuthRequest(BaseModel):
+class CameraProfilesRequest(BaseModel):
     """
-    Request model for camera authentication and profile retrieval.
+    Request model for camera profile retrieval (camera_id provided in path).
 
     Attributes:
-        camera_id: Unique identifier for the camera (e.g., "network_camera_192.168.1.100_80").
         username: Username for ONVIF authentication.
         password: Password for ONVIF authentication.
 
@@ -1209,13 +1208,11 @@ class CameraAuthRequest(BaseModel):
         .. code-block:: json
 
             {
-              "camera_id": "network_camera_192.168.1.100_80",
               "username": "admin",
               "password": "password123"
             }
     """
 
-    camera_id: str
     username: str
     password: str
 
