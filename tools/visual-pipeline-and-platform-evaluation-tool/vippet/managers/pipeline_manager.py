@@ -1,11 +1,10 @@
 from copy import deepcopy
 import logging
-import sys
 import threading
 from typing import Optional, List
 
 from pipelines.loader import PipelineLoader
-from video_encoder import get_video_encoder
+from video_encoder import VideoEncoder
 from utils import make_tee_names_unique, generate_unique_id
 from graph import Graph
 from api.api_schemas import (
@@ -22,28 +21,13 @@ from api.api_schemas import (
 
 logger = logging.getLogger("pipeline_manager")
 
-# Singleton instance for PipelineManager
-_pipeline_manager_instance: Optional["PipelineManager"] = None
-
-
-def get_pipeline_manager() -> "PipelineManager":
-    """
-    Returns the singleton instance of PipelineManager.
-    If it cannot be created, logs an error and exits the application.
-    """
-    global _pipeline_manager_instance
-    if _pipeline_manager_instance is None:
-        try:
-            _pipeline_manager_instance = PipelineManager()
-        except Exception as e:
-            logger.error(f"Failed to initialize PipelineManager: {e}")
-            sys.exit(1)
-    return _pipeline_manager_instance
-
 
 class PipelineManager:
     """
-    Manage pipelines including both advanced and simple graph views.
+    Thread-safe singleton that manages pipelines including both advanced and simple graph views.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with PipelineManager() to get the shared singleton instance.
 
     Responsibilities:
     * Load predefined pipelines from configuration
@@ -54,14 +38,30 @@ class PipelineManager:
     * Build executable GStreamer pipeline commands with proper video encoding
     """
 
+    _instance: Optional["PipelineManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "PipelineManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         self.logger = logging.getLogger("PipelineManager")
         # Shared lock protecting access to pipelines
-        self.lock = threading.Lock()
+        self._pipelines_lock = threading.Lock()
         # List of pipelines managed by this instance
         self.pipelines = self.load_predefined_pipelines()
         # Video encoder instance used by pipelines
-        self.video_encoder = get_video_encoder()
+        self.video_encoder = VideoEncoder()
 
     def add_pipeline(self, new_pipeline: PipelineDefinition):
         """
@@ -85,7 +85,7 @@ class PipelineManager:
             ValueError: If version numbering rules are violated or GStreamer pipeline
                 string cannot be parsed.
         """
-        with self.lock:
+        with self._pipelines_lock:
             # Enforce strictly increasing, consecutive pipeline versions per name.
             self._ensure_next_version(new_pipeline.name, new_pipeline.version)
 
@@ -155,7 +155,7 @@ class PipelineManager:
             )
 
     def get_pipelines(self) -> list[Pipeline]:
-        with self.lock:
+        with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
 
     def get_pipeline_by_id(self, pipeline_id: str) -> Pipeline:
@@ -171,7 +171,7 @@ class PipelineManager:
         Raises:
             ValueError: If pipeline with given ID is not found.
         """
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is not None:
                 return deepcopy(pipeline)
@@ -230,7 +230,7 @@ class PipelineManager:
             ValueError: If provided pipeline graph cannot be converted to a valid GStreamer pipeline string.
         """
 
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
@@ -328,7 +328,7 @@ class PipelineManager:
         Raises:
             ValueError: If pipeline with given ID is not found.
         """
-        with self.lock:
+        with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is not None:
                 self.pipelines.remove(pipeline)

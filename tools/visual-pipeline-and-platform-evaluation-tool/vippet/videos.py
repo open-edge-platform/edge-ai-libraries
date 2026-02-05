@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import time
+import threading
 import urllib.request
 import urllib.error
 from dataclasses import dataclass
@@ -39,20 +40,6 @@ RECORDINGS_PATH: str = os.path.normpath(
 DEFAULT_RECORDINGS_FILE = "/videos/default_recordings.yaml"
 
 logger = logging.getLogger("videos")
-
-# Singleton instance for VideosManager
-_videos_manager_instance: Optional["VideosManager"] = None
-
-
-def get_videos_manager() -> "VideosManager":
-    """
-    Returns the singleton instance of VideosManager.
-    If it cannot be created, raises the exception to caller.
-    """
-    global _videos_manager_instance
-    if _videos_manager_instance is None:
-        _videos_manager_instance = VideosManager()
-    return _videos_manager_instance
 
 
 @dataclass
@@ -158,14 +145,30 @@ class Video:
 
 class VideosManager:
     """
-    Manages all video files and their metadata in the RECORDINGS_PATH directory.
-    Singleton pattern.
+    Thread-safe singleton that manages all video files and their metadata in the RECORDINGS_PATH directory.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with VideosManager() to get the shared singleton instance.
 
     Initialization performs three phases:
     1. Download videos from default_recordings.yaml (if not already present)
     2. Scan and load all video files with their metadata (JSON cache)
     3. Convert all non-TS videos to TS format for looping support
+
+    Raises:
+        RuntimeError: If RECORDINGS_PATH is not a valid directory.
     """
+
+    _instance: Optional["VideosManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "VideosManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self) -> None:
         """
@@ -175,8 +178,16 @@ class VideosManager:
         - Scans directory and loads video metadata
         - Ensures all TS conversions exist
 
-        Raises RuntimeError if RECORDINGS_PATH is not a valid directory.
+        Protected against multiple initialization.
+
+        Raises:
+            RuntimeError: If RECORDINGS_PATH is not a valid directory.
         """
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         logger.debug(
             f"Initializing VideosManager with RECORDINGS_PATH={RECORDINGS_PATH}"
         )

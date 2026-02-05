@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils.ts";
 
-const AddPipelineButton = () => {
+export const AddPipelineButton = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -311,5 +311,3 @@ const AddPipelineButton = () => {
     </Dialog>
   );
 };
-
-export default AddPipelineButton;

@@ -160,9 +160,11 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
 7. **Access the Application**:
    Open a browser and go to `http://<host-ip>:8101` to access the application dashboard. The application dashboard allows the user to,
-    - Create and manage context by adding documents (pdf, docx, etc.) and web links. Note: There are restrictions on the max size of the document allowed.
+    - Create and manage context by adding documents (pdf, docx, etc.) and web links (only https).
+    > **Note**:
+    > - There are restrictions on the max size of the document allowed.
+    > - Only HTTPS URLs are allowed for web links.
     - Start Q&A session with the created context.
-
 
 ## Running in Kubernetes
 

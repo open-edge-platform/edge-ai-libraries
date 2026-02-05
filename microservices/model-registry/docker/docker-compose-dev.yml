@@ -27,9 +27,6 @@ services:
       ENABLE_HTTPS_MODE: ${ENABLE_HTTPS_MODE}
       GETI_HOST: ${GETI_HOST}
       GETI_TOKEN: ${GETI_TOKEN}
-      GETI_SERVER_API_VERSION: ${GETI_SERVER_API_VERSION}
-      GETI_ORGANIZATION_ID: ${GETI_ORGANIZATION_ID}
-      GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID}
       GETI_SERVER_SSL_VERIFY: ${GETI_SERVER_SSL_VERIFY}
       MLFLOW_TRACKING_URI: postgresql+psycopg2://${MR_USER_NAME}:${MR_PSQL_PASSWORD}@mr_postgres:${MR_PSQL_PORT}/${MR_PSQL_DATABASE}
       MLFLOW_S3_ENDPOINT_URL: ${MR_MLFLOW_S3_ENDPOINT_URL}
@@ -43,8 +40,8 @@ services:
       SERVER_CERT: /run/secrets/ModelRegistry_Server/public.crt
       CA_CERT: /run/secrets/ModelRegistry_Server/server-ca.crt
       SERVER_PRIVATE_KEY: /run/secrets/ModelRegistry_Server/private.key
-      no_proxy: mr_minio
-      NO_PROXY: mr_minio
+      no_proxy: mr_minio:${no_proxy}
+      NO_PROXY: mr_minio:${no_proxy}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
     volumes:

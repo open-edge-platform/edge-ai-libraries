@@ -1,11 +1,7 @@
 import unittest
-from unittest.mock import patch
 
 from api.api_schemas import AppStatus
-from managers.app_state_manager import (
-    AppStateManager,
-    get_app_state_manager,
-)
+from managers.app_state_manager import AppStateManager
 
 
 class TestAppStateManager(unittest.TestCase):
@@ -18,6 +14,24 @@ class TestAppStateManager(unittest.TestCase):
       * is_ready and is_healthy behavior,
       * thread-safe property access.
     """
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        AppStateManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        AppStateManager._instance = None
+
+    # ------------------------------------------------------------------
+    # Singleton tests
+    # ------------------------------------------------------------------
+
+    def test_singleton_returns_same_instance(self):
+        """AppStateManager() should return the same instance on multiple calls."""
+        instance1 = AppStateManager()
+        instance2 = AppStateManager()
+        self.assertIs(instance1, instance2)
 
     # ------------------------------------------------------------------
     # Initial state tests
@@ -154,47 +168,6 @@ class TestAppStateManager(unittest.TestCase):
         self.assertEqual(AppStatus.READY.value, "ready")
         # The enum inherits from str, so it can be compared directly
         self.assertEqual(AppStatus.READY, "ready")
-
-
-class TestGetAppStateManagerSingleton(unittest.TestCase):
-    """Tests for get_app_state_manager singleton accessor."""
-
-    def test_get_app_state_manager_returns_singleton(self):
-        """get_app_state_manager should return the same instance on multiple calls."""
-        from managers import app_state_manager as mod
-
-        # Reset singleton for isolated test
-        mod._app_state_manager = None
-
-        instance1 = get_app_state_manager()
-        instance2 = get_app_state_manager()
-
-        self.assertIs(instance1, instance2)
-
-    def test_get_app_state_manager_returns_app_state_manager_instance(self):
-        """get_app_state_manager should return an AppStateManager instance."""
-        from managers import app_state_manager as mod
-
-        # Reset singleton for isolated test
-        mod._app_state_manager = None
-
-        instance = get_app_state_manager()
-
-        self.assertIsInstance(instance, AppStateManager)
-
-    @patch("managers.app_state_manager.AppStateManager")
-    def test_get_app_state_manager_creates_instance_once(self, mock_manager_cls):
-        """get_app_state_manager should create AppStateManager only once."""
-        from managers import app_state_manager as mod
-
-        # Reset singleton for isolated test
-        mod._app_state_manager = None
-
-        get_app_state_manager()
-        get_app_state_manager()
-        get_app_state_manager()
-
-        mock_manager_cls.assert_called_once()
 
 
 class TestAppStateManagerErrorStatus(unittest.TestCase):

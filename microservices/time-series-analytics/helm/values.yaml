@@ -37,5 +37,7 @@ config:
 
 images:
   # Please provide the suffix for the image version you want to use like rc1, rc2, git hash id etc.
-  image_suffix: "weekly"
-  time_series_analytics_image: intel/ia-time-series-analytics-microservice:1.1.0
+  image_suffix: "2026.0.0"
+  # Date value format: "yyyymmdd" (e.g., "20260202")
+  weekly_build_date: ""
+  time_series_analytics_image: intel/ia-time-series-analytics-microservice

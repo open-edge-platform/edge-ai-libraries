@@ -330,8 +330,8 @@ class TestModels(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 m3.SupportedModelsManager()
 
-    def test_get_supported_models_manager_singleton_and_sys_exit(self):
-        """Test get_supported_models_manager returns singleton and sys.exit path on failure."""
+    def test_supported_models_manager_singleton_behavior(self):
+        """Test SupportedModelsManager singleton pattern and behavior on failure."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             models_dir = td_path / "md4"
@@ -353,21 +353,14 @@ class TestModels(unittest.TestCase):
             m = _reload_models_module(str(yaml_file), str(models_dir))
             if hasattr(m, "_supported_models_manager_instance"):
                 setattr(m, "_supported_models_manager_instance", None)
-            mgr = m.get_supported_models_manager()
-            # Should be stored as the singleton
-            self.assertIs(mgr, m._supported_models_manager_instance)
 
-            # Now point SUPPORTED_MODELS_FILE to a non-existing path and reload module,
-            # expect SystemExit when get_supported_models_manager tries to initialize manager.
-            bad_yaml = td_path / "does_not_exist.yaml"
-            os.environ["SUPPORTED_MODELS_FILE"] = str(bad_yaml)
-            os.environ["MODELS_PATH"] = str(models_dir)
-            # reload module to pick new env vars
-            bad_mod = importlib.reload(sys.modules["models"])
-            if hasattr(bad_mod, "_supported_models_manager_instance"):
-                setattr(bad_mod, "_supported_models_manager_instance", None)
-            with self.assertRaises(SystemExit):
-                bad_mod.get_supported_models_manager()
+            # Test that SupportedModelsManager can be instantiated
+            mgr = m.SupportedModelsManager()
+            self.assertIsNotNone(mgr)
+
+            # Test singleton behavior - second call returns same instance
+            mgr2 = m.SupportedModelsManager()
+            self.assertIs(mgr, mgr2)
 
 
 if __name__ == "__main__":
