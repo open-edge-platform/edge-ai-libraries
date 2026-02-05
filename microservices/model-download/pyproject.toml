@@ -63,7 +63,6 @@ openvino = [
 ]
 
 ollama = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0"
     # Ollama is installed as a binary, no Python dependencies required
 ]
 
@@ -73,6 +72,10 @@ geti = [
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32'"
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
