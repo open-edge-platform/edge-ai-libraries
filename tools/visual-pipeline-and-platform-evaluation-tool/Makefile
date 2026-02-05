@@ -85,7 +85,7 @@ build-videogenerator: env-setup ## Build videogenerator image
 build-models: env-setup ## Build model image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
 
-docker-build: build build-videogenerator build-models build-onvif-discovery ## Build all images
+docker-build: build build-videogenerator build-models ## Build all images
 
 run: env-setup install-models-once ## Run the docker compose services
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
