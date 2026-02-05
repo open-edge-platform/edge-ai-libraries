@@ -10,5 +10,6 @@ fastapi==0.115.11
 uvicorn==0.34.0
 python-multipart==0.0.20
 # Resolves Pydantic Extra warnings
-pydantic==2.10.6
-pydantic_core==2.27.2
+pydantic==2.12.4
+pydantic_core==2.41.5
+geti-sdk==2.13.1

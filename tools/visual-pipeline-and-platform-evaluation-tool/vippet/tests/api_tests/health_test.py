@@ -12,8 +12,8 @@ class TestHealthAPI(unittest.TestCase):
     """
     Unit tests for the health and status HTTP API endpoints.
 
-    The tests use FastAPI's TestClient and patch the global
-    ``get_app_state_manager`` function to control the behavior
+    The tests use FastAPI's TestClient and patch the
+    ``AppStateManager`` class to control the behavior
     of the underlying state manager without touching its real implementation.
     """
 
@@ -28,14 +28,14 @@ class TestHealthAPI(unittest.TestCase):
     # /health endpoint tests
     # ------------------------------------------------------------------
 
-    @patch("api.routes.health.get_app_state_manager")
+    @patch("api.routes.health.AppStateManager")
     def test_get_health_returns_healthy_true_when_not_shutdown(
-        self, mock_get_app_state_manager
+        self, mock_app_state_manager_cls
     ):
         """Test GET /health returns healthy=true when app is not in shutdown state."""
         mock_manager = MagicMock()
         mock_manager.is_healthy.return_value = True
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/health")
 
@@ -45,14 +45,14 @@ class TestHealthAPI(unittest.TestCase):
         self.assertTrue(data["healthy"])
         mock_manager.is_healthy.assert_called_once()
 
-    @patch("api.routes.health.get_app_state_manager")
+    @patch("api.routes.health.AppStateManager")
     def test_get_health_returns_healthy_false_when_shutdown(
-        self, mock_get_app_state_manager
+        self, mock_app_state_manager_cls
     ):
         """Test GET /health returns healthy=false when app is in shutdown state."""
         mock_manager = MagicMock()
         mock_manager.is_healthy.return_value = False
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/health")
 
@@ -66,14 +66,14 @@ class TestHealthAPI(unittest.TestCase):
     # /status endpoint tests
     # ------------------------------------------------------------------
 
-    @patch("api.routes.health.get_app_state_manager")
-    def test_get_status_returns_initializing_state(self, mock_get_app_state_manager):
+    @patch("api.routes.health.AppStateManager")
+    def test_get_status_returns_initializing_state(self, mock_app_state_manager_cls):
         """Test GET /status returns correct data during initialization."""
         mock_manager = MagicMock()
         mock_manager.status = AppStatus.INITIALIZING
         mock_manager.message = "Loading video metadata..."
         mock_manager.is_ready.return_value = False
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/status")
 
@@ -84,14 +84,14 @@ class TestHealthAPI(unittest.TestCase):
         self.assertFalse(data["ready"])
         mock_manager.is_ready.assert_called_once()
 
-    @patch("api.routes.health.get_app_state_manager")
-    def test_get_status_returns_ready_state(self, mock_get_app_state_manager):
+    @patch("api.routes.health.AppStateManager")
+    def test_get_status_returns_ready_state(self, mock_app_state_manager_cls):
         """Test GET /status returns correct data when app is ready."""
         mock_manager = MagicMock()
         mock_manager.status = AppStatus.READY
         mock_manager.message = None
         mock_manager.is_ready.return_value = True
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/status")
 
@@ -102,14 +102,14 @@ class TestHealthAPI(unittest.TestCase):
         self.assertTrue(data["ready"])
         mock_manager.is_ready.assert_called_once()
 
-    @patch("api.routes.health.get_app_state_manager")
-    def test_get_status_returns_starting_state(self, mock_get_app_state_manager):
+    @patch("api.routes.health.AppStateManager")
+    def test_get_status_returns_starting_state(self, mock_app_state_manager_cls):
         """Test GET /status returns correct data when app is starting."""
         mock_manager = MagicMock()
         mock_manager.status = AppStatus.STARTING
         mock_manager.message = None
         mock_manager.is_ready.return_value = False
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/status")
 
@@ -119,14 +119,14 @@ class TestHealthAPI(unittest.TestCase):
         self.assertIsNone(data["message"])
         self.assertFalse(data["ready"])
 
-    @patch("api.routes.health.get_app_state_manager")
-    def test_get_status_returns_shutdown_state(self, mock_get_app_state_manager):
+    @patch("api.routes.health.AppStateManager")
+    def test_get_status_returns_shutdown_state(self, mock_app_state_manager_cls):
         """Test GET /status returns correct data when app is shutting down."""
         mock_manager = MagicMock()
         mock_manager.status = AppStatus.SHUTDOWN
         mock_manager.message = "Shutting down..."
         mock_manager.is_ready.return_value = False
-        mock_get_app_state_manager.return_value = mock_manager
+        mock_app_state_manager_cls.return_value = mock_manager
 
         response = self.client.get("/status")
 

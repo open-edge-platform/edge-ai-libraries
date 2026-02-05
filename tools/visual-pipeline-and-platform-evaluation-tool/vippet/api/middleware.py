@@ -8,7 +8,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from managers.app_state_manager import get_app_state_manager
+from managers.app_state_manager import AppStateManager
 
 logger = logging.getLogger("api.middleware")
 
@@ -44,14 +44,14 @@ class InitializationMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Check if application is ready
-        app_state = get_app_state_manager()
-        if not app_state.is_ready():
+        app_state_manager = AppStateManager()
+        if not app_state_manager.is_ready():
             logger.debug(f"Blocking request to {path} - application not ready")
             return JSONResponse(
                 status_code=503,
                 content={
-                    "message": f"Service is {app_state.status.value}. Please wait.",
-                    "status": app_state.status.value,
+                    "message": f"Service is {app_state_manager.status.value}. Please wait.",
+                    "status": app_state_manager.status.value,
                 },
             )
 

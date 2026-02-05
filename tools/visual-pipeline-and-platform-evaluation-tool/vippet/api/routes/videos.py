@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from videos import get_videos_manager
+from videos import VideosManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.videos")
@@ -69,8 +69,7 @@ def get_videos():
     """
     logger.debug("Received request for all videos.")
     try:
-        videos_manager = get_videos_manager()
-        videos_dict = videos_manager.get_all_videos()
+        videos_dict = VideosManager().get_all_videos()
         logger.debug(f"Found {len(videos_dict)} videos.")
         # Convert Video objects to schemas.Video
         return [
