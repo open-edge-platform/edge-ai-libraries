@@ -12,6 +12,8 @@ from api.api_schemas import (
     CameraProfileInfo,
 )
 
+DEFAULT_ONVIF_JSON_PATH = "/onvif/onvif_cameras.json"
+
 logger = logging.getLogger("camera")
 
 
@@ -372,7 +374,7 @@ class ONVIFCameraDiscovery:
             self.initialized = True
             if json_file_path == "":
                 # Default path relative to the tool's shared directory
-                self.json_file_path = "/onvif/onvif_cameras.json"
+                self.json_file_path = DEFAULT_ONVIF_JSON_PATH
             else:
                 self.json_file_path = json_file_path
             logger.debug(

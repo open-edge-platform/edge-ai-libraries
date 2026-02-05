@@ -42,11 +42,9 @@ class CameraManager:
         self.usb_discovery = USBCameraDiscovery()
         self.onvif_discovery = ONVIFCameraDiscovery()
 
-        # Store discovered cameras
+        # Cached camera lists
         self._usb_cameras: List[Camera] = []
         self._network_cameras: List[Camera] = []
-
-        self.logger.info("CameraManager initialized")
 
     def _update_camera_cache(
         self, cached_cameras: List[Camera], discovered_cameras: List[Camera]
@@ -72,13 +70,13 @@ class CameraManager:
                 # Remove from dict so we know we've processed it
                 del discovered_dict[cached_cam.device_id]
             else:
-                self.logger.info(
+                self.logger.debug(
                     f"Camera {cached_cam.device_id} is no longer available, removing from cache"
                 )
 
         # Add any new cameras that weren't in the cache
         for new_cam in discovered_dict.values():
-            self.logger.info(f"New camera discovered: {new_cam.device_id}")
+            self.logger.debug(f"New camera discovered: {new_cam.device_id}")
             updated_cameras.append(new_cam)
 
         return updated_cameras
@@ -100,7 +98,7 @@ class CameraManager:
             self._usb_cameras = self._update_camera_cache(
                 self._usb_cameras, discovered_cameras
             )
-            self.logger.info(f"Discovered {len(self._usb_cameras)} USB camera(s)")
+            self.logger.debug(f"Discovered {len(self._usb_cameras)} USB camera(s)")
         except Exception as e:
             self.logger.error(f"Failed USB camera discovery: {e}", exc_info=True)
             # On error, keep existing cache
@@ -124,7 +122,7 @@ class CameraManager:
             self._network_cameras = self._update_camera_cache(
                 self._network_cameras, discovered_cameras
             )
-            self.logger.info(
+            self.logger.debug(
                 f"Discovered {len(self._network_cameras)} network camera(s)"
             )
         except Exception as e:
@@ -148,7 +146,7 @@ class CameraManager:
         network_cameras = self.discover_network_cameras()
 
         all_cameras = usb_cameras + network_cameras
-        self.logger.debug(
+        self.logger.info(
             f"Discovered {len(usb_cameras)} USB and {len(network_cameras)} "
             f"network camera(s), total: {len(all_cameras)}"
         )
