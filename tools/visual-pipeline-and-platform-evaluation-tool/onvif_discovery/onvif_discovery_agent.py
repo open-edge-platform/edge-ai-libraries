@@ -15,6 +15,10 @@ from typing import Iterable, Optional
 from urllib.parse import urlparse
 
 
+# WS-Discovery multicast address and port defined by the ONVIF specification.
+# 239.255.255.250 is the IPv4 multicast group used for WS-Discovery protocol,
+# allowing automatic discovery of ONVIF-compliant network cameras on the local network.
+# Port 3702 is the standard UDP port assigned by IANA for WS-Discovery.
 MCAST_GRP = "239.255.255.250"
 MCAST_PORT = 3702
 
