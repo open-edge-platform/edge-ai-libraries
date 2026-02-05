@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   type PipelinePerformanceSpec,
   useGetDensityJobStatusQuery,
@@ -236,6 +236,10 @@ const DemoMode = () => {
     Record<string, Record<string, unknown>>
   >({});
   const showResultsPanel = testStarted;
+  const isTestFinished =
+    lastRunTest === "performance-test"
+      ? !performanceJobId && (!!performanceResult || !!performanceErrorMessage)
+      : !densityJobId && (!!testResult || !!errorMessage);
   const showPreviewPanel =
     testStarted &&
     lastRunTest === "performance-test" &&
@@ -309,6 +313,46 @@ const DemoMode = () => {
       gpuDetailedMetrics,
     };
   }, [frozenMetrics, hasFrozenMetrics]);
+
+  const smoothScrollRef = useRef<{
+    rafId: number;
+    pendingDelta: number;
+    target: HTMLDivElement | null;
+  }>({ rafId: 0, pendingDelta: 0, target: null });
+
+  const handleFastScroll = (event: WheelEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (target.scrollHeight <= target.clientHeight) return;
+
+    event.preventDefault();
+    const speedMultiplier = 0.5;
+
+    smoothScrollRef.current.pendingDelta += event.deltaY * speedMultiplier;
+    smoothScrollRef.current.target = target;
+
+    if (smoothScrollRef.current.rafId) return;
+
+    smoothScrollRef.current.rafId = requestAnimationFrame(() => {
+      const { target: rafTarget, pendingDelta } = smoothScrollRef.current;
+      if (rafTarget) {
+        rafTarget.scrollTop += pendingDelta;
+      }
+      smoothScrollRef.current.pendingDelta = 0;
+      smoothScrollRef.current.rafId = 0;
+    });
+  };
+
+  const performanceSummary = useMemo(() => {
+    if (!performanceResult) return null;
+    let total = performanceResult.total_fps;
+    let perStream = performanceResult.per_stream_fps;
+    if (total != null && perStream != null && total < perStream) {
+      const tmp = total;
+      total = perStream;
+      perStream = tmp;
+    }
+    return { total, perStream };
+  }, [performanceResult]);
 
   const colorModes = {
     first: "180,230,255",
@@ -733,13 +777,15 @@ const DemoMode = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate("/")}
-                className={`group relative px-4 py-2 rounded-lg border bg-slate-800/50 backdrop-blur-xl transition-all duration-300 ${colors.exitButton}`}
+                className={`group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
               >
                 <div className="flex items-center gap-2">
                   <Home
-                    className={`w-4 h-4 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
+                    className={`w-5 h-5 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
                   />
-                  <span className={`text-sm font-semibold ${colors.exitIcon}`}>
+                  <span
+                    className={`text-base font-semibold ${colors.exitIcon}`}
+                  >
                     Exit
                   </span>
                 </div>
@@ -754,22 +800,13 @@ const DemoMode = () => {
         >
           {demoStep === "selection" ? (
             /* PIPELINE SELECTION VIEW */
-            <div className="h-full flex flex-col animate-[fadeIn_0.6s_ease-out]">
+            <div className="h-full flex flex-col animate-[slideUp_0.35s_ease-out]">
               {/* Pipeline Cards Grid */}
               <div className="flex-1 overflow-auto p-6 pt-8">
-                <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {groupedPipelines.map((group, idx) => {
                     const isSelected = selectedModels.has(group.baseName);
                     const availableDevices = Object.keys(group.pipelines);
-                    const currentSelectedId = selectedModels.get(
-                      group.baseName,
-                    );
-                    const currentDevice =
-                      availableDevices.find(
-                        (dev) => group.pipelines[dev].id === currentSelectedId,
-                      ) ||
-                      availableDevices[0] ||
-                      "";
 
                     return (
                       <Card
@@ -789,13 +826,35 @@ const DemoMode = () => {
                           }
                           setSelectedModels(newSelected);
                         }}
-                        className={`flex flex-col transition-all duration-300 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer ${
+                        className={`relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9] ${
                           isSelected
-                            ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[1.02]"
-                            : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[1.02]"
+                            ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[0.95]"
+                            : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]"
                         }`}
                       >
                         <CardHeader className="flex-1">
+                          <div className="absolute right-3 top-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                const newSelected = new Map(selectedModels);
+                                if (checked) {
+                                  const firstDevice = availableDevices[0];
+                                  if (firstDevice) {
+                                    newSelected.set(
+                                      group.baseName,
+                                      group.pipelines[firstDevice].id,
+                                    );
+                                  }
+                                } else {
+                                  newSelected.delete(group.baseName);
+                                }
+                                setSelectedModels(newSelected);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`w-5 h-5 ${colors.checkbox}`}
+                            />
+                          </div>
                           <CardTitle className="min-h-8 text-slate-200">
                             {group.baseName}
                           </CardTitle>
@@ -818,7 +877,12 @@ const DemoMode = () => {
               </div>
 
               {/* Next Button */}
-              <div className="flex justify-end p-3 pt-5">
+              <div className="relative flex items-center justify-end gap-3 p-3 pt-5">
+                <div className="absolute inset-x-0 flex justify-center">
+                  <span className="text-lg font-bold text-blue-200">
+                    Selected pipelines: {selectedModels.size}
+                  </span>
+                </div>
                 <button
                   onClick={() => {
                     if (selectedModels.size > 0) {
@@ -836,17 +900,13 @@ const DemoMode = () => {
                     }
                   }}
                   disabled={selectedModels.size === 0}
-                  className={`group relative px-4 py-2 rounded-lg border bg-slate-800/50 backdrop-blur-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ${colors.exitButton}`}
+                  className="group relative px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:scale-[1.04] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-100"
                 >
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`text-sm font-semibold ${colors.exitIcon}`}
-                    >
+                    <span className="text-base font-semibold text-white">
                       Next
                     </span>
-                    <ChevronRight
-                      className={`w-4 h-4 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
-                    />
+                    <ChevronRight className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
                   </div>
                 </button>
               </div>
@@ -854,8 +914,11 @@ const DemoMode = () => {
           ) : demoStep === "configuration" ? (
             (() => {
               const pipelineCardsSection = (
-                <div className="overflow-y-auto">
-                  <div className="flex flex-wrap gap-2">
+                <div
+                  className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
+                  onWheel={handleFastScroll}
+                >
+                  <div className="flex flex-wrap gap-2 pb-6">
                     {pipelineSelections.map((selection) => {
                       const pipeline = pipelines.find(
                         (p) => p.id === selection.pipelineId,
@@ -873,7 +936,7 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-44 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-40 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
@@ -890,11 +953,11 @@ const DemoMode = () => {
                                   ]
                                 }
                                 alt={pipeline.name}
-                                className="w-full h-24 object-cover rounded-md"
+                                className="w-full h-16 object-cover rounded-md"
                               />
                             </div>
                           )}
-                          <CardHeader className="p-3 pt-2">
+                          <CardHeader className="p-0.5 pt-0 pb-0">
                             <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
@@ -923,557 +986,640 @@ const DemoMode = () => {
 
               const pipelineConfigSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder} ${showPreRunLayout ? "animate-[softSlideInRight_0.9s_ease-out]" : "animate-[softSlideInLeft_0.9s_ease-out]"}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder}`}
                 >
-                  <p
-                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
+                  <Accordion
+                    type="multiple"
+                    defaultValue={["pipeline-config", "run-config"]}
+                    className="w-full space-y-3"
                   >
-                    Pipeline Configuration
-                  </p>
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    {selectedConfigPipelineId ? (
-                      (() => {
-                        const pipeline = pipelines.find(
-                          (p) => p.id === selectedConfigPipelineId,
-                        );
-                        if (!pipeline) return null;
+                    <AccordionItem
+                      value="pipeline-config"
+                      className="border border-slate-400/30 rounded-lg bg-slate-950/60"
+                    >
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                        <span
+                          className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
+                        >
+                          Pipeline Configuration
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent
+                        className="px-3 pb-3 max-h-[20vh] overflow-y-auto scroll-smooth"
+                        onWheel={handleFastScroll}
+                      >
+                        <div className="pr-1 min-h-[20vh]">
+                          <div className="flex-1 min-h-0 flex flex-col">
+                            {selectedConfigPipelineId ? (
+                              (() => {
+                                const pipeline = pipelines.find(
+                                  (p) => p.id === selectedConfigPipelineId,
+                                );
+                                if (!pipeline) return null;
 
-                        return (
-                          <>
-                            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                              <Accordion
-                                type="single"
-                                collapsible
-                                className="w-full space-y-2"
-                              >
-                                {pipeline.pipeline_graph?.nodes?.map((node) => {
-                                  const nodeTag =
-                                    nodeTypeToTag[node.type] || null;
-                                  const nodeConfig = getNodeConfig(node.type);
-                                  const editableProperties =
-                                    nodeConfig?.editableProperties ?? [];
+                                return (
+                                  <>
+                                    <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                                      <Accordion
+                                        type="single"
+                                        collapsible
+                                        className="w-full space-y-2"
+                                      >
+                                        {pipeline.pipeline_graph?.nodes?.map(
+                                          (node) => {
+                                            const nodeTag =
+                                              nodeTypeToTag[node.type] || null;
+                                            const nodeConfig = getNodeConfig(
+                                              node.type,
+                                            );
+                                            const editableProperties =
+                                              nodeConfig?.editableProperties ??
+                                              [];
 
-                                  const dataEntries = nodeConfig
-                                    ? editableProperties.map((prop) => [
-                                        prop.key,
-                                        node.data[prop.key] ??
-                                          prop.defaultValue,
-                                        prop,
-                                      ])
-                                    : Object.entries(node.data ?? {})
-                                        .filter(
-                                          ([key]) =>
-                                            !["label"].includes(key) &&
-                                            !key.startsWith("__"),
-                                        )
-                                        .map(([key, value]) => [
-                                          key,
-                                          value,
-                                          null,
-                                        ]);
+                                            const dataEntries = nodeConfig
+                                              ? editableProperties.map(
+                                                  (prop) => [
+                                                    prop.key,
+                                                    node.data[prop.key] ??
+                                                      prop.defaultValue,
+                                                    prop,
+                                                  ],
+                                                )
+                                              : Object.entries(node.data ?? {})
+                                                  .filter(
+                                                    ([key]) =>
+                                                      !["label"].includes(
+                                                        key,
+                                                      ) &&
+                                                      !key.startsWith("__"),
+                                                  )
+                                                  .map(([key, value]) => [
+                                                    key,
+                                                    value,
+                                                    null,
+                                                  ]);
 
-                                  const getEditedValue = (
-                                    nodeId: string,
-                                    key: string,
-                                    originalValue: unknown,
-                                  ) => {
-                                    return (
-                                      nodeDataEdits[nodeId]?.[key] ??
-                                      originalValue
-                                    );
-                                  };
-
-                                  const handleValueChange = (
-                                    nodeId: string,
-                                    key: string,
-                                    value: unknown,
-                                  ) => {
-                                    setNodeDataEdits((prev) => ({
-                                      ...prev,
-                                      [nodeId]: {
-                                        ...prev[nodeId],
-                                        [key]: value,
-                                      },
-                                    }));
-                                  };
-
-                                  if (dataEntries.length === 0) {
-                                    return null;
-                                  }
-
-                                  return (
-                                    <AccordionItem
-                                      key={node.id}
-                                      value={node.id}
-                                      className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
-                                    >
-                                      <AccordionTrigger className="hover:no-underline py-2">
-                                        <div className="flex flex-col items-start">
-                                          {nodeTag ? (
-                                            <>
-                                              <span className="font-medium text-white">
-                                                {nodeTag}
-                                              </span>
-                                              <span className="text-xs text-slate-400 font-light">
-                                                {node.type}
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <span className="font-medium text-white">
-                                              {node.type}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </AccordionTrigger>
-                                      <AccordionContent>
-                                        <div className="space-y-3 pb-2">
-                                          {dataEntries.map(
-                                            ([key, value, propConfig]) => {
-                                              const currentValue =
-                                                getEditedValue(
-                                                  node.id,
-                                                  String(key),
-                                                  value,
-                                                );
-                                              const config =
-                                                propConfig as NodePropertyConfig | null;
-
+                                            const getEditedValue = (
+                                              nodeId: string,
+                                              key: string,
+                                              originalValue: unknown,
+                                            ) => {
                                               return (
-                                                <div
-                                                  key={String(key)}
-                                                  className="space-y-1"
-                                                >
-                                                  <label className="text-xs font-medium text-slate-300 block">
-                                                    {config?.label ??
-                                                      String(key)}
-                                                  </label>
-                                                  {String(key) === "model" ? (
-                                                    <select
-                                                      value={String(
-                                                        currentValue ?? "",
-                                                      )}
-                                                      onChange={(e) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      disabled={isReadOnly}
-                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                                    >
-                                                      <option value="">
-                                                        Select {config?.label}
-                                                      </option>
-                                                      {models
-                                                        .filter(
-                                                          (model) =>
-                                                            model.category ===
-                                                            config?.params
-                                                              ?.filter,
-                                                        )
-                                                        .map((model) => (
-                                                          <option
-                                                            key={model.name}
-                                                            value={
-                                                              model.display_name ??
-                                                              model.name
-                                                            }
-                                                          >
-                                                            {model.display_name ??
-                                                              model.name}
-                                                          </option>
-                                                        ))}
-                                                    </select>
-                                                  ) : config?.type ===
-                                                    "select" ? (
-                                                    <select
-                                                      value={String(
-                                                        currentValue ?? "",
-                                                      )}
-                                                      onChange={(e) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      disabled={isReadOnly}
-                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                                    >
-                                                      {config.options?.map(
-                                                        (option) => (
-                                                          <option
-                                                            key={option}
-                                                            value={option}
-                                                          >
-                                                            {option}
-                                                          </option>
-                                                        ),
-                                                      )}
-                                                    </select>
-                                                  ) : config?.type ===
-                                                    "boolean" ? (
-                                                    <div className="flex items-center gap-2">
-                                                      <Checkbox
-                                                        checked={
-                                                          currentValue ===
-                                                            true ||
-                                                          currentValue ===
-                                                            "true"
-                                                        }
-                                                        onCheckedChange={(
-                                                          checked,
-                                                        ) =>
-                                                          handleValueChange(
+                                                nodeDataEdits[nodeId]?.[key] ??
+                                                originalValue
+                                              );
+                                            };
+
+                                            const handleValueChange = (
+                                              nodeId: string,
+                                              key: string,
+                                              value: unknown,
+                                            ) => {
+                                              setNodeDataEdits((prev) => ({
+                                                ...prev,
+                                                [nodeId]: {
+                                                  ...prev[nodeId],
+                                                  [key]: value,
+                                                },
+                                              }));
+                                            };
+
+                                            if (dataEntries.length === 0) {
+                                              return null;
+                                            }
+
+                                            return (
+                                              <AccordionItem
+                                                key={node.id}
+                                                value={node.id}
+                                                className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                                              >
+                                                <AccordionTrigger className="hover:no-underline py-2">
+                                                  <div className="flex flex-col items-start">
+                                                    {nodeTag ? (
+                                                      <>
+                                                        <span className="font-medium text-white">
+                                                          {nodeTag}
+                                                        </span>
+                                                        <span className="text-xs text-slate-400 font-light">
+                                                          {node.type}
+                                                        </span>
+                                                      </>
+                                                    ) : (
+                                                      <span className="font-medium text-white">
+                                                        {node.type}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                  <div className="space-y-3 pb-2">
+                                                    {dataEntries.map(
+                                                      ([
+                                                        key,
+                                                        value,
+                                                        propConfig,
+                                                      ]) => {
+                                                        const currentValue =
+                                                          getEditedValue(
                                                             node.id,
                                                             String(key),
-                                                            checked,
-                                                          )
-                                                        }
-                                                        disabled={isReadOnly}
-                                                        className={
-                                                          colors.checkbox
-                                                        }
-                                                      />
-                                                      <span className="text-xs text-slate-400">
-                                                        {config.description}
-                                                      </span>
-                                                    </div>
-                                                  ) : config?.type ===
-                                                    "textarea" ? (
-                                                    <textarea
-                                                      value={String(
-                                                        currentValue ?? "",
-                                                      )}
-                                                      onChange={(e) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      disabled={isReadOnly}
-                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                                      placeholder={
-                                                        config.description
-                                                      }
-                                                    />
-                                                  ) : config?.type ===
-                                                    "number" ? (
-                                                    <input
-                                                      type="number"
-                                                      value={String(
-                                                        currentValue ?? "",
-                                                      )}
-                                                      onChange={(e) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          parseFloat(
-                                                            e.target.value,
-                                                          ),
-                                                        )
-                                                      }
-                                                      disabled={isReadOnly}
-                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                                      placeholder={
-                                                        config.description
-                                                      }
-                                                    />
-                                                  ) : (
-                                                    <input
-                                                      type="text"
-                                                      value={String(
-                                                        currentValue ?? "",
-                                                      )}
-                                                      onChange={(e) =>
-                                                        handleValueChange(
-                                                          node.id,
-                                                          String(key),
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      disabled={isReadOnly}
-                                                      className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                                      placeholder={
-                                                        config?.description ??
-                                                        "Enter value"
-                                                      }
-                                                    />
-                                                  )}
-                                                </div>
-                                              );
-                                            },
-                                          )}
-                                        </div>
-                                      </AccordionContent>
-                                    </AccordionItem>
-                                  );
-                                })}
-                              </Accordion>
-                            </div>
+                                                            value,
+                                                          );
+                                                        const config =
+                                                          propConfig as NodePropertyConfig | null;
 
-                            {/* Run Configuration Section */}
-                            <div className="mt-4 border-t border-slate-400/30 pt-4 sticky bottom-0">
-                              <p
-                                className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.testTitle}`}
-                              >
-                                Run Configuration
-                              </p>
-                              <div className="w-full">
-                                <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setActiveTest("performance-test")
-                                    }
-                                    disabled={isReadOnly}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                                      activeTest === "performance-test"
-                                        ? "bg-blue-600 text-white"
-                                        : "text-slate-300 hover:text-white"
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                  >
-                                    Performance Test
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setActiveTest("density-test")
-                                    }
-                                    disabled={isReadOnly}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                                      activeTest === "density-test"
-                                        ? "bg-blue-600 text-white"
-                                        : "text-slate-300 hover:text-white"
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                  >
-                                    Density Test
-                                  </button>
-                                </div>
-
-                                {activeTest === "performance-test" ? (
-                                  <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
-                                    <div className="space-y-3">
-                                      {/* Streams per pipeline */}
-                                      <div className="space-y-2">
-                                        {pipelineSelections.map((selection) => {
-                                          const pipeline = pipelines.find(
-                                            (p) =>
-                                              p.id === selection.pipelineId,
-                                          );
-
-                                          return (
-                                            <div
-                                              key={selection.pipelineId}
-                                              className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
-                                            >
-                                              <div className="flex items-center justify-between gap-2 mb-2">
-                                                <span className="text-xs text-slate-300 font-semibold">
-                                                  {pipeline?.name
-                                                    ? getBasePipelineName(
-                                                        pipeline.name,
-                                                      )
-                                                    : "Pipeline"}
-                                                </span>
-                                                <span className="text-[10px] text-slate-500">
-                                                  Streams
-                                                </span>
-                                              </div>
-                                              <StreamsSlider
-                                                value={
-                                                  performanceStreams[
-                                                    selection.pipelineId
-                                                  ] ?? 8
-                                                }
-                                                onChange={(val) =>
-                                                  handlePerformanceStreamsChange(
-                                                    selection.pipelineId,
-                                                    val,
-                                                  )
-                                                }
-                                                min={1}
-                                                max={64}
-                                                disabled={isReadOnly}
-                                              />
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-
-                                      {/* Live Preview + Save Output */}
-                                      <div className="flex flex-wrap items-start gap-3">
-                                        <div className="space-y-1 min-h-[72px]">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={
-                                                performanceLivePreviewEnabled
-                                              }
-                                              onCheckedChange={(checked) =>
-                                                setPerformanceLivePreviewEnabled(
-                                                  checked === true,
-                                                )
-                                              }
-                                              disabled={isReadOnly}
-                                              className={colors.checkbox}
-                                            />
-                                            <label className="text-xs text-slate-300">
-                                              Enable live preview
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={
-                                                performanceVideoOutputEnabled
-                                              }
-                                              onCheckedChange={(checked) =>
-                                                setPerformanceVideoOutputEnabled(
-                                                  checked === true,
-                                                )
-                                              }
-                                              disabled={isReadOnly}
-                                              className={colors.checkbox}
-                                            />
-                                            <label className="text-xs text-slate-300">
-                                              Save output
-                                            </label>
-                                          </div>
-                                          {performanceVideoOutputEnabled && (
-                                            <div className="mt-2">
-                                              <SaveOutputWarning />
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
+                                                        return (
+                                                          <div
+                                                            key={String(key)}
+                                                            className="space-y-1"
+                                                          >
+                                                            <label className="text-xs font-medium text-slate-300 block">
+                                                              {config?.label ??
+                                                                String(key)}
+                                                            </label>
+                                                            {String(key) ===
+                                                            "model" ? (
+                                                              <select
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                              >
+                                                                <option value="">
+                                                                  Select{" "}
+                                                                  {
+                                                                    config?.label
+                                                                  }
+                                                                </option>
+                                                                {models
+                                                                  .filter(
+                                                                    (model) =>
+                                                                      model.category ===
+                                                                      config
+                                                                        ?.params
+                                                                        ?.filter,
+                                                                  )
+                                                                  .map(
+                                                                    (model) => (
+                                                                      <option
+                                                                        key={
+                                                                          model.name
+                                                                        }
+                                                                        value={
+                                                                          model.display_name ??
+                                                                          model.name
+                                                                        }
+                                                                      >
+                                                                        {model.display_name ??
+                                                                          model.name}
+                                                                      </option>
+                                                                    ),
+                                                                  )}
+                                                              </select>
+                                                            ) : config?.type ===
+                                                              "select" ? (
+                                                              <select
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                              >
+                                                                {config.options?.map(
+                                                                  (option) => (
+                                                                    <option
+                                                                      key={
+                                                                        option
+                                                                      }
+                                                                      value={
+                                                                        option
+                                                                      }
+                                                                    >
+                                                                      {option}
+                                                                    </option>
+                                                                  ),
+                                                                )}
+                                                              </select>
+                                                            ) : config?.type ===
+                                                              "boolean" ? (
+                                                              <div className="flex items-center gap-2">
+                                                                <Checkbox
+                                                                  checked={
+                                                                    currentValue ===
+                                                                      true ||
+                                                                    currentValue ===
+                                                                      "true"
+                                                                  }
+                                                                  onCheckedChange={(
+                                                                    checked,
+                                                                  ) =>
+                                                                    handleValueChange(
+                                                                      node.id,
+                                                                      String(
+                                                                        key,
+                                                                      ),
+                                                                      checked,
+                                                                    )
+                                                                  }
+                                                                  disabled={
+                                                                    isReadOnly
+                                                                  }
+                                                                  className={
+                                                                    colors.checkbox
+                                                                  }
+                                                                />
+                                                                <span className="text-xs text-slate-400">
+                                                                  {
+                                                                    config.description
+                                                                  }
+                                                                </span>
+                                                              </div>
+                                                            ) : config?.type ===
+                                                              "textarea" ? (
+                                                              <textarea
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                placeholder={
+                                                                  config.description
+                                                                }
+                                                              />
+                                                            ) : config?.type ===
+                                                              "number" ? (
+                                                              <input
+                                                                type="number"
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    parseFloat(
+                                                                      e.target
+                                                                        .value,
+                                                                    ),
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                placeholder={
+                                                                  config.description
+                                                                }
+                                                              />
+                                                            ) : (
+                                                              <input
+                                                                type="text"
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                placeholder={
+                                                                  config?.description ??
+                                                                  "Enter value"
+                                                                }
+                                                              />
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      },
+                                                    )}
+                                                  </div>
+                                                </AccordionContent>
+                                              </AccordionItem>
+                                            );
+                                          },
+                                        )}
+                                      </Accordion>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
-                                    <div className="space-y-3">
-                                      {/* Participation rate per pipeline */}
-                                      <div className="space-y-2">
-                                        {pipelineSelections.map((selection) => {
-                                          const pipeline = pipelines.find(
-                                            (p) =>
-                                              p.id === selection.pipelineId,
-                                          );
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              <div className="flex-1 flex items-center justify-center text-slate-400">
+                                <p className="text-sm">
+                                  Select a pipeline to configure
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
 
-                                          return (
-                                            <div
-                                              key={selection.pipelineId}
-                                              className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
-                                            >
-                                              <div className="flex items-center justify-between gap-2 mb-2">
-                                                <span className="text-xs text-slate-300 font-semibold">
-                                                  {pipeline?.name
-                                                    ? getBasePipelineName(
-                                                        pipeline.name,
-                                                      )
-                                                    : "Pipeline"}
-                                                </span>
-                                                <span className="text-[10px] text-slate-500">
-                                                  Participation rate
-                                                </span>
-                                              </div>
-                                              <ParticipationSlider
-                                                value={selection.stream_rate}
-                                                onChange={(val) =>
-                                                  handleStreamRateChange(
-                                                    selection.pipelineId,
-                                                    val,
-                                                  )
-                                                }
-                                                min={0}
-                                                max={100}
-                                                disabled={isReadOnly}
-                                              />
+                    <AccordionItem
+                      value="run-config"
+                      className="border border-slate-400/30 rounded-lg bg-slate-950/60"
+                    >
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                        <span
+                          className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
+                        >
+                          Run Configuration
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-3 pb-3 max-h-[40vh] flex flex-col">
+                        <div
+                          className="flex-1 min-h-0 overflow-y-auto scroll-smooth"
+                          onWheel={handleFastScroll}
+                        >
+                          <div className="pr-1 pb-3">
+                            <div className="w-full">
+                              <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActiveTest("performance-test")
+                                  }
+                                  disabled={isReadOnly}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                    activeTest === "performance-test"
+                                      ? "bg-blue-600 text-white"
+                                      : "text-slate-300 hover:text-white"
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                  Performance Test
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTest("density-test")}
+                                  disabled={isReadOnly}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                    activeTest === "density-test"
+                                      ? "bg-blue-600 text-white"
+                                      : "text-slate-300 hover:text-white"
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                  Density Test
+                                </button>
+                              </div>
+
+                              {activeTest === "performance-test" ? (
+                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                  <div className="space-y-3">
+                                    {/* Streams per pipeline */}
+                                    <div className="space-y-2">
+                                      {pipelineSelections.map((selection) => {
+                                        const pipeline = pipelines.find(
+                                          (p) => p.id === selection.pipelineId,
+                                        );
+
+                                        return (
+                                          <div
+                                            key={selection.pipelineId}
+                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                          >
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                              <span className="text-xs text-slate-300 font-semibold">
+                                                {pipeline?.name
+                                                  ? getBasePipelineName(
+                                                      pipeline.name,
+                                                    )
+                                                  : "Pipeline"}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">
+                                                Streams
+                                              </span>
                                             </div>
-                                          );
-                                        })}
-                                      </div>
+                                            <StreamsSlider
+                                              value={
+                                                performanceStreams[
+                                                  selection.pipelineId
+                                                ] ?? 8
+                                              }
+                                              onChange={(val) =>
+                                                handlePerformanceStreamsChange(
+                                                  selection.pipelineId,
+                                                  val,
+                                                )
+                                              }
+                                              min={1}
+                                              max={64}
+                                              disabled={isReadOnly}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
 
-                                      {/* FPS Floor + Video Output */}
-                                      <div className="flex flex-wrap items-start gap-3">
-                                        <div className="space-y-1 min-h-[72px]">
-                                          <label className="text-xs font-medium text-slate-300 block">
-                                            Target FPS
-                                          </label>
-                                          <input
-                                            type="number"
-                                            value={fpsFloor}
-                                            onChange={(e) =>
-                                              setFpsFloor(
-                                                parseFloat(e.target.value) || 0,
+                                    {/* Live Preview + Save Output */}
+                                    <div className="flex flex-wrap items-start gap-3">
+                                      <div className="space-y-1 min-h-[72px]">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceLivePreviewEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setPerformanceLivePreviewEnabled(
+                                                checked === true,
                                               )
                                             }
                                             disabled={isReadOnly}
-                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                            placeholder="Minimum FPS threshold"
-                                            min={0}
+                                            className={colors.checkbox}
                                           />
+                                          <label className="text-xs text-slate-300">
+                                            Enable live preview
+                                          </label>
                                         </div>
+                                      </div>
 
-                                        <div className="space-y-1">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={videoOutputEnabled}
-                                              onCheckedChange={(checked) =>
-                                                setVideoOutputEnabled(!!checked)
-                                              }
-                                              disabled={isReadOnly}
-                                              className={colors.checkbox}
-                                            />
-                                            <label className="text-xs text-slate-300">
-                                              Save output
-                                            </label>
-                                          </div>
-                                          {videoOutputEnabled && (
-                                            <div className="mt-2">
-                                              <SaveOutputWarning />
-                                            </div>
-                                          )}
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceVideoOutputEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setPerformanceVideoOutputEnabled(
+                                                checked === true,
+                                              )
+                                            }
+                                            disabled={isReadOnly}
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs text-slate-300">
+                                            Save output
+                                          </label>
                                         </div>
+                                        {performanceVideoOutputEnabled && (
+                                          <div className="mt-2">
+                                            <SaveOutputWarning />
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
-                                )}
+                                </div>
+                              ) : (
+                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                  <div className="space-y-3">
+                                    {/* Participation rate per pipeline */}
+                                    <div className="space-y-2">
+                                      {pipelineSelections.map((selection) => {
+                                        const pipeline = pipelines.find(
+                                          (p) => p.id === selection.pipelineId,
+                                        );
 
-                                {/* Run Button */}
-                                <button
-                                  onClick={handleRunTest}
-                                  disabled={isRunDisabled}
-                                  className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-3 ${colors.runButton}`}
-                                >
-                                  <div
-                                    className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${colors.runButtonOverlay}`}
-                                  ></div>
-                                  <span className="relative">
-                                    {isRunDisabled ? "Running..." : "Run Test"}
-                                  </span>
-                                </button>
-                              </div>
+                                        return (
+                                          <div
+                                            key={selection.pipelineId}
+                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                          >
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                              <span className="text-xs text-slate-300 font-semibold">
+                                                {pipeline?.name
+                                                  ? getBasePipelineName(
+                                                      pipeline.name,
+                                                    )
+                                                  : "Pipeline"}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">
+                                                Participation rate
+                                              </span>
+                                            </div>
+                                            <ParticipationSlider
+                                              value={selection.stream_rate}
+                                              onChange={(val) =>
+                                                handleStreamRateChange(
+                                                  selection.pipelineId,
+                                                  val,
+                                                )
+                                              }
+                                              min={0}
+                                              max={100}
+                                              disabled={isReadOnly}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* FPS Floor + Video Output */}
+                                    <div className="flex flex-wrap items-start gap-3">
+                                      <div className="space-y-1 min-h-[72px]">
+                                        <label className="text-xs font-medium text-slate-300 block">
+                                          Target FPS
+                                        </label>
+                                        <input
+                                          type="number"
+                                          value={fpsFloor}
+                                          onChange={(e) =>
+                                            setFpsFloor(
+                                              parseFloat(e.target.value) || 0,
+                                            )
+                                          }
+                                          disabled={isReadOnly}
+                                          className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                          placeholder="Minimum FPS threshold"
+                                          min={0}
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={videoOutputEnabled}
+                                            onCheckedChange={(checked) =>
+                                              setVideoOutputEnabled(!!checked)
+                                            }
+                                            disabled={isReadOnly}
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs text-slate-300">
+                                            Save output
+                                          </label>
+                                        </div>
+                                        {videoOutputEnabled && (
+                                          <div className="mt-2">
+                                            <SaveOutputWarning />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-slate-400">
-                        <p className="text-sm">
-                          Select a pipeline to configure
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                          </div>
+                        </div>
+
+                        {/* Run Button */}
+                        <div className="sticky bottom-0 pt-3 pb-2 bg-transparent">
+                          <button
+                            onClick={handleRunTest}
+                            disabled={isRunDisabled}
+                            className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed ${colors.runButton}`}
+                          >
+                            <div
+                              className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-100 ${colors.runButtonOverlay}`}
+                            ></div>
+                            <span className="relative">
+                              {isRunDisabled ? "Running..." : "Run Test"}
+                            </span>
+                          </button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               );
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out]`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
@@ -1552,9 +1698,9 @@ const DemoMode = () => {
                                     Total FPS
                                   </p>
                                   <p
-                                    className={`text-xl font-bold ${colors.summaryStreamsValueText}`}
+                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
                                   >
-                                    {performanceResult.total_fps?.toFixed(2) ??
+                                    {performanceSummary?.total?.toFixed(2) ??
                                       "N/A"}
                                   </p>
                                 </div>
@@ -1574,7 +1720,7 @@ const DemoMode = () => {
                                   <p
                                     className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
                                   >
-                                    {performanceResult.per_stream_fps?.toFixed(
+                                    {performanceSummary?.perStream?.toFixed(
                                       2,
                                     ) ?? "N/A"}
                                   </p>
@@ -1849,16 +1995,25 @@ const DemoMode = () => {
 
               if (showPreRunLayout) {
                 return (
-                  <div className="grid grid-cols-[minmax(240px,320px)_1fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
-                    {pipelineCardsSection}
-                    {pipelineConfigSection}
+                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
+                    <div className="row-start-1 col-start-1">
+                      {pipelineCardsSection}
+                    </div>
+                    <div className="row-start-2 col-start-1 h-full min-h-0">
+                      <div className="h-full min-h-0">
+                        {pipelineConfigSection}
+                      </div>
+                    </div>
+                    <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
+                      {resultsSection}
+                    </div>
                   </div>
                 );
               }
 
               if (showPreviewPanel) {
                 return (
-                  <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
                     {pipelineCardsSection}
                     {previewSection}
                     {pipelineConfigSection}
@@ -1868,7 +2023,7 @@ const DemoMode = () => {
               }
 
               return (
-                <div className="grid grid-cols-2 grid-rows-[0.6fr_1.4fr] gap-4 h-full p-4 animate-[fadeIn_0.6s_ease-out]">
+                <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
                   <div className="row-start-1 col-start-1">
                     {pipelineCardsSection}
                   </div>

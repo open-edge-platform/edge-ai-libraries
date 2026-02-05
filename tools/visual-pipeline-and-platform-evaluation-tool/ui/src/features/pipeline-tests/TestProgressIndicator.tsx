@@ -73,6 +73,21 @@ export const TestProgressIndicator = ({
     value: point.fps ?? 0,
   }));
 
+  const delayedFpsAverage = useMemo(() => {
+    if (history.length === 0) return metrics.fps;
+    const latestTimestamp = history[history.length - 1]?.timestamp ?? Date.now();
+    const cutoffTimestamp = latestTimestamp - 7000;
+    const values = history
+      .filter((point) => point.timestamp <= cutoffTimestamp)
+      .map((point) => point.fps ?? 0);
+
+    if (values.length === 0) {
+      const allValues = history.map((point) => point.fps ?? 0);
+      return allValues.reduce((sum, value) => sum + value, 0) / allValues.length;
+    }
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [history, metrics.fps]);
+
   const cpuData = history.map((point) => ({
     timestamp: point.timestamp,
     user: point.cpuUser ?? 0,
@@ -182,7 +197,7 @@ export const TestProgressIndicator = ({
         <div className="space-y-4">
           <MetricCard
             title={isSummary ? "Frame Rate Average" : "Frame Rate"}
-            value={metrics.fps}
+            value={isSummary ? delayedFpsAverage : metrics.fps}
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
           />
