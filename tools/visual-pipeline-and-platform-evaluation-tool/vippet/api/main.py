@@ -9,6 +9,7 @@ from api.api_schemas import AppStatus
 from api.middleware import InitializationMiddleware
 from api.routes import health, metrics
 from managers.app_state_manager import AppStateManager
+from managers.pipeline_manager import PipelineManager
 from videos import VideosManager
 
 # Configure logging
@@ -50,7 +51,10 @@ def _initialize_in_background(app: FastAPI) -> None:
         # extracts metadata, and converts to TS format
         VideosManager()
 
-        # Register remaining routers after VideosManager is ready
+        # Initialize PipelineManager - loads predefined pipelines
+        PipelineManager()
+
+        # Register remaining routers after VideosManager and PipelineManager are initialized
         register_routers(app)
 
         app_state_manager.set_status(AppStatus.READY)

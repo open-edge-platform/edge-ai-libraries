@@ -1,10 +1,12 @@
+import base64
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -198,3 +200,104 @@ def is_yolov10_model(model_path: str) -> bool:
         bool: True if the model is a YOLO v10 model, False otherwise.
     """
     return "yolov10" in model_path.lower()
+
+
+def get_current_timestamp() -> str:
+    """
+    Get current UTC timestamp in ISO 8601 format with milliseconds.
+
+    Returns:
+        str: Timestamp string like '2026-02-05T14:30:45.123Z'
+
+    Example:
+        >>> timestamp = get_current_timestamp()
+        >>> # Returns something like '2024-01-15T10:30:45.123Z'
+    """
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+
+
+def load_thumbnail_as_base64(
+    thumbnail_path: str, pipeline_name: str, base_path: Optional[str] = None
+) -> Optional[str]:
+    """
+    Load image file and convert to base64 data URI string.
+
+    Validates that the file exists and is a valid image (PNG, JPEG, or GIF)
+    by checking file signatures. If validation fails, logs a warning and
+    returns None.
+
+    Args:
+        thumbnail_path: Path to the thumbnail image file. Can be absolute or
+            relative. If relative and base_path is provided, the path is
+            resolved relative to base_path.
+        pipeline_name: Pipeline name for logging purposes.
+        base_path: Optional base directory for resolving relative thumbnail paths.
+            Typically the directory containing pipeline configuration files.
+
+    Returns:
+        Data URI string in format "data:{mime_type};base64,{base64_data}" if file
+        is valid image, None otherwise.
+
+    Example:
+        >>> result = load_thumbnail_as_base64("/path/to/image.png", "my-pipeline")
+        >>> if result:
+        ...     print(result)  # "data:image/png;base64,iVBORw0KGgo..."
+
+        >>> # With relative path and base_path
+        >>> result = load_thumbnail_as_base64(
+        ...     "thumbnails/image.png",
+        ...     "my-pipeline",
+        ...     base_path="/app/pipelines"
+        ... )
+    """
+    if not thumbnail_path:
+        logger.warning("No thumbnail path specified for pipeline '%s'", pipeline_name)
+        return None
+
+    # Resolve relative path if base_path is provided
+    resolved_path = thumbnail_path
+    if base_path and not os.path.isabs(thumbnail_path):
+        resolved_path = os.path.join(base_path, thumbnail_path)
+
+    if not os.path.exists(resolved_path):
+        logger.warning(
+            "Thumbnail file not found for pipeline '%s': %s",
+            pipeline_name,
+            resolved_path,
+        )
+        return None
+
+    try:
+        with open(resolved_path, "rb") as f:
+            image_data = f.read()
+
+        # Detect image format and get MIME type
+        # PNG: 89 50 4E 47, JPEG: FF D8 FF, GIF: 47 49 46
+        mime_type: Optional[str] = None
+        if image_data[:4] == b"\x89PNG":
+            mime_type = "image/png"
+        elif image_data[:3] == b"\xff\xd8\xff":
+            mime_type = "image/jpeg"
+        elif image_data[:3] == b"GIF":
+            mime_type = "image/gif"
+
+        if mime_type is None:
+            logger.warning(
+                "Invalid image format for pipeline '%s' thumbnail: %s",
+                pipeline_name,
+                resolved_path,
+            )
+            return None
+
+        base64_data = base64.b64encode(image_data).decode("utf-8")
+        return f"data:{mime_type};base64,{base64_data}"
+
+    except Exception as e:
+        logger.warning(
+            "Failed to load thumbnail for pipeline '%s' from %s: %s",
+            pipeline_name,
+            resolved_path,
+            str(e),
+        )
+        return None

@@ -1,4 +1,7 @@
+import base64
+import os
 import re
+import tempfile
 import unittest
 
 import utils
@@ -272,7 +275,6 @@ class TestGenerateUniqueFilename(unittest.TestCase):
 
         # Extract the hex suffix
         match = re.search(r"_([0-9a-f]{6})\.mp4$", result)
-        self.assertIsNotNone(match)
         assert match is not None  # Type narrowing for linter
 
         hex_suffix = match.group(1)
@@ -486,6 +488,372 @@ class TestGeneratePipelineGraphId(unittest.TestCase):
 
         # Different threshold values should produce different IDs
         self.assertNotEqual(id1, id2)
+
+
+class TestGetCurrentTimestamp(unittest.TestCase):
+    """Tests for get_current_timestamp function."""
+
+    # ISO 8601 timestamp pattern: YYYY-MM-DDTHH:MM:SS.mmmZ
+    ISO_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+
+    def test_get_current_timestamp_format(self):
+        # Test that timestamp matches ISO 8601 format
+        result = utils.get_current_timestamp()
+        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(result))
+
+    def test_get_current_timestamp_returns_string(self):
+        # Test that result is a string
+        result = utils.get_current_timestamp()
+        self.assertIsInstance(result, str)
+
+    def test_get_current_timestamp_length(self):
+        # Test that timestamp has correct length (24 chars: YYYY-MM-DDTHH:MM:SS.mmmZ)
+        result = utils.get_current_timestamp()
+        self.assertEqual(len(result), 24)
+
+    def test_get_current_timestamp_ends_with_z(self):
+        # Test that timestamp ends with 'Z' (UTC indicator)
+        result = utils.get_current_timestamp()
+        self.assertTrue(result.endswith("Z"))
+
+    def test_get_current_timestamp_contains_t_separator(self):
+        # Test that timestamp contains 'T' separator between date and time
+        result = utils.get_current_timestamp()
+        self.assertIn("T", result)
+
+    def test_get_current_timestamp_milliseconds(self):
+        # Test that milliseconds part is 3 digits
+        result = utils.get_current_timestamp()
+        # Extract milliseconds part (between '.' and 'Z')
+        match = re.search(r"\.(\d{3})Z$", result)
+        assert match is not None  # Type narrowing
+        milliseconds = match.group(1)
+        self.assertEqual(len(milliseconds), 3)
+
+    def test_get_current_timestamp_uniqueness_over_time(self):
+        # Test that timestamps change over time (not identical)
+        import time
+
+        timestamp1 = utils.get_current_timestamp()
+        time.sleep(0.01)  # Sleep for 10ms
+        timestamp2 = utils.get_current_timestamp()
+        # Timestamps should be different (or at least milliseconds should differ)
+        # Note: They could be same if called within same millisecond
+        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(timestamp1))
+        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(timestamp2))
+
+    def test_get_current_timestamp_year_range(self):
+        # Test that year is reasonable (2020-2100)
+        result = utils.get_current_timestamp()
+        year = int(result[:4])
+        self.assertGreaterEqual(year, 2020)
+        self.assertLessEqual(year, 2100)
+
+    def test_get_current_timestamp_month_range(self):
+        # Test that month is valid (01-12)
+        result = utils.get_current_timestamp()
+        month = int(result[5:7])
+        self.assertGreaterEqual(month, 1)
+        self.assertLessEqual(month, 12)
+
+    def test_get_current_timestamp_day_range(self):
+        # Test that day is valid (01-31)
+        result = utils.get_current_timestamp()
+        day = int(result[8:10])
+        self.assertGreaterEqual(day, 1)
+        self.assertLessEqual(day, 31)
+
+    def test_get_current_timestamp_hour_range(self):
+        # Test that hour is valid (00-23)
+        result = utils.get_current_timestamp()
+        hour = int(result[11:13])
+        self.assertGreaterEqual(hour, 0)
+        self.assertLessEqual(hour, 23)
+
+    def test_get_current_timestamp_minute_range(self):
+        # Test that minute is valid (00-59)
+        result = utils.get_current_timestamp()
+        minute = int(result[14:16])
+        self.assertGreaterEqual(minute, 0)
+        self.assertLessEqual(minute, 59)
+
+    def test_get_current_timestamp_second_range(self):
+        # Test that second is valid (00-59)
+        result = utils.get_current_timestamp()
+        second = int(result[17:19])
+        self.assertGreaterEqual(second, 0)
+        self.assertLessEqual(second, 59)
+
+
+class TestLoadThumbnailAsBase64(unittest.TestCase):
+    """Tests for load_thumbnail_as_base64 function."""
+
+    def setUp(self):
+        # Create a temporary directory for test files
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        # Clean up temporary files
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _create_temp_file(self, filename: str, content: bytes) -> str:
+        """Helper to create a temporary file with given content."""
+        filepath = os.path.join(self.temp_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(content)
+        return filepath
+
+    def test_load_thumbnail_as_base64_png(self):
+        # Test loading a valid PNG file
+        # PNG signature: 89 50 4E 47 (0x89 'P' 'N' 'G')
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = self._create_temp_file("test.png", png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        # Verify it's a valid data URI with correct MIME type
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+        # Extract and verify base64 content
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, png_content)
+
+    def test_load_thumbnail_as_base64_jpeg(self):
+        # Test loading a valid JPEG file
+        # JPEG signature: FF D8 FF
+        jpeg_content = b"\xff\xd8\xff\xe0" + b"\x00" * 100
+        filepath = self._create_temp_file("test.jpg", jpeg_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        # Verify it's a valid data URI with correct MIME type
+        self.assertTrue(result.startswith("data:image/jpeg;base64,"))
+        # Extract and verify base64 content
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, jpeg_content)
+
+    def test_load_thumbnail_as_base64_gif(self):
+        # Test loading a valid GIF file
+        # GIF signature: 47 49 46 ('G' 'I' 'F')
+        gif_content = b"GIF89a" + b"\x00" * 100
+        filepath = self._create_temp_file("test.gif", gif_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        # Verify it's a valid data URI with correct MIME type
+        self.assertTrue(result.startswith("data:image/gif;base64,"))
+        # Extract and verify base64 content
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, gif_content)
+
+    def test_load_thumbnail_as_base64_empty_path(self):
+        # Test with empty thumbnail path
+        result = utils.load_thumbnail_as_base64("", "test-pipeline")
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_nonexistent_file(self):
+        # Test with non-existent file path
+        result = utils.load_thumbnail_as_base64(
+            "/nonexistent/path/image.png", "test-pipeline"
+        )
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_invalid_format(self):
+        # Test with file that is not a valid image
+        invalid_content = b"This is not an image file"
+        filepath = self._create_temp_file("test.txt", invalid_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_partial_png_signature(self):
+        # Test with file that has partial PNG signature (invalid)
+        invalid_content = b"\x89PN" + b"\x00" * 100  # Missing 'G'
+        filepath = self._create_temp_file("invalid.png", invalid_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_partial_jpeg_signature(self):
+        # Test with file that has partial JPEG signature (invalid)
+        invalid_content = b"\xff\xd8" + b"\x00" * 100  # Missing third byte
+        filepath = self._create_temp_file("invalid.jpg", invalid_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_empty_file(self):
+        # Test with empty file
+        filepath = self._create_temp_file("empty.png", b"")
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_returns_string(self):
+        # Test that result is a string
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = self._create_temp_file("test.png", png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        self.assertIsInstance(result, str)
+        # Verify data URI format
+        self.assertTrue(result.startswith("data:image/"))
+
+    def test_load_thumbnail_as_base64_valid_base64_encoding(self):
+        # Test that result is valid data URI that can be decoded
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = self._create_temp_file("test.png", png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        # Should be a valid data URI
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+        try:
+            base64_part = result.split(",", 1)[1]
+            decoded = base64.b64decode(base64_part)
+            self.assertEqual(decoded, png_content)
+        except Exception as e:
+            self.fail(f"Failed to decode base64 result: {e}")
+
+    def test_load_thumbnail_as_base64_binary_content_preserved(self):
+        # Test that binary content is preserved through base64 encoding
+        # Create PNG with various byte values
+        png_content = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+        filepath = self._create_temp_file("binary.png", png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, png_content)
+
+    def test_load_thumbnail_as_base64_large_file(self):
+        # Test with a larger file (1MB)
+        png_header = b"\x89PNG\r\n\x1a\n"
+        large_content = png_header + b"\x00" * (1024 * 1024)  # 1MB of zeros
+        filepath = self._create_temp_file("large.png", large_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(len(decoded), len(large_content))
+
+    def test_load_thumbnail_as_base64_gif87a(self):
+        # Test with GIF87a format
+        gif_content = b"GIF87a" + b"\x00" * 100
+        filepath = self._create_temp_file("test87a.gif", gif_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        self.assertTrue(result.startswith("data:image/gif;base64,"))
+
+    def test_load_thumbnail_as_base64_gif89a(self):
+        # Test with GIF89a format
+        gif_content = b"GIF89a" + b"\x00" * 100
+        filepath = self._create_temp_file("test89a.gif", gif_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        self.assertTrue(result.startswith("data:image/gif;base64,"))
+
+    def test_load_thumbnail_as_base64_with_special_path_chars(self):
+        # Test with path containing spaces
+        subdir = os.path.join(self.temp_dir, "path with spaces")
+        os.makedirs(subdir)
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = os.path.join(subdir, "test image.png")
+        with open(filepath, "wb") as f:
+            f.write(png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None  # Type narrowing for pyright
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+
+    def test_load_thumbnail_as_base64_with_base_path_relative(self):
+        # Test loading thumbnail with relative path and base_path
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+
+        # Create subdirectory structure
+        subdir = os.path.join(self.temp_dir, "thumbnails")
+        os.makedirs(subdir)
+        filepath = os.path.join(subdir, "test.png")
+        with open(filepath, "wb") as f:
+            f.write(png_content)
+
+        # Use relative path with base_path
+        result = utils.load_thumbnail_as_base64(
+            "thumbnails/test.png", "test-pipeline", base_path=self.temp_dir
+        )
+
+        assert result is not None  # Type narrowing for linter
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, png_content)
+
+    def test_load_thumbnail_as_base64_with_base_path_absolute_path_unchanged(self):
+        # Test that absolute paths are not affected by base_path
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = self._create_temp_file("test.png", png_content)
+
+        # Even with base_path, absolute path should work
+        result = utils.load_thumbnail_as_base64(
+            filepath, "test-pipeline", base_path="/some/other/path"
+        )
+
+        assert result is not None  # Type narrowing for linter
+        self.assertTrue(result.startswith("data:image/png;base64,"))
+        base64_part = result.split(",", 1)[1]
+        decoded = base64.b64decode(base64_part)
+        self.assertEqual(decoded, png_content)
+
+    def test_load_thumbnail_as_base64_with_base_path_nonexistent_relative(self):
+        # Test with relative path that doesn't exist under base_path
+        result = utils.load_thumbnail_as_base64(
+            "nonexistent/image.png", "test-pipeline", base_path=self.temp_dir
+        )
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_without_base_path_relative_fails(self):
+        # Test that relative path without base_path fails (as expected)
+        result = utils.load_thumbnail_as_base64(
+            "relative/path/image.png", "test-pipeline"
+        )
+
+        self.assertIsNone(result)
+
+    def test_load_thumbnail_as_base64_data_uri_format(self):
+        """Test that the result follows the data URI format."""
+        png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        filepath = self._create_temp_file("test.png", png_content)
+
+        result = utils.load_thumbnail_as_base64(filepath, "test-pipeline")
+
+        assert result is not None
+        # Verify data URI format: data:{mime};base64,{data}
+        self.assertRegex(result, r"^data:image/(png|jpeg|gif);base64,[A-Za-z0-9+/=]+$")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from managers.optimization_manager import (
     OptimizationManager,
     OptimizationRunner,
 )
+from utils import get_current_timestamp
 
 
 class TestOptimizationManager(unittest.TestCase):
@@ -244,12 +245,15 @@ class TestOptimizationManager(unittest.TestCase):
     def _build_variant(self) -> Variant:
         """Helper that constructs a minimal Variant instance for testing."""
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
+        timestamp = get_current_timestamp()
         return Variant(
             id="variant-test123",
             name="CPU",
             read_only=False,
             pipeline_graph=graph,
             pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
     # ------------------------------------------------------------------
@@ -333,12 +337,15 @@ class TestOptimizationManager(unittest.TestCase):
         mock_graph_cls.from_dict.return_value = mock_graph
 
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
+        timestamp = get_current_timestamp()
         readonly_variant = Variant(
             id="variant-readonly",
             name="GPU",
             read_only=True,
             pipeline_graph=graph,
             pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
         )
         request = PipelineRequestOptimize(
             type=OptimizationType.OPTIMIZE, parameters=None
@@ -1064,12 +1071,15 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
     def _create_variant(self, name: str = "CPU", read_only: bool = False) -> Variant:
         """Helper to create a variant for testing."""
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
+        timestamp = get_current_timestamp()
         return Variant(
             id=f"variant-{name.lower()}",
             name=name,
             read_only=read_only,
             pipeline_graph=graph,
             pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
     @patch("managers.optimization_manager.Graph")

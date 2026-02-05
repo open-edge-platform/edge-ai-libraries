@@ -42,6 +42,13 @@ def create_pipeline(body: schemas.PipelineDefinition):
         * Delegate to PipelineManager.add_pipeline()
         * Return generated pipeline ID
 
+    The backend automatically sets:
+        * Pipeline ID (generated from name)
+        * Pipeline created_at and modified_at timestamps
+        * Variant IDs (generated from variant names)
+        * Variant created_at and modified_at timestamps
+        * Pipeline thumbnail is always None for user-created pipelines
+
     Request body:
         body: PipelineDefinition
             * name – non-empty pipeline name.
@@ -50,6 +57,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
             * tags – list of tags for categorizing the pipeline.
             * variants – list of pipeline variants with their graphs.
                 Note: read_only field in variants will be set to false and cannot be changed.
+                Note: created_at and modified_at in variants are ignored and set by backend.
 
     Returns:
         201 Created:
@@ -266,6 +274,12 @@ def get_pipelines():
     Returns:
         200 OK:
             JSON array of Pipeline objects with all variants.
+            Each pipeline includes:
+            * id, name, description, source, tags
+            * variants (list of Variant objects with graphs and timestamps)
+            * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
+              Note: thumbnail is redacted in logs but returned in full in API response.
+            * created_at, modified_at (ISO 8601 timestamps)
 
     Success conditions:
         * PipelineManager is initialized and has pipelines loaded.
@@ -289,9 +303,14 @@ def get_pipelines():
                     "name": "CPU",
                     "read_only": true,
                     "pipeline_graph": {...},
-                    "pipeline_graph_simple": {...}
+                    "pipeline_graph_simple": {...},
+                    "created_at": "2026-02-05T14:30:45.123Z",
+                    "modified_at": "2026-02-05T14:30:45.123Z"
                   }
-                ]
+                ],
+                "thumbnail": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+                "created_at": "2026-02-05T14:30:45.123Z",
+                "modified_at": "2026-02-05T14:30:45.123Z"
               }
             ]
     """
@@ -313,7 +332,7 @@ def get_pipeline(pipeline_id: str):
 
     Operation:
         Retrieve the full pipeline definition including all variants,
-        metadata, and tags.
+        metadata, timestamps, and tags.
 
     Path parameters:
         pipeline_id: Unique identifier of the pipeline (for example
@@ -321,8 +340,12 @@ def get_pipeline(pipeline_id: str):
 
     Returns:
         200 OK:
-            Pipeline object with all variants:
-            - Each variant contains both pipeline_graph and pipeline_graph_simple
+            Pipeline object with all fields:
+            * id, name, description, source, tags
+            * variants (each with pipeline_graph, pipeline_graph_simple, and timestamps)
+            * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
+              Note: thumbnail is redacted in logs but returned in full in API response.
+            * created_at, modified_at (ISO 8601 timestamps, set by backend only)
         404 Not Found:
             MessageResponse if pipeline with given id does not exist.
         500 Internal Server Error:
@@ -351,9 +374,14 @@ def get_pipeline(pipeline_id: str):
                   "name": "CPU",
                   "read_only": false,
                   "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...}
+                  "pipeline_graph_simple": {...},
+                  "created_at": "2026-02-05T14:30:45.123Z",
+                  "modified_at": "2026-02-05T14:30:45.123Z"
                 }
-              ]
+              ],
+              "thumbnail": null,
+              "created_at": "2026-02-05T14:30:45.123Z",
+              "modified_at": "2026-02-05T14:30:45.123Z"
             }
 
     Error response example (404):
@@ -401,6 +429,14 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         * Validate that at least one field is provided
         * Validate field values if provided
         * Delegate to PipelineManager.update_pipeline()
+        * Backend automatically updates modified_at timestamp
+
+    Note: The following fields cannot be updated via API:
+        * id (immutable)
+        * source (immutable)
+        * thumbnail (only set for PREDEFINED pipelines from config files)
+        * created_at (immutable, set when pipeline is created)
+        * modified_at (automatically updated by backend)
 
     Path parameters:
         pipeline_id: ID of the pipeline to update.
@@ -414,7 +450,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
 
     Returns:
         200 OK:
-            Updated Pipeline object with all fields.
+            Updated Pipeline object with all fields including updated modified_at.
         400 Bad Request:
             MessageResponse when:
             * none of the updatable fields is provided,
@@ -452,7 +488,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
               "description": "Updated pipeline with better preprocessing",
               "source": "USER_CREATED",
               "tags": ["updated", "v2"],
-              "variants": [...]
+              "variants": [...],
+              "thumbnail": null,
+              "created_at": "2026-02-05T14:30:45.123Z",
+              "modified_at": "2026-02-05T15:45:00.456Z"
             }
 
     Error response example (400):
@@ -567,6 +606,10 @@ def optimize_variant(
         * Validate that pipeline and variant exist
         * Delegate to OptimizationManager.run_optimization() with variant
         * Return generated job ID
+
+    Note: Optimization works with both read-only (PREDEFINED) and user-created variants.
+    The optimization job uses the variant's pipeline_graph and pipeline_graph_simple
+    as input but does not modify the original variant.
 
     Path parameters:
         pipeline_id: ID of the pipeline containing the variant.
@@ -718,7 +761,8 @@ def delete_pipeline(pipeline_id: str):
         * Pipeline is PREDEFINED → 400
         * Unknown id → 404
 
-    Note: PREDEFINED pipelines cannot be deleted.
+    Note: PREDEFINED pipelines cannot be deleted. They are loaded from
+    configuration files and include thumbnail images.
 
     Successful response example (200):
         .. code-block:: json
@@ -787,10 +831,14 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
     Operation:
         * Validate that pipeline exists
         * Delegate to PipelineManager.add_variant()
-        * Return created variant with generated ID
+        * Return created variant with generated ID and timestamps
 
-    The backend automatically generates the variant ID and sets read_only=false.
-    These fields must not be included in the request.
+    The backend automatically sets:
+        * Variant ID (generated from variant name)
+        * read_only=false (user-created variants are never read-only)
+        * created_at timestamp (current UTC time)
+        * modified_at timestamp (same as created_at initially)
+        * Pipeline's modified_at timestamp is also updated
 
     Path parameters:
         pipeline_id: ID of the pipeline to add variant to.
@@ -803,7 +851,10 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
 
     Returns:
         201 Created:
-            Complete Variant object with generated id and read_only=false.
+            Complete Variant object with:
+            * generated id
+            * read_only=false
+            * created_at and modified_at timestamps
         400 Bad Request:
             MessageResponse when variant definition is invalid.
         404 Not Found:
@@ -840,11 +891,13 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
         .. code-block:: json
 
             {
-              "id": "variant-abc123",
+              "id": "gpu",
               "name": "GPU",
               "read_only": false,
               "pipeline_graph": {...},
-              "pipeline_graph_simple": {...}
+              "pipeline_graph_simple": {...},
+              "created_at": "2026-02-05T14:30:45.123Z",
+              "modified_at": "2026-02-05T14:30:45.123Z"
             }
     """
     try:
@@ -908,14 +961,15 @@ def delete_variant(pipeline_id: str, variant_id: str):
         * Check that variant is not read-only
         * Check that variant is not the last one
         * Delegate to PipelineManager.delete_variant()
+        * Pipeline's modified_at timestamp is updated
 
     Path parameters:
         pipeline_id: ID of the pipeline containing the variant.
         variant_id: ID of the variant to delete.
 
     Cannot delete:
-    * Read-only variants (from PREDEFINED pipelines)
-    * The last remaining variant of a pipeline
+        * Read-only variants (from PREDEFINED pipelines)
+        * The last remaining variant of a pipeline
 
     Returns:
         200 OK:
@@ -930,6 +984,7 @@ def delete_variant(pipeline_id: str, variant_id: str):
         * Variant is not read-only
         * Variant is not the last one
         * Variant is successfully deleted
+        * Pipeline's modified_at is updated
 
     Failure conditions:
         * Pipeline or variant not found → 404
@@ -1002,6 +1057,13 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
         * Check that variant is not read-only
         * Validate request body (checked by VariantUpdate model)
         * Delegate to PipelineManager.update_variant()
+        * Backend automatically updates variant's and pipeline's modified_at timestamps
+
+    Note: The following fields cannot be updated via API:
+        * id (immutable)
+        * read_only (immutable)
+        * created_at (immutable, set when variant is created)
+        * modified_at (automatically updated by backend)
 
     Path parameters:
         pipeline_id: ID of the pipeline containing the variant.
@@ -1014,16 +1076,16 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
             * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)
 
     Allowed fields:
-    * name: Variant name
-    * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)
-    * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)
+        * name: Variant name
+        * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)
+        * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)
 
     Only one of pipeline_graph or pipeline_graph_simple can be provided per request.
-    Cannot update read-only variants.
+    Cannot update read-only variants (from PREDEFINED pipelines).
 
     Returns:
         200 OK:
-            Updated Variant object.
+            Updated Variant object with updated modified_at timestamp.
         400 Bad Request:
             MessageResponse when request is invalid, variant is read-only, or
             both graphs are provided (validated by VariantUpdate model).
@@ -1036,6 +1098,7 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
         * At least one field provided
         * At most one graph field provided
         * Variant is successfully updated
+        * Variant's and pipeline's modified_at are updated
 
     Failure conditions:
         * Pipeline or variant not found → 404
@@ -1068,7 +1131,9 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
               "name": "GPU-optimized",
               "read_only": false,
               "pipeline_graph": {...},
-              "pipeline_graph_simple": {...}
+              "pipeline_graph_simple": {...},
+              "created_at": "2026-02-05T14:30:45.123Z",
+              "modified_at": "2026-02-05T15:45:00.456Z"
             }
 
     Error response example (400, read-only):
