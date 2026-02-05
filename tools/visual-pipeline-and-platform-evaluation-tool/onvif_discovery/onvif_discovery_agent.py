@@ -112,7 +112,14 @@ def _parse_port_from_xaddr(xaddr: Optional[str]) -> Optional[int]:
         return None
     try:
         parsed = urlparse(xaddr)
-        return parsed.port
+        if parsed.port is not None:
+            return parsed.port
+        # Default ports based on scheme when not explicitly specified
+        if parsed.scheme == "http":
+            return 80
+        elif parsed.scheme == "https":
+            return 443
+        return None
     except Exception:
         return None
 
@@ -145,7 +152,7 @@ def _discover_once(listen_seconds: float, verbose: bool) -> list[DiscoveredCamer
                 continue
 
             ip = addr[0]
-            response  = data.decode("utf-8", errors="ignore")
+            response = data.decode("utf-8", errors="ignore")
             xaddrs_raw = _extract_xaddrs(response)
             xaddr = _pick_best_xaddr(xaddrs_raw) if xaddrs_raw else None
             port = _parse_port_from_xaddr(xaddr)
