@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
 
-const Jobs = () => {
+export const Jobs = () => {
   const location = useLocation();
   const currentTab = location.pathname.split("/").pop() || "performance";
 
@@ -49,7 +49,7 @@ const Jobs = () => {
   };
 
   return (
-    <div className="h-full overflow-auto">
+    <>
       <div className="container mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Jobs</h1>
@@ -328,8 +328,6 @@ const Jobs = () => {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
-
-export default Jobs;

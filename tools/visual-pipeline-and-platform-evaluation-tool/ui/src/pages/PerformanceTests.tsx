@@ -24,7 +24,7 @@ interface PipelineSelection {
   isNew?: boolean;
 }
 
-const PerformanceTests = () => {
+export const PerformanceTests = () => {
   const pipelines = useAppSelector(selectPipelines);
   const [runPerformanceTest, { isLoading: isRunning }] =
     useRunPerformanceTestMutation();
@@ -172,7 +172,7 @@ const PerformanceTests = () => {
   }
 
   return (
-    <div className="h-full overflow-auto">
+    <>
       <div className="container mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
@@ -387,8 +387,6 @@ const PerformanceTests = () => {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };
-
-export default PerformanceTests;
