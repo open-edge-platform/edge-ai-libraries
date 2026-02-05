@@ -8,6 +8,11 @@ import api.api_schemas as schemas
 from api.routes.pipelines import router as pipelines_router
 
 
+# Helper to generate ISO 8601 timestamp
+def _get_test_timestamp() -> str:
+    return "2026-02-05T14:30:45.123Z"
+
+
 class TestPipelinesAPI(unittest.TestCase):
     test_graph = """
     {
@@ -49,6 +54,7 @@ class TestPipelinesAPI(unittest.TestCase):
         read_only: bool = False,
     ) -> schemas.Variant:
         """Helper to create a test variant with standard graph."""
+        timestamp = _get_test_timestamp()
         return schemas.Variant(
             id=variant_id,
             name=name,
@@ -57,6 +63,8 @@ class TestPipelinesAPI(unittest.TestCase):
             pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
                 self.test_graph
             ),
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
     def _create_test_pipeline(
@@ -67,12 +75,14 @@ class TestPipelinesAPI(unittest.TestCase):
         source: schemas.PipelineSource = schemas.PipelineSource.USER_CREATED,
         tags: Optional[list] = None,
         variants: Optional[list] = None,
+        thumbnail: Optional[str] = None,
     ) -> schemas.Pipeline:
         """Helper to create a test pipeline with standard structure."""
         if tags is None:
             tags = []
         if variants is None:
             variants = [self._create_test_variant()]
+        timestamp = _get_test_timestamp()
         return schemas.Pipeline(
             id=pipeline_id,
             name=name,
@@ -80,6 +90,9 @@ class TestPipelinesAPI(unittest.TestCase):
             source=source,
             tags=tags,
             variants=variants,
+            thumbnail=thumbnail,
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
     @patch("api.routes.pipelines.PipelineManager")
@@ -120,6 +133,14 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertIn("variants", first_pipeline)
         self.assertEqual(len(first_pipeline["variants"]), 1)
 
+        # Verify timestamps are present
+        self.assertIn("created_at", first_pipeline)
+        self.assertIn("modified_at", first_pipeline)
+
+        # Verify variant timestamps
+        self.assertIn("created_at", first_pipeline["variants"][0])
+        self.assertIn("modified_at", first_pipeline["variants"][0])
+
         # Check the contents of the second pipeline
         second_pipeline = data[1]
         self.assertEqual(second_pipeline["id"], "pipeline-def456")
@@ -154,6 +175,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
+                    "created_at": "2026-02-05T14:30:45.123Z",
+                    "modified_at": "2026-02-05T14:30:45.123Z",
                 }
             ],
         }
@@ -186,6 +209,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
+                    "created_at": "2026-02-05T14:30:45.123Z",
+                    "modified_at": "2026-02-05T14:30:45.123Z",
                 }
             ],
         }
@@ -217,6 +242,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
+                    "created_at": "2026-02-05T14:30:45.123Z",
+                    "modified_at": "2026-02-05T14:30:45.123Z",
                 }
             ],
         }
@@ -250,6 +277,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
+                    "created_at": "2026-02-05T14:30:45.123Z",
+                    "modified_at": "2026-02-05T14:30:45.123Z",
                 }
             ],
         }
@@ -283,6 +312,10 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(data["description"], "A custom test pipeline")
         self.assertIn("variants", data)
         self.assertEqual(len(data["variants"]), 1)
+
+        # Verify timestamps are present
+        self.assertIn("created_at", data)
+        self.assertIn("modified_at", data)
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_get_pipeline_by_id_not_found(self, mock_pipeline_manager_cls):
@@ -870,6 +903,11 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(pipeline["variants"][0]["name"], "CPU")
         self.assertEqual(pipeline["variants"][1]["name"], "GPU")
 
+        # Verify variant timestamps
+        for variant in pipeline["variants"]:
+            self.assertIn("created_at", variant)
+            self.assertIn("modified_at", variant)
+
     @patch("api.routes.pipelines.PipelineManager")
     def test_get_pipeline_by_id_includes_variants(self, mock_pipeline_manager_cls):
         """Test that GET /pipelines/{id} returns pipeline with variants."""
@@ -897,6 +935,116 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(variant["name"], "CPU")
         self.assertIn("pipeline_graph", variant)
         self.assertIn("pipeline_graph_simple", variant)
+
+
+class TestPipelineThumbnailRedaction(unittest.TestCase):
+    """Test that Pipeline.thumbnail is redacted when converting to string."""
+
+    def test_pipeline_thumbnail_redacted_in_repr(self):
+        """Test that thumbnail is not shown in repr() output."""
+        timestamp = _get_test_timestamp()
+        graph = schemas.PipelineGraph(
+            nodes=[schemas.Node(id="0", type="fakesrc", data={})],
+            edges=[],
+        )
+        variant = schemas.Variant(
+            id="variant-1",
+            name="CPU",
+            read_only=False,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        pipeline = schemas.Pipeline(
+            id="test-pipeline",
+            name="Test",
+            description="Test description",
+            source=schemas.PipelineSource.PREDEFINED,
+            tags=[],
+            variants=[variant],
+            thumbnail="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+
+        # Convert to repr string
+        repr_str = repr(pipeline)
+
+        # Thumbnail should NOT appear in repr output (redacted with repr=False)
+        self.assertNotIn("iVBORw0KGgo", repr_str)
+        # But other fields should be present
+        self.assertIn("test-pipeline", repr_str)
+        self.assertIn("Test", repr_str)
+
+    def test_pipeline_thumbnail_present_in_dict(self):
+        """Test that thumbnail IS present when converting to dict/json."""
+        timestamp = _get_test_timestamp()
+        graph = schemas.PipelineGraph(
+            nodes=[schemas.Node(id="0", type="fakesrc", data={})],
+            edges=[],
+        )
+        variant = schemas.Variant(
+            id="variant-1",
+            name="CPU",
+            read_only=False,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        thumbnail_data = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        pipeline = schemas.Pipeline(
+            id="test-pipeline",
+            name="Test",
+            description="Test description",
+            source=schemas.PipelineSource.PREDEFINED,
+            tags=[],
+            variants=[variant],
+            thumbnail=thumbnail_data,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+
+        # Convert to dict (as used by API)
+        pipeline_dict = pipeline.model_dump()
+
+        # Thumbnail should be present in dict output
+        self.assertEqual(pipeline_dict["thumbnail"], thumbnail_data)
+
+    def test_pipeline_thumbnail_null_for_user_created(self):
+        """Test that thumbnail is null for user-created pipelines."""
+        timestamp = _get_test_timestamp()
+        graph = schemas.PipelineGraph(
+            nodes=[schemas.Node(id="0", type="fakesrc", data={})],
+            edges=[],
+        )
+        variant = schemas.Variant(
+            id="variant-1",
+            name="CPU",
+            read_only=False,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        pipeline = schemas.Pipeline(
+            id="test-pipeline",
+            name="Test",
+            description="Test description",
+            source=schemas.PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[variant],
+            thumbnail=None,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+
+        # Convert to dict
+        pipeline_dict = pipeline.model_dump()
+
+        # Thumbnail should be None for user-created pipelines
+        self.assertIsNone(pipeline_dict["thumbnail"])
 
 
 if __name__ == "__main__":

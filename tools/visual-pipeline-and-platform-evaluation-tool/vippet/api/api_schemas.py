@@ -271,6 +271,10 @@ class Variant(BaseModel):
             Can only be set to true for PREDEFINED pipeline variants.
         pipeline_graph: Advanced graph representation for this variant.
         pipeline_graph_simple: Simplified graph representation for this variant.
+        created_at: Creation timestamp in ISO 8601 format (e.g., 2026-02-05T14:30:45.123Z).
+            Set by backend only, not modifiable via API.
+        modified_at: Last modification timestamp in ISO 8601 format.
+            Updated when variant is modified. Set by backend only.
     """
 
     id: str = Field(
@@ -294,6 +298,16 @@ class Variant(BaseModel):
     pipeline_graph_simple: PipelineGraph = Field(
         ...,
         description="Simplified graph view for this variant.",
+    )
+    created_at: str = Field(
+        ...,
+        description="Creation timestamp in ISO 8601 format. Set by backend only.",
+        examples=["2026-02-05T14:30:45.123Z"],
+    )
+    modified_at: str = Field(
+        ...,
+        description="Last modification timestamp in ISO 8601 format. Set by backend only.",
+        examples=["2026-02-05T14:30:45.123Z"],
     )
 
 
@@ -677,6 +691,12 @@ class Pipeline(BaseModel):
         tags: List of tags for categorizing the pipeline.
         variants: List of pipeline variants for different hardware targets.
             Each variant has its own pipeline_graph and pipeline_graph_simple.
+        thumbnail: Base64-encoded image for pipeline preview. Only available for
+            PREDEFINED pipelines with valid thumbnail file. Redacted when printing.
+        created_at: Creation timestamp in ISO 8601 format (e.g., 2026-02-05T14:30:45.123Z).
+            Set by backend only, not modifiable via API.
+        modified_at: Last modification timestamp in ISO 8601 format.
+            Updated when pipeline or its variants are modified. Set by backend only.
 
     Example:
         .. code-block:: json
@@ -693,9 +713,14 @@ class Pipeline(BaseModel):
                   "name": "CPU",
                   "read_only": false,
                   "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...}
+                  "pipeline_graph_simple": {...},
+                  "created_at": "2026-02-05T14:30:45.123Z",
+                  "modified_at": "2026-02-05T14:30:45.123Z"
                 }
-              ]
+              ],
+              "thumbnail": null,
+              "created_at": "2026-02-05T14:30:45.123Z",
+              "modified_at": "2026-02-05T14:30:45.123Z"
             }
     """
 
@@ -711,6 +736,21 @@ class Pipeline(BaseModel):
         ...,
         min_length=1,
         description="List of pipeline variants for different hardware targets.",
+    )
+    thumbnail: Optional[str] = Field(
+        default=None,
+        repr=False,
+        description="Base64-encoded thumbnail image. Only for PREDEFINED pipelines. Redacted in logs.",
+    )
+    created_at: str = Field(
+        ...,
+        description="Creation timestamp in ISO 8601 format. Set by backend only.",
+        examples=["2026-02-05T14:30:45.123Z"],
+    )
+    modified_at: str = Field(
+        ...,
+        description="Last modification timestamp in ISO 8601 format. Set by backend only.",
+        examples=["2026-02-05T14:30:45.123Z"],
     )
 
 

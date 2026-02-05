@@ -17,7 +17,13 @@ from api.api_schemas import (
 )
 from graph import Graph
 from pipelines.loader import PipelineLoader
-from utils import make_tee_names_unique, generate_unique_id, generate_pipeline_graph_id
+from utils import (
+    make_tee_names_unique,
+    generate_unique_id,
+    generate_pipeline_graph_id,
+    get_current_timestamp,
+    load_thumbnail_as_base64,
+)
 from video_encoder import VideoEncoder
 
 logger = logging.getLogger("pipeline_manager")
@@ -35,6 +41,7 @@ class PipelineManager:
     * Create, read, update, delete user-created pipelines
     * Maintain variants with both advanced and simple views
     * Build executable GStreamer pipeline commands with proper video encoding
+    * Track creation and modification timestamps for pipelines and variants
     """
 
     _instance: Optional["PipelineManager"] = None
@@ -59,8 +66,6 @@ class PipelineManager:
         self._pipelines_lock = threading.Lock()
         # List of pipelines managed by this instance
         self.pipelines = self.load_predefined_pipelines()
-        # Video encoder instance used by pipelines
-        self.video_encoder = VideoEncoder()
 
     def add_pipeline(self, new_pipeline: PipelineDefinition):
         """
@@ -68,13 +73,15 @@ class PipelineManager:
 
         The method:
         * Generates a unique pipeline ID
+        * Sets created_at and modified_at timestamps
+        * Sets timestamps for all variants
         * Stores pipeline with variants containing both graph views
 
         Args:
             new_pipeline: PipelineDefinition with name, description, tags, and variants.
 
         Returns:
-            Pipeline: Created pipeline with generated ID.
+            Pipeline: Created pipeline with generated ID and timestamps.
 
         Raises:
             ValueError: If pipeline definition is invalid.
@@ -86,13 +93,33 @@ class PipelineManager:
             # Generate ID from pipeline name
             pipeline_id = generate_unique_id(new_pipeline.name, existing_ids)
 
+            # Set timestamps
+            current_time = get_current_timestamp()
+
+            # Update timestamps for all variants
+            variants_with_timestamps = []
+            for variant in new_pipeline.variants:
+                variant_with_ts = Variant(
+                    id=variant.id,
+                    name=variant.name,
+                    read_only=variant.read_only,
+                    pipeline_graph=variant.pipeline_graph,
+                    pipeline_graph_simple=variant.pipeline_graph_simple,
+                    created_at=current_time,
+                    modified_at=current_time,
+                )
+                variants_with_timestamps.append(variant_with_ts)
+
             pipeline = Pipeline(
                 id=pipeline_id,
                 name=new_pipeline.name,
                 description=new_pipeline.description,
                 source=new_pipeline.source,
                 tags=new_pipeline.tags,
-                variants=new_pipeline.variants,
+                variants=variants_with_timestamps,
+                thumbnail=None,  # User-created pipelines do not have thumbnails
+                created_at=current_time,
+                modified_at=current_time,
             )
 
             self.pipelines.append(pipeline)
@@ -166,6 +193,9 @@ class PipelineManager:
             if tags is not None:
                 pipeline.tags = tags
 
+            # Update modified_at timestamp
+            pipeline.modified_at = get_current_timestamp()
+
             self.logger.debug("Pipeline updated: %s", pipeline)
             return pipeline
 
@@ -199,6 +229,8 @@ class PipelineManager:
         * Parse each variant's pipeline_description from variants field
         * Generate advanced and simple graphs for each variant
         * Set read_only=true for all variants of predefined pipelines
+        * Set created_at and modified_at timestamps
+        * Load thumbnail from file if specified and valid
         * Validate that name is non-empty
         * Validate that variant names and pipeline descriptions are non-empty
 
@@ -209,6 +241,10 @@ class PipelineManager:
             ValueError: If name, variant name, or variant pipeline_description is empty.
         """
         predefined_pipelines = []
+
+        # Get the pipelines directory for resolving relative thumbnail paths
+        pipelines_base_path = PipelineLoader.get_pipelines_directory()
+
         for config_path in PipelineLoader.list():
             config = PipelineLoader.config(config_path)
 
@@ -220,6 +256,9 @@ class PipelineManager:
 
             pipeline_description = config.get("definition", "")
             # Description can be empty, no validation needed
+
+            # Set timestamps for predefined pipelines
+            current_time = get_current_timestamp()
 
             variants_config = config.get("variants", [])
             variants_list = []
@@ -266,6 +305,8 @@ class PipelineManager:
                         read_only=True,  # All predefined variants are read-only
                         pipeline_graph=variant_pipeline_graph,
                         pipeline_graph_simple=variant_pipeline_graph_simple,
+                        created_at=current_time,
+                        modified_at=current_time,
                     )
                 )
 
@@ -273,6 +314,12 @@ class PipelineManager:
             tags = config.get("tags", [])
             if not isinstance(tags, list):
                 tags = []
+
+            # Load thumbnail if specified, using pipelines directory as base path
+            thumbnail_path = config.get("thumbnail", "")
+            thumbnail_base64 = load_thumbnail_as_base64(
+                thumbnail_path, pipeline_name, base_path=pipelines_base_path
+            )
 
             # Get existing pipeline IDs for collision check
             existing_pipeline_ids = [p.id for p in predefined_pipelines]
@@ -288,6 +335,9 @@ class PipelineManager:
                     source=PipelineSource.PREDEFINED,
                     tags=tags,
                     variants=variants_list,
+                    thumbnail=thumbnail_base64,
+                    created_at=current_time,
+                    modified_at=current_time,
                 )
             )
         self.logger.debug("Loaded predefined pipelines: %s", predefined_pipelines)
@@ -336,6 +386,9 @@ class PipelineManager:
             ValueError: If execution_config.max_runtime is negative.
             ValueError: If output_mode=file is combined with max_runtime>0.
         """
+        # Initialize video encoder helper
+        video_encoder = VideoEncoder()
+
         # Validate max_runtime
         if execution_config.max_runtime < 0:
             raise ValueError(
@@ -435,7 +488,7 @@ class PipelineManager:
                     if output_mode == OutputMode.FILE:
                         # Replace fakesink with file output
                         unique_pipeline_str, generated_paths = (
-                            self.video_encoder.replace_fakesink_with_video_output(
+                            video_encoder.replace_fakesink_with_video_output(
                                 pipeline_id,
                                 unique_pipeline_str,
                                 encoder_device,
@@ -448,7 +501,7 @@ class PipelineManager:
                         # Replace fakesink with live stream output (one per pipeline ID)
                         if pipeline_id not in streamed_pipeline_ids:
                             unique_pipeline_str, stream_url = (
-                                self.video_encoder.replace_fakesink_with_live_stream_output(
+                                video_encoder.replace_fakesink_with_live_stream_output(
                                     pipeline_id,
                                     unique_pipeline_str,
                                     encoder_device,
@@ -476,6 +529,8 @@ class PipelineManager:
         The method:
         * Generates a unique variant ID
         * Creates variant with read_only=false
+        * Sets created_at and modified_at timestamps for variant
+        * Updates pipeline's modified_at timestamp
         * Adds variant to the pipeline's variants list
 
         Args:
@@ -485,7 +540,7 @@ class PipelineManager:
             pipeline_graph_simple: Simplified graph representation.
 
         Returns:
-            Variant: Created variant with generated ID.
+            Variant: Created variant with generated ID and timestamps.
 
         Raises:
             ValueError: If pipeline with given ID is not found.
@@ -501,6 +556,9 @@ class PipelineManager:
             # Generate new variant ID from variant name
             variant_id = generate_unique_id(name, existing_variant_ids)
 
+            # Set timestamps
+            current_time = get_current_timestamp()
+
             # Create new variant with read_only=false for user-created variants
             new_variant = Variant(
                 id=variant_id,
@@ -508,10 +566,15 @@ class PipelineManager:
                 read_only=False,
                 pipeline_graph=pipeline_graph,
                 pipeline_graph_simple=pipeline_graph_simple,
+                created_at=current_time,
+                modified_at=current_time,
             )
 
             # Add variant to pipeline
             pipeline.variants.append(new_variant)
+
+            # Update pipeline's modified_at timestamp
+            pipeline.modified_at = current_time
 
             self.logger.debug(f"Variant {variant_id} added to pipeline {pipeline_id}")
             return new_variant
@@ -525,6 +588,7 @@ class PipelineManager:
         * Checks that variant is not read-only
         * Checks that it's not the last variant
         * Removes variant from pipeline
+        * Updates pipeline's modified_at timestamp
 
         Args:
             pipeline_id: ID of the pipeline containing the variant.
@@ -565,6 +629,10 @@ class PipelineManager:
 
             # Delete the variant
             pipeline.variants.remove(variant_to_delete)
+
+            # Update pipeline's modified_at timestamp
+            pipeline.modified_at = get_current_timestamp()
+
             self.logger.debug(
                 f"Variant {variant_id} deleted from pipeline {pipeline_id}"
             )
@@ -587,6 +655,8 @@ class PipelineManager:
         * For pipeline_graph_simple: applies changes to advanced view using
           apply_simple_view_changes(), then regenerates both views
         * Updates provided fields
+        * Updates variant's modified_at timestamp
+        * Updates pipeline's modified_at timestamp
         * Returns updated variant
 
         Args:
@@ -731,6 +801,11 @@ class PipelineManager:
                 self.logger.debug(
                     f"Updated variant {variant_id} with changes from pipeline_graph_simple and regenerated both views"
                 )
+
+            # Update timestamps
+            current_time = get_current_timestamp()
+            variant_to_update.modified_at = current_time
+            pipeline.modified_at = current_time
 
             self.logger.debug(f"Variant {variant_id} updated in pipeline {pipeline_id}")
             return variant_to_update

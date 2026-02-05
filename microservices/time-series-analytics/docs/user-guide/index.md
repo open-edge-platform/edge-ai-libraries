@@ -24,6 +24,7 @@ What sets this microservice apart is its support for advanced analytics through
 high-performance anomaly detection, predictive maintenance, and other sophisticated analytics.
 
 The key features include:
+
 - **Bring your own Data Sets and corresponding User Defined Functions(UDFs) for custom analytics**:
 Easily implement and deploy your own Python-based analytics logic, following Kapacitor’s UDF
 standards.
@@ -42,14 +43,14 @@ For more information on creating custom UDFs, see the
 :::{toctree}
 :hidden:
 
-high-level-arch
-system-requirements
 get-started
+how-it-works
 how-to-access-api
 how-to-configure
 how-to-deploy-with-helm
 api-reference
-release_notes/Overview
+release-notes
+
 :::
 
 hide_directive-->

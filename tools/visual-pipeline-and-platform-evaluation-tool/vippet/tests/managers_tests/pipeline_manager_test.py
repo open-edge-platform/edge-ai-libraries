@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+import re
 
 from api.api_schemas import (
     Edge,
@@ -15,7 +16,12 @@ from api.api_schemas import (
     GraphInline,
 )
 from managers.pipeline_manager import PipelineManager
+from utils import get_current_timestamp
 from videos import OUTPUT_VIDEO_DIR
+
+
+# ISO 8601 timestamp pattern for validation
+ISO_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
 
 def create_simple_graph() -> PipelineGraph:
@@ -32,12 +38,15 @@ def create_simple_graph() -> PipelineGraph:
 def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
     """Helper to create a valid variant for testing."""
     graph = create_simple_graph()
+    timestamp = get_current_timestamp()
     return Variant(
         id="variant-test",
         name=name,
         read_only=read_only,
         pipeline_graph=graph,
         pipeline_graph_simple=graph,
+        created_at=timestamp,
+        modified_at=timestamp,
     )
 
 
@@ -71,6 +80,19 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(added_pipeline.id, "user-defined-pipelines")
         self.assertEqual(added_pipeline.name, "user-defined-pipelines")
         self.assertEqual(len(added_pipeline.variants), 1)
+
+        # Verify timestamps are set
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(added_pipeline.created_at))
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(added_pipeline.modified_at))
+        self.assertEqual(added_pipeline.created_at, added_pipeline.modified_at)
+
+        # Verify variant timestamps
+        variant = added_pipeline.variants[0]
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(variant.created_at))
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(variant.modified_at))
+
+        # Verify thumbnail is None for user-created pipeline
+        self.assertIsNone(added_pipeline.thumbnail)
 
         # Verify we can retrieve it by ID
         retrieved = manager.get_pipeline_by_id(added_pipeline.id)
@@ -214,12 +236,15 @@ class TestPipelineManager(unittest.TestCase):
                 Edge(id="2", source="2", target="3"),
             ],
         )
+        timestamp = get_current_timestamp()
         variant = Variant(
             id="variant-tee",
             name="CPU",
             read_only=False,
             pipeline_graph=tee_graph,
             pipeline_graph_simple=tee_graph,
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
         test_pipeline = PipelineDefinition(
@@ -273,6 +298,7 @@ class TestPipelineManager(unittest.TestCase):
             edges=[Edge(id="0", source="0", target="1")],
         )
 
+        timestamp = get_current_timestamp()
         pipeline1 = PipelineDefinition(
             name="pipeline-1",
             description="First test pipeline",
@@ -285,6 +311,8 @@ class TestPipelineManager(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph1,
                     pipeline_graph_simple=graph1,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -300,6 +328,8 @@ class TestPipelineManager(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph2,
                     pipeline_graph_simple=graph2,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -379,6 +409,12 @@ class TestPipelineManager(unittest.TestCase):
         )
 
         added = manager.add_pipeline(new_pipeline)
+        original_modified_at = added.modified_at
+
+        # Small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)
 
         updated = manager.update_pipeline(
             pipeline_id=added.id,
@@ -389,6 +425,13 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(updated.id, added.id)
         self.assertEqual(updated.name, "updated-name")
         self.assertEqual(updated.description, "Updated description")
+
+        # Verify modified_at was updated
+        self.assertNotEqual(updated.modified_at, original_modified_at)
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(updated.modified_at))
+
+        # Verify created_at unchanged
+        self.assertEqual(updated.created_at, added.created_at)
 
         # Ensure the change is reflected in manager state
         retrieved = manager.get_pipeline_by_id(added.id)
@@ -469,6 +512,7 @@ class TestPipelineManager(unittest.TestCase):
 
     def test_build_pipeline_command_with_video_output_enabled(self):
         """Test building pipeline command with video output enabled (file mode)."""
+        timestamp = get_current_timestamp()
         manager = PipelineManager()
         manager.pipelines = []
 
@@ -491,6 +535,8 @@ class TestPipelineManager(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -568,6 +614,9 @@ class TestPipelineManager(unittest.TestCase):
 class TestVariantCRUD(unittest.TestCase):
     """Test cases for variant CRUD operations."""
 
+    def setUp(self):
+        PipelineManager._instance = None
+
     def test_add_variant_to_pipeline(self):
         """Test adding a new variant to an existing pipeline."""
         manager = PipelineManager()
@@ -583,6 +632,12 @@ class TestVariantCRUD(unittest.TestCase):
         )
         added = manager.add_pipeline(new_pipeline)
         self.assertEqual(len(added.variants), 1)
+        original_pipeline_modified_at = added.modified_at
+
+        # Small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)
 
         # Add another variant
         new_graph = PipelineGraph(
@@ -608,9 +663,17 @@ class TestVariantCRUD(unittest.TestCase):
         self.assertEqual(new_variant.name, "GPU")
         self.assertFalse(new_variant.read_only)
 
+        # Verify variant timestamps
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(new_variant.created_at))
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(new_variant.modified_at))
+        self.assertEqual(new_variant.created_at, new_variant.modified_at)
+
         # Verify pipeline now has two variants
         retrieved = manager.get_pipeline_by_id(added.id)
         self.assertEqual(len(retrieved.variants), 2)
+
+        # Verify pipeline's modified_at was updated
+        self.assertNotEqual(retrieved.modified_at, original_pipeline_modified_at)
 
     def test_add_variant_to_nonexistent_pipeline(self):
         """Test that adding variant to nonexistent pipeline raises error."""
@@ -645,6 +708,12 @@ class TestVariantCRUD(unittest.TestCase):
         )
         added = manager.add_pipeline(new_pipeline)
         self.assertEqual(len(added.variants), 2)
+        original_modified_at = added.modified_at
+
+        # Small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)
 
         # Delete second variant
         variant_to_delete = added.variants[1].id
@@ -653,6 +722,9 @@ class TestVariantCRUD(unittest.TestCase):
         # Verify variant was deleted
         retrieved = manager.get_pipeline_by_id(added.id)
         self.assertEqual(len(retrieved.variants), 1)
+
+        # Verify pipeline's modified_at was updated
+        self.assertNotEqual(retrieved.modified_at, original_modified_at)
 
     def test_delete_last_variant_raises_error(self):
         """Test that deleting the last variant raises error."""
@@ -705,6 +777,13 @@ class TestVariantCRUD(unittest.TestCase):
             variants=[create_variant(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
+        original_variant_modified_at = added.variants[0].modified_at
+        original_pipeline_modified_at = added.modified_at
+
+        # Small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)
 
         updated = manager.update_variant(
             pipeline_id=added.id,
@@ -713,6 +792,17 @@ class TestVariantCRUD(unittest.TestCase):
         )
 
         self.assertEqual(updated.name, "GPU-optimized")
+
+        # Verify variant's modified_at was updated
+        self.assertNotEqual(updated.modified_at, original_variant_modified_at)
+        self.assertTrue(ISO_TIMESTAMP_PATTERN.match(updated.modified_at))
+
+        # Verify variant's created_at unchanged
+        self.assertEqual(updated.created_at, added.variants[0].created_at)
+
+        # Verify pipeline's modified_at was updated
+        retrieved = manager.get_pipeline_by_id(added.id)
+        self.assertNotEqual(retrieved.modified_at, original_pipeline_modified_at)
 
     def test_update_variant_pipeline_graph(self):
         """Test updating variant with new pipeline graph."""
@@ -794,6 +884,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
+        timestamp = get_current_timestamp()
         test_pipeline = PipelineDefinition(
             name="test-execution-config",
             description="Test pipeline for execution config",
@@ -806,6 +897,8 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -912,6 +1005,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
+        timestamp = get_current_timestamp()
         another_pipeline = PipelineDefinition(
             name="test-execution-config-2",
             description="Another test pipeline",
@@ -924,6 +1018,8 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -965,6 +1061,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
     """Test cases for looping behavior in build_pipeline_command."""
 
     def setUp(self):
+        PipelineManager._instance = None
         self.manager = PipelineManager()
         self.manager.pipelines = []
 
@@ -976,6 +1073,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
+        timestamp = get_current_timestamp()
         test_pipeline = PipelineDefinition(
             name="test-looping",
             description="Test pipeline for looping",
@@ -988,6 +1086,8 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
                     read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
+                    created_at=timestamp,
+                    modified_at=timestamp,
                 )
             ],
         )
@@ -1072,6 +1172,7 @@ MOCK_PIPELINE_CONFIGS = [
         "name": "object-detection",
         "definition": "Object detection pipeline for testing",
         "tags": ["detection", "test"],
+        "thumbnail": "",  # No thumbnail
         "variants": [
             {
                 "name": "CPU",
@@ -1087,6 +1188,7 @@ MOCK_PIPELINE_CONFIGS = [
         "name": "classification",
         "definition": "Classification pipeline for testing",
         "tags": ["classification", "test"],
+        # No thumbnail field at all
         "variants": [
             {
                 "name": "CPU",
@@ -1147,6 +1249,10 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
                 self.assertIsNotNone(pipeline.name)
                 self.assertIsNotNone(pipeline.description)
 
+                # Verify timestamps
+                self.assertTrue(ISO_TIMESTAMP_PATTERN.match(pipeline.created_at))
+                self.assertTrue(ISO_TIMESTAMP_PATTERN.match(pipeline.modified_at))
+
                 # Verify variants
                 self.assertGreater(len(pipeline.variants), 0)
 
@@ -1161,6 +1267,10 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
                     self.assertTrue(variant.read_only)
                     self.assertIsNotNone(variant.pipeline_graph)
                     self.assertIsNotNone(variant.pipeline_graph_simple)
+
+                    # Verify variant timestamps
+                    self.assertTrue(ISO_TIMESTAMP_PATTERN.match(variant.created_at))
+                    self.assertTrue(ISO_TIMESTAMP_PATTERN.match(variant.modified_at))
 
                     # Verify graphs have content
                     self.assertGreater(len(variant.pipeline_graph.nodes), 0)
