@@ -3,3 +3,7 @@ misconfigurations:
     paths:
       - "collector/Dockerfile"
     statement: The image needs root privileges to read GPU metrics.
+  - id: DS-0002
+    paths:
+      - "collector/Dockerfile"
+    statement: The image needs root privileges to read GPU metrics.
