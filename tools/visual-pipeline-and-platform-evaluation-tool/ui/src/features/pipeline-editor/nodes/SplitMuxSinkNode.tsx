@@ -12,7 +12,6 @@ type SplitMuxSinkNodeProps = {
 const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[255px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-sky-100 dark:bg-sky-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-sky-600 dark:text-sky-400"
@@ -29,14 +28,11 @@ const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-sky-700 dark:text-sky-300">
           Splitmuxsink
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           {data.location && (
             <span className="max-w-[165px] truncate" title={data.location}>
@@ -47,7 +43,6 @@ const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}

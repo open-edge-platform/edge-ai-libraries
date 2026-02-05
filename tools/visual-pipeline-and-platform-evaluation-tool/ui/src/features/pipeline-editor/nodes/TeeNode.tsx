@@ -4,7 +4,6 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 const TeeNode = () => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[220px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-sky-100 dark:bg-sky-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-sky-600 dark:text-sky-400"
@@ -24,21 +23,17 @@ const TeeNode = () => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-sky-700 dark:text-sky-300">
           Tee
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           <span></span>
         </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -46,7 +41,6 @@ const TeeNode = () => (
       style={{ left: getHandleLeftPosition("tee") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

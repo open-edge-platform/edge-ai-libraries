@@ -18,7 +18,6 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-purple-400 min-w-[300px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="flex-shrink-0 w-10 h-10 rounded bg-purple-100 dark:bg-purple-900 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-purple-600 dark:text-purple-400"
@@ -35,19 +34,14 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
             {simpleGraph ? "Image Classification" : "GVAClassify"}
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            {/* Device Property */}
             {data.device && <span>{data.device}</span>}
 
-            {/* Model Property */}
             {data.model && (
               <>
                 {data.device && <span className="text-gray-400">•</span>}
@@ -63,7 +57,6 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
         </div>
       </div>
 
-      {/* Input Handle */}
       <Handle
         type="target"
         position={Position.Top}
@@ -71,7 +64,6 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
         style={{ left: getHandleLeftPosition("gvaclassify") }}
       />
 
-      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

@@ -14,7 +14,6 @@ type GVAMetaPublishNodeProps = {
 const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-emerald-400 min-w-[265px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-emerald-600 dark:text-emerald-400"
@@ -31,14 +30,11 @@ const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
           GVAMetaPublish
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           {data.method && <span>{data.method}</span>}
 
@@ -57,7 +53,6 @@ const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -65,7 +60,6 @@ const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
       style={{ left: getHandleLeftPosition("gvametapublish") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

@@ -10,7 +10,6 @@ type FileSinkNodeProps = {
 const FileSinkNode = ({ data }: FileSinkNodeProps) => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[220px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-gray-600 dark:text-gray-400"
@@ -27,14 +26,11 @@ const FileSinkNode = ({ data }: FileSinkNodeProps) => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-gray-700 dark:text-gray-300">
           FileSink
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           {data.location && (
             <span className="max-w-[150px] truncate" title={data.location}>
@@ -45,7 +41,6 @@ const FileSinkNode = ({ data }: FileSinkNodeProps) => (
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}

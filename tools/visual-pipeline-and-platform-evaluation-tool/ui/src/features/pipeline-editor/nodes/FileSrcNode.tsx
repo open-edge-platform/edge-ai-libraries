@@ -16,7 +16,6 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[260px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="shrink-0 w-10 h-10 rounded bg-blue-100 dark:bg-blue-900 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-blue-600 dark:text-blue-400"
@@ -33,16 +32,12 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
             {simpleGraph ? "Input" : "FileSrc"}
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            {/* Location Property */}
             <span className="truncate max-w-[170px]" title={data.location}>
               {data.location.split("/").pop() || data.location}
             </span>
@@ -50,7 +45,6 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => {
         </div>
       </div>
 
-      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

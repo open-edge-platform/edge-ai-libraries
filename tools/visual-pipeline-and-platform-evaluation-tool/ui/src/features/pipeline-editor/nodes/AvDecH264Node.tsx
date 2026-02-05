@@ -4,7 +4,6 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 const AvDecH264Node = () => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-indigo-400 min-w-[220px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-indigo-600 dark:text-indigo-400"
@@ -27,21 +26,17 @@ const AvDecH264Node = () => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-indigo-700 dark:text-indigo-300">
           AvDecH264
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           <span></span>
         </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -49,7 +44,6 @@ const AvDecH264Node = () => (
       style={{ left: getHandleLeftPosition("avdec_h264") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

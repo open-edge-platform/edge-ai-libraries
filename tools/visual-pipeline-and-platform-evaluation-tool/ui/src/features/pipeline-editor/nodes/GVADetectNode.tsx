@@ -18,7 +18,6 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-indigo-400 min-w-[280px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="shrink-0 w-10 h-10 rounded bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-indigo-600 dark:text-indigo-400"
@@ -41,19 +40,14 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-indigo-700 dark:text-indigo-300">
             {simpleGraph ? "Object Detection" : "GVADetect"}
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            {/* Device Property */}
             {data.device && <span>{data.device}</span>}
 
-            {/* Model Property */}
             {data.model && (
               <>
                 {data.device && <span className="text-gray-400">•</span>}
@@ -66,7 +60,6 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
               </>
             )}
 
-            {/* Object class Property */}
             {data["object-class"] && (
               <>
                 {(data.model || data.device) && (
@@ -79,7 +72,6 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
         </div>
       </div>
 
-      {/* Input Handle */}
       <Handle
         type="target"
         position={Position.Top}
@@ -87,7 +79,6 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
         style={{ left: getHandleLeftPosition("gvadetect") }}
       />
 
-      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

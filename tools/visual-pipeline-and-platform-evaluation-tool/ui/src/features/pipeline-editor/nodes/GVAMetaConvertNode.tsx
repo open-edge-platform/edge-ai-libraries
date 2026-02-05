@@ -19,7 +19,6 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-cyan-400 min-w-[270px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="shrink-0 w-10 h-10 rounded bg-cyan-100 dark:bg-cyan-900 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-cyan-600 dark:text-cyan-400"
@@ -36,14 +35,11 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-cyan-700 dark:text-cyan-300">
             GVAMetaConvert
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
             <span className={!qos ? "line-through" : ""}>qos</span>
             <span className="text-gray-400">•</span>
@@ -56,7 +52,6 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
         </div>
       </div>
 
-      {/* Input Handle */}
       <Handle
         type="target"
         position={Position.Top}
@@ -64,7 +59,6 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
         style={{ left: getHandleLeftPosition("gvametaconvert") }}
       />
 
-      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Bottom}

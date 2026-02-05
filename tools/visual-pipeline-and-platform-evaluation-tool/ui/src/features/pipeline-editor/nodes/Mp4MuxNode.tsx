@@ -4,7 +4,6 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 const Mp4MuxNode = () => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-violet-400 min-w-[220px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-violet-100 dark:bg-violet-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-violet-600 dark:text-violet-400"
@@ -21,21 +20,17 @@ const Mp4MuxNode = () => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-violet-700 dark:text-violet-300">
           Mp4Mux
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           <span></span>
         </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -43,7 +38,6 @@ const Mp4MuxNode = () => (
       style={{ left: getHandleLeftPosition("mp4mux") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

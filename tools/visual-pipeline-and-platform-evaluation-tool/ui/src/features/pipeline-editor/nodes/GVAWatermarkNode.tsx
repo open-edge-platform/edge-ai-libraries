@@ -6,7 +6,6 @@ export const GVAWatermarkNodeWidth = 255;
 const GVAWatermarkNode = () => (
   <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-pink-400 min-w-[255px]">
     <div className="flex gap-3">
-      {/* Icon - spans both rows */}
       <div className="shrink-0 w-10 h-10 rounded bg-pink-100 dark:bg-pink-900 flex items-center justify-center self-center">
         <svg
           className="w-6 h-6 text-pink-600 dark:text-pink-400"
@@ -23,21 +22,17 @@ const GVAWatermarkNode = () => (
         </svg>
       </div>
 
-      {/* Content - Name and Properties */}
       <div className="flex-1 flex flex-col">
-        {/* Name */}
         <div className="text-xl font-bold text-pink-700 dark:text-pink-300">
           GVAWatermark
         </div>
 
-        {/* Properties */}
         <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           <span></span>
         </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -45,7 +40,6 @@ const GVAWatermarkNode = () => (
       style={{ left: getHandleLeftPosition("gvawatermark") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

@@ -8,7 +8,6 @@ const FakeSinkNode = () => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[220px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="shrink-0 w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-gray-600 dark:text-gray-400"
@@ -25,21 +24,17 @@ const FakeSinkNode = () => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-gray-700 dark:text-gray-300">
             {simpleGraph ? "Output" : "FakeSink"}
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
             <span></span>
           </div>
         </div>
       </div>
 
-      {/* Input Handle */}
       <Handle
         type="target"
         position={Position.Top}

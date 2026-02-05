@@ -17,7 +17,6 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
   return (
     <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-yellow-400 min-w-[220px]">
       <div className="flex gap-3">
-        {/* Icon - spans both rows */}
         <div className="shrink-0 w-10 h-10 rounded bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center self-center">
           <svg
             className="w-6 h-6 text-yellow-600 dark:text-yellow-400"
@@ -40,21 +39,17 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
           </svg>
         </div>
 
-        {/* Content - Name and Properties */}
         <div className="flex-1 flex flex-col">
-          {/* Name */}
           <div className="text-xl font-bold text-yellow-700 dark:text-yellow-300">
             {simpleGraph ? "Tracking" : "GVATrack"}
           </div>
 
-          {/* Properties */}
           <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
             {data["tracking-type"] && <span>{data["tracking-type"]}</span>}
           </div>
         </div>
       </div>
 
-      {/* Input Handle */}
       <Handle
         type="target"
         position={Position.Top}
@@ -62,7 +57,6 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
         style={{ left: getHandleLeftPosition("gvatrack") }}
       />
 
-      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Bottom}
