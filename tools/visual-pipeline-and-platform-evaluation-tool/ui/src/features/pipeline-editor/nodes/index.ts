@@ -80,13 +80,6 @@ export const nodeWidths: Record<string, number> = {
   splitmuxsink: SplitMuxSinkNodeWidth,
 };
 
-export const nodeHeights: Record<string, number> = {
-  filesrc: 80,
-  gvadetect: 80,
-  gvaclassify: 80,
-  "video/x-raw(memory:VAMemory)": 150,
-};
-
 export const defaultNodeWidth = 220;
 export const defaultNodeHeight = 78;
 
