@@ -995,6 +995,22 @@ const DemoMode = () => {
             </div>
           ) : demoStep === "configuration" ? (
             (() => {
+              const backButtonBar = (
+                <div className="flex items-center justify-start px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setDemoStep("selection")}
+                    className={`group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
+                  >
+                    <span
+                      className={`text-base font-semibold ${colors.exitIcon}`}
+                    >
+                      Back
+                    </span>
+                  </button>
+                </div>
+              );
+
               const pipelineCardsSection = (
                 <div
                   className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
@@ -2139,7 +2155,43 @@ const DemoMode = () => {
 
               if (showPreRunLayout) {
                 return (
-                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
+                  <div className="h-full flex flex-col">
+                    {backButtonBar}
+                    <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
+                      <div className="row-start-1 col-start-1">
+                        {pipelineCardsSection}
+                      </div>
+                      <div className="row-start-2 col-start-1 h-full min-h-0">
+                        <div className="h-full min-h-0">
+                          {pipelineConfigSection}
+                        </div>
+                      </div>
+                      <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
+                        {resultsSection}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (showPreviewPanel) {
+                return (
+                  <div className="h-full flex flex-col">
+                    {backButtonBar}
+                    <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
+                      {pipelineCardsSection}
+                      {previewSection}
+                      {pipelineConfigSection}
+                      {resultsSection}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="h-full flex flex-col">
+                  {backButtonBar}
+                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
                     <div className="row-start-1 col-start-1">
                       {pipelineCardsSection}
                     </div>
@@ -2151,33 +2203,6 @@ const DemoMode = () => {
                     <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
                       {resultsSection}
                     </div>
-                  </div>
-                );
-              }
-
-              if (showPreviewPanel) {
-                return (
-                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
-                    {pipelineCardsSection}
-                    {previewSection}
-                    {pipelineConfigSection}
-                    {resultsSection}
-                  </div>
-                );
-              }
-
-              return (
-                <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4">
-                  <div className="row-start-1 col-start-1">
-                    {pipelineCardsSection}
-                  </div>
-                  <div className="row-start-2 col-start-1 h-full min-h-0">
-                    <div className="h-full min-h-0">
-                      {pipelineConfigSection}
-                    </div>
-                  </div>
-                  <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
-                    {resultsSection}
                   </div>
                 </div>
               );
