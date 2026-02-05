@@ -513,7 +513,7 @@ class ONVIFCameraDiscovery:
                 details=NetworkCameraDetails(ip=ip, port=port, profiles=profile_infos),
             )
 
-            logger.info(
+            logger.debug(
                 f"Successfully authenticated with camera {ip}:{port} and loaded {len(profiles)} profile(s)"
             )
             return camera
