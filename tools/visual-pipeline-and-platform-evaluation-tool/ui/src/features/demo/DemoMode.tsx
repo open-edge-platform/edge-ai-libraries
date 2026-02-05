@@ -235,6 +235,87 @@ const DemoMode = () => {
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
+  const getNodeEditKey = (pipelineId: string, nodeId: string) =>
+    `${pipelineId}::${nodeId}`;
+  const inferenceNodeTypes = new Set([
+    "gvadetect",
+    "gvaclassify",
+    "gvainference",
+  ]);
+  const inferenceOnlyKeys = new Set([
+    "model",
+    "model-proc",
+    "labels",
+    "labels-file",
+    "model-instance-id",
+    "device",
+    "pre-process-backend",
+    "nireq",
+    "ie-config",
+    "batch-size",
+    "inference-interval",
+    "inference-region",
+    "reclassify-interval",
+    "threshold",
+    "object-class",
+  ]);
+  const sanitizeNodeData = (
+    nodeType: string,
+    data: Record<string, unknown>,
+  ) => {
+    const sanitized = { ...data } as Record<string, unknown>;
+
+    if (!inferenceNodeTypes.has(nodeType)) {
+      inferenceOnlyKeys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(sanitized, key)) {
+          delete sanitized[key];
+        }
+      });
+    } else if (
+      Object.prototype.hasOwnProperty.call(sanitized, "inference-interval")
+    ) {
+      const intervalRaw = sanitized["inference-interval"];
+      const intervalValue = Number(intervalRaw);
+      if (!Number.isFinite(intervalValue) || intervalValue < 1) {
+        sanitized["inference-interval"] = "1";
+      }
+    }
+
+    if (inferenceNodeTypes.has(nodeType)) {
+      const regionValue = sanitized["inference-region"];
+      const normalizedRegion =
+        regionValue === null || regionValue === undefined
+          ? ""
+          : String(regionValue);
+      if (normalizedRegion !== "roi-list") {
+        delete sanitized["object-class"];
+      }
+    }
+
+    return sanitized;
+  };
+  const hasNodeDataChanged = (
+    original: Record<string, unknown> | undefined,
+    next: Record<string, unknown>,
+  ) => {
+    const originalData = original ?? {};
+    const originalKeys = Object.keys(originalData);
+    const nextKeys = Object.keys(next);
+    if (originalKeys.length !== nextKeys.length) return true;
+    for (const key of nextKeys) {
+      if (!Object.prototype.hasOwnProperty.call(originalData, key)) return true;
+      const originalValue = originalData[key];
+      const nextValue = next[key];
+      const normalizedOriginal =
+        originalValue === null || originalValue === undefined
+          ? ""
+          : String(originalValue);
+      const normalizedNext =
+        nextValue === null || nextValue === undefined ? "" : String(nextValue);
+      if (normalizedOriginal !== normalizedNext) return true;
+    }
+    return false;
+  };
   const showResultsPanel = testStarted;
   const isTestFinished =
     lastRunTest === "performance-test"
@@ -625,7 +706,7 @@ const DemoMode = () => {
           return match ? (match.display_name ?? match.name) : null;
         };
         const updatedNodes = pipeline.pipeline_graph.nodes.map((node) => {
-          const edits = nodeDataEdits[node.id];
+          const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
           const mergedData = {
             ...node.data,
             ...(edits ?? {}),
@@ -649,17 +730,18 @@ const DemoMode = () => {
             node.type === "gvametaconvert" &&
             Object.prototype.hasOwnProperty.call(mergedData, "device");
 
+          const sanitizedData = sanitizeNodeData(node.type, mergedData);
+
           const shouldUpdate =
             !!edits ||
             hasInvalidDeviceKey ||
-            (mergedData.model !== node.data?.model &&
-              (node.type === "gvadetect" || node.type === "gvaclassify"));
+            hasNodeDataChanged(node.data, sanitizedData);
 
           if (!shouldUpdate) return node;
           hasChanges = true;
 
           const normalizedData = Object.fromEntries(
-            Object.entries(mergedData)
+            Object.entries(sanitizedData)
               .filter(
                 ([key]) =>
                   !(node.type === "gvametaconvert" && key === "device"),
@@ -1065,8 +1147,12 @@ const DemoMode = () => {
                                               originalValue: unknown,
                                             ) => {
                                               return (
-                                                nodeDataEdits[nodeId]?.[key] ??
-                                                originalValue
+                                                nodeDataEdits[
+                                                  getNodeEditKey(
+                                                    pipeline.id,
+                                                    nodeId,
+                                                  )
+                                                ]?.[key] ?? originalValue
                                               );
                                             };
 
@@ -1075,13 +1161,29 @@ const DemoMode = () => {
                                               key: string,
                                               value: unknown,
                                             ) => {
-                                              setNodeDataEdits((prev) => ({
-                                                ...prev,
-                                                [nodeId]: {
-                                                  ...prev[nodeId],
+                                              const editKey = getNodeEditKey(
+                                                pipeline.id,
+                                                nodeId,
+                                              );
+                                              setNodeDataEdits((prev) => {
+                                                const nextEntry = {
+                                                  ...prev[editKey],
                                                   [key]: value,
-                                                },
-                                              }));
+                                                };
+
+                                                if (
+                                                  key === "inference-region" &&
+                                                  String(value) !== "roi-list"
+                                                ) {
+                                                  nextEntry["object-class"] =
+                                                    "";
+                                                }
+
+                                                return {
+                                                  ...prev,
+                                                  [editKey]: nextEntry,
+                                                };
+                                              });
                                             };
 
                                             if (dataEntries.length === 0) {
@@ -1128,6 +1230,20 @@ const DemoMode = () => {
                                                           );
                                                         const config =
                                                           propConfig as NodePropertyConfig | null;
+
+                                                        const inferenceRegionValue =
+                                                          getEditedValue(
+                                                            node.id,
+                                                            "inference-region",
+                                                            node.data?.[
+                                                              "inference-region"
+                                                            ],
+                                                          );
+                                                        const isRoiRegion =
+                                                          String(
+                                                            inferenceRegionValue ??
+                                                              "",
+                                                          ) === "roi-list";
 
                                                         return (
                                                           <div
@@ -1224,6 +1340,34 @@ const DemoMode = () => {
                                                                   ),
                                                                 )}
                                                               </select>
+                                                            ) : String(key) ===
+                                                              "object-class" ? (
+                                                              <input
+                                                                type="text"
+                                                                value={String(
+                                                                  currentValue ??
+                                                                    "",
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly ||
+                                                                  !isRoiRegion
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly || !isRoiRegion ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                placeholder={
+                                                                  !isRoiRegion
+                                                                    ? "Disabled unless roi-list"
+                                                                    : (config?.description ??
+                                                                      "Enter value")
+                                                                }
+                                                              />
                                                             ) : config?.type ===
                                                               "boolean" ? (
                                                               <div className="flex items-center gap-2">
