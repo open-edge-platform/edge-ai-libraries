@@ -30,10 +30,6 @@ const Decodebin3Node = () => (
         <div className="text-xl font-bold text-lime-700 dark:text-lime-300">
           Decodebin3
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

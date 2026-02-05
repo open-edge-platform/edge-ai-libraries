@@ -24,10 +24,6 @@ const Mp4MuxNode = () => (
         <div className="text-xl font-bold text-violet-700 dark:text-violet-300">
           Mp4Mux
         </div>
-
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

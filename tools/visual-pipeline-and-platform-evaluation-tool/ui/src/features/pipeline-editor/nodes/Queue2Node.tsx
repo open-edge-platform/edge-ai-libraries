@@ -24,10 +24,6 @@ const Queue2Node = () => (
         <div className="text-xl font-bold text-teal-700 dark:text-teal-300">
           Queue2
         </div>
-
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

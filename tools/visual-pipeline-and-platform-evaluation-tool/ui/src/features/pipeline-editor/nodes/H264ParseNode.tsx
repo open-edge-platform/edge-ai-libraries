@@ -24,10 +24,6 @@ const H264ParseNode = () => (
         <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
           H264Parse
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

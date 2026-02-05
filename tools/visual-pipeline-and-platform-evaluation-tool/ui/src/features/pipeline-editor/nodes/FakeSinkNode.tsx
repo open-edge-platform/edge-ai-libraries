@@ -28,10 +28,6 @@ const FakeSinkNode = () => {
           <div className="text-xl font-bold text-gray-700 dark:text-gray-300">
             {simpleGraph ? "Output" : "FakeSink"}
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            <span></span>
-          </div>
         </div>
       </div>
 

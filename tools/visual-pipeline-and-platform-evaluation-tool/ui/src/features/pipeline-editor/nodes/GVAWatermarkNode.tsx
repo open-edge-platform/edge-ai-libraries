@@ -26,10 +26,6 @@ const GVAWatermarkNode = () => (
         <div className="text-xl font-bold text-pink-700 dark:text-pink-300">
           GVAWatermark
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

@@ -24,10 +24,6 @@ const VAPostProcNode = () => (
         <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
           VAPostProc
         </div>
-
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

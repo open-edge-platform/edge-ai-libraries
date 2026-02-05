@@ -30,10 +30,6 @@ const AvDecH264Node = () => (
         <div className="text-xl font-bold text-indigo-700 dark:text-indigo-300">
           AvDecH264
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

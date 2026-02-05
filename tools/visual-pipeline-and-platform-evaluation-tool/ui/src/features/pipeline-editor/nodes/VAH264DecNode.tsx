@@ -30,10 +30,6 @@ const VAH264DecNode = () => (
         <div className="text-xl font-bold text-orange-700 dark:text-orange-300">
           VAH264Dec
         </div>
-
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

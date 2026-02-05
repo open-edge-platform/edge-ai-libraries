@@ -27,10 +27,6 @@ const TeeNode = () => (
         <div className="text-xl font-bold text-sky-700 dark:text-sky-300">
           Tee
         </div>
-
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

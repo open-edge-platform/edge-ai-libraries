@@ -24,10 +24,6 @@ const VideoXRawWithDimensionsNode = () => (
         <div className="text-xl font-bold text-stone-700 dark:text-stone-300">
           video/x-raw
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 

@@ -26,10 +26,6 @@ const VideoConvertNode = () => (
         <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
           VideoConvert
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-          <span></span>
-        </div>
       </div>
     </div>
 
