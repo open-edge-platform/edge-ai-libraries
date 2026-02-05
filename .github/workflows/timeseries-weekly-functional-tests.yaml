@@ -41,7 +41,10 @@ jobs:
         echo "Running function tests"
         pip3 install -r requirements.txt
         rm -rf /tmp/test_report/report.html
-        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html "${TEST_PATTERN}"
+        pytest -v test_docker.py::test_input_endpoint
+        source ../docker/.env
+        docker save ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly} | sudo k3s ctr images import -
+        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html ${TEST_PATTERN}
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:

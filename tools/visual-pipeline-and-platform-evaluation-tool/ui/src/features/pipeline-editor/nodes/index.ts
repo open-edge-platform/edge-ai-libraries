@@ -28,6 +28,9 @@ import VaapiDecodebinNode from "./VaapiDecodebinNode.tsx";
 import VAH264DecNode from "./VAH264DecNode.tsx";
 import VAH264EncNode from "./VAH264EncNode.tsx";
 import VAPostProcNode from "./VAPostProcNode.tsx";
+import VideoConvertNode, {
+  VideoConvertNodeWidth,
+} from "./VideoConvertNode.tsx";
 import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
@@ -49,6 +52,7 @@ export const nodeTypes = {
   fakesink: FakeSinkNode,
   "video/x-raw(memory:VAMemory)": VideoXRawNode,
   vapostproc: VAPostProcNode,
+  videoconvert: VideoConvertNode,
   "video/x-raw": VideoXRawWithDimensionsNode,
   mp4mux: Mp4MuxNode,
   filesink: FileSinkNode,
@@ -69,6 +73,7 @@ export const nodeWidths: Record<string, number> = {
   gvametapublish: GVAMetaPublishNodeWidth,
   gvafpscounter: GVAFpsCounterNodeWidth,
   gvawatermark: GVAWatermarkNodeWidth,
+  videoconvert: VideoConvertNodeWidth,
 };
 
 export const nodeHeights: Record<string, number> = {
