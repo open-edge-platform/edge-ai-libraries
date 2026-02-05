@@ -59,15 +59,16 @@ def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name:
 
 
 def _build_tag_filter(tags: Optional[list[str]]) -> Optional[dict]:
-    """Build VDMS tag filter; prefers contains semantics and supports OR across tags."""
+    """Build VDMS tag filter using OR-array syntax for multiple tags."""
     if not tags:
         return None
-    cleaned = [t for t in tags if t]
+    cleaned = [t.strip() for t in tags if t and t.strip()]
     if not cleaned:
         return None
     if len(cleaned) == 1:
-        return {"tags": ["contains", cleaned[0]]}
-    return {"or": [{"tags": ["contains", tag]} for tag in cleaned]}
+        return {"tags": ["==", cleaned[0]]}
+
+    return {"tags": ["==", cleaned]}
 
 
 def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
@@ -78,18 +79,14 @@ def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[di
 
     tag_filter = _build_tag_filter(query_request.tags)
 
-    filters: list[dict] = []
-    if effective_time_filter:
-        filters.append(effective_time_filter)
-    if tag_filter:
-        filters.append(tag_filter)
-
-    if not filters:
+    if not effective_time_filter and not tag_filter:
         return None, None
-    if len(filters) == 1:
-        return filters[0], effective_time_filter
 
-    return {"and": filters}, effective_time_filter
+    if effective_time_filter and tag_filter:
+        merged_filter = {**effective_time_filter, **tag_filter}
+        return merged_filter, effective_time_filter
+
+    return effective_time_filter or tag_filter, effective_time_filter
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
