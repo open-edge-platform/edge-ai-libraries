@@ -36,6 +36,7 @@ x-vippet: &vippet
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
   device_cgroup_rules:
+    # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
     - 'a 189:* rwm'
   volumes:

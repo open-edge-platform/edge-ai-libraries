@@ -28,7 +28,7 @@ class DiscoveredCamera:
 _STOP = False
 
 
-def _handle_signal(signum, frame):  # noqa: ARG001
+def _handle_shutdown_signal(signum, frame):  # noqa: ARG001
     global _STOP
     _STOP = True
 
@@ -124,10 +124,8 @@ def _discover_once(listen_seconds: float, verbose: bool) -> list[DiscoveredCamer
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     try:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-        sock.settimeout(0.5)
-        # Bind to receive replies
-        sock.bind(("0.0.0.0", 0))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(5)
 
         sock.sendto(probe, (MCAST_GRP, MCAST_PORT))
         if verbose:
@@ -140,15 +138,15 @@ def _discover_once(listen_seconds: float, verbose: bool) -> list[DiscoveredCamer
         deadline = time.time() + listen_seconds
         while time.time() < deadline:
             try:
-                data, addr = sock.recvfrom(65535)
+                data, addr = sock.recvfrom(4096)
             except socket.timeout:
                 continue
             except Exception:
                 continue
 
             ip = addr[0]
-            text = data.decode("utf-8", errors="ignore")
-            xaddrs_raw = _extract_xaddrs(text)
+            response  = data.decode("utf-8", errors="ignore")
+            xaddrs_raw = _extract_xaddrs(response)
             xaddr = _pick_best_xaddr(xaddrs_raw) if xaddrs_raw else None
             port = _parse_port_from_xaddr(xaddr)
 
@@ -192,8 +190,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
 
     if args.verbose:
         print(f"Starting ONVIF discovery agent, output={args.out}", flush=True)
