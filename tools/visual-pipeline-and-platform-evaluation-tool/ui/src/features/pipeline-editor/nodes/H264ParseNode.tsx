@@ -2,25 +2,31 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const H264ParseNode = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-purple-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
-          H264Parse
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-purple-100 dark:bg-purple-900 rounded">
-          Parser
-        </div>
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-purple-400 min-w-[220px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-purple-100 dark:bg-purple-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-purple-600 dark:text-purple-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        H.264 stream parser
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
+          H264Parse
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -28,7 +34,6 @@ const H264ParseNode = () => (
       style={{ left: getHandleLeftPosition("h264parse") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}
