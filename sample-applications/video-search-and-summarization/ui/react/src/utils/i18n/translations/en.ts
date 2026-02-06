@@ -196,6 +196,7 @@ export const enTranslations = {
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',
+  timeoutError: 'Request timed out while processing the video. Please try again.',
 
   // Video selector translations
   orSelectExisting: 'Or select from recent uploads',

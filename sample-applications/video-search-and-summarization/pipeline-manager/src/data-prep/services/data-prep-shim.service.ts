@@ -24,7 +24,9 @@ export class DataPrepShimService {
     const dataPrepEndpoint: string =
       this.$config.get<string>('search.dataPrep')!;
     const api = [dataPrepEndpoint, 'videos', 'minio'].join('/');
-    return this.$http.post<DataPrepMinioRO>(api, data).pipe(
+    const timeout =
+      this.$config.get<number>('search.dataPrepTimeoutMs') ?? 30000;
+    return this.$http.post<DataPrepMinioRO>(api, data, { timeout }).pipe(
       tap(() => {
         this.$emitter.emit(SearchEvents.EMBEDDINGS_UPDATE);
       }),
@@ -35,8 +37,10 @@ export class DataPrepShimService {
     const dataPrepEndpoint: string =
       this.$config.get<string>('search.dataPrep')!;
     const api = [dataPrepEndpoint, 'summary'].join('/');
+    const timeout =
+      this.$config.get<number>('search.dataPrepTimeoutMs') ?? 30000;
 
-    return this.$http.post<DataPrepMinioRO>(api, data).pipe(
+    return this.$http.post<DataPrepMinioRO>(api, data, { timeout }).pipe(
       tap(() => {
         this.$emitter.emit(SearchEvents.EMBEDDINGS_UPDATE);
       }),

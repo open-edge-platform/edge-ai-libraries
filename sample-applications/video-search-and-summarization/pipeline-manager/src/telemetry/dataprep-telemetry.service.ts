@@ -7,6 +7,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import * as path from 'path';
 
 const DEFAULT_INTERVAL_MS = 5000;
+const DEFAULT_TIMEOUT_MS = 30000;
 const SIGNAL_FILENAME = 'dataprep_embeddings_per_second.txt';
 
 @Injectable()
@@ -40,6 +41,12 @@ export class DataprepTelemetryService implements OnModuleInit, OnModuleDestroy {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INTERVAL_MS;
   }
 
+  private getTimeoutMs(): number {
+    const raw = process.env.DATAPREP_TELEMETRY_TIMEOUT_MS;
+    const parsed = raw ? Number(raw) : DEFAULT_TIMEOUT_MS;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
+  }
+
   private resolveTelemetryUrl(): string | null {
     const explicit = process.env.DATAPREP_TELEMETRY_URL?.trim();
     if (explicit) return explicit;
@@ -66,7 +73,7 @@ export class DataprepTelemetryService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const response = await axios.get(url, { timeout: 3000 });
+      const response = await axios.get(url, { timeout: this.getTimeoutMs() });
       const value = response.data?.items?.[0]?.throughput?.embeddings_per_second;
 
       if (typeof value !== 'number' || Number.isNaN(value)) {
