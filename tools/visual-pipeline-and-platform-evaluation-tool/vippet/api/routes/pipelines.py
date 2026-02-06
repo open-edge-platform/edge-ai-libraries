@@ -279,7 +279,7 @@ def get_pipelines():
             * variants (list of Variant objects with graphs and timestamps)
             * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
               Note: thumbnail is redacted in logs but returned in full in API response.
-            * created_at, modified_at (ISO 8601 timestamps)
+            * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings)
 
     Success conditions:
         * PipelineManager is initialized and has pipelines loaded.
@@ -304,13 +304,13 @@ def get_pipelines():
                     "read_only": true,
                     "pipeline_graph": {...},
                     "pipeline_graph_simple": {...},
-                    "created_at": "2026-02-05T14:30:45.123Z",
-                    "modified_at": "2026-02-05T14:30:45.123Z"
+                    "created_at": "2026-02-05T14:30:45.123000+00:00",
+                    "modified_at": "2026-02-05T14:30:45.123000+00:00"
                   }
                 ],
                 "thumbnail": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
-                "created_at": "2026-02-05T14:30:45.123Z",
-                "modified_at": "2026-02-05T14:30:45.123Z"
+                "created_at": "2026-02-05T14:30:45.123000+00:00",
+                "modified_at": "2026-02-05T14:30:45.123000+00:00"
               }
             ]
     """
@@ -345,7 +345,7 @@ def get_pipeline(pipeline_id: str):
             * variants (each with pipeline_graph, pipeline_graph_simple, and timestamps)
             * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
               Note: thumbnail is redacted in logs but returned in full in API response.
-            * created_at, modified_at (ISO 8601 timestamps, set by backend only)
+            * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings, set by backend only)
         404 Not Found:
             MessageResponse if pipeline with given id does not exist.
         500 Internal Server Error:
@@ -375,13 +375,13 @@ def get_pipeline(pipeline_id: str):
                   "read_only": false,
                   "pipeline_graph": {...},
                   "pipeline_graph_simple": {...},
-                  "created_at": "2026-02-05T14:30:45.123Z",
-                  "modified_at": "2026-02-05T14:30:45.123Z"
+                  "created_at": "2026-02-05T14:30:45.123000+00:00",
+                  "modified_at": "2026-02-05T14:30:45.123000+00:00"
                 }
               ],
               "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123Z",
-              "modified_at": "2026-02-05T14:30:45.123Z"
+              "created_at": "2026-02-05T14:30:45.123000+00:00",
+              "modified_at": "2026-02-05T14:30:45.123000+00:00"
             }
 
     Error response example (404):
@@ -436,7 +436,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         * source (immutable)
         * thumbnail (only set for PREDEFINED pipelines from config files)
         * created_at (immutable, set when pipeline is created)
-        * modified_at (automatically updated by backend)
+        * modified_at (automatically updated by backend as UTC datetime)
 
     Path parameters:
         pipeline_id: ID of the pipeline to update.
@@ -490,8 +490,8 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
               "tags": ["updated", "v2"],
               "variants": [...],
               "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123Z",
-              "modified_at": "2026-02-05T15:45:00.456Z"
+              "created_at": "2026-02-05T14:30:45.123000+00:00",
+              "modified_at": "2026-02-05T15:45:00.456000+00:00"
             }
 
     Error response example (400):
@@ -896,8 +896,8 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
               "read_only": false,
               "pipeline_graph": {...},
               "pipeline_graph_simple": {...},
-              "created_at": "2026-02-05T14:30:45.123Z",
-              "modified_at": "2026-02-05T14:30:45.123Z"
+              "created_at": "2026-02-05T14:30:45.123000+00:00",
+              "modified_at": "2026-02-05T14:30:45.123000+00:00"
             }
     """
     try:
@@ -910,7 +910,7 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
 
         logger.info(f"Created variant {new_variant.id} for pipeline {pipeline_id}")
         return JSONResponse(
-            content=new_variant.model_dump(),
+            content=new_variant.model_dump(mode="json"),
             status_code=201,
         )
 
@@ -1132,8 +1132,8 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
               "read_only": false,
               "pipeline_graph": {...},
               "pipeline_graph_simple": {...},
-              "created_at": "2026-02-05T14:30:45.123Z",
-              "modified_at": "2026-02-05T15:45:00.456Z"
+              "created_at": "2026-02-05T14:30:45.123000+00:00",
+              "modified_at": "2026-02-05T15:45:00.456000+00:00"
             }
 
     Error response example (400, read-only):

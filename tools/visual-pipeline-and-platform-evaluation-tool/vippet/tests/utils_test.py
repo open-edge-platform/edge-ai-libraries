@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 import utils
 
@@ -21,11 +22,11 @@ class TestGenerateUniqueId(unittest.TestCase):
         self.assertEqual(result, "pipeline-test")
 
     def test_generate_unique_id_max_length(self):
-        # Test that slugify respects max_length of 32 characters
+        # Test that slugify respects max_length of 64 characters
         long_text = "This is a very long pipeline name that exceeds the limit"
         result = utils.generate_unique_id(long_text, [])
-        # Slug part should be max 32 chars
-        self.assertLessEqual(len(result), 32)
+        # Slug part should be max 64 chars
+        self.assertLessEqual(len(result), 64)
 
     def test_generate_unique_id_no_collision(self):
         # Test that ID is returned as-is when no collision
@@ -493,42 +494,24 @@ class TestGeneratePipelineGraphId(unittest.TestCase):
 class TestGetCurrentTimestamp(unittest.TestCase):
     """Tests for get_current_timestamp function."""
 
-    # ISO 8601 timestamp pattern: YYYY-MM-DDTHH:MM:SS.mmmZ
-    ISO_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
-
-    def test_get_current_timestamp_format(self):
-        # Test that timestamp matches ISO 8601 format
+    def test_get_current_timestamp_returns_datetime(self):
+        # Test that result is a datetime object
         result = utils.get_current_timestamp()
-        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(result))
+        self.assertIsInstance(result, datetime)
 
-    def test_get_current_timestamp_returns_string(self):
-        # Test that result is a string
+    def test_get_current_timestamp_has_utc_timezone(self):
+        # Test that timestamp has UTC timezone
         result = utils.get_current_timestamp()
-        self.assertIsInstance(result, str)
+        self.assertEqual(result.tzinfo, timezone.utc)
 
-    def test_get_current_timestamp_length(self):
-        # Test that timestamp has correct length (24 chars: YYYY-MM-DDTHH:MM:SS.mmmZ)
+    def test_get_current_timestamp_is_recent(self):
+        # Test that timestamp is close to current time
+        before = datetime.now(timezone.utc)
         result = utils.get_current_timestamp()
-        self.assertEqual(len(result), 24)
+        after = datetime.now(timezone.utc)
 
-    def test_get_current_timestamp_ends_with_z(self):
-        # Test that timestamp ends with 'Z' (UTC indicator)
-        result = utils.get_current_timestamp()
-        self.assertTrue(result.endswith("Z"))
-
-    def test_get_current_timestamp_contains_t_separator(self):
-        # Test that timestamp contains 'T' separator between date and time
-        result = utils.get_current_timestamp()
-        self.assertIn("T", result)
-
-    def test_get_current_timestamp_milliseconds(self):
-        # Test that milliseconds part is 3 digits
-        result = utils.get_current_timestamp()
-        # Extract milliseconds part (between '.' and 'Z')
-        match = re.search(r"\.(\d{3})Z$", result)
-        assert match is not None  # Type narrowing
-        milliseconds = match.group(1)
-        self.assertEqual(len(milliseconds), 3)
+        self.assertGreaterEqual(result, before)
+        self.assertLessEqual(result, after)
 
     def test_get_current_timestamp_uniqueness_over_time(self):
         # Test that timestamps change over time (not identical)
@@ -537,52 +520,52 @@ class TestGetCurrentTimestamp(unittest.TestCase):
         timestamp1 = utils.get_current_timestamp()
         time.sleep(0.01)  # Sleep for 10ms
         timestamp2 = utils.get_current_timestamp()
-        # Timestamps should be different (or at least milliseconds should differ)
-        # Note: They could be same if called within same millisecond
-        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(timestamp1))
-        self.assertIsNotNone(self.ISO_TIMESTAMP_PATTERN.match(timestamp2))
+
+        # Second timestamp should be later
+        self.assertGreater(timestamp2, timestamp1)
 
     def test_get_current_timestamp_year_range(self):
         # Test that year is reasonable (2020-2100)
         result = utils.get_current_timestamp()
-        year = int(result[:4])
-        self.assertGreaterEqual(year, 2020)
-        self.assertLessEqual(year, 2100)
+        self.assertGreaterEqual(result.year, 2020)
+        self.assertLessEqual(result.year, 2100)
 
     def test_get_current_timestamp_month_range(self):
-        # Test that month is valid (01-12)
+        # Test that month is valid (1-12)
         result = utils.get_current_timestamp()
-        month = int(result[5:7])
-        self.assertGreaterEqual(month, 1)
-        self.assertLessEqual(month, 12)
+        self.assertGreaterEqual(result.month, 1)
+        self.assertLessEqual(result.month, 12)
 
     def test_get_current_timestamp_day_range(self):
-        # Test that day is valid (01-31)
+        # Test that day is valid (1-31)
         result = utils.get_current_timestamp()
-        day = int(result[8:10])
-        self.assertGreaterEqual(day, 1)
-        self.assertLessEqual(day, 31)
+        self.assertGreaterEqual(result.day, 1)
+        self.assertLessEqual(result.day, 31)
 
     def test_get_current_timestamp_hour_range(self):
-        # Test that hour is valid (00-23)
+        # Test that hour is valid (0-23)
         result = utils.get_current_timestamp()
-        hour = int(result[11:13])
-        self.assertGreaterEqual(hour, 0)
-        self.assertLessEqual(hour, 23)
+        self.assertGreaterEqual(result.hour, 0)
+        self.assertLessEqual(result.hour, 23)
 
     def test_get_current_timestamp_minute_range(self):
-        # Test that minute is valid (00-59)
+        # Test that minute is valid (0-59)
         result = utils.get_current_timestamp()
-        minute = int(result[14:16])
-        self.assertGreaterEqual(minute, 0)
-        self.assertLessEqual(minute, 59)
+        self.assertGreaterEqual(result.minute, 0)
+        self.assertLessEqual(result.minute, 59)
 
     def test_get_current_timestamp_second_range(self):
-        # Test that second is valid (00-59)
+        # Test that second is valid (0-59)
         result = utils.get_current_timestamp()
-        second = int(result[17:19])
-        self.assertGreaterEqual(second, 0)
-        self.assertLessEqual(second, 59)
+        self.assertGreaterEqual(result.second, 0)
+        self.assertLessEqual(result.second, 59)
+
+    def test_get_current_timestamp_has_microseconds(self):
+        # Test that timestamp includes microseconds
+        result = utils.get_current_timestamp()
+        # microsecond should be between 0 and 999999
+        self.assertGreaterEqual(result.microsecond, 0)
+        self.assertLessEqual(result.microsecond, 999999)
 
 
 class TestLoadThumbnailAsBase64(unittest.TestCase):

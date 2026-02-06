@@ -2,6 +2,7 @@ name: Retail - Face Detection and Age Gender Recognition
 definition: >
   The Retail Pipeline using face-detection-retail-0004 for object detection and age-gender-recognition-retail-0013 for age and gender prediction is designed for retail analytics applications.
   It detects faces, predicts age groups and gender, making it suitable for customer demographics analysis and other retail use cases.
+thumbnail: images/retail-face-detection-age-gender-recognition.png
 variants:
   - name: CPU
     pipeline_description: >-

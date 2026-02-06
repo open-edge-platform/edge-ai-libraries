@@ -3,6 +3,7 @@ definition: >
   The Simple Video Structurization (D-T-C) pipeline is a versatile, use case-agnostic solution that supports
   license plate recognition, vehicle detection with attribute classification, and other object detection and
   classification tasks, adaptable based on the selected model.
+thumbnail: images/simplevs.png
 variants:
   - name: CPU
     pipeline_description: >-

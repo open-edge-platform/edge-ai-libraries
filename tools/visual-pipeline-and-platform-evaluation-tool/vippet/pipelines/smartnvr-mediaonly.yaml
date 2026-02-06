@@ -3,6 +3,7 @@ definition: >
   Part of the Smart Network Video Recorder (NVR) Proxy Pipeline. This branch processes video streams
   without AI analytics. Performs basic video decoding, recording, and format conversion for lightweight
   media handling.
+thumbnail: images/smartnvr-mediaonly.png
 variants:
   - name: CPU
     pipeline_description: >-

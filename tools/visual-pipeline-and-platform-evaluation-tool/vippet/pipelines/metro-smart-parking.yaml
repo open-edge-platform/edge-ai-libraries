@@ -3,6 +3,7 @@
 name: Metro - Smart Parking
 definition: >
   Smart Parking is a cloud-native, microservices-based video analytics pipeline that uses pre-trained deep learning models to detect parking-space occupancy.
+thumbnail: images/metro-smart-parking.png
 variants:
   - name: CPU
     pipeline_description: >-

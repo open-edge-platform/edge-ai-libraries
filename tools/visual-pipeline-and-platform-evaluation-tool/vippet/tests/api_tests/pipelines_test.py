@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -8,9 +9,9 @@ import api.api_schemas as schemas
 from api.routes.pipelines import router as pipelines_router
 
 
-# Helper to generate ISO 8601 timestamp
-def _get_test_timestamp() -> str:
-    return "2026-02-05T14:30:45.123Z"
+# Helper to generate test timestamp as datetime
+def _get_test_timestamp() -> datetime:
+    return datetime(2026, 2, 5, 14, 30, 45, 123000, tzinfo=timezone.utc)
 
 
 class TestPipelinesAPI(unittest.TestCase):
@@ -133,7 +134,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertIn("variants", first_pipeline)
         self.assertEqual(len(first_pipeline["variants"]), 1)
 
-        # Verify timestamps are present
+        # Verify timestamps are present (serialized as ISO strings by Pydantic)
         self.assertIn("created_at", first_pipeline)
         self.assertIn("modified_at", first_pipeline)
 
@@ -160,6 +161,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_manager.add_pipeline.return_value = mock_pipeline
         mock_pipeline_manager_cls.return_value = mock_manager
 
+        timestamp = _get_test_timestamp()
         new_pipeline = {
             "name": "user-defined-pipelines",
             "description": "A custom test pipeline",
@@ -175,8 +177,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
-                    "created_at": "2026-02-05T14:30:45.123Z",
-                    "modified_at": "2026-02-05T14:30:45.123Z",
+                    "created_at": timestamp.isoformat(),
+                    "modified_at": timestamp.isoformat(),
                 }
             ],
         }
@@ -194,6 +196,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls
     ):
         """Test that creating a pipeline with read_only=true variant is rejected."""
+        timestamp = _get_test_timestamp()
         new_pipeline = {
             "name": "user-defined-pipelines",
             "description": "A custom test pipeline",
@@ -209,8 +212,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
-                    "created_at": "2026-02-05T14:30:45.123Z",
-                    "modified_at": "2026-02-05T14:30:45.123Z",
+                    "created_at": timestamp.isoformat(),
+                    "modified_at": timestamp.isoformat(),
                 }
             ],
         }
@@ -227,6 +230,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_manager.add_pipeline.side_effect = ValueError("Pipeline already exists.")
         mock_pipeline_manager_cls.return_value = mock_manager
 
+        timestamp = _get_test_timestamp()
         duplicate_pipeline = {
             "name": "user-defined-pipelines",
             "description": "A custom test pipeline",
@@ -242,8 +246,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
-                    "created_at": "2026-02-05T14:30:45.123Z",
-                    "modified_at": "2026-02-05T14:30:45.123Z",
+                    "created_at": timestamp.isoformat(),
+                    "modified_at": timestamp.isoformat(),
                 }
             ],
         }
@@ -262,6 +266,7 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_manager.add_pipeline.side_effect = Exception("Unexpected error")
         mock_pipeline_manager_cls.return_value = mock_manager
 
+        timestamp = _get_test_timestamp()
         new_pipeline = {
             "name": "user-defined-pipelines",
             "description": "A custom test pipeline",
@@ -277,8 +282,8 @@ class TestPipelinesAPI(unittest.TestCase):
                     "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
                         self.test_graph
                     ).model_dump(),
-                    "created_at": "2026-02-05T14:30:45.123Z",
-                    "modified_at": "2026-02-05T14:30:45.123Z",
+                    "created_at": timestamp.isoformat(),
+                    "modified_at": timestamp.isoformat(),
                 }
             ],
         }

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
@@ -271,9 +272,9 @@ class Variant(BaseModel):
             Can only be set to true for PREDEFINED pipeline variants.
         pipeline_graph: Advanced graph representation for this variant.
         pipeline_graph_simple: Simplified graph representation for this variant.
-        created_at: Creation timestamp in ISO 8601 format (e.g., 2026-02-05T14:30:45.123Z).
+        created_at: Creation timestamp as UTC datetime.
             Set by backend only, not modifiable via API.
-        modified_at: Last modification timestamp in ISO 8601 format.
+        modified_at: Last modification timestamp as UTC datetime.
             Updated when variant is modified. Set by backend only.
     """
 
@@ -299,15 +300,13 @@ class Variant(BaseModel):
         ...,
         description="Simplified graph view for this variant.",
     )
-    created_at: str = Field(
+    created_at: datetime = Field(
         ...,
-        description="Creation timestamp in ISO 8601 format. Set by backend only.",
-        examples=["2026-02-05T14:30:45.123Z"],
+        description="Creation timestamp as UTC datetime. Set by backend only.",
     )
-    modified_at: str = Field(
+    modified_at: datetime = Field(
         ...,
-        description="Last modification timestamp in ISO 8601 format. Set by backend only.",
-        examples=["2026-02-05T14:30:45.123Z"],
+        description="Last modification timestamp as UTC datetime. Set by backend only.",
     )
 
 
@@ -693,9 +692,9 @@ class Pipeline(BaseModel):
             Each variant has its own pipeline_graph and pipeline_graph_simple.
         thumbnail: Base64-encoded image for pipeline preview. Only available for
             PREDEFINED pipelines with valid thumbnail file. Redacted when printing.
-        created_at: Creation timestamp in ISO 8601 format (e.g., 2026-02-05T14:30:45.123Z).
+        created_at: Creation timestamp as UTC datetime.
             Set by backend only, not modifiable via API.
-        modified_at: Last modification timestamp in ISO 8601 format.
+        modified_at: Last modification timestamp as UTC datetime.
             Updated when pipeline or its variants are modified. Set by backend only.
 
     Example:
@@ -714,13 +713,13 @@ class Pipeline(BaseModel):
                   "read_only": false,
                   "pipeline_graph": {...},
                   "pipeline_graph_simple": {...},
-                  "created_at": "2026-02-05T14:30:45.123Z",
-                  "modified_at": "2026-02-05T14:30:45.123Z"
+                  "created_at": "2026-02-05T14:30:45.123000+00:00",
+                  "modified_at": "2026-02-05T14:30:45.123000+00:00"
                 }
               ],
               "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123Z",
-              "modified_at": "2026-02-05T14:30:45.123Z"
+              "created_at": "2026-02-05T14:30:45.123000+00:00",
+              "modified_at": "2026-02-05T14:30:45.123000+00:00"
             }
     """
 
@@ -742,15 +741,13 @@ class Pipeline(BaseModel):
         repr=False,
         description="Base64-encoded thumbnail image. Only for PREDEFINED pipelines. Redacted in logs.",
     )
-    created_at: str = Field(
+    created_at: datetime = Field(
         ...,
-        description="Creation timestamp in ISO 8601 format. Set by backend only.",
-        examples=["2026-02-05T14:30:45.123Z"],
+        description="Creation timestamp as UTC datetime. Set by backend only.",
     )
-    modified_at: str = Field(
+    modified_at: datetime = Field(
         ...,
-        description="Last modification timestamp in ISO 8601 format. Set by backend only.",
-        examples=["2026-02-05T14:30:45.123Z"],
+        description="Last modification timestamp as UTC datetime. Set by backend only.",
     )
 
 
