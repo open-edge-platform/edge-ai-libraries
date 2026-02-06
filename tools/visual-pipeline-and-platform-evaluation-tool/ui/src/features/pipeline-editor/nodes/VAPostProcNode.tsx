@@ -2,25 +2,31 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VAPostProcNode = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-amber-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
-          VAPostProc
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-amber-100 dark:bg-amber-900 rounded">
-          Transform
-        </div>
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-amber-400 min-w-[220px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-amber-100 dark:bg-amber-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-amber-600 dark:text-amber-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        VA-API video postprocessor
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
+          VAPostProc
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -28,7 +34,6 @@ const VAPostProcNode = () => (
       style={{ left: getHandleLeftPosition("vapostproc") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}
