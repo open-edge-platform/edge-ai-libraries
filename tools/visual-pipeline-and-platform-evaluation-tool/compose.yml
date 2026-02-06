@@ -35,11 +35,17 @@ x-vippet: &vippet
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
+  device_cgroup_rules:
+    # Broad access to USB devices is required to support a wide range of USB cameras.
+    - 'c 189:* rmw'
+    - 'a 189:* rwm'
   volumes:
+    - "/dev:/dev"
     - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
+    - ./shared/onvif/:/onvif
 
 services:
   vippet-ui:
@@ -131,6 +137,32 @@ services:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP 
+  onvif-discovery:
+    image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
+    build:
+      context: ./onvif_discovery
+      dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    container_name: onvif-discovery
+    network_mode: host
+    restart: on-failure:5
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      OUTPUT_FILE: /out/onvif_cameras.json
+      DISCOVERY_INTERVAL: 20
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    volumes:
+      - ./shared/onvif:/out
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
