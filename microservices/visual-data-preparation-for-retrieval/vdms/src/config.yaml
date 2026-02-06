@@ -47,7 +47,7 @@ object_detection:
     model_dir: '/app/models/yolox' # Persistent mount path for models
     model_name: 'yolox_s'
     roi_consolidation:
-        enabled: true # Master switch for ROI consolidation logic
+        enabled: false # Master switch for ROI consolidation logic
         iou_threshold: 0.2 # IoU threshold for clustering overlapping boxes
         class_aware: false # Only merge boxes of the same class when true
         context_scale: 0.2 # Expand merged ROI by this fraction of its size

@@ -145,6 +145,8 @@ Before running the application, you need to set several environment variables:
     IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
     $$
 
+    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
+
 7. **Set advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
