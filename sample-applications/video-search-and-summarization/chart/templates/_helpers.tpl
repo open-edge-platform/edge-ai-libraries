@@ -53,10 +53,10 @@ Define the name for videosummaryui Chart.
 {{- end }}
 
 {{/*
-Define the name for videoSummaryManager Chart.
+Define the name for pipelineManager Chart.
 */}}
-{{- define "videoSummaryManager.fullname" -}}
-{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.videoSummaryManager.name }}
+{{- define "pipelinemanager.fullname" -}}
+{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.pipelinemanager.name }}
 {{- end }}
 
 {{/*
