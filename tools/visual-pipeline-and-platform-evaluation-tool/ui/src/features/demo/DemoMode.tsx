@@ -334,6 +334,10 @@ const DemoMode = () => {
     lastRunTest === "performance-test" &&
     performanceLivePreviewEnabled;
   const showPreRunLayout = !testStarted;
+  const gridColumnsStyle = {
+    gridTemplateColumns: showResultsPanel ? "0.7fr 1.3fr" : "1fr 1fr",
+    transition: "grid-template-columns 600ms ease",
+  } as const;
   const frozenMetrics = metricHistorySnapshot;
   const hasFrozenMetrics = frozenMetrics.length > 0;
   type FrozenGpuMetrics = {
@@ -1024,7 +1028,7 @@ const DemoMode = () => {
                   className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
                   onWheel={handleFastScroll}
                 >
-                  <div className="flex flex-wrap gap-2 pb-6">
+                  <div className="grid grid-cols-3 gap-2 pb-6">
                     {pipelineSelections.map((selection) => {
                       const pipeline = pipelines.find(
                         (p) => p.id === selection.pipelineId,
@@ -1042,7 +1046,7 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-36 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`flex w-full flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
@@ -2176,7 +2180,10 @@ const DemoMode = () => {
                 return (
                   <div className="h-full flex flex-col">
                     {backButtonBar}
-                    <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
+                    <div
+                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                      style={gridColumnsStyle}
+                    >
                       <div className="row-start-1 col-start-1">
                         {pipelineCardsSection}
                       </div>
@@ -2197,7 +2204,10 @@ const DemoMode = () => {
                 return (
                   <div className="h-full flex flex-col">
                     {backButtonBar}
-                    <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
+                    <div
+                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                      style={gridColumnsStyle}
+                    >
                       {pipelineCardsSection}
                       {previewSection}
                       {pipelineConfigSection}
@@ -2210,7 +2220,10 @@ const DemoMode = () => {
               return (
                 <div className="h-full flex flex-col">
                   {backButtonBar}
-                  <div className="grid grid-cols-2 grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0">
+                  <div
+                    className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                    style={gridColumnsStyle}
+                  >
                     <div className="row-start-1 col-start-1">
                       {pipelineCardsSection}
                     </div>
