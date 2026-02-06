@@ -687,6 +687,13 @@ async def chat_completions(request: ChatRequest):
         config = ov_genai.GenerationConfig(
             **{k: v for k, v in config_kwargs.items() if v is not None}
         )
+        if processor is not None and hasattr(processor, "tokenizer"):
+            eos_token_id = getattr(processor.tokenizer, "eos_token_id", None)
+            if isinstance(eos_token_id, int):
+                config.eos_token_id = eos_token_id
+            eos_token = getattr(processor.tokenizer, "eos_token", None)
+            if isinstance(eos_token, str) and eos_token and not config.stop_strings:
+                config.stop_strings = {eos_token}
         logger.debug(
             f"config: { {k: v for k, v in config_kwargs.items() if v is not None} }"
         )

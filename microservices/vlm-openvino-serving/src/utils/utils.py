@@ -225,7 +225,7 @@ async def load_images(image_urls_or_files: List[str]):
             image_data = (
                 np.array(image.getdata())
                 .reshape(1, image.size[1], image.size[0], 3)
-                .astype(np.byte)
+                .astype(np.uint8)
             )
             images.append(image)
             image_tensors.append(ov.Tensor(image_data))
