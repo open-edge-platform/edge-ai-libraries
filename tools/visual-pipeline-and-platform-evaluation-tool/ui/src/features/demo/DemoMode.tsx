@@ -1798,24 +1798,27 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 max-h-[86vh] ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
                   >
-                    Test Summary
+                    {lastRunTest === "performance-test" &&
+                    performanceJobStatus?.state === "RUNNING"
+                      ? "Test Status: RUNNING"
+                      : lastRunTest === "density-test" &&
+                          jobStatus?.state === "RUNNING"
+                        ? "Test Status: RUNNING"
+                        : "Test Summary"}
                   </p>
 
                   <div className="flex-1 overflow-y-auto">
                     {lastRunTest === "performance-test" ? (
                       <div className="space-y-3">
                         {performanceJobId && performanceJobStatus && (
-                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                            <p className="text-sm font-bold text-white mb-1">
-                              Test Status: {performanceJobStatus.state}
-                            </p>
+                          <div className="space-y-2">
                             {performanceJobStatus.state === "RUNNING" && (
-                              <div className="mt-2">
+                              <div>
                                 <div className="mb-2 flex items-center gap-2">
                                   <div className="flex gap-1">
                                     <div
@@ -2001,12 +2004,9 @@ const DemoMode = () => {
                     ) : (
                       <div className="space-y-3">
                         {densityJobId && jobStatus && (
-                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
-                            <p className="text-sm font-bold text-white mb-1">
-                              Test Status: {jobStatus.state}
-                            </p>
+                          <div className="space-y-2">
                             {jobStatus.state === "RUNNING" && (
-                              <div className="mt-2">
+                              <div>
                                 <div className="mb-2 flex items-center gap-2">
                                   <div className="flex gap-1">
                                     <div
@@ -2185,7 +2185,7 @@ const DemoMode = () => {
                           {pipelineConfigSection}
                         </div>
                       </div>
-                      <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
+                      <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
                         {resultsSection}
                       </div>
                     </div>
@@ -2219,7 +2219,7 @@ const DemoMode = () => {
                         {pipelineConfigSection}
                       </div>
                     </div>
-                    <div className="row-start-1 col-start-2 row-span-2 h-full max-h-[100%] self-start">
+                    <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
                       {resultsSection}
                     </div>
                   </div>
