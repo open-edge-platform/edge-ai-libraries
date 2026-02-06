@@ -217,6 +217,8 @@ const DemoMode = () => {
   const [demoStep, setDemoStep] = useState<"selection" | "configuration">(
     "selection",
   );
+  const [openConfigSection, setOpenConfigSection] =
+    useState<string>("pipeline-config");
   const [activeTest, setActiveTest] = useState<
     "performance-test" | "density-test"
   >("density-test");
@@ -321,6 +323,12 @@ const DemoMode = () => {
     lastRunTest === "performance-test"
       ? !performanceJobId && (!!performanceResult || !!performanceErrorMessage)
       : !densityJobId && (!!testResult || !!errorMessage);
+  const isPipelineConfigOpen = openConfigSection === "pipeline-config";
+  const pipelineConfigContainerMaxHeightClass = "max-h-[60vh]";
+  const pipelineConfigMaxHeightClass = isPipelineConfigOpen
+    ? "max-h-[42vh]"
+    : "max-h-[44vh]";
+  const runConfigMaxHeightClass = "max-h-[44vh]";
   const showPreviewPanel =
     testStarted &&
     lastRunTest === "performance-test" &&
@@ -1034,7 +1042,7 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-40 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`flex flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden w-36 shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
@@ -1043,7 +1051,7 @@ const DemoMode = () => {
                           {pipelineImages[
                             pipelineIndex % pipelineImages.length
                           ] && (
-                            <div className="p-2 pb-0">
+                            <div className="p-1.5 pb-0">
                               <img
                                 src={
                                   pipelineImages[
@@ -1051,7 +1059,7 @@ const DemoMode = () => {
                                   ]
                                 }
                                 alt={pipeline.name}
-                                className="w-full h-16 object-cover rounded-md"
+                                className="w-full h-10 object-cover rounded-md"
                               />
                             </div>
                           )}
@@ -1084,11 +1092,20 @@ const DemoMode = () => {
 
               const pipelineConfigSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full overflow-hidden ${colors.testBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full ${pipelineConfigContainerMaxHeightClass} overflow-hidden ${colors.testBorder}`}
                 >
                   <Accordion
-                    type="multiple"
-                    defaultValue={["pipeline-config", "run-config"]}
+                    type="single"
+                    collapsible
+                    value={openConfigSection}
+                    onValueChange={(value) =>
+                      setOpenConfigSection((prev) => {
+                        if (value) return value;
+                        return prev === "pipeline-config"
+                          ? "run-config"
+                          : "pipeline-config";
+                      })
+                    }
                     className="w-full space-y-3"
                   >
                     <AccordionItem
@@ -1103,7 +1120,7 @@ const DemoMode = () => {
                         </span>
                       </AccordionTrigger>
                       <AccordionContent
-                        className="px-3 pb-3 max-h-[20vh] overflow-y-auto scroll-smooth"
+                        className={`px-3 pb-3 ${pipelineConfigMaxHeightClass} overflow-y-auto scroll-smooth`}
                         onWheel={handleFastScroll}
                       >
                         <div className="pr-1 min-h-[20vh]">
@@ -1530,7 +1547,9 @@ const DemoMode = () => {
                           Run Configuration
                         </span>
                       </AccordionTrigger>
-                      <AccordionContent className="px-3 pb-3 max-h-[40vh] flex flex-col">
+                      <AccordionContent
+                        className={`px-3 pb-3 ${runConfigMaxHeightClass} flex flex-col`}
+                      >
                         <div
                           className="flex-1 min-h-0 overflow-y-auto scroll-smooth"
                           onWheel={handleFastScroll}
