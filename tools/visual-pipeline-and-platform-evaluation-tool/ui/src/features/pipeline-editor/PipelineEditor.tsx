@@ -27,6 +27,7 @@ import {
   LayoutDirection,
 } from "@/features/pipeline-editor/utils/graphLayout";
 import { useTheme } from "next-themes";
+import { PipelineEditorContext } from "./PipelineEditorContext.ts";
 
 export interface PipelineEditorHandle {
   updateNodeData: (
@@ -45,7 +46,7 @@ interface PipelineEditorProps {
   initialEdges?: ReactFlowEdge[];
   initialViewport?: Viewport;
   shouldFitView?: boolean;
-  useSimpleGraph?: boolean;
+  isSimpleGraph: boolean;
 }
 
 const PipelineEditorContent = forwardRef<
@@ -63,7 +64,7 @@ const PipelineEditorContent = forwardRef<
       initialEdges,
       initialViewport,
       shouldFitView,
-      useSimpleGraph,
+      isSimpleGraph,
     },
     ref,
   ) => {
@@ -108,7 +109,7 @@ const PipelineEditorContent = forwardRef<
 
     useEffect(() => {
       setHasInitialized(false);
-    }, [useSimpleGraph]);
+    }, [isSimpleGraph]);
 
     useEffect(() => {
       if (!hasInitialized) {
@@ -128,10 +129,9 @@ const PipelineEditorContent = forwardRef<
           pipelineData?.pipeline_graph ||
           pipelineData?.pipeline_graph_simple
         ) {
-          const graphToUse =
-            useSimpleGraph === true
-              ? pipelineData.pipeline_graph_simple
-              : pipelineData.pipeline_graph;
+          const graphToUse = isSimpleGraph
+            ? pipelineData.pipeline_graph_simple
+            : pipelineData.pipeline_graph;
           const nodes = graphToUse?.nodes ?? [];
           const edges = graphToUse?.edges ?? [];
 
@@ -175,11 +175,11 @@ const PipelineEditorContent = forwardRef<
       setEdges,
       setViewport,
       fitView,
-      useSimpleGraph,
+      isSimpleGraph,
     ]);
 
     return (
-      <>
+      <PipelineEditorContext.Provider value={{ simpleGraph: isSimpleGraph }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -196,11 +196,16 @@ const PipelineEditorContent = forwardRef<
           colorMode={theme === "dark" ? "dark" : "light"}
           className="h-full w-full"
           defaultViewport={{ x: 0, y: 50, zoom: 1 }}
+          defaultEdgeOptions={{
+            animated: true,
+            style: { strokeWidth: 2 },
+            type: "smoothstep",
+          }}
         >
           <Controls />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
         </ReactFlow>
-      </>
+      </PipelineEditorContext.Provider>
     );
   },
 );
