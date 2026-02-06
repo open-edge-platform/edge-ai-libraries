@@ -2,25 +2,37 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VAH264DecNode = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-orange-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-orange-700 dark:text-orange-300">
-          VAH264Dec
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-orange-100 dark:bg-orange-900 rounded">
-          Decoder
-        </div>
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-orange-400 min-w-[220px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-orange-100 dark:bg-orange-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-orange-600 dark:text-orange-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        VA-API H.264 decoder
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-orange-700 dark:text-orange-300">
+          VAH264Dec
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -28,7 +40,6 @@ const VAH264DecNode = () => (
       style={{ left: getHandleLeftPosition("vah264dec") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}
