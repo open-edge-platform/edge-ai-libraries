@@ -1028,7 +1028,7 @@ const DemoMode = () => {
                   className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
                   onWheel={handleFastScroll}
                 >
-                  <div className="grid grid-cols-3 gap-2 pb-6">
+                  <div className="grid grid-cols-4 gap-2 pb-6">
                     {pipelineSelections.map((selection) => {
                       const pipeline = pipelines.find(
                         (p) => p.id === selection.pipelineId,
@@ -1055,7 +1055,7 @@ const DemoMode = () => {
                           {pipelineImages[
                             pipelineIndex % pipelineImages.length
                           ] && (
-                            <div className="p-1.5 pb-0">
+                            <div className="p-1 pb-0">
                               <img
                                 src={
                                   pipelineImages[
@@ -1063,7 +1063,7 @@ const DemoMode = () => {
                                   ]
                                 }
                                 alt={pipeline.name}
-                                className="w-full h-10 object-cover rounded-md"
+                                className="w-full max-w-[125px] aspect-[4/3] object-cover rounded-md mx-auto"
                               />
                             </div>
                           )}
