@@ -1,8 +1,10 @@
-name: Retail - YOLO 11n and EfficientNet B0
+name: Goods Detection & Classification
 definition: >
   The Retail Pipeline using YOLO 11n for object detection and EfficientNet B0 for classification is designed for retail analytics applications.
   It detects various retail-related objects and classifies them into specific categories, making it suitable for inventory management, customer behavior analysis, and other retail use cases.
-thumbnail: images/retail-yolo11n-effnetb0.png
+tags:
+  - Retail
+thumbnail: images/goods-detection-and-classification.png
 variants:
   - name: CPU
     pipeline_description: >-
