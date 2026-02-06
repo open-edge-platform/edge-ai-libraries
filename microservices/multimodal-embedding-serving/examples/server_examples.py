@@ -172,7 +172,7 @@ def environment_variable_examples():
     print("   export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")
-    print("   export EMBEDDING_OV_MODELS_DIR=./ov-models")
+    print("   export EMBEDDING_OV_MODELS_DIR=./ov_models")
     print()
 
     print("3. Use SigLIP model:")
@@ -191,7 +191,7 @@ def environment_variable_examples():
     print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")
-    print("   export EMBEDDING_OV_MODELS_DIR=./ov-models")
+    print("   export EMBEDDING_OV_MODELS_DIR=./ov_models")
     print()
 
 

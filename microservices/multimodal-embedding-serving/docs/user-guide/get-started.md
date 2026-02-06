@@ -47,7 +47,7 @@ export EMBEDDING_USE_OV=true
 
 # Custom OpenVINO cache directory
 export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0
-export EMBEDDING_OV_MODELS_DIR=/app/ov-models
+export EMBEDDING_OV_MODELS_DIR=/app/ov_models
 ```
 
 **Key Environment Variables**:
