@@ -68,6 +68,10 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.pipelinemanager.image.repository }}:{{ .Values.pipelinemanager.image.tag }}"
           imagePullPolicy: {{ .Values.pipelinemanager.image.pullPolicy }}
+          {{- with .Values.pipelinemanager.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: 3000
               name: {{ .Values.pipelinemanager.containerPortName }}
@@ -152,6 +156,14 @@ spec:
               value: "{{ .Values.pipelinemanager.env.AUDIO_DEVICE }}"
             - name: OTLP_TRACE_URL
               value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
+            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+            - name: DATAPREP_TELEMETRY_URL
+              value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}/v1/dataprep/telemetry?limit=1"
+            {{- end }}
+            {{- if .Values.vsscollector.enabled }}
+            - name: TELEMETRY_SIGNAL_DIR
+              value: "/app/.collector-signals"
+            {{- end }}
             - name: SUMMARY_FEATURE
               value: "{{ .Values.pipelinemanager.env.SUMMARY_FEATURE }}"
             - name: SEARCH_FEATURE
@@ -164,11 +176,33 @@ spec:
             {{- end }}
             - name: USE_OVMS
               value: "{{ .Values.pipelinemanager.env.USE_OVMS }}"
+          {{- if .Values.vsscollector.enabled }}
+          volumeMounts:
+            - name: collector-signals
+              mountPath: /app/.collector-signals
+              subPath: {{ .Values.vsscollector.signalVolume.subPath | quote }}
+          {{- end }}
       nodeSelector:
         {{- toYaml .Values.pipelinemanager.nodeSelector | nindent 8 }}
+      {{- with .Values.pipelinemanager.affinity }}
       affinity:
-        {{- toYaml .Values.pipelinemanager.affinity | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
+      {{- if .Values.vsscollector.enabled }}
+      volumes:
+        - name: collector-signals
+          {{- if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}/collector-signals
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- end }}
