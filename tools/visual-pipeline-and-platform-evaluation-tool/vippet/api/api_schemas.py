@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -119,6 +119,19 @@ class ModelCategory(str, Enum):
 class OptimizationType(str, Enum):
     PREPROCESS = "preprocess"
     OPTIMIZE = "optimize"
+
+
+class CameraType(str, Enum):
+    """
+    Type of camera device.
+
+    Values:
+        USB: USB camera connected directly to the system.
+        NETWORK: Network camera accessible via IP protocols.
+    """
+
+    USB = "USB"
+    NETWORK = "NETWORK"
 
 
 class Node(BaseModel):
@@ -1083,3 +1096,198 @@ class Video(BaseModel):
     frame_count: int
     codec: str
     duration: float
+
+
+class CameraDetails(BaseModel):
+    """Base class for camera-specific details."""
+
+    pass
+
+
+class USBCameraDetails(CameraDetails):
+    """
+    USB camera specific details.
+
+    Attributes:
+        device_path: System device path (e.g., /dev/video0).
+        resolution: Supported or current resolution (optional, e.g., "1920x1080").
+    """
+
+    device_path: str
+    resolution: Optional[str]
+
+
+class NetworkCameraDetails(CameraDetails):
+    """
+    Network camera specific details.
+
+    Attributes:
+        ip: IP address of the camera.
+        port: Port number for ONVIF communication.
+        profiles: List of ONVIF profiles available on this camera (populated after authentication).
+    """
+
+    ip: str
+    port: int
+    profiles: list["CameraProfileInfo"]
+
+
+class Camera(BaseModel):
+    """
+    Camera device information supporting both USB and network cameras.
+
+    Common attributes apply to all camera types. Type-specific details are stored
+    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+
+    Attributes:
+        device_id: Unique identifier for the camera.
+        device_name: Human-readable camera name.
+        device_type: Type of camera (USB or NETWORK).
+        details: Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK).
+
+    Example (USB Camera):
+        .. code-block:: json
+
+            {
+              "device_id": "usb_camera_0",
+              "device_name": "Integrated Camera",
+              "device_type": "USB",
+              "details": {
+                "device_path": "/dev/video0",
+                "resolution": "1920x1080"
+              }
+            }
+
+    Example (Network Camera):
+        .. code-block:: json
+
+            {
+              "device_id": "network_camera_192.168.1.100_80",
+              "device_name": "ONVIF Camera 192.168.1.100",
+              "device_type": "NETWORK",
+              "details": {
+                "ip": "192.168.1.100",
+                "port": 80,
+                "profiles": [
+                  {
+                    "name": "Profile_1",
+                    "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                    "resolution": "1920x1080",
+                    "encoding": "H264",
+                    "framerate": 30,
+                    "bitrate": 4096
+                  },
+                  {
+                    "name": "Profile_2",
+                    "rtsp_url": "rtsp://192.168.1.100:554/stream2",
+                    "resolution": "1280x720",
+                    "encoding": "H264",
+                    "framerate": 15,
+                    "bitrate": 2048
+                  }
+                ]
+              }
+            }
+    """
+
+    device_id: str
+    device_name: str
+    device_type: CameraType
+    details: Union[USBCameraDetails, NetworkCameraDetails]
+
+
+class CameraProfilesRequest(BaseModel):
+    """
+    Request model for camera profile retrieval (camera_id provided in path).
+
+    Attributes:
+        username: Username for ONVIF authentication.
+        password: Password for ONVIF authentication.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "username": "admin",
+              "password": "password123"
+            }
+    """
+
+    username: str
+    password: str
+
+
+class CameraProfileInfo(BaseModel):
+    """
+    Detailed ONVIF camera profile information.
+
+    Attributes:
+        name: Profile name.
+        rtsp_url: RTSP stream URL.
+        resolution: Video resolution (e.g., "1920x1080").
+        encoding: Video encoding format (e.g., "H264", "MPEG4").
+        framerate: Frame rate limit.
+        bitrate: Bitrate limit.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "name": "Profile_1",
+              "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+              "resolution": "1920x1080",
+              "encoding": "H264",
+              "framerate": 30,
+              "bitrate": 4096
+            }
+    """
+
+    name: str
+    rtsp_url: Optional[str] = None
+    resolution: Optional[str] = None
+    encoding: Optional[str] = None
+    framerate: Optional[int] = None
+    bitrate: Optional[int] = None
+
+
+class CameraAuthResponse(BaseModel):
+    """
+    Response model for camera authentication attempt.
+
+    Returns the authenticated camera with populated ONVIF profiles.
+    After successful authentication, the camera's profile list is updated
+    with all available ONVIF profiles from the device.
+
+    Attributes:
+        camera: Camera object with updated profile information.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "camera": {
+                "device_id": "network_camera_192.168.1.100_80",
+                "device_name": "ONVIF Camera 192.168.1.100",
+                "device_type": "NETWORK",
+                "details": {
+                  "ip": "192.168.1.100",
+                  "port": 80,
+                  "profiles": [
+                    {
+                      "name": "Profile_1",
+                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                      "resolution": "1920x1080",
+                      "encoding": "H264",
+                      "framerate": 30,
+                      "bitrate": 4096
+                    }
+                  ]
+                }
+              }
+            }
+    """
+
+    camera: Camera = Field(
+        ...,
+        description="Camera object with populated ONVIF profiles after successful authentication.",
+    )
