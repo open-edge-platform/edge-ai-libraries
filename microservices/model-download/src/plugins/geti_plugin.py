@@ -3,6 +3,7 @@
 
 import asyncio
 import os
+import re
 import shutil
 import tarfile
 import zipfile
@@ -63,8 +64,6 @@ class GetiPlugin(ModelDownloadPlugin):
 
         self._server_url: Optional[str] = os.environ.get("GETI_HOST")
         self._server_api_token: Optional[str] = os.environ.get("GETI_TOKEN")
-        self._server_api_ver: str = os.environ.get("GETI_SERVER_API_VERSION", DEFAULT_API_VERSION)
-        
         
         if not self._server_url or not self._server_api_token:
             logger.warning(
@@ -81,8 +80,6 @@ class GetiPlugin(ModelDownloadPlugin):
         self._project_client: Optional[ProjectClient] = None
         self._model_clients: Dict[str, ModelClient] = {}
         self._req_timeout: int = 30
-
-        logger.debug("GetiPlugin initialized")
 
     @staticmethod
     def _parse_bool(value: str, ignore_empty: bool = False) -> bool:
@@ -104,18 +101,18 @@ class GetiPlugin(ModelDownloadPlugin):
     def _initialize_geti_sdk(self) -> None:
         """Initialize Geti SDK instance if not already done using SDK pattern"""
         if self.geti is None:
-            logger.debug(f"Initializing Geti SDK (host={self._server_url})")
             self.geti = Geti(
                 host=self._server_url,
                 token=self._server_api_token,
                 verify_certificate=self.__class__._verify_server_ssl_cert
             )
             self.geti.workspace_id = os.environ.get("GETI_WORKSPACE_ID")
-            logger.info(f"SDK initialized. workspace_id={self.geti.workspace_id}")
 
     def _get_project_client(self) -> ProjectClient:
         """Get or create ProjectClient using factory pattern."""
         if self._project_client is None:
+            if self.geti is None:
+                raise RuntimeError("Geti SDK not initialized. Call _initialize_geti_sdk() first.")
             self._project_client = ProjectClient(
                 session=self.geti.session,
                 workspace_id=self.geti.workspace_id
@@ -165,6 +162,11 @@ class GetiPlugin(ModelDownloadPlugin):
             raise ValueError(
                 "Required env vars not set: GETI_HOST, GETI_TOKEN"
             )
+
+    async def _ensure_initialized(self) -> None:
+        """Ensure SDK is initialized and environment variables are validated."""
+        await self._validate_env_vars()
+        self._initialize_geti_sdk()
 
     def _filter_optimized_models(self, models: List[Any], model_format: Optional[str], precision: Optional[str], 
                                 extra_filters: Optional[Dict[str, Any]] = None) -> Tuple[List[Any], List[str]]:
@@ -247,7 +249,7 @@ class GetiPlugin(ModelDownloadPlugin):
         for key, value in sorted(extra_filters.items()):
             if isinstance(value, str):
                 # For string values, just use the value (sanitized and lowercase)
-                safe_value = value.lower().replace(" ", "_").replace("/", "_").replace("\\", "_")
+                safe_value = re.sub(r'[\s/\\]+', '_', value).lower()
                 path_parts.append(safe_value)
             else:
                 # For non-string values, use the key as identifier (lowercase)
@@ -255,49 +257,37 @@ class GetiPlugin(ModelDownloadPlugin):
         
         return "/".join(path_parts) if path_parts else ""
 
-    def _build_criteria_message(self, model_format: Optional[str], precision: Optional[str]) -> str:
-        """Build human-readable criteria message."""
-        parts = []
-        if precision:
-            parts.append(f"precision='{precision}'")
-        if model_format:
-            parts.append(f"format='{model_format or DEFAULT_MODEL_FORMAT}'")
-        return ", ".join(parts) if parts else "no criteria"
-    
-    def _build_criteria_message_with_extras(self, model_format: Optional[str], precision: Optional[str], 
-                                           extra_filters: Optional[Dict[str, Any]] = None) -> str:
-        """Build human-readable criteria message including extra filter criteria."""
-        parts = []
-        if precision:
-            parts.append(f"precision='{precision}'")
-        if model_format:
-            parts.append(f"format='{model_format or DEFAULT_MODEL_FORMAT}'")
+    def _build_criteria_message(self, model_name: Optional[str] = None, export_type: Optional[str] = None,
+                               precision: Optional[str] = None, model_format: Optional[str] = None,
+                               extra_filters: Optional[Dict[str, Any]] = None) -> str:
+        """Build human-readable criteria message.
         
-        # Add extra filter criteria
-        if extra_filters:
-            for key, value in extra_filters.items():
-                parts.append(f"{key}='{value}'")
-        
-        return ", ".join(parts) if parts else "no criteria"
-    
-    def _build_search_criteria_message(self, model_name: str, export_type: Optional[str], 
-                                      precision: Optional[str], model_format: Optional[str],
-                                      extra_filters: Optional[Dict[str, Any]] = None) -> str:
-        """Build comprehensive search criteria message."""
-        parts = [f"name='{model_name}'"]
+        Args:
+            model_name: Model name (optional).
+            export_type: Export type (optional).
+            precision: Model precision (optional).
+            model_format: Model format (optional).
+            extra_filters: Dictionary of extra filters (optional).
+            
+        Returns:
+            Formatted criteria string.
+        """
+        parts = []
+        if model_name:
+            parts.append(f"name='{model_name}'")
         if export_type:
             parts.append(f"export_type='{export_type}'")
         if precision:
             parts.append(f"precision='{precision}'")
         if model_format:
-            parts.append(f"format='{model_format}'")
+            parts.append(f"format='{model_format or DEFAULT_MODEL_FORMAT}'")
         
         # Add extra filter criteria
         if extra_filters:
             for key, value in extra_filters.items():
                 parts.append(f"{key}='{value}'")
         
-        return ", ".join(parts)
+        return ", ".join(parts) if parts else "no criteria"
 
     async def get_projects(self, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all projects or a specific project.
@@ -308,11 +298,9 @@ class GetiPlugin(ModelDownloadPlugin):
         Returns:
             List of project dictionaries.
         """
-        await self._validate_env_vars()
-        self._initialize_geti_sdk()
+        await self._ensure_initialized()
 
         try:
-            logger.info("Fetching projects from Geti server")
             project_client = self._get_project_client()
             project_list = await asyncio.to_thread(project_client.list_projects)
 
@@ -328,7 +316,6 @@ class GetiPlugin(ModelDownloadPlugin):
                 if project_id is None or p.id == project_id
             ]
             
-            logger.info(f"Retrieved {len(projects)} project(s)")
             return projects
 
         except GetiRequestException as e:
@@ -360,8 +347,6 @@ class GetiPlugin(ModelDownloadPlugin):
             for model in models:
                 if model.get("name", "").lower() == model_name.lower():
                     return model.get("id")
-
-            logger.warning(f"Model '{model_name}' not found in group)")
             return None
 
         except Exception as e:
@@ -392,13 +377,11 @@ class GetiPlugin(ModelDownloadPlugin):
         """
         extra_filters = extra_filters or {}
         try:
-            await self._validate_env_vars()
-            self._initialize_geti_sdk()
+            await self._ensure_initialized()
             
             # Get all projects
             projects = await self.get_projects()
             if not projects:
-                logger.warning("No projects found in Geti server")
                 return None, None, None, None, None
             
             # Search across each project and its model groups
@@ -425,21 +408,14 @@ class GetiPlugin(ModelDownloadPlugin):
                             openvino_models, ignored_fields = self._filter_optimized_models(model.optimized_models, model_format, precision, extra_filters)
                             
                             if openvino_models:
-                                optimized_model = openvino_models[0]
-                                logger.info(f"Found optimized model '{optimized_model.name}' with format={model_format or DEFAULT_MODEL_FORMAT}, precision={precision} in project={project_id}, model_group={model_group_id}, base_model_id={model.id}, optimized_model_id={optimized_model.id}")
                                 return project_id, model_group_id, model.id, None, ignored_fields
                             else:
-                                target_format = model_format or DEFAULT_MODEL_FORMAT
-                                criteria = self._build_criteria_message_with_extras(model_format, precision, extra_filters)
-                                logger.warning(f"Model '{model_name}' found but no optimized variant matching {criteria}")
                                 break  # Stop searching this project
                         
                         # Handle base model export
                         elif export_type == 'base':
-                            logger.info(f"Found base model '{model_name}' in project={project_id}, model_group={model_group_id}, model_id={model.id}")
                             return project_id, model_group_id, model.id, None, None
                         else:
-                            logger.warning(f"Model '{model_name}' found but has no optimized models")
                             break  # Stop searching this project
                     
                 except Exception as e:
@@ -447,9 +423,8 @@ class GetiPlugin(ModelDownloadPlugin):
                     continue
             
             # Build descriptive error message based on search criteria
-            criteria = self._build_search_criteria_message(model_name, export_type, precision, model_format, extra_filters)
+            criteria = self._build_criteria_message(model_name, export_type, precision, model_format, extra_filters)
             error_msg = f"Model not found matching criteria: {criteria}"
-            logger.warning(error_msg)
             return None, None, None, error_msg, None
             
         except GetiRequestException as e:
@@ -471,13 +446,11 @@ class GetiPlugin(ModelDownloadPlugin):
         Returns:
             Model group dictionary or None if not found.
         """
-        await self._validate_env_vars()
-        self._initialize_geti_sdk()
+        await self._ensure_initialized()
 
         try:
             project = await self._get_project(project_id)
             if not project:
-                logger.error(f"Project {project_id} not found")
                 return None
 
             model_client = await self._get_or_create_model_client(project_id, project)
@@ -492,7 +465,6 @@ class GetiPlugin(ModelDownloadPlugin):
             target_mg = next((mg for mg in model_groups if mg.id == model_group_id), None)
             
             if not target_mg:
-                logger.warning(f"Model group {model_group_id} not found")
                 return None
 
             return {
@@ -527,8 +499,7 @@ class GetiPlugin(ModelDownloadPlugin):
         Returns:
             Tuple of (model_path, error_message, ignored_fields).
         """
-        await self._validate_env_vars()
-        self._initialize_geti_sdk()
+        await self._ensure_initialized()
 
         try:
             project = await self._get_project(kwargs.get("project_id"))
@@ -560,8 +531,10 @@ class GetiPlugin(ModelDownloadPlugin):
                 )
                 if not model_to_download:
                     extra_filters = kwargs.get('extra_filters', {})
-                    criteria = self._build_criteria_message_with_extras(
-                        kwargs.get('model_format'), kwargs.get('precision'), extra_filters
+                    criteria = self._build_criteria_message(
+                        model_format=kwargs.get('model_format'),
+                        precision=kwargs.get('precision'),
+                        extra_filters=extra_filters
                     )
                     error_msg = f"No optimized model found matching criteria: {criteria}"
                     logger.error(error_msg)
@@ -619,7 +592,6 @@ class GetiPlugin(ModelDownloadPlugin):
         if precision or model_format or extra_filters:
             filtered, ignored_fields = self._filter_optimized_models(model.optimized_models, model_format, precision, extra_filters)
             if not filtered:
-                logger.error(f"No optimized model found with {self._build_criteria_message_with_extras(model_format, precision, extra_filters)}")
                 return None, ignored_fields
             return filtered[0], ignored_fields
 
@@ -681,7 +653,6 @@ class GetiPlugin(ModelDownloadPlugin):
                         tar_ref.extractall(model_dir)
                     os.remove(dst)
             shutil.rmtree(models_subdir)
-            logger.info(f"Extracted model files from: {models_subdir}")
         except Exception as e:
             logger.warning(f"File extraction issue: {e}")
 
@@ -710,13 +681,6 @@ class GetiPlugin(ModelDownloadPlugin):
                 'export_type', 'precision', 'model_format', 'model_group_id', 
                 'optimized_model_id'
             }
-            
-            # # Collect any fields provided in config that geti_plugin cannot use for filtering
-            # # This includes both unsupported and unknown/extra filter fields
-            # fields_not_supported = [
-            #     key for key in config.keys()
-            #     if key not in supported_config_keys and config[key] is not None
-            # ]
             
             # Extract extra filters for model filtering (all non-supported fields)
             extra_filters = {
@@ -750,10 +714,6 @@ class GetiPlugin(ModelDownloadPlugin):
 
             # Collect ignored fields from entire pipeline only if unsupported fields were provided
             all_ignored_fields = []
-            
-            # Start with fields that were explicitly provided but not supported
-            # if fields_not_supported:
-            #     all_ignored_fields.extend(fields_not_supported)
             
             # Add any extra filter fields that don't exist on the models (from resolve stage)
             if extra_filters and resolve_ignored:

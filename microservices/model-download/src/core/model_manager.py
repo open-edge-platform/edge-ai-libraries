@@ -4,6 +4,7 @@
 import os
 import uuid
 import asyncio
+import inspect
 import concurrent.futures
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -197,7 +198,6 @@ class ModelManager:
             )
 
             # Check if the download method is async
-            import inspect
             if inspect.iscoroutinefunction(download_plugin.download):
                 result = await download_plugin.download(model_name, output_dir, **kwargs)
             else:

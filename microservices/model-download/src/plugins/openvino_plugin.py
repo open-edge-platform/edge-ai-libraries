@@ -158,7 +158,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         if check_login.returncode != 0:
             # Not logged in, proceed with login
             logger.info("Not logged in, authenticating with Hugging Face...")
-            result = subprocess.run(["hf", "auth", "login", "--token ", huggingface_token])
+            result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
             if result.returncode != 0:
                 raise RuntimeError(
                     "Failed to authenticate with Hugging Face. Please check your token."
@@ -312,7 +312,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         raise NotImplementedError("OpenVINO converter does not support task-based downloading")
     
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
         """
         Post-process the converted files.
         For OpenVINO conversion, this is handled by the download/convert method directly.
