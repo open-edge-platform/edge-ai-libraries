@@ -186,7 +186,7 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
             "hub": "geti",
             "revision": "1",
             "config":{
-                "precision": "fp32",
+                "precision": "fp32"
             }
         }
     ],

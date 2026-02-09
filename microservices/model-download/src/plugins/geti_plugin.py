@@ -1,32 +1,40 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import os
 import shutil
-import asyncio
-import zipfile
 import tarfile
-from typing import Dict, Any, List, Optional, Tuple
+import zipfile
+from typing import Any, Dict, List, Optional, Tuple
 
 from geti_sdk import Geti
 from geti_sdk.http_session.exception import GetiRequestException
-from geti_sdk.rest_clients import ProjectClient, ModelClient
+from geti_sdk.rest_clients import ModelClient, ProjectClient
 
-from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.core.interfaces import DownloadTask, ModelDownloadPlugin
 from src.utils.logging import logger
+
+# Constants
+DEFAULT_API_VERSION = "v1"
+DEFAULT_MODEL_FORMAT = "OpenVINO"
+DEFAULT_PRECISION = "FP16"
+DEFAULT_EXPORT_TYPE = "optimized"
 
 
 class GetiPlugin(ModelDownloadPlugin):
     """
     Plugin for downloading OpenVINO models from Intel Geti Server.
+    
+    Manages model discovery and downloads from a Geti server instance,
+    supporting both base and optimized model variants.
     """
-    
-    # Class-level instance holder for singleton pattern
-    _instance = None
-    _verify_server_ssl_cert = None  # Will be set in __init__
-    
-    def __new__(cls):
-        """Singleton pattern: return the same instance"""
+
+    _instance: Optional["GetiPlugin"] = None
+    _verify_server_ssl_cert: Optional[bool] = None
+
+    def __new__(cls) -> "GetiPlugin":
+        """Singleton pattern: return the same instance."""
         if cls._instance is None:
             cls._instance = super(GetiPlugin, cls).__new__(cls)
         return cls._instance
@@ -46,47 +54,52 @@ class GetiPlugin(ModelDownloadPlugin):
                 logger.warning(f"Error closing Geti session: {e}")
         return False
 
-    def __init__(self):
-        """Initialize the Geti plugin instance"""
-        # Only initialize once (singleton pattern)
+    def __init__(self) -> None:
+        """Initialize the Geti plugin instance."""
         if hasattr(self, '_initialized'):
             return
-        
+
         self._initialized = True
+
+        self._server_url: Optional[str] = os.environ.get("GETI_HOST")
+        self._server_api_token: Optional[str] = os.environ.get("GETI_TOKEN")
+        self._server_api_ver: str = os.environ.get("GETI_SERVER_API_VERSION", DEFAULT_API_VERSION)
         
-        # Read environment variables fresh at initialization time
-        self._server_url = os.environ.get("GETI_HOST")
-        self._server_api_token = os.environ.get("GETI_TOKEN")
-        self._server_api_ver = os.environ.get("GETI_SERVER_API_VERSION", "v1")
         
-        
-        # Check required environment variables during instance creation
-        if any([self._server_url is None, self._server_api_token is None]):
+        if not self._server_url or not self._server_api_token:
             logger.warning(
                 "Geti env vars not set: GETI_HOST, GETI_TOKEN. "
                 "Geti-related requests will fail."
             )
-        
-        # Parse SSL verification setting
+
         if self.__class__._verify_server_ssl_cert is None:
             self.__class__._verify_server_ssl_cert = self._parse_bool(
                 os.getenv("GETI_SERVER_SSL_VERIFY", "False"), ignore_empty=True
             )
-        
-        # Client instances (lazy initialized)
-        self.geti = None
-        self._project_client = None
-        self._model_clients = {}
-        self._req_timeout = 30
-        
+
+        self.geti: Optional[Geti] = None
+        self._project_client: Optional[ProjectClient] = None
+        self._model_clients: Dict[str, ModelClient] = {}
+        self._req_timeout: int = 30
+
         logger.debug("GetiPlugin initialized")
 
     @staticmethod
     def _parse_bool(value: str, ignore_empty: bool = False) -> bool:
-        """Parse a string value to boolean"""
+        """Parse string value to boolean.
+        
+        Args:
+            value: String value to parse.
+            ignore_empty: Return True if value is empty.
+        """
         if ignore_empty and not value:
             return True
         return value.lower() in ("true", "1", "yes", "on")
+
+    async def _get_project(self, project_id: Optional[str] = None) -> Optional[Any]:
+        """Get project object - factory method to eliminate duplication."""
+        projects = await self.get_projects(project_id=project_id)
+        return projects[0]["project"] if projects else None
 
     def _initialize_geti_sdk(self) -> None:
         """Initialize Geti SDK instance if not already done using SDK pattern"""
@@ -101,7 +114,7 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.info(f"SDK initialized. workspace_id={self.geti.workspace_id}")
 
     def _get_project_client(self) -> ProjectClient:
-        """Get or create ProjectClient"""
+        """Get or create ProjectClient using factory pattern."""
         if self._project_client is None:
             self._project_client = ProjectClient(
                 session=self.geti.session,
@@ -109,16 +122,15 @@ class GetiPlugin(ModelDownloadPlugin):
             )
         return self._project_client
 
-    def _get_model_client(self, project_id: str) -> ModelClient:
-        """Get or create ModelClient for a project"""
+    async def _get_or_create_model_client(self, project_id: str, project: Any) -> ModelClient:
+        """Get or create and cache ModelClient using factory pattern."""
         if project_id not in self._model_clients:
-            # This is set later with the project object
-            pass
-        return self._model_clients.get(project_id)
-
-    def _set_model_client(self, project_id: str, model_client: ModelClient) -> None:
-        """ModelClient for a project"""
-        self._model_clients[project_id] = model_client
+            self._model_clients[project_id] = ModelClient(
+                workspace_id=self.geti.workspace_id,
+                project=project,
+                session=self.geti.session
+            )
+        return self._model_clients[project_id]
 
     @property
     def plugin_name(self) -> str:
@@ -128,10 +140,10 @@ class GetiPlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
-    def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
-        """
-        Check if this plugin can handle the given model.
-        Returns True if hub is 'geti' and GETI_HOST and GETI_TOKEN are set.
+    def can_handle(self, model_name: str, hub: str, **kwargs: Any) -> bool:
+        """Check if plugin can handle the given model.
+        
+        Returns True if hub is 'geti' and required credentials are set.
         """
         if hub.lower() != "geti":
             return False
@@ -154,15 +166,33 @@ class GetiPlugin(ModelDownloadPlugin):
                 "Required env vars not set: GETI_HOST, GETI_TOKEN"
             )
 
+    def _filter_optimized_models(self, models: List[Any], model_format: Optional[str], precision: Optional[str]) -> List[Any]:
+        """Filter optimized models by format and precision."""
+        target_format = model_format or DEFAULT_MODEL_FORMAT
+        return [
+            om for om in models
+            if (not model_format or (hasattr(om, 'model_format') and om.model_format == target_format))
+            and (not precision or (hasattr(om, 'precision') and om.precision and 
+                 any(p.lower() == precision.lower() for p in (om.precision if isinstance(om.precision, list) else [om.precision]))))
+        ]
+
+    def _build_criteria_message(self, model_format: Optional[str], precision: Optional[str]) -> str:
+        """Build human-readable criteria message."""
+        parts = []
+        if precision:
+            parts.append(f"precision='{precision}'")
+        if model_format:
+            parts.append(f"format='{model_format or DEFAULT_MODEL_FORMAT}'")
+        return ", ".join(parts) if parts else "no criteria"
+
     async def get_projects(self, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Get all projects or a specific project.
-
+        """Get all projects or a specific project.
+        
         Args:
-            project_id (str, optional): The ID of a specific project. Defaults to None.
-
+            project_id: Specific project ID (optional).
+            
         Returns:
-            List[Dict[str, Any]]: List of projects with 'id', 'name', 'creation_time', 'project'
+            List of project dictionaries.
         """
         await self._validate_env_vars()
         self._initialize_geti_sdk()
@@ -195,16 +225,15 @@ class GetiPlugin(ModelDownloadPlugin):
             raise
 
     async def get_model_id_by_name(self, project_id: str, model_group_id: str, model_name: str) -> Optional[str]:
-        """
-        Fetch model_id by name using cached model groups.
-
+        """Find model ID by name.
+        
         Args:
-            project_id (str): The project ID
-            model_group_id (str): The model group ID
-            model_name (str): The model name to search for
-
+            project_id: Project ID.
+            model_group_id: Model group ID.
+            model_name: Model name to search for.
+            
         Returns:
-            Optional[str]: The model_id if found, None otherwise
+            Model ID if found, None otherwise.
         """
         try:
             model_group = await self.get_model_group(project_id, model_group_id)
@@ -213,11 +242,9 @@ class GetiPlugin(ModelDownloadPlugin):
                 return None
 
             models = model_group.get("models", [])
-            logger.info(f"Searching for model '{model_name}' in {len(models)} models")
             # Optimized search: direct match first
             for model in models:
                 if model.get("name", "").lower() == model_name.lower():
-                    logger.info(f"Found model '{model_name}' -> {model['id']}")
                     return model.get("id")
 
             logger.warning(f"Model '{model_name}' not found in group)")
@@ -227,29 +254,29 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.error(f"Error fetching model by name: {type(e).__name__}: {e}")
             return None
 
-    async def search_model(self, model_name: str, export_type: Optional[str] = None, 
-                         precision: Optional[str] = None,
-                         revision: Optional[int] = None, model_format: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
-        """
-        Search model by lookup across all projects and model groups.
-        Used for minimal request payloads where project_id and model_group_id are not provided.
-        Filters by model_name, export_type, precision, revision, and model_format.
-
+    async def search_model(
+        self,
+        model_name: str,
+        export_type: Optional[str] = None,
+        precision: Optional[str] = None,
+        revision: Optional[int] = None,
+        model_format: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+        """Search for model across all projects.
+        
         Args:
-            model_name (str): The model name to search for
-            export_type (str, optional): Export type to filter by ('base' or 'optimized')
-            precision (str, optional): Precision to filter by (for optimized models)
-            revision (int, optional): Model revision/version to filter by
-            model_format (str, optional): Model format to filter by (default: 'OpenVINO')
-
+            model_name: Model name to find.
+            export_type: Export type ('base' or 'optimized').
+            precision: Model precision.
+            revision: Model revision (unused).
+            model_format: Model format.
+            
         Returns:
-            Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]: (project_id, model_group_id, model_id, error) or (None, None, None, error_msg)
+            Tuple of (project_id, model_group_id, model_id, error_message).
         """
         try:
             await self._validate_env_vars()
             self._initialize_geti_sdk()
-            
-            logger.info(f"Searching model location for: {model_name}")
             
             # Get all projects
             projects = await self.get_projects()
@@ -264,49 +291,58 @@ class GetiPlugin(ModelDownloadPlugin):
                 
                 try:
                     # Get or create ModelClient
-                    model_client = self._get_model_client(project_id)
-                    if model_client is None:
-                        model_client = ModelClient(
-                            workspace_id=self.geti.workspace_id,
-                            project=project,
-                            session=self.geti.session
-                        )
-                        self._set_model_client(project_id, model_client)
+                    model_client = await self._get_or_create_model_client(project_id, project)
                     
-                    # Get all models
+                    # Get all models (single thread call)
                     all_models = await asyncio.to_thread(model_client.get_latest_model_for_all_model_groups)
                     
-                    # Search for matching model
+                    # Search for matching model - early return on first match
                     for model in all_models:
-                        logger.info(f"model: {all_models}")
-                        if model.name.lower() == model_name.lower():
-                            # Filter optimized models by OpenVINO format
-                            if hasattr(model, 'optimized_models') and model.optimized_models:
-                                openvino_models = [
-                                    om for om in model.optimized_models 
-                                    if hasattr(om, 'model_format') and om.model_format == 'OpenVINO'
-                                ]
-                                if openvino_models:
-                                    # Use first OpenVINO optimized model
-                                    optimized_model = openvino_models[0]
-                                    model_group_id = model.model_group_id
-                                    logger.info(f"Found optimized model '{optimized_model.name}' in project={project_id}, model_group={model_group_id}, model_id={optimized_model.id}")
-                                    return project_id, model_group_id, optimized_model.id, None
+                        if model.name.lower() != model_name.lower():
+                            continue
                             
-                            # Fall back to base model if no optimized models found
-                            model_group_id = model.model_group_id
+                        model_group_id = model.model_group_id
+                        
+                        # Check optimized models only if not base export
+                        if export_type != 'base' and hasattr(model, 'optimized_models') and model.optimized_models:
+                            openvino_models = self._filter_optimized_models(model.optimized_models, model_format, precision)
+                            
+                            if openvino_models:
+                                optimized_model = openvino_models[0]
+                                logger.info(f"Found optimized model '{optimized_model.name}' with format={model_format or DEFAULT_MODEL_FORMAT}, precision={precision} in project={project_id}, model_group={model_group_id}, base_model_id={model.id}, optimized_model_id={optimized_model.id}")
+                                return project_id, model_group_id, model.id, None
+                            else:
+                                target_format = model_format or DEFAULT_MODEL_FORMAT
+                                logger.warning(f"Model '{model_name}' found but no optimized variant with precision={precision} and format={target_format}")
+                                break  # Stop searching this project
+                        
+                        # Handle base model export
+                        elif export_type == 'base':
                             logger.info(f"Found base model '{model_name}' in project={project_id}, model_group={model_group_id}, model_id={model.id}")
                             return project_id, model_group_id, model.id, None
+                        else:
+                            logger.warning(f"Model '{model_name}' found but has no optimized models")
+                            break  # Stop searching this project
                     
                 except Exception as e:
                     logger.debug(f"Error searching project {project_id}: {type(e).__name__}: {e}")
                     continue
             
-            logger.warning(f"Model '{model_name}' not found in any project or model group")
-            return None, None, None, None
+            # Build descriptive error message based on search criteria
+            criteria_parts = [f"name='{model_name}'"]
+            if export_type:
+                criteria_parts.append(f"export_type='{export_type}'")
+            if precision:
+                criteria_parts.append(f"precision='{precision}'")
+            if model_format:
+                criteria_parts.append(f"format='{model_format}'")
+            criteria_str = ", ".join(criteria_parts)
+            error_msg = f"Model not found matching criteria: {criteria_str}"
+            logger.warning(error_msg)
+            return None, None, None, error_msg
             
         except GetiRequestException as e:
-            error_msg = f"Geti connection error: {e.message}"
+            error_msg = f"Geti connection error: {e}"
             logger.error(error_msg)
             return None, None, None, error_msg
         except Exception as e:
@@ -315,65 +351,49 @@ class GetiPlugin(ModelDownloadPlugin):
             return None, None, None, error_msg
 
     async def get_model_group(self, project_id: str, model_group_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve model group with all its models.
-
+        """Retrieve a model group with all its models.
+        
         Args:
-            project_id (str): The project ID
-            model_group_id (str): The model group ID
-
+            project_id: Project ID.
+            model_group_id: Model group ID.
+            
         Returns:
-            Optional[Dict[str, Any]]: Model group data with 'id', 'name', 'models', 'model_group'
+            Model group dictionary or None if not found.
         """
         await self._validate_env_vars()
         self._initialize_geti_sdk()
 
         try:
-            logger.info(f"Fetching model group {model_group_id}")
-            
-            # Get project
-            projects = await self.get_projects(project_id=project_id)
-            if not projects:
+            project = await self._get_project(project_id)
+            if not project:
                 logger.error(f"Project {project_id} not found")
                 return None
 
-            project = projects[0]["project"]
-            
-            # Create or get ModelClient
-            model_client = self._get_model_client(project_id)
-            if model_client is None:
-                model_client = ModelClient(
-                    workspace_id=self.geti.workspace_id,
-                    project=project,
-                    session=self.geti.session
-                )
-                self._set_model_client(project_id, model_client)
+            model_client = await self._get_or_create_model_client(project_id, project)
 
-            # Fetch model groups and models
-            model_groups = await asyncio.to_thread(model_client.get_all_model_groups)
+            # Fetch model groups and models in a single thread call
+            def _fetch_groups_and_models():
+                model_groups = model_client.get_all_model_groups()
+                all_models = model_client.get_latest_model_for_all_model_groups()
+                return model_groups, all_models
+            
+            model_groups, all_models = await asyncio.to_thread(_fetch_groups_and_models)
             target_mg = next((mg for mg in model_groups if mg.id == model_group_id), None)
             
             if not target_mg:
                 logger.warning(f"Model group {model_group_id} not found")
                 return None
 
-            # Get all models and filter by group
-            all_models = await asyncio.to_thread(model_client.get_latest_model_for_all_model_groups)
-            models_in_group = [
-                {"id": m.id, "name": m.name, "model": m}
-                for m in all_models
-                if m.model_group_id == model_group_id
-            ]
-
-            result = {
+            return {
                 "id": target_mg.id,
                 "name": target_mg.name,
-                "models": models_in_group,
+                "models": [
+                    {"id": m.id, "name": m.name, "model": m}
+                    for m in all_models
+                    if m.model_group_id == model_group_id
+                ],
                 "model_group": target_mg
             }
-
-            logger.info(f"Model group loaded: {len(models_in_group)} models")
-            return result
 
         except GetiRequestException as e:
             logger.error(f"Geti API error: {e}")
@@ -383,119 +403,119 @@ class GetiPlugin(ModelDownloadPlugin):
             return None
 
     async def download_model_from_geti(
-        self, model_id: str, output_dir: str, model_name: str = "", **kwargs
-    ) -> Optional[str]:
-        """
-        Download model files from Geti server using clients.
-
+        self, model_id: str, output_dir: str, model_name: str = "", **kwargs: Any
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Download model files from Geti server.
+        
         Args:
-            model_id (str): Base model ID (for optimized exports, this is the base)
-            output_dir (str): Output directory path
-            model_name (str, optional): Model name for logging
-            **kwargs: export_type, optimized_model_id, project_id, model_group_id
-
+            model_id: Base model ID.
+            output_dir: Output directory path.
+            model_name: Model name for logging.
+            **kwargs: export_type, project_id, model_group_id, optimized_model_id, precision.
+            
         Returns:
-            Optional[str]: Path to downloaded model or None if failed
+            Tuple of (model_path, error_message).
         """
         await self._validate_env_vars()
         self._initialize_geti_sdk()
 
-        export_type = kwargs.get("export_type")
-        model_group_id = kwargs.get("model_group_id")
-        project_id = kwargs.get("project_id")
-        optimized_model_id = kwargs.get("optimized_model_id")
-        precision = kwargs.get("precision")
-
         try:
-            # Get project 
-            projects = await self.get_projects(project_id=project_id)
-            if not projects:
-                logger.error(f"Project not found: {project_id}")
-                return None
+            project = await self._get_project(kwargs.get("project_id"))
+            if not project:
+                error_msg = f"Project not found: {kwargs.get('project_id')}"
+                logger.error(error_msg)
+                return None, error_msg
 
-            project = projects[0]["project"]
-
-            # Get or create ModelClient
-            model_client = self._get_model_client(project_id)
-            if model_client is None:
-                model_client = ModelClient(
-                    workspace_id=self.geti.workspace_id,
-                    project=project,
-                    session=self.geti.session
-                )
-                self._set_model_client(project_id, model_client)
-
-            logger.info(f"Getting model: {model_id}")
-            model = await asyncio.to_thread(model_client._get_model_detail, model_group_id, model_id)
+            model_client = await self._get_or_create_model_client(kwargs.get("project_id"), project)
+            model = await asyncio.to_thread(model_client._get_model_detail, kwargs.get("model_group_id"), model_id)
+            
             if not model:
-                logger.error(f"Model not found: {model_id}")
-                return None
+                error_msg = f"Model not found: {model_id}"
+                logger.error(error_msg)
+                return None, error_msg
 
-            # Prepare output directory
-            hub_dir = os.path.join(output_dir, "geti")
-            model_dir = os.path.join(hub_dir, f"{model_name}/{precision}")
+            # Select model variant based on export_type
+            if kwargs.get("export_type") == "optimized":
+                if not hasattr(model, 'optimized_models') or not model.optimized_models:
+                    error_msg = f"No optimized models available for model {model_id}"
+                    logger.error(error_msg)
+                    return None, error_msg
+                
+                model_to_download = await self.select_optimized_model(
+                    model, kwargs.get("optimized_model_id"), kwargs.get("precision"), 
+                    model_id, kwargs.get('model_format')
+                )
+                if not model_to_download:
+                    error_msg = f"No optimized model found matching criteria: precision={kwargs.get('precision')}, optimized_model_id={kwargs.get('optimized_model_id')}"
+                    logger.error(error_msg)
+                    return None, error_msg
+            else:
+                model_to_download = model
+
+            # Prepare output and download
+            model_dir = os.path.join(output_dir, "geti", f"{model_name}/{kwargs.get('precision')}")
             os.makedirs(model_dir, exist_ok=True)
-
-            logger.info(f"Downloading model: {model_id}")
-            await asyncio.to_thread(model_client._download_model, model, model_dir)
-
-            # Reorganize SDK output structure
+            await asyncio.to_thread(model_client._download_model, model_to_download, model_dir)
             await self.extract_model_files(model_dir)
-
-            logger.info(f"Model downloaded: {model_dir}")
-            return model_dir
+            return model_dir, None
 
         except GetiRequestException as e:
-            logger.error(f"Geti API error: {e}")
-            raise
+            error_msg = f"Geti API error: {e}"
+            logger.error(error_msg)
+            return None, error_msg
         except Exception as e:
-            logger.error(f"Download failed: {type(e).__name__}: {e}")
-            raise
+            error_msg = f"Download failed: {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            return None, error_msg
 
     async def select_optimized_model(self, model: Any, optimized_model_id: Optional[str], 
-                               precision: Optional[str], base_model_id: str) -> Optional[Any]:
-        """
-        Select optimized model variant.
+                               precision: Optional[str], base_model_id: str,
+                               model_format: Optional[str] = None) -> Optional[Any]:
+        """Select optimized model variant using factory pattern.
         
         Strategy:
-        1. If optimized_model_id provided, find exact match
-        2. If precision provided, find model with matching precision
+        1. If optimized_model_id provided, find exact match (no fallback)
+        2. If precision and/or model_format provided, find model with matching criteria (no fallback)
         3. Otherwise, use first available
         4. If none available, return None
         """
         if optimized_model_id:
-            model_found = next(
-                (om for om in model.optimized_models if om.id == optimized_model_id),
-                None
-            )
-            if model_found:
-                logger.info(f"Selected optimized by ID: {model_found.name}")
-                return model_found
-            logger.warning(f"Optimized model {optimized_model_id} not found, trying precision")
+            return next((om for om in model.optimized_models if om.id == optimized_model_id), None)
 
-        if precision:
-            # Lookup by precision field
-            model_found = next(
-                (om for om in model.optimized_models if hasattr(om, 'precision') and isinstance(om.precision, list) and any(p.lower() == precision.lower() for p in om.precision)),
-                None
-            )
-            if model_found:
-                logger.info(f"Selected optimized model with precision '{precision}': {model_found.name}")
-                return model_found
-            logger.warning(f"No optimized model found with precision '{precision}', selecting first available")
+        if precision or model_format:
+            filtered = self._filter_optimized_models(model.optimized_models, model_format, precision)
+            if not filtered:
+                logger.error(f"No optimized model found with {self._build_criteria_message(model_format, precision)}")
+                return None
+            return filtered[0]
 
-        # select first available
-        if model.optimized_models:
-            selected = model.optimized_models[0]
-            logger.info(f"Selected optimized: {selected.name}")
-            return selected
+        return model.optimized_models[0] if model.optimized_models else None
 
-        return None
+    async def _resolve_model_ids(self, model_name: str, model_id: Optional[str], project_id: Optional[str], 
+                           model_group_id: Optional[str], export_type: str, precision: str,
+                           model_format: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+        """Resolve all required model IDs - factory method to consolidate lookup logic."""
+        # If only model_id provided, search for missing project/group IDs
+        if model_id and (not project_id or not model_group_id):
+            p_id, mg_id, _, error = await self.search_model(model_name, export_type, precision, None, model_format)
+            return model_id if (p_id and mg_id) else None, p_id, mg_id, error
+
+        # If model_id not provided, search for all IDs
+        if not model_id:
+            if not project_id or not model_group_id:
+                p_id, mg_id, m_id, error = await self.search_model(model_name, export_type, precision, None, model_format)
+                return m_id, p_id, mg_id, error
+            else:
+                # Use provided IDs to lookup model
+                m_id = await self.get_model_id_by_name(project_id, model_group_id, model_name)
+                return m_id, project_id, model_group_id, None if m_id else f"Model not found: {model_name}"
+
+        return model_id, project_id, model_group_id, None
 
     async def extract_model_files(self, model_dir: str) -> None:
-        """
-        Extract SDK's nested model structure up one level.
-        SDK places models in 'models' subdirectory, we extract to parent.
+        """Extract nested model files from SDK structure.
+        
+        Moves files from 'models' subdirectory to parent directory.
         """
         models_subdir = os.path.join(model_dir, "models")
         if not os.path.exists(models_subdir):
@@ -525,96 +545,52 @@ class GetiPlugin(ModelDownloadPlugin):
         except Exception as e:
             logger.warning(f"File extraction issue: {e}")
 
-    async def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
-        """
-        Download OpenVINO models from Geti server.
-
-        Entry point: orchestrates project/model lookup and download.
-
+    async def download(self, model_name: str, output_dir: str, **kwargs: Any) -> Dict[str, Any]:
+        """Download models from Geti server.
+        
+        Orchestrates project/model lookup and download.
+        
         Args:
-            model_name (str): Model name to download
-            output_dir (str): Output directory for model files
-            **kwargs: Must contain 'config' dict with parameters (except model_name, hub, type):
-                      - project_id (opt): Project ID
-                      - model_group_id (opt): Model group ID
-                      - model_id (opt): Model ID
-                      - export_type (opt): 'base' or 'optimized'
-                      - optimized_model_id (opt): Optimized model ID
-                      - precision (opt): Model precision (default: FP16)
-
+            model_name: Model name to download.
+            output_dir: Output directory for model files.
+            **kwargs: Config dict with optional parameters.
+            
         Returns:
-            Dict[str, Any]: {success, download_path, error?, model_id, export_type, ...}
+            Dictionary with success status and download metadata.
         """
         try:
-            # Extract config dict from kwargs (all parameters except model_name, hub, type)
-            config = kwargs.get("config", {}) if kwargs.get("config") else {}
-            project_id = config.get("project_id") if config.get("project_id") else None
-            model_group_id = config.get("model_group_id") if config.get("model_group_id") else None
-            export_type = (config.get("export_type") or "optimized").lower()
-            precision = (config.get("precision") or "FP16").lower()
-            model_id = config.get("model_id") if config.get("model_id") else None
-            optimized_model_id = config.get("optimized_model_id") if config.get("optimized_model_id") else None
+            config = kwargs.get("config", {}) or {}
+            export_type = (config.get("export_type") or DEFAULT_EXPORT_TYPE).lower()
+            precision = (config.get("precision") or DEFAULT_PRECISION).lower()
+            model_format = config.get("model_format") or DEFAULT_MODEL_FORMAT
 
-            logger.info(f"Geti download: {model_name} ({export_type}) -> {output_dir}")
-
-            # Get model_id (from config or lookup by name)
+            # Resolve all model IDs using factory method
+            model_id, project_id, model_group_id, resolve_error = await self._resolve_model_ids(
+                model_name, config.get("model_id"), config.get("project_id"),
+                config.get("model_group_id"), export_type, precision, model_format
+            )
+            
             if not model_id:
-                logger.info(f"Looking up model: {model_name}")
-                
-                # If project_id and model_group_id not provided, search them
-                if not project_id or not model_group_id:
-                    logger.info("Searching model location ")
-                    search_project_id, search_model_group_id, search_model_id, search_error = await self.search_model(model_name)
-                    
-                    if search_model_id:
-                        project_id = search_project_id
-                        model_group_id = search_model_group_id
-                        model_id = search_model_id
-                        logger.info(f"Search successful: project={project_id}, group={model_group_id}")
-                    else:
-                        error_msg = search_error or f"Model not found: {model_name}"
-                        return {"success": False, "error": error_msg}
-                else:
-                    # Use the provided IDs to look up model
-                    model_id = await self.get_model_id_by_name(project_id, model_group_id, model_name)
-                    if not model_id:
-                        return {"success": False, "error": f"Model not found: {model_name}"}
-            else:
-                logger.info(f"Using provided model_id: {model_id}")
-                # If only model_id provided but not project/group, search those
-                if not project_id or not model_group_id:
-                    logger.info("Searching project and model group for provided model_id")
-                    search_project_id, search_model_group_id, _, search_error = await self.search_model(model_name)
-                    if search_project_id and search_model_group_id:
-                        project_id = search_project_id
-                        model_group_id = search_model_group_id
-                        logger.info(f"Search successful: project={project_id}, group={model_group_id}")
-                    elif search_error:
-                        return {"success": False, "error": search_error}
+                return {"success": False, "error": resolve_error or f"Model not found: {model_name}"}
 
             # Download model
-            model_path = await self.download_model_from_geti(
+            model_path, download_error = await self.download_model_from_geti(
                 model_id, output_dir, model_name,
                 export_type=export_type,
                 project_id=project_id,
                 model_group_id=model_group_id,
-                optimized_model_id=optimized_model_id,
-                precision=precision
-                
+                optimized_model_id=config.get("optimized_model_id"),
+                precision=precision,
+                model_format=model_format
             )
 
             if not model_path:
-                return {"success": False, "error": "Download failed"}
+                return {"success": False, "error": download_error or "Download failed"}
 
-            # Prepare response path
+            # Prepare response path and return success
             host_path = os.path.join(output_dir, "geti")
             if host_path.startswith("/opt/models/"):
-                host_path = host_path.replace(
-                    "/opt/models/",
-                    f"{os.getenv('MODEL_PATH', 'models')}/"
-                )
-
-            logger.info(f"Download complete: {host_path}")
+                host_path = host_path.replace("/opt/models/", f"{os.getenv('MODEL_PATH', 'models')}/")
 
             return {
                 "model_name": model_name,
@@ -631,18 +607,18 @@ class GetiPlugin(ModelDownloadPlugin):
             logger.error(f"Download error: {type(e).__name__}: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
-        """Geti plugin does not support task-based downloading"""
+    def get_download_tasks(self, model_name: str, **kwargs: Any) -> List[DownloadTask]:
+        """Get download tasks (not supported)."""
         raise NotImplementedError("Geti plugin does not support task-based downloading")
 
-    def download_task(self, task: DownloadTask, output_dir: str, **kwargs) -> str:
-        """Geti plugin does not support task-based downloading"""
+    def download_task(self, task: DownloadTask, output_dir: str, **kwargs: Any) -> str:
+        """Download a task (not supported)."""
         raise NotImplementedError("Geti plugin does not support task-based downloading")
 
     async def post_process(
-        self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs
+        self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs: Any
     ) -> Dict[str, Any]:
-        """Post-process downloaded Geti models"""
+        """Post-process downloaded models."""
         return {
             "model_name": model_name,
             "source": "geti",
