@@ -672,6 +672,10 @@ export type Variant = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view for this variant. */
   pipeline_graph_simple: PipelineGraph;
+  /** Creation timestamp as UTC datetime. Set by backend only. */
+  created_at: string;
+  /** Last modification timestamp as UTC datetime. Set by backend only. */
+  modified_at: string;
 };
 export type Pipeline = {
   id: string;
@@ -682,6 +686,12 @@ export type Pipeline = {
   tags?: string[];
   /** List of pipeline variants for different hardware targets. */
   variants: Variant[];
+  /** Base64-encoded thumbnail image. Only for PREDEFINED pipelines. Redacted in logs. */
+  thumbnail?: string | null;
+  /** Creation timestamp as UTC datetime. Set by backend only. */
+  created_at: string;
+  /** Last modification timestamp as UTC datetime. Set by backend only. */
+  modified_at: string;
 };
 export type PipelineCreationResponse = {
   id: string;
@@ -697,6 +707,10 @@ export type Variant2 = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view for this variant. */
   pipeline_graph_simple: PipelineGraph;
+  /** Creation timestamp as UTC datetime. Set by backend only. */
+  created_at: string;
+  /** Last modification timestamp as UTC datetime. Set by backend only. */
+  modified_at: string;
 };
 export type PipelineDefinition = {
   /** Non-empty pipeline name. */
