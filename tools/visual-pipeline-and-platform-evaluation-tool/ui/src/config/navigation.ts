@@ -50,7 +50,7 @@ export const menuItems: Array<NavigationItem> = [
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
   { path: "pipelines", Component: Pipelines2 },
-  { path: "pipelines/:id", Component: Pipelines },
+  { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "tests/performance", Component: PerformanceTests },

@@ -1,4 +1,7 @@
-import { useGetPipelinesQuery } from "@/api/api.generated";
+import {
+  useGetPipelinesQuery,
+  useDeletePipelineMutation,
+} from "@/api/api.generated";
 import {
   Card,
   CardDescription,
@@ -6,8 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, EllipsisVertical } from "lucide-react";
-import { useMemo } from "react";
+import { Plus, EllipsisVertical, Trash2, Lock } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { Link } from "react-router";
 import {
@@ -16,6 +19,24 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { isApiError } from "@/lib/apiUtils";
 
 const ELECTRIC_COLORS = [
   "electric-aqua",
@@ -30,6 +51,40 @@ const ELECTRIC_COLORS = [
 export const Pipelines2 = () => {
   const { data: pipelines, isLoading, error } = useGetPipelinesQuery();
   const { theme } = useTheme();
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pipelineToDelete, setPipelineToDelete] = useState<{
+    id: string;
+    name: string;
+    variantCount: number;
+  } | null>(null);
+  const [deletePipeline, { isLoading: isDeleting }] =
+    useDeletePipelineMutation();
+
+  const handleDeleteClick = (pipeline: {
+    id: string;
+    name: string;
+    variantCount: number;
+  }) => {
+    setPipelineToDelete(pipeline);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!pipelineToDelete) return;
+
+    try {
+      await deletePipeline({ pipelineId: pipelineToDelete.id }).unwrap();
+      toast.success(`Pipeline "${pipelineToDelete.name}" deleted successfully`);
+      setDeleteDialogOpen(false);
+      setPipelineToDelete(null);
+    } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Failed to delete pipeline";
+      toast.error(`Failed to delete pipeline: ${errorMessage}`);
+    }
+  };
 
   const tagColorMap = useMemo(() => {
     if (!pipelines) return new Map<string, string>();
@@ -66,7 +121,11 @@ export const Pipelines2 = () => {
           {pipelines?.map((pipeline) => (
             <Card
               key={pipeline.id}
-              className="flex flex-col pt-0 transition-all duration-200 hover:-translate-y-1 hover:shadow-md overflow-hidden"
+              className={`flex flex-col pt-0 transition-all duration-200 overflow-hidden ${
+                openDropdownId === pipeline.id
+                  ? "-translate-y-1 shadow-md"
+                  : "hover:-translate-y-1 hover:shadow-md"
+              }`}
             >
               {pipeline.thumbnail && pipeline.variants.length > 0 && (
                 <Link
@@ -80,29 +139,66 @@ export const Pipelines2 = () => {
                 </Link>
               )}
               <CardHeader className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="truncate" title={pipeline.name}>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <CardTitle
+                    className="truncate min-w-0 overflow-hidden"
+                    title={pipeline.name}
+                  >
                     {pipeline.variants.length > 0 ? (
                       <Link
                         to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}`}
-                        className="hover:underline"
+                        className="hover:underline block truncate"
                       >
                         {pipeline.name}
                       </Link>
                     ) : (
-                      pipeline.name
+                      <span className="block truncate">{pipeline.name}</span>
                     )}
                   </CardTitle>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="shrink-0 p-1 hover:bg-accent rounded">
+                  <DropdownMenu
+                    onOpenChange={(open) =>
+                      setOpenDropdownId(open ? pipeline.id : null)
+                    }
+                  >
+                    <DropdownMenuTrigger className="shrink-0 p-1 hover:bg-accent rounded w-[25px] h-[25px] flex items-center justify-center">
                       <EllipsisVertical className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit Description</DropdownMenuItem>
+                      <DropdownMenuItem>Edit Pipeline</DropdownMenuItem>
                       <DropdownMenuItem>Duplicate Pipeline</DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive">
-                        Delete
-                      </DropdownMenuItem>
+                      {pipeline.source === "PREDEFINED" ? (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled
+                          className="flex items-center justify-between gap-2"
+                        >
+                          Delete
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="pointer-events-auto">
+                                <Lock className="h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Predefined pipeline cannot be deleted
+                            </TooltipContent>
+                          </Tooltip>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick({
+                              id: pipeline.id,
+                              name: pipeline.name,
+                              variantCount: pipeline.variants.length,
+                            });
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -144,6 +240,40 @@ export const Pipelines2 = () => {
           ))}
         </div>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2 className="text-destructive" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete pipeline "{pipelineToDelete?.name}
+              "?
+              {pipelineToDelete && pipelineToDelete.variantCount > 0 && (
+                <>
+                  {" "}
+                  This will also delete all {pipelineToDelete.variantCount}{" "}
+                  variant
+                  {pipelineToDelete.variantCount !== 1 ? "s" : ""}.
+                </>
+              )}{" "}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

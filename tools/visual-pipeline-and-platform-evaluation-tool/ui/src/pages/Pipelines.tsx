@@ -43,10 +43,11 @@ import {
 
 type UrlParams = {
   id: string;
+  variant: string;
 };
 
 export const Pipelines = () => {
-  const { id } = useParams<UrlParams>();
+  const { id, variant } = useParams<UrlParams>();
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -396,7 +397,7 @@ export const Pipelines = () => {
 
   const handleRunPipeline = async () => {
     if (!id) return;
-    /*
+
     setCompletedVideoPath(null);
     setShowDetailsPanel(true);
     setSelectedNode(null);
@@ -415,13 +416,6 @@ export const Pipelines = () => {
         })),
       };
 
-      await updatePipeline({
-        pipelineId: id,
-        pipelineUpdate: isSimpleMode
-          ? { pipeline_graph_simple: graphData }
-          : { pipeline_graph: graphData },
-      }).unwrap();
-
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
           execution_config: {
@@ -430,7 +424,10 @@ export const Pipelines = () => {
           },
           pipeline_performance_specs: [
             {
-              id,
+              pipeline: {
+                source: "graph",
+                pipeline_graph: graphData,
+              },
               streams: 1,
             },
           ],
@@ -452,7 +449,7 @@ export const Pipelines = () => {
         description: errorMessage,
       });
       console.error("Failed to start pipeline:", error);
-    }*/
+    }
   };
 
   const handleStopPipeline = async () => {
@@ -585,6 +582,7 @@ export const Pipelines = () => {
             ref={pipelineEditorRef}
             key={editorKey}
             pipelineData={data}
+            variant={variant}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onViewportChange={handleViewportChange}
