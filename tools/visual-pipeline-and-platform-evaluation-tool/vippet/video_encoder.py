@@ -276,9 +276,7 @@ class VideoEncoder:
             )
 
         # Generate unique output path
-        output_filename = generate_unique_filename(
-            f"pipeline_output_{pipeline_id}.mp4"
-        )
+        output_filename = generate_unique_filename(f"pipeline_output_{pipeline_id}.mp4")
         output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
 
         # Create sub-pipeline string with all required elements for replacing fakesink
@@ -359,6 +357,7 @@ class VideoEncoder:
             f"rtspclientsink protocols=tcp location={stream_url}"
         )
 
+        # TODO: Clarify if we need this since it is used only in logging and doesn't affect the actual encoder configuration.
         encoder_type = "low-latency streaming" if needs_looping else "streaming"
         self.logger.debug(
             f"Created live stream output sub-pipeline using {encoder_type} encoder: {stream_url}"

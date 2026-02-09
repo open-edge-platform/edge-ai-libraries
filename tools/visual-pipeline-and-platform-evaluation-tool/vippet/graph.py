@@ -489,7 +489,10 @@ class Graph:
         modified_graph = copy.deepcopy(self)
 
         for node in modified_graph.nodes:
-            if node.type == "fakesink" and node.data.get("name") == "default_output_sink":
+            if (
+                node.type == "fakesink"
+                and node.data.get("name") == "default_output_sink"
+            ):
                 node.data.clear()
                 node.type = "{OUTPUT_PLACEHOLDER}"
 
@@ -560,8 +563,10 @@ class Graph:
                 input_filenames.append(filename)
 
         return input_filenames
-    
-    def unify_all_element_names(self, pipeline_index: int, stream_index: int) -> "Graph":
+
+    def unify_all_element_names(
+        self, pipeline_index: int, stream_index: int
+    ) -> "Graph":
         """
         Unify all element names in the graph to ensure uniqueness across multiple pipelines.
 
