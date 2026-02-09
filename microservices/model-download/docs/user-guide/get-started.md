@@ -43,7 +43,7 @@ The Model Download Service is a microservice that enables downloading models fro
       ```
     - To use the GETI plugin, set these variables:
       ```bash
-      export GETI_WORKSPACE_ID= <YOUR_GETI_WORKSPACE_ID>
+      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
       export GETI_HOST=<GETI_HOST_ADDRESS>
       export GETI_TOKEN=<GETI_ACCESS_TOKEN>
       export GETI_SERVER_API_VERSION=v1

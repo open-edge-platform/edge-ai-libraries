@@ -76,7 +76,7 @@ Below is a summary of key configuration options available in the `values.yaml` f
 | `env.GETI_SERVER_API_VERSION` | GETI API version | `v1` | Yes, For GETI connection |
 | `env.GETI_SERVER_SSL_VERIFY` | Enables SSL certificate validation for HTTPS/HTTP GETI hosts | `False` | Yes, For GETI connection |
 | `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
-| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, Openvino and Geti`) or `all` to enable all available plugins | `all` | Yes |
+| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, openvino and geti`) or `all` to enable all available plugins | `all` | Yes |
 | `image.repository`	| image repository url	| intel/model-download | Yes |
 | `image.tag`	        | latest image tag	    | rc3_2026.0              | Yes |
 

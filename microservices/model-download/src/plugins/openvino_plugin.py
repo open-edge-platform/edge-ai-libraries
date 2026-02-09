@@ -38,11 +38,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("precision", "int8"))
+        weight_format = config.get("precision", kwargs.get("precision")) or "int8"
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
-        target_device = config.get("device", kwargs.get("device", "CPU"))
+        target_device = config.get("device", kwargs.get("device")) or "CPU"
         cache_size = config.get("cache", kwargs.get("cache_size"))
 
         if target_device.upper() == "NPU":

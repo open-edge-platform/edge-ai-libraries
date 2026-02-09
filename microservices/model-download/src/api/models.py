@@ -32,13 +32,13 @@ class ModelType(str, Enum):
     VISION = "vision"
 
 class Config(BaseModel):
-    precision: ModelPrecision = ModelPrecision.INT4
-    device: DeviceType = DeviceType.CPU
+    precision: Optional[ModelPrecision] = None
+    device: Optional[DeviceType] = None
     cache_size: Optional[int] = Field(None, gt=0)
     model_group_id: Optional[str] = None
     export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
     optimized_model_id: Optional[str] = None
-    model_only: Optional[bool] = Field(True, description="For optimized Geti models: exclude code")
+    model_only: Optional[bool] = Field(None, description="For optimized Geti models: exclude code")
     class Config:
         extra = "allow"
 
