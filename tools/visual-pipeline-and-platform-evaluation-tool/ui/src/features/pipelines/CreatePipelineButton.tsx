@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/dialog.tsx";
 import {
   useCreatePipelineMutation,
+  useGetValidationJobStatusQuery,
   useToGraphMutation,
   useValidatePipelineMutation,
-  useGetValidationJobStatusQuery,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils.ts";
 
-export const AddPipelineButton = () => {
+export const CreatePipelineButton = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -59,7 +59,6 @@ export const AddPipelineButton = () => {
             name: pendingPipelineData.name.trim(),
             description: pendingPipelineData.description.trim(),
             source: "USER_CREATED",
-            type: "GStreamer",
             pipeline_description: pendingPipelineData.pipelineDescription,
             parameters: {
               default: {
@@ -164,7 +163,6 @@ export const AddPipelineButton = () => {
       setValidationStatus("Validating pipeline...");
       const validationResponse = await validatePipeline({
         pipelineValidationInput: {
-          type: "GStreamer",
           pipeline_graph: graphResponse.pipeline_graph,
         },
       }).unwrap();
@@ -206,12 +204,12 @@ export const AddPipelineButton = () => {
       <DialogTrigger asChild>
         <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue dark:hover:border-energy-blue hover:bg-blue-50 dark:hover:bg-energy-blue/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue  dark:hover:text-energy-blue">
           <Plus className="w-12 h-12" />
-          <span className="text-lg font-medium">Add New Pipeline</span>
+          <span className="text-lg font-medium">Create Pipeline</span>
         </button>
       </DialogTrigger>
       <DialogContent className="!max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Add New Pipeline</DialogTitle>
+          <DialogTitle>Create Pipeline</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>

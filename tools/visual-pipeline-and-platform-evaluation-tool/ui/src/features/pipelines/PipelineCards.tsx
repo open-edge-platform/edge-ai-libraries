@@ -6,15 +6,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, EllipsisVertical, Lock } from "lucide-react";
+import { EllipsisVertical, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 import { Link } from "react-router";
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DeletePipelineDialog } from "./DeletePipelineDialog";
+import { CreatePipelineButton } from "./CreatePipelineButton.tsx";
 
 const TAG_COLORS = [
   "electric-aqua",
@@ -77,12 +78,7 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   return (
     <>
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
-        <Card className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed transition-all duration-200 hover:-translate-y-1 hover:shadow-md cursor-pointer">
-          <CardHeader className="flex flex-col items-center justify-center flex-1">
-            <Plus className="w-12 h-12 text-muted-foreground mb-2" />
-            <CardTitle className="text-center">Create Pipeline</CardTitle>
-          </CardHeader>
-        </Card>
+        <CreatePipelineButton />
 
         {displayedPipelines.map((pipeline) => (
           <Card

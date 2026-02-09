@@ -1,14 +1,6 @@
 import { Link } from "react-router";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { CpuUsageProgress } from "@/features/metrics/CpuUsageProgress.tsx";
 import { GpuUsageProgress } from "@/features/metrics/GpuUsageProgress.tsx";
-import { AddPipelineButton } from "@/features/pipelines/AddPipelineButton.tsx";
 import { PipelineCards } from "@/features/pipelines/PipelineCards.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -77,6 +69,7 @@ const useVisibleCardsCount = (
 };
 
 export const Home = () => {
+  const hasNpu = useAppSelector(selectHasNPU);
   const { isLoading: isLoadingPipelines } = useGetPipelinesQuery();
   const pipelines = useAppSelector(selectPipelines);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,52 +81,25 @@ export const Home = () => {
       )
     : [];
 
-  const hasNpu = useAppSelector(selectHasNPU);
-
-  const userDefinedPipelines =
-    pipelines?.filter((p) => p.source === "USER_CREATED") ?? [];
-
   return (
     <>
       <div className="flex-1 overflow-auto">
         <div className="p-4 space-y-8">
           <div ref={containerRef}>
-            <h1 className="font-medium text-2xl mb-4">Pipelines</h1>
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="font-medium text-xl">Pipelines</h1>
+              <Link
+                to="/pipelines"
+                className="text-sm text-primary hover:underline"
+              >
+                See all
+              </Link>
+            </div>
             {isLoadingPipelines ? (
               <PipelineCardsLoader count={(maxCards ?? 0) + 1} />
             ) : (
               <PipelineCards pipelines={sortedPipelines} maxCards={maxCards} />
             )}
-          </div>
-
-          <div>
-            <h1 className="font-medium text-2xl mb-4">
-              User Defined Pipelines
-            </h1>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <AddPipelineButton />
-              {userDefinedPipelines.map((pipeline) => (
-                <Card
-                  key={pipeline.id}
-                  className="flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-                >
-                  <CardHeader className="flex-1">
-                    <CardTitle>{pipeline.name}</CardTitle>
-                    <CardDescription className="line-clamp-4 min-h-18">
-                      {pipeline.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardFooter>
-                    <Link
-                      to={`/pipelines/${pipeline.id}`}
-                      className="text-white dark:text-[#242528] font-medium bg-classic-blue dark:bg-energy-blue hover:bg-classic-blue-hover dark:hover:bg-energy-blue-tint-1 px-4 py-2 transition-colors"
-                    >
-                      Open in Builder
-                    </Link>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
           </div>
         </div>
       </div>
