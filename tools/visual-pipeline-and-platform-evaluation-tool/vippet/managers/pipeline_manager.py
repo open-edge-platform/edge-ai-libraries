@@ -429,6 +429,7 @@ class PipelineManager:
         pipeline_parts = []
         video_output_paths: dict[str, List[str]] = {}
         live_stream_urls: dict[str, str] = {}
+        output_subpipeline: str | None = None
 
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
@@ -475,8 +476,7 @@ class PipelineManager:
                         )
                     )
                     video_output_paths[pipeline.id].append(output_path)
-
-                if output_mode == OutputMode.LIVE_STREAM:
+                elif output_mode == OutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         self.video_encoder.create_live_stream_output_subpipeline(
                             pipeline.id,
@@ -502,6 +502,10 @@ class PipelineManager:
 
                 if output_mode != OutputMode.DISABLED and stream_index == 0:
                     # Replace the main output placeholder with the actual output subpipeline (file or live stream)
+                    if output_subpipeline is None:
+                        raise ValueError(
+                            "Output subpipeline was not created as expected."
+                        )
                     unique_pipeline_str = unique_pipeline_str.replace(
                         "{OUTPUT_PLACEHOLDER}", output_subpipeline
                     )
