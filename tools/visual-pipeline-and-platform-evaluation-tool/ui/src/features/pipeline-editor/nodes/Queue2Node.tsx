@@ -2,25 +2,31 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const Queue2Node = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-teal-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-teal-700 dark:text-teal-300">
-          Queue2
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-teal-100 dark:bg-teal-900 rounded">
-          Buffer
-        </div>
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-teal-400 min-w-[220px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-teal-100 dark:bg-teal-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-teal-600 dark:text-teal-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        Simple data queue
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-teal-700 dark:text-teal-300">
+          Queue2
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -28,7 +34,6 @@ const Queue2Node = () => (
       style={{ left: getHandleLeftPosition("queue2") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

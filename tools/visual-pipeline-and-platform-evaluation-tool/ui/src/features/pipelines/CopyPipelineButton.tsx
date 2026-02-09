@@ -22,7 +22,7 @@ interface CopyPipelineButtonProps {
   children: React.ReactNode;
 }
 
-const CopyPipelineButton = ({
+export const CopyPipelineButton = ({
   pipelines,
   baseName,
   description: pipelineDescription,
@@ -197,5 +197,3 @@ const CopyPipelineButton = ({
     </Dialog>
   );
 };
-
-export default CopyPipelineButton;

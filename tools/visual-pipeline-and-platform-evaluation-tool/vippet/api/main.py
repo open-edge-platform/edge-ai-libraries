@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -8,7 +8,8 @@ from fastapi import FastAPI
 from api.api_schemas import AppStatus
 from api.middleware import InitializationMiddleware
 from api.routes import health, metrics
-from managers.app_state_manager import get_app_state_manager
+from managers.app_state_manager import AppStateManager
+from videos import VideosManager
 
 # Configure logging
 handler = logging.StreamHandler()
@@ -38,28 +39,26 @@ def _initialize_in_background(app: FastAPI) -> None:
     This function runs in a separate thread so the server can start
     responding to health checks immediately while initialization proceeds.
     """
-    from videos import get_videos_manager
-
-    app_state = get_app_state_manager()
+    app_state_manager = AppStateManager()
 
     try:
-        app_state.set_status(
+        app_state_manager.set_status(
             AppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
-        get_videos_manager()
+        VideosManager()
 
         # Register remaining routers after VideosManager is ready
         register_routers(app)
 
-        app_state.set_status(AppStatus.READY)
+        app_state_manager.set_status(AppStatus.READY)
         logger.info("Application initialization complete")
 
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
-        app_state.set_status(AppStatus.SHUTDOWN, f"Initialization failed: {e}")
+        app_state_manager.set_status(AppStatus.SHUTDOWN, f"Initialization failed: {e}")
 
 
 def register_routers(app: FastAPI) -> None:
@@ -70,7 +69,16 @@ def register_routers(app: FastAPI) -> None:
     importing modules that depend on VideosManager before it's initialized.
     """
     # Import routers here to avoid early initialization of VideosManager
-    from api.routes import convert, devices, jobs, models, pipelines, tests, videos
+    from api.routes import (
+        convert,
+        devices,
+        jobs,
+        models,
+        pipelines,
+        tests,
+        videos,
+        cameras,
+    )
 
     # Include routers from different modules
     app.include_router(convert.router, prefix="/convert", tags=["convert"])
@@ -80,6 +88,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
+    app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
 
 
 @asynccontextmanager
@@ -91,8 +100,8 @@ async def lifespan(app: FastAPI):
     to health checks immediately.
     """
     logger.info("Application starting...")
-    app_state = get_app_state_manager()
-    app_state.set_status(AppStatus.STARTING)
+    app_state_manager = AppStateManager()
+    app_state_manager.set_status(AppStatus.STARTING)
 
     # Start initialization in background thread
     init_thread = threading.Thread(
@@ -107,7 +116,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
-    app_state.set_status(AppStatus.SHUTDOWN)
+    app_state_manager.set_status(AppStatus.SHUTDOWN)
 
 
 # Initialize FastAPI app with lifespan

@@ -5,10 +5,9 @@ import {
   Position,
 } from "@xyflow/react";
 import {
-  defaultNodeWidth,
   defaultNodeHeight,
+  defaultNodeWidth,
   nodeWidths,
-  nodeHeights,
 } from "@/features/pipeline-editor/nodes";
 
 export const LayoutDirection = {
@@ -24,9 +23,6 @@ export type LayoutDirectionType =
 const getNodeWidth = (nodeType: string): number =>
   nodeWidths[nodeType] ?? defaultNodeWidth;
 
-const getNodeHeight = (nodeType: string): number =>
-  nodeHeights[nodeType] ?? defaultNodeHeight;
-
 export const createGraphLayout = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
@@ -40,10 +36,9 @@ export const createGraphLayout = (
 
   nodes.forEach((node) => {
     const currentNodeWidth = getNodeWidth(node.type || "default");
-    const currentNodeHeight = getNodeHeight(node.type || "default");
     dagreGraph.setNode(node.id, {
       width: currentNodeWidth,
-      height: currentNodeHeight,
+      height: defaultNodeHeight,
     });
   });
 
@@ -56,7 +51,6 @@ export const createGraphLayout = (
   return nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const currentNodeWidth = getNodeWidth(node.type ?? "default");
-    const currentNodeHeight = getNodeHeight(node.type ?? "default");
 
     return {
       ...node,
@@ -64,7 +58,7 @@ export const createGraphLayout = (
       sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
       position: {
         x: nodeWithPosition.x - currentNodeWidth / 2,
-        y: nodeWithPosition.y - currentNodeHeight / 2,
+        y: nodeWithPosition.y - defaultNodeHeight / 2,
       },
     };
   });

@@ -2,12 +2,12 @@ import logging
 from pathlib import Path
 import re
 import os
-import sys
+import threading
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
 from utils import generate_unique_filename
-from videos import get_videos_manager, OUTPUT_VIDEO_DIR
+from videos import VideosManager, OUTPUT_VIDEO_DIR
 
 # Constants for encoder device types
 ENCODER_DEVICE_CPU = "CPU"
@@ -32,30 +32,14 @@ LIVE_STREAM_SERVER_PORT: str = os.environ.get(
 )
 
 logger = logging.getLogger("video_encoder")
-videos_manager = get_videos_manager()
-
-# Singleton instance for VideoEncoder
-_video_encoder_instance: Optional["VideoEncoder"] = None
-
-
-def get_video_encoder() -> "VideoEncoder":
-    """
-    Returns the singleton instance of VideoEncoder.
-    If it cannot be created, logs an error and exits the application.
-    """
-    global _video_encoder_instance
-    if _video_encoder_instance is None:
-        try:
-            _video_encoder_instance = VideoEncoder()
-        except Exception as e:
-            logger.error(f"Failed to initialize VideoEncoder: {e}")
-            sys.exit(1)
-    return _video_encoder_instance
 
 
 class VideoEncoder:
     """
-    Video encoder manager for GStreamer pipelines.
+    Thread-safe singleton video encoder manager for GStreamer pipelines.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with VideoEncoder() to get the shared singleton instance.
 
     This class handles video encoding operations including:
     - Selecting appropriate encoders based on device capabilities
@@ -63,10 +47,30 @@ class VideoEncoder:
     - Managing encoder configurations for different codecs
     """
 
+    _instance: Optional["VideoEncoder"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "VideoEncoder":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        """Initialize VideoEncoder with GStreamer inspector and encoder configurations."""
+        """
+        Initialize VideoEncoder with GStreamer inspector and encoder configurations.
+        Protected against multiple initialization.
+        """
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         self.logger = logging.getLogger("VideoEncoder")
         self.gst_inspector = GstInspector()
+        self.videos_manager = VideosManager()
 
         # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
         # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
@@ -198,7 +202,7 @@ class VideoEncoder:
             return DEFAULT_CODEC
 
         # Detect codec from the first input video
-        video = videos_manager.get_video(input_video_filenames[0])
+        video = self.videos_manager.get_video(input_video_filenames[0])
         detected_codec = video.codec if video and video.codec else DEFAULT_CODEC
 
         self.logger.debug(

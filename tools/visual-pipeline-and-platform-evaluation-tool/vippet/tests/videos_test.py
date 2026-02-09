@@ -10,7 +10,6 @@ from videos import (
     Video,
     VideoFileInfo,
     VideosManager,
-    get_videos_manager,
 )
 
 
@@ -163,17 +162,30 @@ class TestVideo(unittest.TestCase):
 
 class TestVideosManager(unittest.TestCase):
     def setUp(self):
-        """Create a temporary directory for testing."""
+        """Create a temporary directory for testing and reset singleton."""
         self.temp_dir = tempfile.mkdtemp()
         self.original_recordings_path = os.environ.get("RECORDINGS_PATH")
+        # Reset singleton state before each test
+        VideosManager._instance = None
 
     def tearDown(self):
-        """Clean up temporary directory and restore environment."""
+        """Clean up temporary directory, restore environment, and reset singleton."""
         shutil.rmtree(self.temp_dir)
         if self.original_recordings_path:
             os.environ["RECORDINGS_PATH"] = self.original_recordings_path
         else:
             os.environ.pop("RECORDINGS_PATH", None)
+        # Reset singleton state after each test
+        VideosManager._instance = None
+
+    def test_singleton_returns_same_instance(self):
+        """VideosManager() should return the same instance on multiple calls."""
+        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+            with patch.object(VideosManager, "_ensure_all_ts_conversions"):
+                with patch.object(VideosManager, "_download_default_videos"):
+                    instance1 = VideosManager()
+                    instance2 = VideosManager()
+                    self.assertIs(instance1, instance2)
 
     def test_videos_manager_invalid_directory(self):
         """Test VideosManager raises RuntimeError for invalid directory."""
@@ -792,43 +804,6 @@ class TestVideosManager(unittest.TestCase):
             mock_convert.assert_called_once()
             expected_ts_path = os.path.join(self.temp_dir, "test.ts")
             self.assertEqual(ts_path, expected_ts_path)
-
-
-class TestGetVideosManager(unittest.TestCase):
-    def setUp(self):
-        """Create temporary directory for testing."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.original_recordings_path = os.environ.get("RECORDINGS_PATH")
-
-    def tearDown(self):
-        """Clean up."""
-        shutil.rmtree(self.temp_dir)
-        if self.original_recordings_path:
-            os.environ["RECORDINGS_PATH"] = self.original_recordings_path
-        else:
-            os.environ.pop("RECORDINGS_PATH", None)
-
-    @patch.object(VideosManager, "_ensure_all_ts_conversions")
-    @patch.object(VideosManager, "_download_default_videos")
-    def test_get_videos_manager_singleton(self, mock_download, mock_ensure_ts):
-        """Test that get_videos_manager returns the same instance."""
-        mock_ensure_ts.return_value = None
-        mock_download.return_value = None
-
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
-            with patch("videos._videos_manager_instance", None):
-                manager1 = get_videos_manager()
-                manager2 = get_videos_manager()
-                self.assertIs(manager1, manager2)
-
-    def test_get_videos_manager_initialization_failure(self):
-        """Test that initialization failure raises exception."""
-        invalid_path = os.path.join(self.temp_dir, "nonexistent")
-
-        with patch("videos.RECORDINGS_PATH", invalid_path):
-            with patch("videos._videos_manager_instance", None):
-                with self.assertRaises(RuntimeError):
-                    get_videos_manager()
 
 
 if __name__ == "__main__":

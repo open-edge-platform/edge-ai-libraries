@@ -6,7 +6,8 @@ import psycopg
 import ipaddress
 import socket
 import os
-from urllib.parse import urlparse, urlunparse
+from fnmatch import fnmatch
+from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
@@ -16,7 +17,7 @@ from langchain_postgres.vectorstores import PGVector
 from .logger import logger
 from .config import Settings
 from .db_config import pool_execution
-from .utils import get_separators, parse_html
+from .utils import get_separators, parse_html_content
 import idna
 
 config = Settings()
@@ -72,35 +73,8 @@ def is_public_ip(ip: str) -> bool:
     except ValueError:
         return False
 
-def construct_pinned_url(parsed_url, resolved_ip):
-    """
-    Constructs a pinned URL using the resolved IP address and the original parsed URL components.
 
-    Args:
-        parsed_url (ParseResult): The parsed URL object.
-        resolved_ip (str): The resolved IP address to use in the netloc.
-
-    Returns:
-        str: The reconstructed URL with the resolved IP as the netloc.
-    """
-    # Build netloc with resolved IP and keep original port
-    port = parsed_url.port
-    if port:
-        netloc = f"{resolved_ip}:{port}"
-    else:
-        netloc = resolved_ip
-
-    # Reconstruct the URL with resolved IP as netloc (for connection), preserving scheme, path, query, etc.
-    return urlunparse((
-        parsed_url.scheme,
-        netloc,
-        parsed_url.path,
-        parsed_url.params,
-        parsed_url.query,
-        parsed_url.fragment
-    ))
-
-def validate_url(url: str) -> Optional[str]:
+def validate_url(url: str) -> bool:
     """
     Validates a given URL based on scheme, canonical hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks and encoding tricks.
 
@@ -108,7 +82,7 @@ def validate_url(url: str) -> Optional[str]:
         url (str): The URL to validate.
 
     Returns:
-        Optional[str]: The validated and pinned URL, or None if invalid.
+        bool: True if the URL is valid, False otherwise.
     """
     try:
         # Remove leading/trailing whitespace and control chars from the URL
@@ -116,12 +90,13 @@ def validate_url(url: str) -> Optional[str]:
 
         # Parse the cleaned URL
         parsed_url = urlparse(url_cleaned)
-        if parsed_url.scheme not in ["http", "https"]:
-            return None
+        # Ensure the URL are secure (https only)
+        if parsed_url.scheme != "https":
+            return False
 
         hostname = parsed_url.hostname
         if not hostname:
-            return None 
+            return False
 
         # Normalize the hostname: lower-case, strip trailing dot, and apply IDNA encoding
         normalized_hostname = hostname.lower().rstrip('.').strip()
@@ -129,54 +104,49 @@ def validate_url(url: str) -> Optional[str]:
             normalized_hostname = idna.encode(normalized_hostname).decode("utf-8")
         except idna.IDNAError:
             logger.error(f"Invalid IDNA encoding for hostname: {hostname}")
-            return None
+            return False
 
         # Check against the allowed hosts domains
         allowed_domains = [d.lower().rstrip('.') for d in config.ALLOWED_DOMAINS] if config.ALLOWED_DOMAINS else []
         if not allowed_domains:
             logger.error("No ALLOWED_DOMAINS configured; refusing all URLs to prevent SSRF.")
-            return None
+            return False
 
-        # Only accept exact matches or explicit subdomain matches
-        is_allowed = False
-        for allowed in allowed_domains:
-            if normalized_hostname == allowed or normalized_hostname.endswith('.' + allowed):
-                is_allowed = True
-                break
-        if not is_allowed:
-            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains; rejecting.")
-            return None
+        # Check if hostname matches allowed domains (supports wildcards like *.example.com)
+        if not any(fnmatch(normalized_hostname, pattern) for pattern in allowed_domains):
+            logger.info(f"URL hostname {normalized_hostname} is not in the whitelisted domains {allowed_domains}.")
+            return False
 
-        # Resolve the hostname to get its IP address
+        # Resolve ALL IPs for the hostname
         try:
-            resolved_ip = socket.gethostbyname(normalized_hostname)
-        except socket.gaierror:
-            return None
+            infos = socket.getaddrinfo(normalized_hostname, None)
+            resolved_ips = {info[4][0] for info in infos}
+        except (socket.gaierror, socket.error) as e:
+            logger.error(f"DNS resolution failed for {normalized_hostname}: {e}")
+            return False
 
         # Ensure the resolved IP is public
-        if not is_public_ip(resolved_ip):
-            return None
+        for ip in resolved_ips:
+            if not is_public_ip(ip):
+                logger.warning(f"Non-public IP blocked: {ip} for host {normalized_hostname}")
+                return False
 
-        # Reconstruct the URL with resolved IP as netloc (for connection), preserving scheme, path, query, etc.
-        validated_pinned_url = construct_pinned_url(parsed_url, resolved_ip)
-        return validated_pinned_url
+        return True
 
     except Exception as e:
         logger.error(f"URL validation failed: {e}")
-        return None
+        return False
 
-def safe_fetch_url(validated_pinned_url: str, headers: dict, hostname: str):
+def safe_fetch_url(validated_url: str, headers: dict):
     """
     Securely fetches a URL while mitigating SSRF vulnerabilities.
 
-    This function uses the validated URL for the request and the provided hostname
-    to preserve the Host header for proper TLS and routing. Redirects are disabled
+    This function uses the validated URL for the request. Redirects are disabled
     to prevent redirect-based SSRF attacks.
 
     Args:
         validated_url (str): The validated and pinned URL.
         headers (dict): A dictionary of HTTP headers to include in the request.
-        hostname (str): The original hostname to use in the Host header.
 
     Returns:
         Response: The HTTP response object from the `requests` library.
@@ -186,130 +156,123 @@ def safe_fetch_url(validated_pinned_url: str, headers: dict, hostname: str):
         requests.RequestException: For any issues during the HTTP request.
     """
 
-    # Preserve Host header for TLS / correct routing
-    headers = {
-        **headers,
-        "Host": hostname
-    }
-
     # Send the request to the validated URL to prevent SSRF
     response = requests.get(
-        validated_pinned_url,
+        validated_url,
         headers=headers,
         timeout=5,
-        allow_redirects=False  # prevent redirect SSRF
+        allow_redirects=False,  # prevent redirect SSRF
+        verify=True  # enforce SSL verification
     )
 
     return response
 
-def ingest_url_to_pgvector(url_list: List[str]) -> None:
+def ingest_url_to_pgvector(url_list: List[str]) -> dict:
     """
-    Ingests a list of URLs into a PGVector database by fetching their content,
-    splitting it into chunks, generating embeddings, and storing them.
-
-    Args:
-        url_list (List[str]): A list of URLs to be ingested.
-
-    Raises:
-        HTTPException: If there are issues with SSL, HTTP response status,
-            HTML parsing, or any other errors during the ingestion process.
+    Securely ingests URLs into PGVector.
+    SECURITY INVARIANT:
+    - Exactly ONE fetch per URL
+    - All network access goes through safe_fetch_url
     """
 
-    default_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+    default_user_agent = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/117.0.0.0 Safari/537.36"
+    )
 
     headers = {
         "User-Agent": os.getenv("USER_AGENT_HEADER", default_user_agent)
     }
 
-    try:
-        invalid_urls = 0
-        for url in url_list:
-            # Extract hostname before validating the URL
-            hostname = urlparse(url).hostname
+    # Initialize text splitter and embedder once
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=config.CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP,
+        add_start_index=True,
+        separators=get_separators(),
+    )
 
-            validated_pinned_url = validate_url(url)  # Validate and pin the URL
-            if not validated_pinned_url:
+    embedder = OpenAIEmbeddings(
+        openai_api_key="EMPTY",
+        openai_api_base=str(config.TEI_ENDPOINT_URL),
+        model=config.EMBEDDING_MODEL_NAME,
+        tiktoken_enabled=False,
+    )
+
+    invalid_urls = 0
+
+    for url in url_list:
+        try:
+            # Validate URL
+            if not validate_url(url):
                 logger.info(f"Invalid URL skipped: {url}")
                 invalid_urls += 1
                 continue
 
-            try:
-                # Use the safe_fetch_url function to securely fetch the URL
-                response = safe_fetch_url(validated_pinned_url, headers, hostname)
+            # Fetch ONCE (safe)
+            response = safe_fetch_url(url, headers)
 
-                if response.status_code != HTTPStatus.OK:
-                    logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
-                    invalid_urls += 1
-            except Exception as e:
-                logger.error(f"Error fetching URL {url}: {e}")
+            if response.status_code != HTTPStatus.OK:
+                logger.info(f"Fetch failed {url}: {response.status_code}")
                 invalid_urls += 1
+                continue
 
-        if invalid_urls > 0:
-            raise Exception(
-                f"{invalid_urls} / {len(url_list)} URL(s) are invalid.Last failed status code: {response.status_code}"
-            )
+            # Parse HTML from fetched content (NO re-fetch!)
+            content = parse_html_content(response.text, url)
 
-    except requests.exceptions.SSLError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=f"SSL Error: {str(e)}"
-        )
+            if not content.strip():
+                logger.info(f"No parsable content for {url}")
+                invalid_urls += 1
+                continue
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=f"Error during URL ingestion: {e}"
-        )
-
-    try:
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=config.CHUNK_SIZE,
-            chunk_overlap=config.CHUNK_OVERLAP,
-            add_start_index=True,
-            separators=get_separators(),
-        )
-
-        embedder = OpenAIEmbeddings(
-            openai_api_key="EMPTY",
-            openai_api_base="{}".format(config.TEI_ENDPOINT_URL),
-            model=config.EMBEDDING_MODEL_NAME,
-            tiktoken_enabled=False
-        )
-
-        for url in url_list:
-            try:
-                content = parse_html(
-                    [url], chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP
-                )
-            except Exception as e:
-                logger.error(f"Error while parsing HTML content for URL - {url}: {e}")
-                raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=f"Error while parsing URL")
-
-            logger.info(f"[ ingest url ] url: {url} content: {content} headers: {headers}")
-            metadata = [{"url": url}]
-
+            # Chunk + embed
             chunks = text_splitter.split_text(content)
+            metadata = [{"url": url}] * len(chunks)
             batch_size = config.BATCH_SIZE
 
             for i in range(0, len(chunks), batch_size):
                 batch_texts = chunks[i : i + batch_size]
+                batch_metadata = metadata[i : i + batch_size]
 
-                _ = PGVector.from_texts(
+                PGVector.from_texts(
                     texts=batch_texts,
                     embedding=embedder,
-                    metadatas=metadata,
+                    metadatas=batch_metadata,
                     collection_name=config.INDEX_NAME,
                     connection=config.PG_CONNECTION_STRING,
-                    use_jsonb=True
+                    use_jsonb=True,
                 )
 
                 logger.info(
-                    f"Processed batch {i // batch_size + 1}/{(len(chunks) - 1) // batch_size + 1}"
+                    f"Processed batch {i // batch_size + 1}/"
+                    f"{(len(chunks) - 1) // batch_size + 1} for {url}"
                 )
 
-    except Exception as e:
-        logger.error(f"Error during ingestion : {e}")
+        except requests.exceptions.SSLError as e:
+            logger.error(f"SSL Error while fetching {url}: {e}")
+            invalid_urls += 1
+            continue
+
+        except Exception as e:
+            logger.exception(f"Error ingesting URL {url}")
+            invalid_urls += 1
+            continue
+
+    if invalid_urls == len(url_list):
         raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=f"Error during URL ingestion to PGVector."
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail=(
+                f"All URLs failed ingestion. "
+                f"Invalid: {invalid_urls}/{len(url_list)}. "
+            ),
         )
+    
+    return {
+    "total_urls": len(url_list),
+    "successful": len(url_list) - invalid_urls,
+    "failed": invalid_urls,
+    }
 
 
 async def delete_embeddings_url(url: Optional[str], delete_all: bool = False) -> bool:
