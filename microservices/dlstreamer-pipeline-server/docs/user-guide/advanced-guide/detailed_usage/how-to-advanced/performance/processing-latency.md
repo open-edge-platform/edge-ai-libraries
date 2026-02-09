@@ -22,9 +22,9 @@ This guide will help you add environment variables to enable `GST TRACER` logs a
         volumes:
           - "/tmp:/tmp"
     ```
-   - `GST_DEBUG: "GST_TRACER:7"` indicates that GStreamer is set to log trace messages at level 7 during a pipeline's execution.
-   - `GST_TRACERS="latency(flags=pipeline+element)"` instructs GStreamer to enable the DL Streamer latency tracer. `flags=pipeline+element` specifies that the tracer should measure latency for both the entire pipeline and individual elements within it.
-   - `GST_DEBUG_FILE: /tmp/trace.log` specifies the file where the logs will be written.
+   - `GST_DEBUG=GST_TRACER:7` indicates that GStreamer is set to log trace messages at level 7 during a pipeline's execution.
+   - `GST_TRACERS=latency_tracer(flags=element+pipeline)` instructs GStreamer to enable the DL Streamer latency tracer. `flags=element+pipeline` specifies that the tracer should measure latency for both the entire pipeline and individual elements within it.
+   - `GST_DEBUG_FILE=/tmp/trace.log` specifies the file where the logs will be written.
 
 2. Start the Docker containers
     ```shell
