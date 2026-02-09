@@ -59,7 +59,6 @@ export const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
-  const [livePreviewEnabled, setLivePreviewEnabled] = useState(true);
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -426,14 +425,7 @@ export const Pipelines = () => {
 
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
-          execution_config: {
-            output_mode: livePreviewEnabled
-              ? "live_stream"
-              : videoOutputEnabled
-                ? "file"
-                : "disabled",
-            max_runtime: 1000,
-          },
+          execution_config: {},
           pipeline_performance_specs: [
             {
               id,
@@ -662,16 +654,6 @@ export const Pipelines = () => {
           </div>
 
           <div className="flex gap-2">
-            <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={livePreviewEnabled}
-                onCheckedChange={(checked) =>
-                  setLivePreviewEnabled(checked === true)
-                }
-              />
-              <span className="text-sm font-medium">Live preview</span>
-            </label>
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
@@ -732,8 +714,6 @@ export const Pipelines = () => {
                   <PerformanceTestPanel
                     isRunning={performanceTestJobId != null}
                     completedVideoPath={completedVideoPath}
-                    pipelineId={id}
-                    livePreviewEnabled={livePreviewEnabled}
                   />
                 ) : (
                   <NodeDataPanel
