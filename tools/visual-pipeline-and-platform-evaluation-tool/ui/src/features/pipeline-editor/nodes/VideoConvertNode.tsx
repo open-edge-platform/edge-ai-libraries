@@ -1,28 +1,34 @@
 import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
-export const VideoConvertNodeWidth = 260;
+export const VideoConvertNodeWidth = 235;
 
 const VideoConvertNode = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-amber-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
-          VideoConvert
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-amber-100 dark:bg-amber-900 rounded">
-          Transform
-        </div>
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-amber-400 min-w-[235px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-amber-100 dark:bg-amber-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-amber-600 dark:text-amber-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        Video colorspace conversion element
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
+          VideoConvert
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}
@@ -30,7 +36,6 @@ const VideoConvertNode = () => (
       style={{ left: getHandleLeftPosition("videoconvert") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
       position={Position.Bottom}

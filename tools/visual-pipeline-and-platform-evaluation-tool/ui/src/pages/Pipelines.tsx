@@ -594,7 +594,7 @@ export const Pipelines = () => {
             initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
             initialViewport={currentViewport}
             shouldFitView={shouldFitView}
-            useSimpleGraph={isSimpleMode}
+            isSimpleGraph={isSimpleMode}
           />
         </div>
 
