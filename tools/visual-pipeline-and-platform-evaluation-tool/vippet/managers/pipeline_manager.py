@@ -482,7 +482,6 @@ class PipelineManager:
                             pipeline.id,
                             encoder_device,
                             input_video_filenames,
-                            needs_looping,
                         )
                     )
                     live_stream_urls[pipeline.id] = stream_url

@@ -293,7 +293,6 @@ class VideoEncoder:
         pipeline_id: str,
         encoder_device: str,
         input_video_filenames: list[str],
-        needs_looping: bool = False,
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
@@ -310,7 +309,6 @@ class VideoEncoder:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
-            needs_looping: If True, use low-latency streaming encoder optimized for looping
 
         Returns:
             Tuple of (sub-pipeline string, live stream URL)
@@ -357,9 +355,5 @@ class VideoEncoder:
             f"rtspclientsink protocols=tcp location={stream_url}"
         )
 
-        # TODO: Clarify if we need this since it is used only in logging and doesn't affect the actual encoder configuration.
-        encoder_type = "low-latency streaming" if needs_looping else "streaming"
-        self.logger.debug(
-            f"Created live stream output sub-pipeline using {encoder_type} encoder: {stream_url}"
-        )
+        self.logger.debug(f"Created live stream output sub-pipeline: {stream_url}")
         return live_stream_output_subpipeline, stream_url

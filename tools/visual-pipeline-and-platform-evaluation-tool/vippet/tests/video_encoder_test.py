@@ -379,38 +379,6 @@ class TestLiveStreamOutput(unittest.TestCase):
 
     @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_live_stream_output_subpipeline_needs_looping_flag(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test that needs_looping flag is accepted."""
-        mock_gst_inspector_instance = MagicMock()
-        mock_gst_inspector_instance.elements = [("elem", "x264enc")]
-        mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        encoder = VideoEncoder()
-
-        encoder_device = ENCODER_DEVICE_CPU
-        pipeline_id = "test-pipeline-loop"
-
-        # Test with needs_looping=True
-        subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id,
-            encoder_device,
-            ["input.mp4"],
-            needs_looping=True,
-        )
-
-        self.assertIn("x264enc", subpipeline)
-        self.assertIn("rtspclientsink", subpipeline)
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
     def test_create_live_stream_output_subpipeline_no_encoder_found(
         self, mock_gst_inspector, mock_videos_manager
     ):
