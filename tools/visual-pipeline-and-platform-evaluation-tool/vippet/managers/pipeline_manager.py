@@ -447,6 +447,9 @@ class PipelineManager:
             # Convert pipeline graph dict back to Graph object
             base_graph = Graph.from_dict(pipeline.pipeline_graph.model_dump())
 
+            # Unify model-instance-ids across pipelines
+            base_graph = base_graph.unify_model_instance_ids()
+
             # Apply looping modifications if needed
             if needs_looping:
                 base_graph = base_graph.apply_looping_modifications()
@@ -474,11 +477,11 @@ class PipelineManager:
                     output_subpipeline, stream_url = self.video_encoder.create_live_stream_output_subpipeline(pipeline_index, encoder_device, input_video_filenames, needs_looping)
                     live_stream_urls[pipeline.id] = stream_url
                 
-            # Create one pipeline instance per stream with unique tee names
+            # Build pipeline parts for all streams of this pipeline specification
             for stream_index in range(run_spec.streams):
                 graph_instance = deepcopy(base_graph)
 
-                if stream_index == 0 and output_mode != OutputMode.DISABLED:
+                if output_mode != OutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
@@ -486,7 +489,7 @@ class PipelineManager:
 
                 unique_pipeline_str = graph_instance.to_pipeline_description()
             
-                if stream_index == 0 and output_mode != OutputMode.DISABLED:
+                if output_mode != OutputMode.DISABLED and stream_index == 0:
                     # Replace the main output placeholder with the actual output subpipeline (file or live stream)
                     unique_pipeline_str = unique_pipeline_str.replace("{OUTPUT_PLACEHOLDER}", output_subpipeline)
 

@@ -581,6 +581,49 @@ class Graph:
 
         return modified_graph
 
+    def unify_model_instance_ids(self) -> "Graph":
+        """
+        Unify model-instance-id for nodes with the same device and model.
+
+        Finds gvadetect and gvaclassify nodes and assigns the same model-instance-id
+        to nodes that share identical device and model properties.
+        This ensures model instances are properly reused when their configuration matches
+        across multiple pipelines.
+
+        Returns:
+            Graph: New Graph instance with unified model-instance-ids
+
+        Note:
+            Model-instance-id is created by combining device and model values,
+            with all characters lowercased and invalid characters replaced by underscores.
+            This ensures consistent IDs across different pipelines with matching configurations.
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if node.type not in {"gvadetect", "gvaclassify"}:
+                continue
+
+            device = node.data.get("device", "")
+            model = node.data.get("model", "")
+
+            # Sanitize each component: lowercase and replace invalid characters with underscores
+            # Valid characters are: alphanumeric, hyphen, underscore
+            sanitized_device = re.sub(r"[^a-z0-9_-]", "_", device.lower())
+            sanitized_model = re.sub(r"[^a-z0-9_-]", "_", model.lower())
+
+            # Create model-instance-id from the combination
+            model_instance_id = f"{sanitized_device}_{sanitized_model}"
+
+            # Assign the model-instance-id to the node
+            node.data["model-instance-id"] = model_instance_id
+            logger.debug(
+                f"Assigned model-instance-id={model_instance_id} to node {node.id} "
+                f"(device={device}, model={model})"
+            )
+
+        return modified_graph
+
     def get_recommended_encoder_device(self) -> str:
         """
         Iterate backwards through nodes to find the last video/x-raw node
