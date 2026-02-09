@@ -4,7 +4,7 @@ The Model Download Service is a microservice that enables downloading models fro
 
 ## Features
 
-- Download models from Hugging Face, Ollama, GETI and Ultralytics model hubs
+- Download models from Hugging Face, Ollama, Geti™ and Ultralytics model hubs
 - Convert Hugging Face models to OVMS format
 - Support for multiple model precisions (INT8, FP16, FP32)
 - Support for various device targets (CPU, GPU and NPU)
@@ -41,7 +41,7 @@ The Model Download Service is a microservice that enables downloading models fro
       export TAG=rc3.1_2026.0
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
-    - To use the GETI plugin, set these variables:
+    - To use the Geti™ plugin, set these variables:
       ```bash
       export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
       export GETI_HOST=<GETI_HOST_ADDRESS>
@@ -49,7 +49,7 @@ The Model Download Service is a microservice that enables downloading models fro
       export GETI_SERVER_API_VERSION=v1
       export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
       ```
-      **Note:** For GETI setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
+      **Note:** For Geti™ setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
       ```bash

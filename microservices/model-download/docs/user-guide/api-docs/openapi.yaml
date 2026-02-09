@@ -39,7 +39,7 @@ components:
         - ollama
         - ultralytics
         - openvino
-        - GETI
+        - Geti
       description: The model hub source to download from
 
     ModelType:

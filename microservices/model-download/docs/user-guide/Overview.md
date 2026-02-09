@@ -46,7 +46,7 @@ The service's functionality is extended through a modular plugin system that han
 - **HuggingFace Hub Plugin**: Manages model downloads from the Hugging Face Hub, including handling authentication for private or gated models.
 - **Ollama Hub Plugin**: Interfaces with Ollama to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
-- **GETI Plugin**:  Downloads models optmized on GETI.
+- **Geti™ Plugin**:  Downloads models optmized on Geti™.
 
 **Conversion Plugins:**
 - **OpenVINO Model Conversion Plugin**: Provides functionality to convert downloaded models (e.g., from Hugging Face) into the OpenVINO™ Intermediate Representation (IR) format for optimized inference on Intel hardware.
@@ -61,7 +61,7 @@ The service's functionality is extended through a modular plugin system that han
 
 ## Key Features
 
-- **Multi-Hub Support**: Download models from multiple sources (HuggingFace, Ollama, Ultralytics,Openvino and GETI)
+- **Multi-Hub Support**: Download models from multiple sources (HuggingFace, Ollama, Ultralytics,Openvino and Geti™)
 - **Format Conversion**: Convert models to OpenVINO format for optimization
 - **Parallel Downloads**: Optional concurrent model downloads
 - **Precision Control**: Support for various model precisions (INT8, FP16, FP32)

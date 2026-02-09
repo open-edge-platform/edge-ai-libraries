@@ -26,7 +26,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
       ```
-    - For using the GETI plugin set the below environment variables
+    - For using the Geti™ plugin set the below environment variables
       ```bash
       export GETI_HOST=<GETI_HOST_ADDRESS>
       export GETI_TOKEN=<GETI_ACCESS_TOKEN>
