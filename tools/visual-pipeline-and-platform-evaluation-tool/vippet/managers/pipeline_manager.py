@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from pipelines.loader import PipelineLoader
 from video_encoder import VideoEncoder
-from utils import generate_unique_id
+from utils import make_tee_names_unique, generate_unique_id
 from graph import Graph
 from api.api_schemas import (
     PipelineType,
@@ -430,6 +430,9 @@ class PipelineManager:
         video_output_paths: dict[str, List[str]] = {}
         live_stream_urls: dict[str, str] = {}
 
+        # Track which pipeline types have already been streamed (one live stream per pipeline type)
+        streamed_pipeline_ids: set[str] = set()
+
         # Determine if we need looping behavior based on max_runtime
         # Looping is only supported for disabled and live_stream modes
         needs_looping = (
@@ -442,70 +445,60 @@ class PipelineManager:
             pipeline = self.get_pipeline_by_id(run_spec.id)
 
             # Convert pipeline graph dict back to Graph object
-            base_graph = Graph.from_dict(pipeline.pipeline_graph.model_dump())
-
-            # Unify model-instance-ids across pipelines
-            base_graph = base_graph.unify_model_instance_ids()
+            graph = Graph.from_dict(pipeline.pipeline_graph.model_dump())
 
             # Apply looping modifications if needed
             if needs_looping:
-                base_graph = base_graph.apply_looping_modifications()
+                graph = graph.apply_looping_modifications()
+
+            # Retrieve input video filenames from the graph
+            input_video_filenames = graph.get_input_video_filenames()
 
             # Prepare intermediate output sinks and get updated graph and output paths
-            base_graph, intermediate_output_paths = (
-                base_graph.prepare_intermediate_output_sinks()
-            )
+            graph, output_paths = graph.prepare_output_sinks()
 
             # Store output paths for this pipeline
-            video_output_paths[pipeline.id] = intermediate_output_paths
+            video_output_paths[pipeline.id] = output_paths
 
-            output_mode = execution_config.output_mode
+            # Extract the pipeline description string
+            base_pipeline_str = graph.to_pipeline_description()
 
-            # prepare main video output path if output is enabled (file or live stream)
-            if output_mode != OutputMode.DISABLED:
-                # Retrieve input video filenames and recommended encoder device
-                input_video_filenames = base_graph.get_input_video_filenames()
-                encoder_device = base_graph.get_recommended_encoder_device()
-
-                # Create output subpipeline based on output mode (file or live stream)
-                if output_mode == OutputMode.FILE:
-                    output_subpipeline, output_path = (
-                        self.video_encoder.create_video_output_subpipeline(
-                            pipeline.id, encoder_device, input_video_filenames
-                        )
-                    )
-                    video_output_paths[pipeline.id].append(output_path)
-
-                if output_mode == OutputMode.LIVE_STREAM:
-                    output_subpipeline, stream_url = (
-                        self.video_encoder.create_live_stream_output_subpipeline(
-                            pipeline.id,
-                            encoder_device,
-                            input_video_filenames,
-                            needs_looping,
-                        )
-                    )
-                    live_stream_urls[pipeline.id] = stream_url
-
-            # Build pipeline parts for all streams of this pipeline specification
+            # Create one pipeline instance per stream with unique tee names
             for stream_index in range(run_spec.streams):
-                graph_instance = deepcopy(base_graph)
-
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
-                    # Create a placeholder node for the main output sink to be replaced later
-                    graph_instance = graph_instance.prepare_main_output_placeholder()
-
-                graph_instance = graph_instance.unify_all_element_names(
-                    pipeline_index, stream_index
+                unique_pipeline_str = make_tee_names_unique(
+                    base_pipeline_str, pipeline_index, stream_index
                 )
 
-                unique_pipeline_str = graph_instance.to_pipeline_description()
+                # Handle output replacement based on output_mode (only for first stream of each pipeline type)
+                if stream_index == 0:
+                    output_mode = execution_config.output_mode
+                    encoder_device = graph.get_recommended_encoder_device()
 
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
-                    # Replace the main output placeholder with the actual output subpipeline (file or live stream)
-                    unique_pipeline_str = unique_pipeline_str.replace(
-                        "{OUTPUT_PLACEHOLDER}", output_subpipeline
-                    )
+                    if output_mode == OutputMode.FILE:
+                        # Replace fakesink with file output
+                        unique_pipeline_str, generated_paths = (
+                            self.video_encoder.replace_fakesink_with_video_output(
+                                pipeline.id,
+                                unique_pipeline_str,
+                                encoder_device,
+                                input_video_filenames,
+                            )
+                        )
+                        video_output_paths[pipeline.id].extend(generated_paths)
+
+                    elif output_mode == OutputMode.LIVE_STREAM:
+                        # Replace fakesink with live stream output (one per pipeline type)
+                        if pipeline.id not in streamed_pipeline_ids:
+                            unique_pipeline_str, stream_url = (
+                                self.video_encoder.replace_fakesink_with_live_stream_output(
+                                    pipeline.id,
+                                    unique_pipeline_str,
+                                    encoder_device,
+                                    input_video_filenames,
+                                )
+                            )
+                            live_stream_urls[pipeline.id] = stream_url
+                            streamed_pipeline_ids.add(pipeline.id)
 
                 pipeline_parts.append(unique_pipeline_str)
 
