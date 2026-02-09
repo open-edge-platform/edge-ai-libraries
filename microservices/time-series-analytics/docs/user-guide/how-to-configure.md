@@ -1,10 +1,8 @@
-# Configuring Time Series Analytics Microservice
-
-## Configuration Overview
+# Configure Microservice
 
 This document describes the configuration options available in `config.json` for the Time Series Analytics Microservice.
 
-### Example Configuration
+## Example Configuration
 
 ```json
 {
@@ -65,8 +63,8 @@ For more information on how to configure MQTT alerts, refer to [Publishing MQTT 
 
 > **Note:**
 >
-> - MQTT Broker Availability: Ensure that the MQTT broker is accessible and available on the network before initializing this client. 
-> - The broker must be reachable via the configured host and port. 
+> - MQTT Broker Availability: Ensure that the MQTT broker is accessible and available on the network before initializing this client.
+> - The broker must be reachable via the configured host and port.
 
 #### **OPC UA Configuration** (optional)
 
@@ -81,7 +79,7 @@ For more information on how to configure OPC-UA alerts, refer to [Publishing OPC
 > **Note:**
 >
 > - An OPC UA server must be available and running at the specified endpoint
->   for this code to function properly. 
+>   for this code to function properly.
 > - Ensure the server is accessible and the connection parameters (endpoint URL, security settings, credentials)
 > are correctly configured before attempting to connect.
 

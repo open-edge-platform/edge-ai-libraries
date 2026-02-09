@@ -232,6 +232,95 @@ class TestUtils(unittest.TestCase):
         # All characters should be valid hex
         self.assertTrue(all(c in "0123456789abcdef" for c in hex_suffix))
 
+    def test_normalize_device_name_for_url_basic(self):
+        # Test basic normalization with spaces
+        device_name = "HD Pro Webcam C920"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        self.assertEqual(result, "hd_pro_webcam_c920")
+
+    def test_normalize_device_name_for_url_with_colon(self):
+        # Test normalization with colon (critical case for URL safety)
+        device_name = "Thronmax StreamGo Webcam: Thron"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        # Colon should be replaced with underscore
+        self.assertEqual(result, "thronmax_streamgo_webcam__thron")
+        self.assertNotIn(":", result)
+
+    def test_normalize_device_name_for_url_special_characters(self):
+        # Test normalization with various special characters
+        device_name = "Camera/Model-123 (v2.0) @ 1080p"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        # All special characters should be replaced with underscores
+        self.assertEqual(result, "camera_model_123__v2_0____1080p")
+        # Verify no special characters remain
+        for char in result:
+            self.assertTrue(char.isalnum() or char == "_")
+
+    def test_normalize_device_name_for_url_already_normalized(self):
+        # Test with already normalized name
+        device_name = "usb_camera_device_0"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        self.assertEqual(result, "usb_camera_device_0")
+
+    def test_normalize_device_name_for_url_empty_string(self):
+        # Test with empty string
+        device_name = ""
+        result = utils.normalize_device_name_for_url(device_name)
+
+        self.assertEqual(result, "")
+
+    def test_normalize_device_name_for_url_uppercase(self):
+        # Test that uppercase is converted to lowercase
+        device_name = "LOGITECH WEBCAM"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        self.assertEqual(result, "logitech_webcam")
+        self.assertTrue(result.islower() or result == "")
+
+    def test_normalize_device_name_for_url_numbers_and_letters(self):
+        # Test that alphanumeric characters are preserved
+        device_name = "Camera123Model456"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        self.assertEqual(result, "camera123model456")
+
+    def test_normalize_device_name_for_url_multiple_spaces(self):
+        # Test with multiple consecutive spaces
+        device_name = "Camera   With    Spaces"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        # Multiple spaces should become multiple underscores
+        self.assertEqual(result, "camera___with____spaces")
+
+    def test_normalize_device_name_for_url_url_unsafe_chars(self):
+        # Test with characters that require percent-encoding in URLs
+        device_name = "Camera?Model#123&name=test"
+        result = utils.normalize_device_name_for_url(device_name)
+
+        # All unsafe characters should be replaced
+        self.assertEqual(result, "camera_model_123_name_test")
+        # Verify result is URL-safe
+        for char in result:
+            self.assertTrue(char.isalnum() or char == "_")
+
+    def test_normalize_device_name_for_url_real_usb_camera_names(self):
+        # Test with real USB camera names
+        test_cases = [
+            ("HD Pro Webcam C920", "hd_pro_webcam_c920"),
+            ("Integrated Camera: Integrated C", "integrated_camera__integrated_c"),
+            ("Logitech Webcam C930e", "logitech_webcam_c930e"),
+            ("USB2.0 HD UVC WebCam: USB2.0 HD", "usb2_0_hd_uvc_webcam__usb2_0_hd"),
+        ]
+
+        for input_name, expected_output in test_cases:
+            with self.subTest(input_name=input_name):
+                result = utils.normalize_device_name_for_url(input_name)
+                self.assertEqual(result, expected_output)
+
 
 if __name__ == "__main__":
     unittest.main()
