@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_MEDIAMTX_URL || "http://localhost:8889",
           changeOrigin: true,
           secure: false,
-          ws: true,
+          ws: false,
         },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
