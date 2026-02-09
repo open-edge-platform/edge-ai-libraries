@@ -58,7 +58,7 @@ export const DeletePipelineDialog = ({
             <Trash2 className="text-destructive" />
           </AlertDialogMedia>
           <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
-          <AlertDialogDescription>
+          <AlertDialogDescription className="text-justify">
             Are you sure you want to delete <b>{pipeline?.name}</b> pipeline?
             {pipeline && pipeline.variantCount > 0 && (
               <>
