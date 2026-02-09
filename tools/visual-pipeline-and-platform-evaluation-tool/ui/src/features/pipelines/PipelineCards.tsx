@@ -35,9 +35,10 @@ const TAG_COLORS = [
 
 type PipelineCardsProps = {
   pipelines: Pipeline[];
+  maxCards?: number;
 };
 
-export const PipelineCards = ({ pipelines }: PipelineCardsProps) => {
+export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const { theme } = useTheme();
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -49,7 +50,7 @@ export const PipelineCards = ({ pipelines }: PipelineCardsProps) => {
 
   const tagColorMap = useMemo(() => {
     const uniqueTags = Array.from(
-      new Set(pipelines.flatMap((p) => p.tags || [])),
+      new Set(pipelines.flatMap((p) => p.tags ?? [])),
     ).sort();
 
     if (uniqueTags.length > TAG_COLORS.length) {
@@ -70,6 +71,9 @@ export const PipelineCards = ({ pipelines }: PipelineCardsProps) => {
     setDeleteDialogOpen(true);
   };
 
+  const displayedPipelines =
+    maxCards !== undefined ? pipelines.slice(0, maxCards) : pipelines;
+
   return (
     <>
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
@@ -80,7 +84,7 @@ export const PipelineCards = ({ pipelines }: PipelineCardsProps) => {
           </CardHeader>
         </Card>
 
-        {pipelines.map((pipeline) => (
+        {displayedPipelines.map((pipeline) => (
           <Card
             key={pipeline.id}
             className={`flex flex-col pt-0 transition-all duration-200 overflow-hidden ${

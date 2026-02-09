@@ -1,12 +1,13 @@
 import { useGetPipelinesQuery } from "@/api/api.generated";
 import { PipelineCards } from "@/features/pipelines/PipelineCards";
 import { PipelineCardsLoader } from "@/features/pipelines/PipelineCardsLoader";
+import { useAppSelector } from "@/store/hooks";
 import { compareDesc } from "date-fns";
+import { selectPipelines } from "@/store/reducers/pipelines.ts";
 
 export const Pipelines2 = () => {
-  const { data: pipelines, isLoading, error } = useGetPipelinesQuery();
-
-  if (error) return <div>Error loading pipelines</div>;
+  const { isLoading } = useGetPipelinesQuery();
+  const pipelines = useAppSelector(selectPipelines);
 
   const sortedPipelines = pipelines
     ? [...pipelines].sort((p1, p2) =>
