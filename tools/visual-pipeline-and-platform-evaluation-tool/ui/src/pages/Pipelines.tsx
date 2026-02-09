@@ -425,10 +425,7 @@ export const Pipelines = () => {
 
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
-          execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
-          },
+          execution_config: {},
           pipeline_performance_specs: [
             {
               id,
@@ -594,7 +591,7 @@ export const Pipelines = () => {
             initialEdges={currentEdges.length > 0 ? currentEdges : undefined}
             initialViewport={currentViewport}
             shouldFitView={shouldFitView}
-            useSimpleGraph={isSimpleMode}
+            isSimpleGraph={isSimpleMode}
           />
         </div>
 

@@ -1,7 +1,7 @@
 import Decodebin3Node from "./Decodebin3Node.tsx";
 import FakeSinkNode from "./FakeSinkNode.tsx";
 import FileSinkNode from "./FileSinkNode.tsx";
-import FileSrcNode from "./FileSrcNode.tsx";
+import FileSrcNode, { FileSrcNodeWidth } from "./FileSrcNode.tsx";
 import GVAClassifyNode, { GVAClassifyNodeWidth } from "./GVAClassifyNode.tsx";
 import GVADetectNode, { GVADetectNodeWidth } from "./GVADetectNode.tsx";
 import GVAFpsCounterNode, {
@@ -22,7 +22,9 @@ import Mp4MuxNode from "./Mp4MuxNode.tsx";
 import QtdemuxNode from "./QtdemuxNode.tsx";
 import Queue2Node from "./Queue2Node.tsx";
 import QueueNode from "./QueueNode.tsx";
-import SplitmuxsinkNode from "./SplitmuxsinkNode.tsx";
+import SplitMuxSinkNode, {
+  SplitMuxSinkNodeWidth,
+} from "./SplitMuxSinkNode.tsx";
 import TeeNode from "./TeeNode.tsx";
 import VaapiDecodebinNode from "./VaapiDecodebinNode.tsx";
 import VAH264DecNode from "./VAH264DecNode.tsx";
@@ -62,11 +64,12 @@ export const nodeTypes = {
   gvaclassify: GVAClassifyNode,
   vaapidecodebin: VaapiDecodebinNode,
   tee: TeeNode,
-  splitmuxsink: SplitmuxsinkNode,
+  splitmuxsink: SplitMuxSinkNode,
   videoscale: VideoScaleNode,
 };
 
 export const nodeWidths: Record<string, number> = {
+  filesrc: FileSrcNodeWidth,
   gvadetect: GVADetectNodeWidth,
   gvaclassify: GVAClassifyNodeWidth,
   gvametaconvert: GVAMetaConvertNodeWidth,
@@ -74,17 +77,10 @@ export const nodeWidths: Record<string, number> = {
   gvafpscounter: GVAFpsCounterNodeWidth,
   gvawatermark: GVAWatermarkNodeWidth,
   videoconvert: VideoConvertNodeWidth,
-};
-
-export const nodeHeights: Record<string, number> = {
-  filesrc: 100,
-  gvadetect: 180,
-  gvaclassify: 180,
-  gvatrack: 130,
-  "video/x-raw(memory:VAMemory)": 150,
+  splitmuxsink: SplitMuxSinkNodeWidth,
 };
 
 export const defaultNodeWidth = 220;
-export const defaultNodeHeight = 60;
+export const defaultNodeHeight = 78;
 
 export default nodeTypes;

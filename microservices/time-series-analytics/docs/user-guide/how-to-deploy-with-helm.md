@@ -2,8 +2,10 @@
 
 ## Prerequisites
 
-- [System Requirements](system-requirements.md)
--  K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
+- [System Requirements](./get-started/system-requirements.md)
+- K8s installation on single or multi node must be done as pre-requisite to continue
+  the following deployment. Note: The kubernetes cluster is set up with `kubeadm`,
+  `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
   Refer to tutorials such as <https://adamtheautomator.com/installing-kubernetes-on-ubuntu> and many other
   online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
 - For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
@@ -37,8 +39,11 @@
 ## Install helm charts
 
 > **Note:**
-> -  Uninstall the helm charts if already installed.
-> -  If the worker nodes are running behind proxy server, then please additionally set env.HTTP_PROXY and env.HTTPS_PROXY env like the way env.TELEGRAF_INPUT_PLUGIN is being set as follows with helm install command
+>
+> - Uninstall the helm charts if already installed.
+> - If the worker nodes are running behind proxy server, then please additionally
+>   set `env.HTTP_PROXY` and `env.HTTPS_PROXY` env like the way `env.TELEGRAF_INPUT_PLUGIN`
+>   is being set as follows with helm install command
 
 ```bash
 cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
@@ -84,7 +89,7 @@ kubectl get all -n apps # it takes few mins to have all application resources cl
 ## Troubleshooting
 
 - Check pod details or container logs to catch any failures:
- 
+
   ```bash
   POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
   kubectl describe pod $POD_NAME $ -n apps # shows details of the pod
