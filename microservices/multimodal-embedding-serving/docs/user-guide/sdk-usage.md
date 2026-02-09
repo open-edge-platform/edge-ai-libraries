@@ -92,7 +92,7 @@ handler = get_model_handler(
     "QwenText/qwen3-embedding-0.6b",
     device="GPU",  # or CPU / AUTO
     use_openvino=True,
-    ov_models_dir="./ov-models"
+    ov_models_dir="./ov_models"
 )
 handler.load_model()
 
@@ -237,7 +237,7 @@ model_handler = get_model_handler(
     model_id="your-chosen-model",
     device="CPU",
     use_openvino=True,
-    ov_models_dir="./ov-models"
+    ov_models_dir="./ov_models"
 )
 model_handler.load_model()
 embedding_model = EmbeddingModel(model_handler)

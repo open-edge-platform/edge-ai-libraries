@@ -658,18 +658,18 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
         fi
 
-        # Create ov-models volume for embedding models if it doesn't exist
-        if ! docker volume ls | grep -q "ov-models"; then
-            echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov-models${NC}"
-            docker volume create ov-models
-            if [ $? = 0 ]; then
-                echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume created successfully${NC}"
+        # Create ov_models volume for embedding models if it doesn't exist
+        if ! docker volume ls | grep -q "ov_models"; then
+            echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov_models${NC}"
+            docker volume create ov_models
+            if [ $? -eq 0 ]; then
+                echo -e "[multimodal-embedding-serving] ${GREEN}ov_models volume created successfully${NC}"
             else
-                echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov-models volume${NC}"
+                echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov_models volume${NC}"
                 return 1
             fi
         else
-            echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume already exists${NC}"
+            echo -e "[multimodal-embedding-serving] ${GREEN}ov_models volume already exists${NC}"
         fi
 
         # Create data-prep volume if it doesn't exist
@@ -815,18 +815,18 @@ elif [ "$1" = "--search" ]; then
         echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
     fi
 
-    # Create ov-models volume for embedding models if it doesn't exist
-    if ! docker volume ls | grep -q "ov-models"; then
-        echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov-models${NC}"
-        docker volume create ov-models
-        if [ $? = 0 ]; then
-            echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume created successfully${NC}"
+    # Create ov_models volume for embedding models if it doesn't exist
+    if ! docker volume ls | grep -q "ov_models"; then
+        echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov_models${NC}"
+        docker volume create ov_models
+        if [ $? -eq 0 ]; then
+            echo -e "[multimodal-embedding-serving] ${GREEN}ov_models volume created successfully${NC}"
         else
-            echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov-models volume${NC}"
+            echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov_models volume${NC}"
             return 1
         fi
     else
-        echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume already exists${NC}"
+        echo -e "[multimodal-embedding-serving] ${GREEN}ov_models volume already exists${NC}"
     fi
 
     # Create data-prep volume if it doesn't exist

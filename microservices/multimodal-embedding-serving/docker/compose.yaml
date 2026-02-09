@@ -43,13 +43,13 @@ services:
     networks:
       - my_network
     volumes:
-      - ov-models:/home/appuser/.cache/huggingface
+      - ov_models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
-      - ov-models:/app/ov_models
+      - ov_models:/app/ov_models
 volumes:
   data-prep:
     external: true
-  ov-models:
+  ov_models:
     external: true
 networks:
   my_network:

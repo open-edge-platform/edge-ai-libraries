@@ -85,8 +85,8 @@ services:
       retries: 60
       start_period: 60s
     volumes:
-      - ov-models:/home/appuser/.cache/huggingface
-      - ov-models:/app/ov-model
+      - ov_models:/home/appuser/.cache/huggingface
+      - ov_models:/app/ov_models
     networks:
       - vs_network
 
@@ -243,7 +243,7 @@ services:
 volumes:
   audio_analyzer_data:
     driver: local
-  ov-models:
+  ov_models:
     driver: local
   vol_evam_pipeline_root:
     driver: local

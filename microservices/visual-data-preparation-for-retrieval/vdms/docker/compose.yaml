@@ -91,8 +91,8 @@ services:
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
-            - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
-            - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
+            - ov_models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
+            - ov_models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
             - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
         depends_on:
@@ -105,7 +105,7 @@ networks:
 volumes:
     vdms-yolox-models:
         driver: local
-    ov-models:
+    ov_models:
         driver: local
     data-prep:
         driver: local

@@ -66,14 +66,14 @@ class CLIPHandler(BaseEmbeddingModel):
                 - pretrained: Pretrained checkpoint identifier
                 - device: Target device for inference (default: "CPU")
                 - use_openvino: Whether to use OpenVINO optimization (default: False)
-                - ov_models_dir: Directory for OpenVINO models (default: "ov-models")
+                - ov_models_dir: Directory for OpenVINO models (default: "ov_models")
         """
         super().__init__(model_config)
         self.model_name = model_config["model_name"]
         self.pretrained = model_config["pretrained"]
         self.use_openvino = model_config.get("use_openvino", False)
         self.device = model_config.get("device", "CPU")
-        self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
+        self.ov_models_dir = model_config.get("ov_models_dir", "ov_models")
         
         # OpenVINO models
         self.ov_image_encoder = None

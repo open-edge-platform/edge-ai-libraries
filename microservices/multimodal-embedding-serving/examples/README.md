@@ -133,7 +133,7 @@ The service supports multiple model families:
 ### Optional Variables
 - `EMBEDDING_USE_OV` - Enable OpenVINO conversion (true/false, default: false)
 - `EMBEDDING_DEVICE` - Device for inference (CPU/GPU, default: CPU)
-- `EMBEDDING_OV_MODELS_DIR` - Directory for OpenVINO models (default: ./ov-models)
+- `EMBEDDING_OV_MODELS_DIR` - Directory for OpenVINO models (default: ./ov_models)
 
 ## Model Switching Examples
 
@@ -146,7 +146,7 @@ export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0
 ```bash
 export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16
 export EMBEDDING_USE_OV=true
-export EMBEDDING_OV_MODELS_DIR=./ov-models
+export EMBEDDING_OV_MODELS_DIR=./ov_models
 ```
 
 ### Use SigLIP
@@ -187,7 +187,7 @@ docker run -p 8080:8080 \
 docker run -p 8080:8080 \
   -e EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16 \
   -e EMBEDDING_USE_OV=true \
-  -v $(pwd)/ov-models:/app/ov_models \
+  -v $(pwd)/ov_models:/app/ov_models \
   multimodal-embedding-serving
 ```
 

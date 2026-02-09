@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     EMBEDDING_DEVICE: str = Field(default="CPU", env="EMBEDDING_DEVICE")
     EMBEDDING_USE_OV: bool = Field(default=False, env="EMBEDDING_USE_OV")  # Default to False for SDK usage
     EMBEDDING_OV_MODELS_DIR: str = Field(
-        default=str(Path(__file__).parent.parent / "ov-models"),
+        default=str(Path(__file__).parent.parent / "ov_models"),
         env="EMBEDDING_OV_MODELS_DIR",
     )
 
