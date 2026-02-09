@@ -1162,10 +1162,29 @@ const DemoMode = () => {
                                         collapsible
                                         className="w-full space-y-2"
                                       >
-                                        {pipeline.pipeline_graph?.nodes?.map(
-                                          (node) => {
+                                        {pipeline.pipeline_graph?.nodes
+                                          ?.filter((node) => {
                                             const nodeTag =
                                               nodeTypeToTag[node.type] || null;
+                                            const hiddenTags = [
+                                              "Counter",
+                                              "Converter",
+                                              "Caps",
+                                              "Splitter",
+                                            ];
+                                            return !hiddenTags.includes(
+                                              nodeTag ?? "",
+                                            );
+                                          })
+                                          .map((node) => {
+                                            const nodeTag =
+                                              nodeTypeToTag[node.type] || null;
+                                            const displayTag =
+                                              nodeTag === "Muxer"
+                                                ? "Storage output"
+                                                : nodeTag === "Publisher"
+                                                  ? "Metadata output"
+                                                  : nodeTag;
                                             const nodeConfig = getNodeConfig(
                                               node.type,
                                             );
@@ -1253,10 +1272,10 @@ const DemoMode = () => {
                                               >
                                                 <AccordionTrigger className="hover:no-underline py-2">
                                                   <div className="flex flex-col items-start">
-                                                    {nodeTag ? (
+                                                    {displayTag ? (
                                                       <>
                                                         <span className="font-medium text-white">
-                                                          {nodeTag}
+                                                          {displayTag}
                                                         </span>
                                                         <span className="text-xs text-slate-400 font-light">
                                                           {node.type}
@@ -1539,8 +1558,7 @@ const DemoMode = () => {
                                                 </AccordionContent>
                                               </AccordionItem>
                                             );
-                                          },
-                                        )}
+                                          })}
                                       </Accordion>
                                     </div>
                                   </>
