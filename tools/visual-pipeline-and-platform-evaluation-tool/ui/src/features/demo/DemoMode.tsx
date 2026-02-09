@@ -48,6 +48,7 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
+import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 
 const pipelineImages = [
   pipeline0,
@@ -1089,7 +1090,24 @@ const DemoMode = () => {
                     Preview
                   </p>
                   <div className="flex-1 flex items-center justify-center text-slate-400">
-                    <p className="text-sm">Preview content will appear here</p>
+                    {performanceJobId &&
+                    performanceLivePreviewEnabled &&
+                    (selectedConfigPipelineId ||
+                      pipelineSelections[0]?.pipelineId) ? (
+                      <div className="w-full">
+                        <WebRTCVideoPlayer
+                          pipelineId={
+                            selectedConfigPipelineId ??
+                            pipelineSelections[0]?.pipelineId ??
+                            ""
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm">
+                        Preview content will appear here
+                      </p>
+                    )}
                   </div>
                 </div>
               );
