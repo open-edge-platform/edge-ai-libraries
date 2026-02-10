@@ -9,7 +9,6 @@ import {
   useStopPerformanceTestJobMutation,
   useUpdatePipelineMutation,
 } from "@/api/api.generated.ts";
-import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { selectModels } from "@/store/reducers/models";
@@ -335,9 +334,19 @@ const DemoMode = () => {
     : "max-h-[44vh]";
   const runConfigMaxHeightClass = "max-h-[44vh]";
   const showPreviewPanel =
-    testStarted &&
-    lastRunTest === "performance-test" &&
-    performanceLivePreviewEnabled;
+    (testStarted &&
+      lastRunTest === "performance-test" &&
+      performanceLivePreviewEnabled) ||
+    (lastRunTest === "performance-test" &&
+      performanceResult &&
+      performanceVideoOutputEnabled &&
+      performanceResult.video_output_paths &&
+      Object.keys(performanceResult.video_output_paths).length > 0) ||
+    (lastRunTest === "density-test" &&
+      testResult &&
+      videoOutputEnabled &&
+      testResult.video_output_paths &&
+      Object.keys(testResult.video_output_paths).length > 0);
   const showPreRunLayout = !testStarted;
   const gridColumnsStyle = {
     gridTemplateColumns: showResultsPanel ? "0.7fr 1.3fr" : "1fr 1fr",
@@ -613,10 +622,36 @@ const DemoMode = () => {
       }
       setErrorMessage(null);
       setDensityJobId(null);
-    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
+    } else if (jobStatus?.state === "ERROR") {
       console.error("Test failed:", jobStatus.error_message);
       setErrorMessage(jobStatus.error_message || "Test failed");
       setTestResult(null);
+      setDensityJobId(null);
+    } else if (jobStatus?.state === "ABORTED") {
+      // Test was stopped - always freeze metrics
+      if (
+        testStartTimestamp &&
+        densityJobId &&
+        metricsFrozenForJobId !== densityJobId
+      ) {
+        setMetricHistorySnapshot(
+          history.filter((point) => point.timestamp >= testStartTimestamp),
+        );
+        setMetricsFrozenForJobId(densityJobId);
+      }
+
+      // Show results if available
+      if (jobStatus.per_stream_fps || jobStatus.total_streams) {
+        setTestResult({
+          per_stream_fps: jobStatus.per_stream_fps,
+          total_streams: jobStatus.total_streams,
+          streams_per_pipeline: jobStatus.streams_per_pipeline,
+          video_output_paths: jobStatus.video_output_paths,
+        });
+      } else {
+        setTestResult(null);
+      }
+      setErrorMessage(null);
       setDensityJobId(null);
     }
   }, [
@@ -647,10 +682,7 @@ const DemoMode = () => {
       }
       setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
-    } else if (
-      performanceJobStatus?.state === "ERROR" ||
-      performanceJobStatus?.state === "ABORTED"
-    ) {
+    } else if (performanceJobStatus?.state === "ERROR") {
       console.error(
         "Performance test failed:",
         performanceJobStatus.error_message,
@@ -659,6 +691,35 @@ const DemoMode = () => {
         performanceJobStatus.error_message || "Test failed",
       );
       setPerformanceResult(null);
+      setPerformanceJobId(null);
+    } else if (performanceJobStatus?.state === "ABORTED") {
+      // Test was stopped - always freeze metrics
+      if (
+        testStartTimestamp &&
+        performanceJobId &&
+        metricsFrozenForJobId !== performanceJobId
+      ) {
+        setMetricHistorySnapshot(
+          history.filter((point) => point.timestamp >= testStartTimestamp),
+        );
+        setMetricsFrozenForJobId(performanceJobId);
+      }
+
+      // Show results if available
+      if (
+        performanceJobStatus.total_fps ||
+        performanceJobStatus.per_stream_fps
+      ) {
+        setPerformanceResult({
+          total_fps: performanceJobStatus.total_fps,
+          per_stream_fps: performanceJobStatus.per_stream_fps,
+          video_output_paths: performanceJobStatus.video_output_paths,
+          live_stream_urls: performanceJobStatus.live_stream_urls,
+        });
+      } else {
+        setPerformanceResult(null);
+      }
+      setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
     }
   }, [
@@ -883,10 +944,10 @@ const DemoMode = () => {
     try {
       if (activeTest === "performance-test" && performanceJobId) {
         await stopPerformanceTestJob({ jobId: performanceJobId }).unwrap();
-        setPerformanceJobId(null);
+        // Don't set jobId to null - let polling continue to get ABORTED status
       } else if (activeTest === "density-test" && densityJobId) {
         await stopDensityTestJob({ jobId: densityJobId }).unwrap();
-        setDensityJobId(null);
+        // Don't set jobId to null - let polling continue to get ABORTED status
       }
     } catch (err) {
       console.error("Failed to stop test:", err);
@@ -1119,9 +1180,18 @@ const DemoMode = () => {
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
                   >
-                    Preview
+                    {/* Show "Output" if test finished with video output, otherwise "Preview" */}
+                    {(lastRunTest === "performance-test" &&
+                      performanceResult &&
+                      performanceVideoOutputEnabled) ||
+                    (lastRunTest === "density-test" &&
+                      testResult &&
+                      videoOutputEnabled)
+                      ? "Output"
+                      : "Preview"}
                   </p>
                   <div className="flex-1 flex items-center justify-center text-slate-400 overflow-hidden">
+                    {/* Show live preview during running test */}
                     {performanceJobId &&
                     performanceLivePreviewEnabled &&
                     (selectedConfigPipelineId ||
@@ -1147,6 +1217,80 @@ const DemoMode = () => {
                           />
                         </div>
                       </div>
+                    ) : /* Show saved video output after test completion */
+                    lastRunTest === "performance-test" &&
+                      performanceResult &&
+                      performanceVideoOutputEnabled &&
+                      performanceResult.video_output_paths &&
+                      Object.keys(performanceResult.video_output_paths).length >
+                        0 ? (
+                      (() => {
+                        const currentPipelineId =
+                          selectedConfigPipelineId ??
+                          pipelineSelections[0]?.pipelineId;
+                        if (!currentPipelineId)
+                          return (
+                            <p className="text-sm">No pipeline selected</p>
+                          );
+
+                        const paths =
+                          performanceResult.video_output_paths[
+                            currentPipelineId
+                          ];
+                        const videoPath =
+                          paths && paths.length > 0 ? [...paths].pop() : null;
+
+                        return videoPath ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <video
+                              controls
+                              className="max-w-full max-h-full"
+                              src={`/assets${videoPath}`}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        ) : (
+                          <p className="text-sm">
+                            No video output for this pipeline
+                          </p>
+                        );
+                      })()
+                    ) : lastRunTest === "density-test" &&
+                      testResult &&
+                      videoOutputEnabled &&
+                      testResult.video_output_paths &&
+                      Object.keys(testResult.video_output_paths).length > 0 ? (
+                      (() => {
+                        const currentPipelineId =
+                          selectedConfigPipelineId ??
+                          pipelineSelections[0]?.pipelineId;
+                        if (!currentPipelineId)
+                          return (
+                            <p className="text-sm">No pipeline selected</p>
+                          );
+
+                        const paths =
+                          testResult.video_output_paths[currentPipelineId];
+                        const videoPath =
+                          paths && paths.length > 0 ? [...paths].pop() : null;
+
+                        return videoPath ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <video
+                              controls
+                              className="max-w-full max-h-full"
+                              src={`/assets${videoPath}`}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        ) : (
+                          <p className="text-sm">
+                            No video output for this pipeline
+                          </p>
+                        );
+                      })()
                     ) : (
                       <p className="text-sm">
                         Preview content will appear here
@@ -1951,11 +2095,23 @@ const DemoMode = () => {
 
                         {!performanceResult &&
                           !performanceJobId &&
-                          !performanceErrorMessage && (
+                          !performanceErrorMessage &&
+                          !hasFrozenMetrics && (
                             <div className="flex items-center justify-center h-full text-slate-400">
                               <p className="text-sm">
                                 Results will appear here after running the test
                               </p>
+                            </div>
+                          )}
+
+                        {!performanceResult &&
+                          hasFrozenMetrics &&
+                          frozenMetricsSummary && (
+                            <div className="space-y-3">
+                              <TestProgressIndicator
+                                historyOverride={frozenMetrics}
+                                metricsOverride={frozenMetricsSummary}
+                              />
                             </div>
                           )}
 
@@ -2005,87 +2161,6 @@ const DemoMode = () => {
                               </div>
                             </div>
 
-                            {performanceLivePreviewEnabled &&
-                              performanceResult.live_stream_urls &&
-                              Object.keys(performanceResult.live_stream_urls)
-                                .length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-semibold text-slate-300">
-                                    Live previews
-                                  </p>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {Object.entries(
-                                      performanceResult.live_stream_urls,
-                                    ).map(([pipelineId, url]) => (
-                                      <div
-                                        key={pipelineId}
-                                        className="rounded-md border border-slate-400/30 bg-slate-900/60 p-2"
-                                      >
-                                        <p className="text-[10px] text-slate-400 mb-2">
-                                          <PipelineName
-                                            pipelineId={pipelineId}
-                                          />
-                                        </p>
-                                        <video
-                                          controls
-                                          className="w-full"
-                                          src={url}
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                            {performanceVideoOutputEnabled &&
-                              performanceResult.video_output_paths &&
-                              Object.keys(performanceResult.video_output_paths)
-                                .length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-semibold text-slate-300">
-                                    Output Videos
-                                  </p>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {Object.entries(
-                                      performanceResult.video_output_paths,
-                                    ).map(([pipelineId, paths]) => {
-                                      const videoPath =
-                                        paths && paths.length > 0
-                                          ? [...paths].pop()
-                                          : null;
-
-                                      return (
-                                        <div
-                                          key={pipelineId}
-                                          className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
-                                        >
-                                          <div className="px-3 py-2 border-b border-slate-400/20">
-                                            <p className="text-[10px] text-slate-400">
-                                              <PipelineName
-                                                pipelineId={pipelineId}
-                                              />
-                                            </p>
-                                          </div>
-                                          {videoPath ? (
-                                            <video
-                                              controls
-                                              className="w-full"
-                                              src={`/assets${videoPath}`}
-                                            >
-                                              Your browser does not support the
-                                              video tag.
-                                            </video>
-                                          ) : (
-                                            <div className="p-3 text-center text-xs text-slate-400">
-                                              no streams
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
                                 className="mt-2"
@@ -2137,13 +2212,27 @@ const DemoMode = () => {
                           </div>
                         )}
 
-                        {!testResult && !densityJobId && !errorMessage && (
-                          <div className="flex items-center justify-center h-full text-slate-400">
-                            <p className="text-sm">
-                              Results will appear here after running the test
-                            </p>
-                          </div>
-                        )}
+                        {!testResult &&
+                          !densityJobId &&
+                          !errorMessage &&
+                          !hasFrozenMetrics && (
+                            <div className="flex items-center justify-center h-full text-slate-400">
+                              <p className="text-sm">
+                                Results will appear here after running the test
+                              </p>
+                            </div>
+                          )}
+
+                        {!testResult &&
+                          hasFrozenMetrics &&
+                          frozenMetricsSummary && (
+                            <div className="space-y-3">
+                              <TestProgressIndicator
+                                historyOverride={frozenMetrics}
+                                metricsOverride={frozenMetricsSummary}
+                              />
+                            </div>
+                          )}
 
                         {testResult && (
                           <div className="space-y-3">
@@ -2202,56 +2291,6 @@ const DemoMode = () => {
                                 />
                               </div>
                             )}
-
-                            {videoOutputEnabled &&
-                              testResult.video_output_paths &&
-                              Object.keys(testResult.video_output_paths)
-                                .length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-semibold text-slate-300">
-                                    Output Videos
-                                  </p>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {Object.entries(
-                                      testResult.video_output_paths,
-                                    ).map(([pipelineId, paths]) => {
-                                      const videoPath =
-                                        paths && paths.length > 0
-                                          ? [...paths].pop()
-                                          : null;
-
-                                      return (
-                                        <div
-                                          key={pipelineId}
-                                          className="rounded-md border border-slate-400/30 bg-slate-900/60 overflow-hidden"
-                                        >
-                                          <div className="px-3 py-2 border-b border-slate-400/20">
-                                            <p className="text-[10px] text-slate-400">
-                                              <PipelineName
-                                                pipelineId={pipelineId}
-                                              />
-                                            </p>
-                                          </div>
-                                          {videoPath ? (
-                                            <video
-                                              controls
-                                              className="w-full"
-                                              src={`/assets${videoPath}`}
-                                            >
-                                              Your browser does not support the
-                                              video tag.
-                                            </video>
-                                          ) : (
-                                            <div className="p-3 text-center text-xs text-slate-400">
-                                              no streams
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
                                 className="mt-2"
