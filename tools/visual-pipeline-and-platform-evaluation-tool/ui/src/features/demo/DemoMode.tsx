@@ -1070,8 +1070,8 @@ const DemoMode = () => {
                               />
                             </div>
                           )}
-                          <CardHeader className="p-0 pt-0 pb-0">
-                            <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
+                          <CardHeader className="p-2 pt-0 pb-0">
+                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
                           </CardHeader>
@@ -1084,26 +1084,38 @@ const DemoMode = () => {
 
               const previewSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col ${colors.gridPreviewBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full overflow-hidden ${colors.gridPreviewBorder}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
                   >
                     Preview
                   </p>
-                  <div className="flex-1 flex items-center justify-center text-slate-400">
+                  <div className="flex-1 flex items-center justify-center text-slate-400 overflow-hidden">
                     {performanceJobId &&
                     performanceLivePreviewEnabled &&
                     (selectedConfigPipelineId ||
                       pipelineSelections[0]?.pipelineId) ? (
-                      <div className="w-full">
-                        <WebRTCVideoPlayer
-                          pipelineId={
-                            selectedConfigPipelineId ??
-                            pipelineSelections[0]?.pipelineId ??
-                            ""
-                          }
-                        />
+                      <div className="w-full h-full overflow-hidden flex items-center justify-center">
+                        <div
+                          className="origin-center"
+                          style={{
+                            transform: "scale(0.95)",
+                            width: "400%",
+                            height: "400%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <WebRTCVideoPlayer
+                            pipelineId={
+                              selectedConfigPipelineId ??
+                              pipelineSelections[0]?.pipelineId ??
+                              ""
+                            }
+                          />
+                        </div>
                       </div>
                     ) : (
                       <p className="text-sm">
@@ -1851,7 +1863,7 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 max-h-[86vh] ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
@@ -2253,23 +2265,26 @@ const DemoMode = () => {
                 return (
                   <div className="h-full flex flex-col">
                     <div
-                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4"
+                      className="grid grid-cols-2 gap-6 h-full p-4"
                       style={gridColumnsStyle}
                     >
-                      <div className="row-start-1 col-start-1">
-                        {pipelineCardsSection}
-                      </div>
-                      <div className="row-start-2 col-start-1 h-full min-h-0">
-                        <div className="h-full min-h-0 flex flex-col gap-4">
-                          {pipelineConfigSection}
-                          {actionButtonsSection}
+                      {/* Lewa kolumna - stały layout */}
+                      <div className="flex flex-col gap-4 h-full">
+                        <div className="flex-shrink-0">
+                          {pipelineCardsSection}
+                        </div>
+                        <div className="flex-1 min-h-0">
+                          <div className="h-full min-h-0 flex flex-col gap-4">
+                            {pipelineConfigSection}
+                            {actionButtonsSection}
+                          </div>
                         </div>
                       </div>
-                      <div className="row-start-1 col-start-2 h-full min-h-0">
-                        {previewSection}
-                      </div>
-                      <div className="row-start-2 col-start-2 h-full min-h-0 max-h-[100%]">
-                        {resultsSection}
+
+                      {/* Prawa kolumna - preview większy, test niżej */}
+                      <div className="flex flex-col gap-6 h-full">
+                        <div className="flex-[0.75]">{previewSection}</div>
+                        <div className="flex-[1.25]">{resultsSection}</div>
                       </div>
                     </div>
                   </div>
