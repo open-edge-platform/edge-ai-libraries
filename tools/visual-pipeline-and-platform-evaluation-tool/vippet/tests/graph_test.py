@@ -4144,7 +4144,7 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
 
     def test_full_pipeline_build_with_multiple_tee_branches_and_model_sharing(self):
         """Test that model-instance-ids are correctly unified across multiple tee branches.
-        
+
         This test simulates a complex scenario where:
         - Pipeline has multiple tee branches
         - The same models are used across different branches
@@ -4155,7 +4155,6 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
                 Node(id="0", type="filesrc", data={"location": "test.mp4"}),
                 Node(id="1", type="decodebin3", data={}),
                 Node(id="2", type="tee", data={"name": "t"}),
-                
                 # Branch 1: GPU yolov8 -> GPU resnet
                 Node(id="3", type="queue", data={}),
                 Node(
@@ -4169,7 +4168,6 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
                     data={"device": "GPU", "model": "resnet_classifier"},
                 ),
                 Node(id="6", type="fakesink", data={}),
-                
                 # Branch 2: GPU yolov8 -> CPU resnet
                 Node(id="7", type="queue", data={}),
                 Node(
@@ -4183,7 +4181,6 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
                     data={"device": "CPU", "model": "resnet_classifier"},
                 ),
                 Node(id="10", type="fakesink", data={}),
-                
                 # Branch 3: CPU mobilenet
                 Node(id="11", type="queue", data={}),
                 Node(
@@ -4196,19 +4193,16 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
             edges=[
                 Edge(id="0", source="0", target="1"),
                 Edge(id="1", source="1", target="2"),
-                
                 # Branch 1
                 Edge(id="2", source="2", target="3"),
                 Edge(id="3", source="3", target="4"),
                 Edge(id="4", source="4", target="5"),
                 Edge(id="5", source="5", target="6"),
-                
                 # Branch 2
                 Edge(id="6", source="2", target="7"),
                 Edge(id="7", source="7", target="8"),
                 Edge(id="8", source="8", target="9"),
                 Edge(id="9", source="9", target="10"),
-                
                 # Branch 3
                 Edge(id="10", source="2", target="11"),
                 Edge(id="11", source="11", target="12"),
