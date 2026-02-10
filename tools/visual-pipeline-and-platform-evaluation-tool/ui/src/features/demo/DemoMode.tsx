@@ -414,30 +414,61 @@ const DemoMode = () => {
 
   const smoothScrollRef = useRef<{
     rafId: number;
-    pendingDelta: number;
+    targetScrollTop: number;
+    currentScrollTop: number;
     target: HTMLDivElement | null;
-  }>({ rafId: 0, pendingDelta: 0, target: null });
+  }>({ rafId: 0, targetScrollTop: 0, currentScrollTop: 0, target: null });
 
   const handleFastScroll = (event: WheelEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     if (target.scrollHeight <= target.clientHeight) return;
 
     event.preventDefault();
-    const speedMultiplier = 0.5;
 
-    smoothScrollRef.current.pendingDelta += event.deltaY * speedMultiplier;
+    if (!smoothScrollRef.current.rafId) {
+      smoothScrollRef.current.currentScrollTop = target.scrollTop;
+      smoothScrollRef.current.targetScrollTop = target.scrollTop;
+    }
+
+    smoothScrollRef.current.targetScrollTop += event.deltaY;
+    smoothScrollRef.current.targetScrollTop = Math.max(
+      0,
+      Math.min(
+        target.scrollHeight - target.clientHeight,
+        smoothScrollRef.current.targetScrollTop,
+      ),
+    );
     smoothScrollRef.current.target = target;
 
     if (smoothScrollRef.current.rafId) return;
 
-    smoothScrollRef.current.rafId = requestAnimationFrame(() => {
-      const { target: rafTarget, pendingDelta } = smoothScrollRef.current;
-      if (rafTarget) {
-        rafTarget.scrollTop += pendingDelta;
+    const animate = () => {
+      const {
+        target: rafTarget,
+        targetScrollTop,
+        currentScrollTop,
+      } = smoothScrollRef.current;
+      if (!rafTarget) {
+        smoothScrollRef.current.rafId = 0;
+        return;
       }
-      smoothScrollRef.current.pendingDelta = 0;
-      smoothScrollRef.current.rafId = 0;
-    });
+
+      const diff = targetScrollTop - currentScrollTop;
+      if (Math.abs(diff) < 0.5) {
+        rafTarget.scrollTop = targetScrollTop;
+        smoothScrollRef.current.currentScrollTop = targetScrollTop;
+        smoothScrollRef.current.rafId = 0;
+        return;
+      }
+
+      const ease = 0.15;
+      smoothScrollRef.current.currentScrollTop += diff * ease;
+      rafTarget.scrollTop = smoothScrollRef.current.currentScrollTop;
+
+      smoothScrollRef.current.rafId = requestAnimationFrame(animate);
+    };
+
+    smoothScrollRef.current.rafId = requestAnimationFrame(animate);
   };
 
   const performanceSummary = useMemo(() => {
@@ -1876,10 +1907,7 @@ const DemoMode = () => {
                         : "Test Summary"}
                   </p>
 
-                  <div
-                    className="flex-1 min-h-0 overflow-y-auto scroll-smooth pr-2"
-                    onWheel={handleFastScroll}
-                  >
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     {lastRunTest === "performance-test" ? (
                       <div className="space-y-3">
                         {performanceJobId && performanceJobStatus && (
