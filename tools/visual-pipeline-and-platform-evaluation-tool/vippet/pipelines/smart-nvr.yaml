@@ -47,7 +47,7 @@ variants:
       gvametapublish method=file file-path=/dev/null !
       videoscale !
       video/x-raw,width=320,height=240 !
-      fakesink
+      fakesink name=default_output_sink
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
@@ -89,7 +89,7 @@ variants:
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !
-      fakesink
+      fakesink name=default_output_sink
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
@@ -131,4 +131,4 @@ variants:
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
       video/x-raw,width=320,height=240 !
-      fakesink
+      fakesink name=default_output_sink

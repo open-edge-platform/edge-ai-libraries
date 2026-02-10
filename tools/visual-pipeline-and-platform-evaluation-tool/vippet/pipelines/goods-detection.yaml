@@ -28,7 +28,7 @@ variants:
       gvametaconvert !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
-      fakesink sync=false async=false
+      fakesink name=default_output_sink sync=false async=false
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !
@@ -52,7 +52,7 @@ variants:
       gvametaconvert !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
-      fakesink sync=false async=false
+      fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !
@@ -75,4 +75,4 @@ variants:
       gvametaconvert !
       queue !
       gvametapublish file-format=json-lines file-path=/dev/null !
-      fakesink sync=false async=false
+      fakesink name=default_output_sink sync=false async=false

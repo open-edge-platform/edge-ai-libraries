@@ -25,7 +25,7 @@ def create_simple_graph() -> PipelineGraph:
     return PipelineGraph(
         nodes=[
             Node(id="0", type="fakesrc", data={}),
-            Node(id="1", type="fakesink", data={}),
+            Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
         ],
         edges=[Edge(id="0", source="0", target="1")],
     )
@@ -230,7 +230,7 @@ class TestPipelineManager(unittest.TestCase):
                 Node(id="0", type="videotestsrc", data={}),
                 Node(id="1", type="tee", data={"name": "t"}),
                 Node(id="2", type="queue", data={}),
-                Node(id="3", type="fakesink", data={}),
+                Node(id="3", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[
                 Edge(id="0", source="0", target="1"),
@@ -288,14 +288,14 @@ class TestPipelineManager(unittest.TestCase):
         graph1 = PipelineGraph(
             nodes=[
                 Node(id="0", type="fakesrc", data={"name": "source1"}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
         graph2 = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={"name": "source2"}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
@@ -521,7 +521,7 @@ class TestPipelineManager(unittest.TestCase):
         graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
@@ -645,7 +645,7 @@ class TestVariantCRUD(unittest.TestCase):
         new_graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
@@ -825,7 +825,7 @@ class TestVariantCRUD(unittest.TestCase):
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
                 Node(id="1", type="videoconvert", data={}),
-                Node(id="2", type="fakesink", data={}),
+                Node(id="2", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[
                 Edge(id="0", source="0", target="1"),
@@ -883,7 +883,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
@@ -1004,7 +1004,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
@@ -1072,7 +1072,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )

@@ -481,14 +481,14 @@ class PipelineManager:
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == OutputMode.FILE:
                     output_subpipeline, output_path = (
-                        self.video_encoder.create_video_output_subpipeline(
+                        video_encoder.create_video_output_subpipeline(
                             pipeline_id, encoder_device, input_video_filenames
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
                 elif output_mode == OutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
-                        self.video_encoder.create_live_stream_output_subpipeline(
+                        video_encoder.create_live_stream_output_subpipeline(
                             pipeline_id,
                             encoder_device,
                             input_video_filenames,

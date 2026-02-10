@@ -37,7 +37,7 @@ variants:
       gvawatermark !
       gvametaconvert format=json json-indent=4 !
       gvametapublish method=file file-path=/dev/null !
-      fakesink
+      fakesink name=default_output_sink
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/license-plate-detection.mp4 !
@@ -71,4 +71,4 @@ variants:
       gvawatermark !
       gvametaconvert format=json json-indent=4 !
       gvametapublish method=file file-path=/dev/null !
-      fakesink
+      fakesink name=default_output_sink
