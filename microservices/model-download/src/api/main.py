@@ -115,13 +115,18 @@ async def download_models(
                     detail=f"Plugin '{model.hub}' is not available: {error_reason}"
                 )
             
-            extra_kwargs = model.dict()
-            needs_conversion = model.is_ovms
+            extra_kwargs = model.model_dump().copy()  
+            logger.info(f"Model '{model.name}' download initiated using hub '{model.hub}' with parameters: {extra_kwargs}")
 
+            needs_conversion = model.is_ovms
             model_download_path = os.path.join(models_dir, download_path)
             
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
                 extra_kwargs["token"] = hf_token
+                # Remove fields that shouldn't be passed to plugins
+                extra_kwargs.pop("hub", None)
+                extra_kwargs.pop("is_ovms", None)
+                
                 model_download_path = os.path.join(
                     models_dir, download_path
                 )
@@ -143,6 +148,7 @@ async def download_models(
                     model_manager.process_download(
                         job_id=download_job_id,
                         model_name=model.name,
+                        hub=model.hub,
                         output_dir=model_download_path,
                         downloader=model.hub,
                         **extra_kwargs
@@ -161,10 +167,14 @@ async def download_models(
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
-                if config['device'].upper() == "NPU":
+                if config['device'] is not None and config['device'].upper() == "NPU":
                     logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
                     config['precision'] = "int4"
-                    
+
+                if config["device"] is None:
+                    config["device"] = "CPU"
+                if config["precision"] is None:
+                    config["precision"] = "int8" 
                 # Create a unique output directory for the converted model
                 convert_output_dir = os.path.join(
                     models_dir,
@@ -172,7 +182,7 @@ async def download_models(
                     "openvino_models",
                     config['device'],
                     config['precision']
-                )
+                ).lower()
 
                 # Register conversion job
                 convert_job_id = model_manager.register_job(
