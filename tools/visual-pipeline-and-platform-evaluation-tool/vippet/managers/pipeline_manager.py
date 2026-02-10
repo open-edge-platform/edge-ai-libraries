@@ -445,19 +445,16 @@ class PipelineManager:
             # Convert pipeline graph dict back to Graph object
             base_graph = Graph.from_dict(pipeline.pipeline_graph.model_dump())
 
-            # Unify model-instance-ids across pipelines
             base_graph = base_graph.unify_model_instance_ids()
 
             # Apply looping modifications if needed
             if needs_looping:
                 base_graph = base_graph.apply_looping_modifications()
 
-            # Prepare intermediate output sinks and get updated graph and output paths
             base_graph, intermediate_output_paths = (
                 base_graph.prepare_intermediate_output_sinks()
             )
 
-            # Store output paths for this pipeline
             video_output_paths[pipeline.id] = intermediate_output_paths
 
             output_mode = execution_config.output_mode

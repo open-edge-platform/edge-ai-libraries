@@ -633,10 +633,8 @@ class Graph:
             sanitized_device = re.sub(r"[^a-z0-9_-]", "_", device.lower())
             sanitized_model = re.sub(r"[^a-z0-9_-]", "_", model.lower())
 
-            # Create model-instance-id from the combination
             model_instance_id = f"{sanitized_device}_{sanitized_model}"
 
-            # Assign the model-instance-id to the node
             node.data["model-instance-id"] = model_instance_id
             logger.debug(
                 f"Assigned model-instance-id={model_instance_id} to node {node.id} "
