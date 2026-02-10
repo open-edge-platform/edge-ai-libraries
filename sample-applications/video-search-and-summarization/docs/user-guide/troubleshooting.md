@@ -41,7 +41,7 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
 
-**Cause**: This issue occurs when the `ov_models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
+**Cause**: This issue occurs when the `ov-models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
 
 **Symptoms**:
 
@@ -58,10 +58,10 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
    source setup.sh --down
    ```
 
-2. Remove the existing `ov_models` (current volume name) and `docker_ov_models` (prefixed volume name) Docker volume:
+2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
 
    ```bash
-   docker volume rm ov_models docker_ov_models
+   docker volume rm ov-models docker_ov-models
    ```
 
 3. Restart the application (the volume will be recreated with correct permissions):
@@ -74,7 +74,7 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
    source setup.sh --search
    ```
 
-> Note: Removing the `ov_models` or `docker_ov_models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+> Note: Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
 

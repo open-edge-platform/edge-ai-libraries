@@ -251,7 +251,7 @@ def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvin
     # Add common configuration with user overrides or defaults
     config.update({
         "device": device or os.getenv("EMBEDDING_DEVICE", "CPU"),
-        "ov_models_dir": ov_models_dir or os.getenv("EMBEDDING_OV_MODELS_DIR", "ov_models"),
+        "ov_models_dir": ov_models_dir or os.getenv("EMBEDDING_OV_MODELS_DIR", "ov-models"),
         "use_openvino": (
             use_openvino 
             if use_openvino is not None 

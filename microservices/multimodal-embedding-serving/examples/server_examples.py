@@ -172,7 +172,7 @@ def environment_variable_examples():
     print("   export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")
-    print("   export EMBEDDING_OV_MODELS_DIR=./ov_models")
+    print("   export EMBEDDING_OV_MODELS_DIR=./ov-models")
     print()
 
     print("3. Use SigLIP model:")
@@ -191,7 +191,7 @@ def environment_variable_examples():
     print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")
-    print("   export EMBEDDING_OV_MODELS_DIR=./ov_models")
+    print("   export EMBEDDING_OV_MODELS_DIR=./ov-models")
     print()
 
 
@@ -217,7 +217,7 @@ def docker_examples():
     print("     -e EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16 \\")
     print("     -e EMBEDDING_USE_OV=true \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
-    print("     -v $(pwd)/ov_models:/app/ov_models \\")
+    print("     -v $(pwd)/ov-models:/app/ov_models \\")
     print("     multimodal-embedding-serving")
     print()
 
@@ -234,7 +234,7 @@ def docker_examples():
     print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2_transformers \\")
     print("     -e EMBEDDING_USE_OV=true \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
-    print("     -v $(pwd)/ov_models:/app/ov_models \\")
+    print("     -v $(pwd)/ov-models:/app/ov_models \\")
     print("     multimodal-embedding-serving")
     print()
 

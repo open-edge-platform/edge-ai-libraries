@@ -161,8 +161,8 @@ services:
         volumes:
             - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
             - data-prep:/tmp/dataprep
-            - ov_models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
-            - ov_models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
+            - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
+            - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
             - /dev/dri:/dev/dri
         group_add:
@@ -208,14 +208,14 @@ services:
         networks:
             - vs_network
         volumes:
-            - ov_models:/home/appuser/.cache/huggingface
+            - ov-models:/home/appuser/.cache/huggingface
             - data-prep:/tmp/dataprep
-            - ov_models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+            - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
 volumes:
     vdms-db:
         driver: local
-    ov_models:
+    ov-models:
         driver: local
     data-prep:
         driver: local

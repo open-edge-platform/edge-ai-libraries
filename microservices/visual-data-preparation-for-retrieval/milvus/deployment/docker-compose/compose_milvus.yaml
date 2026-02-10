@@ -110,8 +110,8 @@ services:
     networks:
       - default
     volumes:
-      - ov_models:/home/appuser/.cache/huggingface
-      - ov_models:/app/ov_models
+      - ov-models:/home/appuser/.cache/huggingface
+      - ov-models:/app/ov_models
 
   dataprep-visualdata-milvus:
     image: ${REGISTRY:-}dataprep-visualdata-milvus:${TAG:-latest}
@@ -149,11 +149,11 @@ services:
       - milvus-standalone
       - multimodal-embedding-serving
     volumes:
-      - ov_models:/home/user/models
+      - ov-models:/home/user/models
       - ${HOST_DATA_PATH}:/home/user/data:rw
 
 volumes:
-  ov_models:
+  ov-models:
     external: true
 
 networks:

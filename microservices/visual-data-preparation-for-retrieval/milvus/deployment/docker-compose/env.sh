@@ -41,7 +41,7 @@ export EMBEDDING_SERVER_PORT=9777
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
 # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14"
 
-docker volume create ov_models
+docker volume create ov-models
 
 if [ -z "$EMBEDDING_MODEL_NAME" ]; then
     echo "ERROR: EMBEDDING_MODEL_NAME environment variable is required."

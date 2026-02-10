@@ -191,7 +191,7 @@ MODEL_TESTS = [
     ("QwenText/qwen3-embedding-0.6b", "Explain gravity in simple words"),
 ]
 
-OV_BASE_DIR = Path(__file__).parent.parent / "ov_models"
+OV_BASE_DIR = Path(__file__).parent.parent / "ov-models"
 
 
 def example_list_available_models():

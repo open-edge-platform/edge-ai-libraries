@@ -83,7 +83,7 @@ export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 
 docker volume create data-prep
-docker volume create ov_models
+docker volume create ov-models
 
 
 export EMBEDDING_SERVER_PORT=$EMBEDDING_SERVER_PORT

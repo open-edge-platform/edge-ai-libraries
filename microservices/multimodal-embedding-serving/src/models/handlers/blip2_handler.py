@@ -83,7 +83,7 @@ class BLIP2Handler(BaseEmbeddingModel):
         self.image_size = model_config.get("image_size", 224)
         self.use_openvino = model_config.get("use_openvino", False)
         self.device = model_config.get("device", "CPU")
-        self.ov_models_dir = model_config.get("ov_models_dir", "ov_models")
+        self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
         
         # OpenVINO models
         self.ov_image_encoder = None

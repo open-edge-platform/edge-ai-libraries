@@ -25,6 +25,6 @@ ov_models
 venv/
 env/
 *.log
-ov_models
+ov-models
 **/checkpoints
 dist

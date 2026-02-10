@@ -138,9 +138,9 @@ if ! docker volume ls | grep -q "${YOLOX_MODELS_VOLUME_NAME}"; then
     echo "Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}"
     docker volume create "${YOLOX_MODELS_VOLUME_NAME}"
 fi
-if ! docker volume ls | grep -q "ov_models"; then
-    echo "Creating Docker volume for ov_models"
-    docker volume create ov_models
+if ! docker volume ls | grep -q "ov-models"; then
+    echo "Creating Docker volume for ov-models"
+    docker volume create ov-models
 fi
 if ! docker volume ls | grep -q "data-prep"; then
     echo "Creating Docker volume for data-prep"

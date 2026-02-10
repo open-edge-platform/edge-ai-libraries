@@ -110,8 +110,8 @@ services:
     networks:
       - default
     volumes:
-      - ov_models:/home/appuser/.cache/huggingface
-      - ov_models:/app/ov_models
+      - ov-models:/home/appuser/.cache/huggingface
+      - ov-models:/app/ov_models
 
   retriever-milvus:
     image: ${REGISTRY:-}retriever-milvus:${TAG:-latest}
@@ -148,7 +148,7 @@ services:
       - default
 
 volumes:
-  ov_models:
+  ov-models:
     external: true
     
 networks:
