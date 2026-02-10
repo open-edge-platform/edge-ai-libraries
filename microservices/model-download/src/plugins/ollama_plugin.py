@@ -95,7 +95,7 @@ class OllamaPlugin(ModelDownloadPlugin):
         """
         raise NotImplementedError("Ollama plugin does not support task-based downloading")
     
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
         """
         Post-process the downloaded files.
         For Ollama, this is usually handled by the download process directly.

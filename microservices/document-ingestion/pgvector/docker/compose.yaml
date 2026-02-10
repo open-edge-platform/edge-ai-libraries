@@ -74,7 +74,7 @@ services:
       - "${MINIO_API_HOST_PORT:-9000}:${MINIO_API_PORT:-9000}"
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
     volumes:
-      - "${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data"
+      - "${MINIO_MOUNT_PATH:-/opt/share/mnt/miniodata}:/data"
     command: |
       server /data
       --address ":${MINIO_API_PORT:-9000}"
