@@ -5,6 +5,8 @@ import {
   useGetPerformanceJobStatusQuery,
   useRunDensityTestMutation,
   useRunPerformanceTestMutation,
+  useStopDensityTestJobMutation,
+  useStopPerformanceTestJobMutation,
   useUpdatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
@@ -170,6 +172,8 @@ const DemoMode = () => {
     useRunDensityTestMutation();
   const [runPerformanceTest, { isLoading: isPerformanceRunning }] =
     useRunPerformanceTestMutation();
+  const [stopDensityTestJob] = useStopDensityTestJobMutation();
+  const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
   const [updatePipeline] = useUpdatePipelineMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
@@ -844,6 +848,20 @@ const DemoMode = () => {
     }
   };
 
+  const handleStopTest = async () => {
+    try {
+      if (activeTest === "performance-test" && performanceJobId) {
+        await stopPerformanceTestJob({ jobId: performanceJobId }).unwrap();
+        setPerformanceJobId(null);
+      } else if (activeTest === "density-test" && densityJobId) {
+        await stopDensityTestJob({ jobId: densityJobId }).unwrap();
+        setDensityJobId(null);
+      }
+    } catch (err) {
+      console.error("Failed to stop test:", err);
+    }
+  };
+
   if (pipelines.length === 0) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1008,22 +1026,6 @@ const DemoMode = () => {
             </div>
           ) : demoStep === "configuration" ? (
             (() => {
-              const backButtonBar = (
-                <div className="flex items-center justify-start px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setDemoStep("selection")}
-                    className={`group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
-                  >
-                    <span
-                      className={`text-base font-semibold ${colors.exitIcon}`}
-                    >
-                      Back
-                    </span>
-                  </button>
-                </div>
-              );
-
               const pipelineCardsSection = (
                 <div
                   className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
@@ -1047,7 +1049,7 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`flex w-full flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`flex w-full max-h-[190px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
@@ -1056,7 +1058,7 @@ const DemoMode = () => {
                           {pipelineImages[
                             pipelineIndex % pipelineImages.length
                           ] && (
-                            <div className="p-1 pb-0">
+                            <div className="p-0 pb-0">
                               <img
                                 src={
                                   pipelineImages[
@@ -1064,11 +1066,11 @@ const DemoMode = () => {
                                   ]
                                 }
                                 alt={pipeline.name}
-                                className="w-full max-w-[125px] aspect-[4/3] object-cover rounded-md mx-auto"
+                                className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
                               />
                             </div>
                           )}
-                          <CardHeader className="p-0.5 pt-0 pb-0">
+                          <CardHeader className="p-0 pt-0 pb-0">
                             <CardTitle className="text-xs text-slate-200 leading-tight text-center font-semibold">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
@@ -1814,25 +1816,36 @@ const DemoMode = () => {
                             </div>
                           </div>
                         </div>
-
-                        {/* Run Button */}
-                        <div className="sticky bottom-0 pt-3 pb-2 bg-transparent">
-                          <button
-                            onClick={handleRunTest}
-                            disabled={isRunDisabled}
-                            className={`w-full relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed ${colors.runButton}`}
-                          >
-                            <div
-                              className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-100 ${colors.runButtonOverlay}`}
-                            ></div>
-                            <span className="relative">
-                              {isRunDisabled ? "Running..." : "Run Test"}
-                            </span>
-                          </button>
-                        </div>
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
+                </div>
+              );
+
+              const actionButtonsSection = (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDemoStep("selection")}
+                    className={`group relative px-6 py-2.5 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
+                  >
+                    <span
+                      className={`text-base font-semibold ${colors.exitIcon}`}
+                    >
+                      Back
+                    </span>
+                  </button>
+                  <button
+                    onClick={isRunDisabled ? handleStopTest : handleRunTest}
+                    className={`flex-1 relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100 ${colors.runButton}`}
+                  >
+                    <div
+                      className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-100 ${colors.runButtonOverlay}`}
+                    ></div>
+                    <span className="relative">
+                      {isRunDisabled ? "Stop" : "Run Test"}
+                    </span>
+                  </button>
                 </div>
               );
 
@@ -2215,17 +2228,17 @@ const DemoMode = () => {
               if (showPreRunLayout) {
                 return (
                   <div className="h-full flex flex-col">
-                    {backButtonBar}
                     <div
-                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4"
                       style={gridColumnsStyle}
                     >
                       <div className="row-start-1 col-start-1">
                         {pipelineCardsSection}
                       </div>
                       <div className="row-start-2 col-start-1 h-full min-h-0">
-                        <div className="h-full min-h-0">
+                        <div className="h-full min-h-0 flex flex-col gap-4">
                           {pipelineConfigSection}
+                          {actionButtonsSection}
                         </div>
                       </div>
                       <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
@@ -2239,15 +2252,25 @@ const DemoMode = () => {
               if (showPreviewPanel) {
                 return (
                   <div className="h-full flex flex-col">
-                    {backButtonBar}
                     <div
-                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                      className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4"
                       style={gridColumnsStyle}
                     >
-                      {pipelineCardsSection}
-                      {previewSection}
-                      {pipelineConfigSection}
-                      {resultsSection}
+                      <div className="row-start-1 col-start-1">
+                        {pipelineCardsSection}
+                      </div>
+                      <div className="row-start-2 col-start-1 h-full min-h-0">
+                        <div className="h-full min-h-0 flex flex-col gap-4">
+                          {pipelineConfigSection}
+                          {actionButtonsSection}
+                        </div>
+                      </div>
+                      <div className="row-start-1 col-start-2 h-full min-h-0">
+                        {previewSection}
+                      </div>
+                      <div className="row-start-2 col-start-2 h-full min-h-0 max-h-[100%]">
+                        {resultsSection}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2255,17 +2278,17 @@ const DemoMode = () => {
 
               return (
                 <div className="h-full flex flex-col">
-                  {backButtonBar}
                   <div
-                    className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4 pt-0"
+                    className="grid grid-rows-[0.45fr_1.55fr] gap-4 h-full p-4"
                     style={gridColumnsStyle}
                   >
                     <div className="row-start-1 col-start-1">
                       {pipelineCardsSection}
                     </div>
                     <div className="row-start-2 col-start-1 h-full min-h-0">
-                      <div className="h-full min-h-0">
+                      <div className="h-full min-h-0 flex flex-col gap-4">
                         {pipelineConfigSection}
+                        {actionButtonsSection}
                       </div>
                     </div>
                     <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
