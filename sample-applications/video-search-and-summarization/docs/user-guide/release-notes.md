@@ -12,6 +12,7 @@
   - Direct time range input from the UI.
 - Added live system performance metrics in the search UI (enable with `export ENABLE_VSS_COLLECTOR=true`).
 - Fixed the build script of the `vdms-dataprep` microservice.
+- Added telemetry collection of the application metrics for VDMS-dataprep microservice and VLM microservice.
 
 **HW used for validation**:
 
