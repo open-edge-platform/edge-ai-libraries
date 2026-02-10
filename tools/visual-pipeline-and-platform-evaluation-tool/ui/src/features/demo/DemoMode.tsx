@@ -880,7 +880,7 @@ const DemoMode = () => {
       />
 
       {/* CONTENT */}
-      <div className="relative z-10 h-full bg-slate-950/80">
+      <div className="relative z-10 h-full flex flex-col bg-slate-950/80 min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
@@ -906,10 +906,9 @@ const DemoMode = () => {
             </div>
           </div>
         )}
-
         {/* MAIN CONTENT */}
         <div
-          className={`relative z-10 p-3 ${demoStep === "selection" ? "h-[calc(100vh-70px)]" : "h-full"}`}
+          className={`relative z-10 p-3 ${demoStep === "selection" ? "h-[calc(100vh-70px)]" : "flex-1"} min-h-0`}
         >
           {demoStep === "selection" ? (
             /* PIPELINE SELECTION VIEW */
@@ -1084,7 +1083,7 @@ const DemoMode = () => {
 
               const previewSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full overflow-hidden ${colors.gridPreviewBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full max-h-[350px] overflow-hidden ${colors.gridPreviewBorder}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
@@ -1100,9 +1099,9 @@ const DemoMode = () => {
                         <div
                           className="origin-center"
                           style={{
-                            transform: "scale(0.95)",
-                            width: "400%",
-                            height: "400%",
+                            transform: "scale(0.65)",
+                            width: "500%",
+                            height: "500%",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -1863,10 +1862,10 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col overflow-hidden h-full min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
                 >
                   <p
-                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridResultsTitle}`}
+                    className={`text-sm uppercase font-bold tracking-wider mb-3 flex-shrink-0 ${colors.gridResultsTitle}`}
                   >
                     {lastRunTest === "performance-test" &&
                     performanceJobStatus?.state === "RUNNING"
@@ -1877,7 +1876,10 @@ const DemoMode = () => {
                         : "Test Summary"}
                   </p>
 
-                  <div className="flex-1 overflow-y-auto">
+                  <div
+                    className="flex-1 min-h-0 overflow-y-auto scroll-smooth pr-2"
+                    onWheel={handleFastScroll}
+                  >
                     {lastRunTest === "performance-test" ? (
                       <div className="space-y-3">
                         {performanceJobId && performanceJobStatus && (
@@ -2282,9 +2284,13 @@ const DemoMode = () => {
                       </div>
 
                       {/* Prawa kolumna - preview większy, test niżej */}
-                      <div className="flex flex-col gap-6 h-full">
-                        <div className="flex-[0.75]">{previewSection}</div>
-                        <div className="flex-[1.25]">{resultsSection}</div>
+                      <div className="flex flex-col gap-6 h-full overflow-hidden">
+                        <div className="flex-[0.35] flex-shrink-0">
+                          {previewSection}
+                        </div>
+                        <div className="flex-[1.65] flex flex-col min-h-0 overflow-hidden">
+                          {resultsSection}
+                        </div>
                       </div>
                     </div>
                   </div>
