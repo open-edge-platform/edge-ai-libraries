@@ -478,7 +478,7 @@ class Graph:
         Convert default fakesink node to a main output placeholder.
 
         Finds fakesink nodes with name="default_output_sink" and converts them to
-        "{output_placeholder}" type. This placeholder will be later replaced with
+        "{OUTPUT_PLACEHOLDER}" type. This placeholder will be later replaced with
         the actual main output subpipeline (file output or live stream).
 
         Returns:
@@ -595,7 +595,7 @@ class Graph:
         for node in modified_graph.nodes:
             if "name" in node.data:
                 old_name = node.data["name"]
-                node.data["name"] = f"{old_name}_{pipeline_index}{stream_index}"
+                node.data["name"] = f"{old_name}_{pipeline_index}_{stream_index}"
                 logger.debug(
                     f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
                 )
