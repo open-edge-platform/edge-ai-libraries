@@ -48,7 +48,7 @@ show_usage() {
     echo -e "  ${CYAN}--build${NC}                Build the Docker image only (without starting services)"
     echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache (without starting services)"
     echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
-    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics) or 'all' to enable all"
+    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti) or 'all' to enable all"
     echo -e "  ${CYAN}--help${NC}                 Show this help message"
 }
 

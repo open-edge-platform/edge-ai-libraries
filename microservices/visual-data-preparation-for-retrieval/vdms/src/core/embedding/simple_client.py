@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import datetime
 import pathlib
 import time
 import uuid
@@ -276,6 +277,14 @@ class SimpleVDMSClient:
                 frame_num = metadata.get("frame_number", index)
                 frame_type = metadata.get("frame_type", "full_frame")
                 crop_index = metadata.get("crop_index")
+
+                # Guarantee a created_at timestamp for downstream time filtering.
+                if not metadata.get("created_at"):
+                    date_time_obj = metadata.get("date_time")
+                    if isinstance(date_time_obj, dict) and "_date" in date_time_obj:
+                        metadata["created_at"] = date_time_obj.get("_date")
+                    else:
+                        metadata["created_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
                 if frame_type == "detected_crop" and crop_index is not None:
                     frame_text = f"frame_{frame_num}_crop_{crop_index}_{video_id}"

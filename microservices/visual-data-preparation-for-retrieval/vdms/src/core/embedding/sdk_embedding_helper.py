@@ -26,6 +26,7 @@ import time
 import os
 import multiprocessing
 import threading
+import datetime
 from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import cv2
@@ -1119,6 +1120,14 @@ def _process_video_from_memory_simple_pipeline(
                         'video_url': metadata_dict.get('video_url', ''),
                         'video_rel_url': metadata_dict.get('video_rel_url', '')
                     }
+
+                    # Ensure created_at exists for downstream time filtering
+                    created_at_value = metadata_dict.get('created_at')
+                    if isinstance(created_at_value, dict) and '_date' in created_at_value:
+                        created_at_value = created_at_value.get('_date')
+                    if not created_at_value:
+                        created_at_value = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    frame_metadata['created_at'] = created_at_value
 
                     # Attach video-level metadata needed by search aggregation
                     if total_frames is not None:
