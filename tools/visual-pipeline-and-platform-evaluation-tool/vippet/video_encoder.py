@@ -355,5 +355,7 @@ class VideoEncoder:
             f"rtspclientsink protocols=tcp location={stream_url}"
         )
 
-        self.logger.debug(f"Created live stream output sub-pipeline: {stream_url}")
+        self.logger.debug(
+            f"Created live stream output sub-pipeline: {live_stream_output_subpipeline} (codec: {codec})"
+        )
         return live_stream_output_subpipeline, stream_url

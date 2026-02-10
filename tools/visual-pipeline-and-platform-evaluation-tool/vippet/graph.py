@@ -17,6 +17,9 @@ from utils import generate_unique_filename
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
+# Internal constant used as a placeholder type for the main output sink in the graph.
+OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
+
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
@@ -481,12 +484,16 @@ class Graph:
         Returns:
             Graph: New Graph instance with fakesink converted to placeholder
 
+        Raises:
+            ValueError: If no fakesink with name='default_output_sink' is found in the graph
+
         Note:
             This is used to mark the location where main output (for user viewing)
             should be inserted, distinct from intermediate output sinks that are part
             of the pipeline definition.
         """
         modified_graph = copy.deepcopy(self)
+        placeholder_created = False
 
         for node in modified_graph.nodes:
             if (
@@ -494,7 +501,16 @@ class Graph:
                 and node.data.get("name") == "default_output_sink"
             ):
                 node.data.clear()
-                node.type = "{OUTPUT_PLACEHOLDER}"
+                node.type = OUTPUT_PLACEHOLDER
+                placeholder_created = True
+                logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
+
+        if not placeholder_created:
+            raise ValueError(
+                "No fakesink with name='default_output_sink' found. "
+                "Please add 'fakesink name=default_output_sink' at the end of your pipeline "
+                "to specify where the output should be placed."
+            )
 
         return modified_graph
 

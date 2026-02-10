@@ -6,7 +6,7 @@ from typing import Optional, List
 from pipelines.loader import PipelineLoader
 from video_encoder import VideoEncoder
 from utils import generate_unique_id
-from graph import Graph
+from graph import Graph, OUTPUT_PLACEHOLDER
 from api.api_schemas import (
     PipelineType,
     PipelineSource,
@@ -502,12 +502,17 @@ class PipelineManager:
 
                 if output_mode != OutputMode.DISABLED and stream_index == 0:
                     # Replace the main output placeholder with the actual output subpipeline (file or live stream)
+                    if OUTPUT_PLACEHOLDER not in unique_pipeline_str:
+                        raise ValueError(
+                            f"Pipeline '{pipeline.name}' (id: {pipeline.id}) is missing required output sink. "
+                            f"Please add 'fakesink name=default_output_sink' at the end of the pipeline definition."
+                        )
                     if output_subpipeline is None:
                         raise ValueError(
                             "Output subpipeline was not created as expected."
                         )
                     unique_pipeline_str = unique_pipeline_str.replace(
-                        "{OUTPUT_PLACEHOLDER}", output_subpipeline
+                        OUTPUT_PLACEHOLDER, output_subpipeline
                     )
 
                 pipeline_parts.append(unique_pipeline_str)

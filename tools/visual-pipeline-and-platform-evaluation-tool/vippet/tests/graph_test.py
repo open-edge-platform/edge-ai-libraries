@@ -4142,6 +4142,138 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
             result.nodes[5].data["model-instance-id"], "cpu_resnet_classifier"
         )
 
+    def test_full_pipeline_build_with_multiple_tee_branches_and_model_sharing(self):
+        """Test that model-instance-ids are correctly unified across multiple tee branches.
+        
+        This test simulates a complex scenario where:
+        - Pipeline has multiple tee branches
+        - The same models are used across different branches
+        - Model instance IDs should be unified when device and model match
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="tee", data={"name": "t"}),
+                
+                # Branch 1: GPU yolov8 -> GPU resnet
+                Node(id="3", type="queue", data={}),
+                Node(
+                    id="4",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(
+                    id="5",
+                    type="gvaclassify",
+                    data={"device": "GPU", "model": "resnet_classifier"},
+                ),
+                Node(id="6", type="fakesink", data={}),
+                
+                # Branch 2: GPU yolov8 -> CPU resnet
+                Node(id="7", type="queue", data={}),
+                Node(
+                    id="8",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(
+                    id="9",
+                    type="gvaclassify",
+                    data={"device": "CPU", "model": "resnet_classifier"},
+                ),
+                Node(id="10", type="fakesink", data={}),
+                
+                # Branch 3: CPU mobilenet
+                Node(id="11", type="queue", data={}),
+                Node(
+                    id="12",
+                    type="gvadetect",
+                    data={"device": "CPU", "model": "mobilenet_detector"},
+                ),
+                Node(id="13", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                
+                # Branch 1
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+                
+                # Branch 2
+                Edge(id="6", source="2", target="7"),
+                Edge(id="7", source="7", target="8"),
+                Edge(id="8", source="8", target="9"),
+                Edge(id="9", source="9", target="10"),
+                
+                # Branch 3
+                Edge(id="10", source="2", target="11"),
+                Edge(id="11", source="11", target="12"),
+                Edge(id="12", source="12", target="13"),
+            ],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Verify non-inference nodes don't have model-instance-id
+        for node_id in ["0", "1", "2", "3", "6", "7", "10", "11", "13"]:
+            node = next(n for n in result.nodes if n.id == node_id)
+            self.assertNotIn("model-instance-id", node.data)
+
+        # Get inference nodes
+        detect_gpu_yolov8_branch1 = next(n for n in result.nodes if n.id == "4")
+        classify_gpu_resnet_branch1 = next(n for n in result.nodes if n.id == "5")
+        detect_gpu_yolov8_branch2 = next(n for n in result.nodes if n.id == "8")
+        classify_cpu_resnet_branch2 = next(n for n in result.nodes if n.id == "9")
+        detect_cpu_mobilenet_branch3 = next(n for n in result.nodes if n.id == "12")
+
+        # Verify that GPU yolov8 detectors in branch1 and branch2 share the same instance ID
+        self.assertEqual(
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            detect_gpu_yolov8_branch2.data["model-instance-id"],
+        )
+        self.assertEqual(
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            "gpu_yolov8_detector",
+        )
+
+        # Verify GPU resnet classifier has correct ID
+        self.assertEqual(
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            "gpu_resnet_classifier",
+        )
+
+        # Verify CPU resnet classifier has different ID from GPU version
+        self.assertEqual(
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+            "cpu_resnet_classifier",
+        )
+        self.assertNotEqual(
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+        )
+
+        # Verify CPU mobilenet has unique ID
+        self.assertEqual(
+            detect_cpu_mobilenet_branch3.data["model-instance-id"],
+            "cpu_mobilenet_detector",
+        )
+
+        # Verify all IDs are unique except for the shared GPU yolov8
+        all_instance_ids = [
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            detect_gpu_yolov8_branch2.data["model-instance-id"],
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+            detect_cpu_mobilenet_branch3.data["model-instance-id"],
+        ]
+        unique_ids = set(all_instance_ids)
+        # Should have 4 unique IDs (GPU yolov8 is shared, so counted once)
+        self.assertEqual(len(unique_ids), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
