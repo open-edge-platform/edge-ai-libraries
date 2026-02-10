@@ -1,10 +1,10 @@
 # Model Download Service
 
-The Model Download Service is a microservice that enables downloading models from multiple hubs: Hugging Face, Ollama, and Ultralytics. It also supports conversion to OpenVINO Model Server (OVMS) format for Hugging Face models. The service exposes a RESTful API for managing model downloads and conversions.
+The Model Download Service is a microservice that enables downloading models from multiple hubs: Hugging Face, Ollama, GETI and Ultralytics. It also supports conversion to OpenVINO Model Server (OVMS) format for Hugging Face models. The service exposes a RESTful API for managing model downloads and conversions.
 
 ## Features
 
-- Download models from Hugging Face, Ollama, and Ultralytics model hubs
+- Download models from Hugging Face, Ollama, Geti™ and Ultralytics model hubs
 - Convert Hugging Face models to OVMS format
 - Support for multiple model precisions (INT8, FP16, FP32)
 - Support for various device targets (CPU, GPU and NPU)
@@ -35,12 +35,21 @@ The Model Download Service is a microservice that enables downloading models fro
       cd edge-ai-libraries/microservices/model-download
       ```
 3. **Configure the environment variables**
-    - Set the below environment variables
+    - Set the following environment variables:
       ```bash
       export REGISTRY="intel/"
-      export TAG=1.0.1
+      export TAG=rc3.1_2026.0
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
+    - To use the Geti™ plugin, set these variables:
+      ```bash
+      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+      export GETI_HOST=<GETI_HOST_ADDRESS>
+      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+      export GETI_SERVER_API_VERSION=v1
+      export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
+      ```
+      **Note:** For Geti™ setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
       ```bash
@@ -69,15 +78,15 @@ The Model Download Service is a microservice that enables downloading models fro
         |--------------------------|--------------------------------------------------------------------------------------------------|
         | `--build`                | Build the Docker image before running                                                            |
         | `--rebuild`              | This flag instructs to ignore any existing cached images and rebuild them from scratch using the Dockerfile definitions|
-        | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins |
+        | `--model-path <path>`    | Set custom model path (default: `$HOME/models/`)                                           |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,geti`) or `all` to enable all available plugins |
         | `--help`                 | Show this help message                                                                           |
       
       **Examples**:
         - Start the service with default settings: `source scripts/run_service.sh up`
         - Stop the service: `source scripts/run_service.sh down`
         - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics`
+        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,geti`
         - Use a custom model storage location: `source scripts/run_service.sh up --model-path /data/my-models`
         - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
         - Display usage information: `source scripts/run_service.sh --help`
@@ -165,6 +174,26 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     "parallel_downloads": false
   }'
 ```
+
+**Download models from GETI optimized with openvino:**
+```bash
+curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_folder' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+        {
+            "name": "yolox-tiny",
+            "hub": "geti",
+            "revision": "1",
+            "config":{
+                "precision": "fp32"
+            }
+        }
+    ],
+    "parallel_downloads": true
+  }'
+```
+  **Note:** The default precision is FP16.
 
 **Query Parameter:**
 - `download_path` (string): Specify a local file system path where the downloaded model should be saved. If not provided, the model will be saved to a default location.

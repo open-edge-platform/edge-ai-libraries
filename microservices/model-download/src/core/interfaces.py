@@ -46,7 +46,7 @@ class ModelDownloadPlugin(ABC):
         """
         raise NotImplementedError("This plugin does not support task-based downloading")
     
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
         """
         Post-process downloaded files.
         Called after all files have been downloaded.
@@ -59,5 +59,5 @@ class ModelDownloadPlugin(ABC):
         }
     
     @abstractmethod
-    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
+    async def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         pass
