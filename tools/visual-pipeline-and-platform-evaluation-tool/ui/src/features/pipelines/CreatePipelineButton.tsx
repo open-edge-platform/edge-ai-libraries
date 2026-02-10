@@ -16,6 +16,9 @@ import {
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Textarea } from "@/components/ui/textarea.tsx";
 
 export const CreatePipelineButton = () => {
   const navigate = useNavigate();
@@ -216,7 +219,7 @@ export const CreatePipelineButton = () => {
             <label htmlFor="name" className="block text-sm font-medium mb-2">
               Name
             </label>
-            <input
+            <Input
               id="name"
               type="text"
               value={name}
@@ -233,7 +236,7 @@ export const CreatePipelineButton = () => {
             >
               Description
             </label>
-            <input
+            <Input
               id="description"
               type="text"
               value={description}
@@ -266,7 +269,7 @@ export const CreatePipelineButton = () => {
             >
               Pipeline Description
             </label>
-            <textarea
+            <Textarea
               id="pipeline-description"
               value={pipelineDescription}
               onChange={(e) => setPipelineDescription(e.target.value)}
@@ -276,8 +279,8 @@ export const CreatePipelineButton = () => {
           </div>
 
           <div className="flex justify-end gap-2">
-            <button
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+            <Button
+              variant="secondary"
               onClick={() => {
                 setOpen(false);
                 setName("");
@@ -286,9 +289,8 @@ export const CreatePipelineButton = () => {
               }}
             >
               Cancel
-            </button>
-            <button
-              className="px-4 py-2 text-sm font-medium text-white bg-classic-blue hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            </Button>
+            <Button
               onClick={handleAdd}
               disabled={
                 isLoading ||
@@ -302,7 +304,7 @@ export const CreatePipelineButton = () => {
                 : isLoading
                   ? "Processing..."
                   : "Add"}
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>
