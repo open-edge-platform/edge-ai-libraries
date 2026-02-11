@@ -489,6 +489,7 @@ class Graph:
         Raises:
             ValueError: If no fakesink is found in the graph
             ValueError: If multiple fakesinks exist without explicit naming
+            ValueError: If multiple fakesinks are named "default_output_sink"
 
         Note:
             This is used to mark the location where main output (for user viewing)
@@ -498,19 +499,29 @@ class Graph:
         modified_graph = copy.deepcopy(self)
         placeholder_created = False
 
-        # Try to find fakesink with explicit name="default_output_sink"
-        for node in modified_graph.nodes:
-            if (
-                node.type == "fakesink"
-                and node.data.get("name") == "default_output_sink"
-            ):
-                node.data.clear()
-                node.type = OUTPUT_PLACEHOLDER
-                placeholder_created = True
-                logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
-                break
+        # Find all fakesinks with explicit name="default_output_sink"
+        named_default_sinks = [
+            node
+            for node in modified_graph.nodes
+            if node.type == "fakesink"
+            and node.data.get("name") == "default_output_sink"
+        ]
 
-        # If not found, check if there's exactly one fakesink in the graph
+        if len(named_default_sinks) > 1:
+            raise ValueError(
+                f"Found {len(named_default_sinks)} fakesink nodes with name='default_output_sink'. "
+                "Only one fakesink should be named 'default_output_sink'."
+            )
+
+        # If exactly one named default sink exists, use it
+        if len(named_default_sinks) == 1:
+            node = named_default_sinks[0]
+            node.data.clear()
+            node.type = OUTPUT_PLACEHOLDER
+            placeholder_created = True
+            logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
+
+        # If no named default sink, check if there's exactly one fakesink in the graph
         if not placeholder_created:
             fakesink_nodes = [
                 node for node in modified_graph.nodes if node.type == "fakesink"
