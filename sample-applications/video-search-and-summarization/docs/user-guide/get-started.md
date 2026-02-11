@@ -288,12 +288,6 @@ Follow these steps to run the application:
     ENABLE_VSS_COLLECTOR=true source setup.sh --search
     ```
 
-    > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
-
-    ```bash
-    ENABLE_VSS_COLLECTOR=true source setup.sh --search
-    ```
-
     > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
 
    - **To run a unified Video Search and Summarization :**
