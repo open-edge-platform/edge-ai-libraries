@@ -1232,3 +1232,197 @@ class TestDeletePredefinedPipeline(unittest.TestCase):
             manager.delete_pipeline_by_id(predefined.id)
 
         self.assertIn("PREDEFINED", str(context.exception))
+
+
+class TestNameTrimmingAndValidation(unittest.TestCase):
+    """Test cases for name trimming and validation in pipeline and variant operations."""
+
+    def setUp(self):
+        PipelineManager._instance = None
+
+    def test_add_pipeline_trims_variant_names(self):
+        """Test that variant names are trimmed when adding a pipeline."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-pipeline",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="  CPU  ")],
+        )
+
+        added_pipeline = manager.add_pipeline(new_pipeline)
+
+        # Verify the variant name was trimmed
+        self.assertEqual(added_pipeline.variants[0].name, "CPU")
+        # Verify ID was generated from trimmed name
+        self.assertEqual(added_pipeline.variants[0].id, "cpu")
+
+
+    def test_add_pipeline_whitespace_only_variant_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError when adding pipeline.
+
+        Note: Empty string is rejected by Pydantic validation at model level.
+        Whitespace-only names pass Pydantic but are rejected by manager.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Use whitespace-only name (passes Pydantic min_length=1 but fails manager validation)
+        new_pipeline = PipelineDefinition(
+            name="test-pipeline",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="   ")],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_pipeline(new_pipeline)
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_add_variant_trims_name(self):
+        """Test that variant name is trimmed when adding a variant."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        new_variant = manager.add_variant(
+            pipeline_id=added.id,
+            name="  GPU  ",
+            pipeline_graph=create_simple_graph(),
+            pipeline_graph_simple=create_simple_graph(),
+        )
+
+        # Verify name was trimmed
+        self.assertEqual(new_variant.name, "GPU")
+        # Verify ID was generated from trimmed name
+        self.assertEqual(new_variant.id, "gpu")
+
+    def test_add_variant_empty_name_raises_error(self):
+        """Test that empty variant name raises ValueError."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_variant(
+                pipeline_id=added.id,
+                name="",
+                pipeline_graph=create_simple_graph(),
+                pipeline_graph_simple=create_simple_graph(),
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_add_variant_whitespace_only_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_variant(
+                pipeline_id=added.id,
+                name="   ",
+                pipeline_graph=create_simple_graph(),
+                pipeline_graph_simple=create_simple_graph(),
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_update_variant_trims_name(self):
+        """Test that variant name is trimmed when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        updated = manager.update_variant(
+            pipeline_id=added.id,
+            variant_id=added.variants[0].id,
+            name="  GPU-optimized  ",
+        )
+
+        # Verify name was trimmed
+        self.assertEqual(updated.name, "GPU-optimized")
+
+    def test_update_variant_empty_name_raises_error(self):
+        """Test that empty variant name raises ValueError when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=added.id,
+                variant_id=added.variants[0].id,
+                name="",
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_update_variant_whitespace_only_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=added.id,
+                variant_id=added.variants[0].id,
+                name="   ",
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))

@@ -72,6 +72,7 @@ class PipelineManager:
         The method:
         * Generates a unique pipeline ID
         * Sets created_at and modified_at timestamps
+        * Trims and validates variant names (raises ValueError if empty after trimming)
         * Generates unique variant IDs from variant names
         * Sets read_only=False for all variants
         * Sets timestamps for all variants
@@ -86,6 +87,7 @@ class PipelineManager:
 
         Raises:
             ValueError: If pipeline definition is invalid.
+            ValueError: If any variant name is empty after trimming.
         """
         with self._pipelines_lock:
             # Get existing pipeline IDs for collision check
@@ -103,15 +105,16 @@ class PipelineManager:
             # Generate variant IDs and set timestamps for all variants
             variants_with_timestamps = []
             for variant_create in new_pipeline.variants:
+                # Validate and trim variant name
+                trimmed_name = self._validate_and_trim_variant_name(variant_create.name)
+
                 # Generate variant ID from variant name (same logic as add_variant)
-                variant_id = generate_unique_id(
-                    variant_create.name, existing_variant_ids
-                )
+                variant_id = generate_unique_id(trimmed_name, existing_variant_ids)
                 existing_variant_ids.append(variant_id)
 
                 variant_with_ts = Variant(
                     id=variant_id,
-                    name=variant_create.name,
+                    name=trimmed_name,
                     read_only=False,  # User-created variants are never read-only
                     pipeline_graph=variant_create.pipeline_graph,
                     pipeline_graph_simple=variant_create.pipeline_graph_simple,
@@ -548,7 +551,8 @@ class PipelineManager:
         Add a new variant to an existing pipeline.
 
         The method:
-        * Generates a unique variant ID
+        * Trims and validates variant name (raises ValueError if empty after trimming)
+        * Generates a unique variant ID from trimmed name
         * Creates variant with read_only=false
         * Sets created_at and modified_at timestamps for variant
         * Updates pipeline's modified_at timestamp
@@ -556,7 +560,7 @@ class PipelineManager:
 
         Args:
             pipeline_id: ID of the pipeline to add variant to.
-            name: Variant name (non-empty).
+            name: Variant name (trimmed, must be non-empty after trimming).
             pipeline_graph: Advanced graph representation.
             pipeline_graph_simple: Simplified graph representation.
 
@@ -565,17 +569,21 @@ class PipelineManager:
 
         Raises:
             ValueError: If pipeline with given ID is not found.
+            ValueError: If variant name is empty after trimming.
         """
         with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
+            # Validate and trim variant name
+            trimmed_name = self._validate_and_trim_variant_name(name)
+
             # Get existing variant IDs for collision check
             existing_variant_ids = [v.id for v in pipeline.variants]
 
-            # Generate new variant ID from variant name
-            variant_id = generate_unique_id(name, existing_variant_ids)
+            # Generate new variant ID from trimmed variant name
+            variant_id = generate_unique_id(trimmed_name, existing_variant_ids)
 
             # Set timestamps
             current_time = get_current_timestamp()
@@ -583,7 +591,7 @@ class PipelineManager:
             # Create new variant with read_only=false for user-created variants
             new_variant = Variant(
                 id=variant_id,
-                name=name,
+                name=trimmed_name,
                 read_only=False,
                 pipeline_graph=pipeline_graph,
                 pipeline_graph_simple=pipeline_graph_simple,
@@ -669,6 +677,7 @@ class PipelineManager:
         The method:
         * Validates that pipeline exists
         * Validates that variant exists and is not read-only
+        * If name is provided, trims and validates it (raises ValueError if empty after trimming)
         * Ensures only one of pipeline_graph or pipeline_graph_simple is provided
         * For pipeline_graph: converts to GStreamer string, validates, and regenerates simple view
         * For pipeline_graph_simple: applies changes to advanced view using
@@ -681,7 +690,7 @@ class PipelineManager:
         Args:
             pipeline_id: ID of the pipeline containing the variant.
             variant_id: ID of the variant to update.
-            name: Optional new variant name.
+            name: Optional new variant name (trimmed, must be non-empty after trimming if provided).
             pipeline_graph: Optional new advanced graph. When provided, simple view
                 is auto-generated from it. Mutually exclusive with pipeline_graph_simple.
             pipeline_graph_simple: Optional modified simple graph with property changes only.
@@ -697,6 +706,7 @@ class PipelineManager:
             ValueError: If pipeline is not found.
             ValueError: If variant is not found.
             ValueError: If variant is read-only (cannot update).
+            ValueError: If name is empty after trimming (when provided).
             ValueError: If both pipeline_graph and pipeline_graph_simple are provided.
             ValueError: If pipeline_graph cannot be converted to valid GStreamer string.
             ValueError: If pipeline_graph_simple contains structural changes.
@@ -724,9 +734,10 @@ class PipelineManager:
                     "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
                 )
 
-            # Update name if provided
+            # Update name if provided (validate and trim)
             if name is not None:
-                variant_to_update.name = name
+                trimmed_name = self._validate_and_trim_variant_name(name)
+                variant_to_update.name = trimmed_name
 
             # Update pipeline_graph (advanced view)
             if pipeline_graph is not None:
@@ -824,3 +835,23 @@ class PipelineManager:
 
             self.logger.debug(f"Variant {variant_id} updated in pipeline {pipeline_id}")
             return variant_to_update
+
+    def _validate_and_trim_variant_name(self, name: str) -> str:
+        """
+        Validate and trim variant name.
+
+        Trims whitespace from the name and validates it is not empty.
+
+        Args:
+            name: Variant name to validate and trim.
+
+        Returns:
+            Trimmed variant name.
+
+        Raises:
+            ValueError: If name is empty after trimming.
+        """
+        trimmed_name = name.strip()
+        if not trimmed_name:
+            raise ValueError("Variant name cannot be empty.")
+        return trimmed_name

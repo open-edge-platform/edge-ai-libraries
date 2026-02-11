@@ -691,7 +691,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "/pipelines/pipeline-abc123/variants/variant-123/optimize", json=payload
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json()["job_id"], "opt-job-123")
         mock_pipeline_manager_cls.return_value.get_variant_by_ids.assert_called_once_with(
             "pipeline-abc123", "variant-123"
