@@ -1240,12 +1240,33 @@ const DemoMode = () => {
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
+                        console.log("[DemoMode] Performance video output:", {
+                          currentPipelineId,
+                          videoPath,
+                          fullPath: videoPath ? `${videoPath}` : null,
+                          allPaths: performanceResult.video_output_paths,
+                        });
+
                         return videoPath ? (
                           <div className="w-full h-full flex items-center justify-center">
                             <video
+                              key={`performance-${currentPipelineId}-${videoPath}`}
                               controls
+                              preload="metadata"
                               className="max-w-full max-h-full"
                               src={`/assets${videoPath}`}
+                              onError={(e) =>
+                                console.error(
+                                  "[DemoMode] Video load error:",
+                                  e,
+                                  videoPath,
+                                )
+                              }
+                              onLoadedMetadata={() =>
+                                console.log(
+                                  "[DemoMode] Video loaded successfully",
+                                )
+                              }
                             >
                               Your browser does not support the video tag.
                             </video>
@@ -1275,12 +1296,33 @@ const DemoMode = () => {
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
+                        console.log("[DemoMode] Density video output:", {
+                          currentPipelineId,
+                          videoPath,
+                          fullPath: videoPath ? `${videoPath}` : null,
+                          allPaths: testResult.video_output_paths,
+                        });
+
                         return videoPath ? (
                           <div className="w-full h-full flex items-center justify-center">
                             <video
+                              key={`density-${currentPipelineId}-${videoPath}`}
                               controls
+                              preload="metadata"
                               className="max-w-full max-h-full"
                               src={`/assets${videoPath}`}
+                              onError={(e) =>
+                                console.error(
+                                  "[DemoMode] Video load error:",
+                                  e,
+                                  videoPath,
+                                )
+                              }
+                              onLoadedMetadata={() =>
+                                console.log(
+                                  "[DemoMode] Video loaded successfully",
+                                )
+                              }
                             >
                               Your browser does not support the video tag.
                             </video>
