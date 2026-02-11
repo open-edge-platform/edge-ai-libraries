@@ -7,6 +7,8 @@ import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SearchAdd, SearchSelector } from '../../redux/search/searchSlice';
 import { UIActions } from '../../redux/ui/ui.slice';
 import { MuxFeatures } from '../../redux/ui/ui.model';
+import { TimeFilterSelection } from '../../redux/search/search';
+import TimeFilterControl from '../Search/TimeFilterControl';
 
 export interface SearchModalProps {
   showModal: boolean;
@@ -21,6 +23,7 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
 
   const [textInput, setTextInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // Placeholder for selected tags if needed
+  const [timeFilter, setTimeFilter] = useState<TimeFilterSelection | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const resetInput = () => {
@@ -34,7 +37,7 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
   const submitSearch = async () => {
     try {
       const query = textInput;
-      dispatch(SearchAdd({ query, tags: selectedTags }));
+      dispatch(SearchAdd({ query, tags: selectedTags, timeFilter }));
       dispatch(UIActions.setMux(MuxFeatures.SEARCH));
       resetInput();
       closeModal();
@@ -81,6 +84,15 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
             label={t('tagsLabel')}
           />
         )}
+
+        <div style={{ marginTop: '1rem' }}>
+          <TimeFilterControl
+            timeFilter={timeFilter}
+            onChange={setTimeFilter}
+            idPrefix='modal-time-filter'
+            size='sm'
+          />
+        </div>
       </ModalBody>
     </Modal>
   );

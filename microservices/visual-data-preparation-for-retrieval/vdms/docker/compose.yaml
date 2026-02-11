@@ -1,6 +1,5 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-name: ${PROJECT_NAME}
 services:
     minio-server:
         image: minio/minio:RELEASE.2025-02-07T23-21-09Z

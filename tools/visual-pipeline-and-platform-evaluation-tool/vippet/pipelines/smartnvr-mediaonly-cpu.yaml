@@ -4,4 +4,4 @@ definition: >
   Part of the Smart Network Video Recorder (NVR) Proxy Pipeline. This branch processes video streams
   without AI analytics. Performs basic video decoding, recording, and format conversion for lightweight
   media handling.
-pipeline_description: "filesrc location=/videos/input/people.mp4 ! qtdemux ! h264parse ! tee name=t1 ! queue ! splitmuxsink location=/tmp/people-output.mp4 t1. ! queue ! decodebin3 ! video/x-raw ! gvafpscounter starting-frame=100 ! videoscale ! video/x-raw,width=320,height=240 ! fakesink "
+pipeline_description: "filesrc location=/videos/input/people.mp4 ! qtdemux ! h264parse ! tee name=t1 ! queue ! splitmuxsink location=/tmp/people-output.mp4 t1. ! queue ! decodebin3 ! video/x-raw ! gvafpscounter starting-frame=100 ! videoscale ! video/x-raw,width=320,height=240 ! fakesink name=default_output_sink"

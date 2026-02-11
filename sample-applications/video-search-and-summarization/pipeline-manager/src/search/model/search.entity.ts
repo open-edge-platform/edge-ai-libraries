@@ -27,6 +27,18 @@ export class SearchEntity {
   @Column({ type: 'text', array: true, default: [] })
   tags: string[];
 
+  @Column({ type: 'int', nullable: true })
+  timeFilterValue?: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  timeFilterUnit?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  timeFilterStart?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  timeFilterEnd?: string | null;
+
   @Column('jsonb', { nullable: true })
   results: SearchResult[];
 

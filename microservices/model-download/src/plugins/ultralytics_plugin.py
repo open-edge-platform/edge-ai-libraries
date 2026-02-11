@@ -174,7 +174,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         """
         raise NotImplementedError("Ultralytics plugin does not support individual file downloads")
     
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
         """
         Post-process the downloaded files.
         For Ultralytics, this is usually handled by the download script directly.

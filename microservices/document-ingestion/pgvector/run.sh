@@ -10,7 +10,7 @@ export MINIO_API_PORT=9000
 export MINIO_API_HOST_PORT=9999
 export MINIO_CONSOLE_PORT=9001
 export MINIO_CONSOLE_HOST_PORT=9990
-export MINIO_MOUNT_PATH=/mnt/miniodata
+export MINIO_MOUNT_PATH=/opt/share/mnt/miniodata
 
 # Host port for dataprep. Service will be available on this port on host machine.
 export DATAPREP_HOST_PORT=8000

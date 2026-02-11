@@ -584,8 +584,21 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
 
       let errorMessage = t('videoUploadError');
 
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      if (axios.isAxiosError(error)) {
+        const responseMessage = error.response?.data?.message;
+        const status = error.response?.status;
+        const timeoutHit =
+          error.code === 'ECONNABORTED' ||
+          status === 504 ||
+          /timeout/i.test(responseMessage || error.message || '');
+
+        if (timeoutHit) {
+          errorMessage = t('timeoutError');
+        } else if (responseMessage) {
+          errorMessage = responseMessage;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
