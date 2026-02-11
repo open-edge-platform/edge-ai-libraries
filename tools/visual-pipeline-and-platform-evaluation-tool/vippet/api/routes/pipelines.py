@@ -639,22 +639,10 @@ def optimize_variant(
             }
     """
     try:
-        pipeline = PipelineManager().get_pipeline_by_id(pipeline_id)
-
-        # Find the variant
-        variant_to_optimize = None
-        for variant in pipeline.variants:
-            if variant.id == variant_id:
-                variant_to_optimize = variant
-                break
-
-        if variant_to_optimize is None:
-            return JSONResponse(
-                content=schemas.MessageResponse(
-                    message=f"Variant '{variant_id}' not found in pipeline '{pipeline_id}'."
-                ).model_dump(),
-                status_code=404,
-            )
+        # Use get_variant_by_ids to validate both pipeline and variant exist
+        variant_to_optimize = PipelineManager().get_variant_by_ids(
+            pipeline_id, variant_id
+        )
 
         job_id = OptimizationManager().run_optimization(variant_to_optimize, body)
         return schemas.OptimizationJobResponse(job_id=job_id)
@@ -662,8 +650,7 @@ def optimize_variant(
     except ValueError as e:
         if "not found" in str(e).lower():
             logger.warning(
-                "Pipeline %s not found for optimization request: %s",
-                pipeline_id,
+                "Pipeline or variant not found for optimization request: %s",
                 e,
             )
             return JSONResponse(

@@ -677,12 +677,9 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test successful variant optimization."""
-        mock_pipeline = self._create_test_pipeline(
-            pipeline_id="pipeline-abc123",
-            variants=[self._create_test_variant(variant_id="variant-123")],
-        )
-        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
-            mock_pipeline
+        mock_variant = self._create_test_variant(variant_id="variant-123")
+        mock_pipeline_manager_cls.return_value.get_variant_by_ids.return_value = (
+            mock_variant
         )
         mock_optimization_manager_cls.return_value.run_optimization.return_value = (
             "opt-job-123"
@@ -696,6 +693,9 @@ class TestPipelinesAPI(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["job_id"], "opt-job-123")
+        mock_pipeline_manager_cls.return_value.get_variant_by_ids.assert_called_once_with(
+            "pipeline-abc123", "variant-123"
+        )
         mock_optimization_manager_cls.return_value.run_optimization.assert_called_once()
 
     @patch("api.routes.pipelines.OptimizationManager")
@@ -704,7 +704,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test variant optimization when pipeline does not exist."""
-        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.side_effect = (
+        mock_pipeline_manager_cls.return_value.get_variant_by_ids.side_effect = (
             ValueError("Pipeline with id 'nonexistent' not found.")
         )
 
@@ -724,12 +724,10 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test variant optimization when variant does not exist."""
-        mock_pipeline = self._create_test_pipeline(
-            pipeline_id="pipeline-abc123",
-            variants=[self._create_test_variant(variant_id="different-variant")],
-        )
-        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
-            mock_pipeline
+        mock_pipeline_manager_cls.return_value.get_variant_by_ids.side_effect = (
+            ValueError(
+                "Variant 'nonexistent-variant' not found in pipeline 'pipeline-abc123'."
+            )
         )
 
         payload = {"type": "preprocess", "parameters": None}
