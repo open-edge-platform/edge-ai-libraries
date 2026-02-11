@@ -373,7 +373,7 @@ export class ChunkingService {
     const queueKey = frameIds.join('#');
 
     const processingIndex = this.processing.findIndex(
-      (el) => el.stateId == stateId && queueKey === queueKey,
+      (el) => el.stateId === stateId && el.queueKey === queueKey,
     );
 
     if (processingIndex > -1) {
