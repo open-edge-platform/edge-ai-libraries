@@ -192,7 +192,7 @@ class YOLOXDetector:
             logger.error(f"Failed to download model: {e}")
             raise
     
-    def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[List[np.ndarray], List[float], List[int]]:
+    def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Detect objects in an image.
         
@@ -236,7 +236,9 @@ class YOLOXDetector:
                 score_thr=self.confidence_threshold
             )
             
-            final_boxes, final_scores, final_cls_inds = [], [], []
+            final_boxes = np.empty((0, 4), dtype=int)
+            final_scores = np.empty((0,), dtype=float)
+            final_cls_inds = np.empty((0,), dtype=int)
             if dets is not None:
                 # Convert bounding boxes to integers for compatibility with embedding service
                 final_boxes = np.round(dets[:, :4]).astype(int)
@@ -264,14 +266,18 @@ class YOLOXDetector:
             
         except Exception as e:
             logger.error(f"Detection failed: {e}")
-            return [], [], []
+            return (
+                np.empty((0, 4), dtype=int),
+                np.empty((0,), dtype=float),
+                np.empty((0,), dtype=int),
+            )
 
     def detect(
         self,
         image: Union[np.ndarray, Image.Image],
         *,
         return_metadata: bool = True,
-    ) -> Union[List[dict], Tuple[List[np.ndarray], List[float], List[int]]]:
+    ) -> Union[List[dict], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Backward-compatible detection helper.
 
         This method provides the legacy ``detect`` interface that some callers
@@ -413,16 +419,21 @@ class YOLOXDetector:
         scores: np.ndarray,
         class_ids: np.ndarray,
         image_shape: Tuple[int, int],
-    ) -> Tuple[List[np.ndarray], List[float], List[int], List[dict]]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[dict]]:
         # ROI consolidation is an optional post-processing stage that groups
         # overlapping boxes into a single region for downstream embedding.
         roi_cfg = self.detection_config.get("roi_consolidation", {})
         if not roi_cfg.get("enabled", False):
             # Fast-path: return raw detections unchanged when disabled.
-            return boxes, scores, class_ids, [
+            return (
+                np.asarray(boxes),
+                np.asarray(scores),
+                np.asarray(class_ids),
+                [
                 {"merged_boxes_count": 1, "context_expansion_applied": False}
                 for _ in range(len(boxes))
-            ]
+                ],
+            )
 
         # IoU threshold controls cluster connectivity (higher = stricter merges).
         iou_threshold = roi_cfg.get("iou_threshold", 0.2)
@@ -524,7 +535,16 @@ class YOLOXDetector:
                     # When class-agnostic, retain the class id of the top-scoring box.
                     merged_class_ids.append(int(class_ids[idx][cluster_scores.argmax()]))
 
-        return merged_boxes, merged_scores, merged_class_ids, merged_metadata
+        if merged_boxes:
+            boxes_array = np.asarray(merged_boxes, dtype=np.float32)
+            scores_array = np.asarray(merged_scores, dtype=float)
+            class_ids_array = np.asarray(merged_class_ids, dtype=int)
+        else:
+            boxes_array = np.empty((0, 4), dtype=np.float32)
+            scores_array = np.empty((0,), dtype=float)
+            class_ids_array = np.empty((0,), dtype=int)
+
+        return boxes_array, scores_array, class_ids_array, merged_metadata
 
 
 def create_detector(config: Optional[dict] = None) -> Optional[YOLOXDetector]:
