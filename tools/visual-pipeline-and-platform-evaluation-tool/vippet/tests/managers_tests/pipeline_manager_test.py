@@ -12,6 +12,7 @@ from api.api_schemas import (
     PipelinePerformanceSpec,
     PipelineSource,
     Variant,
+    VariantCreate,
     VariantReference,
     GraphInline,
 )
@@ -31,8 +32,18 @@ def create_simple_graph() -> PipelineGraph:
     )
 
 
+def create_variant_create(name: str = "CPU") -> VariantCreate:
+    """Helper to create a valid VariantCreate for testing PipelineDefinition."""
+    graph = create_simple_graph()
+    return VariantCreate(
+        name=name,
+        pipeline_graph=graph,
+        pipeline_graph_simple=graph,
+    )
+
+
 def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
-    """Helper to create a valid variant for testing."""
+    """Helper to create a valid Variant for testing (used in contexts where full Variant is needed)."""
     graph = create_simple_graph()
     timestamp = get_current_timestamp()
     return Variant(
@@ -62,7 +73,7 @@ class TestPipelineManager(unittest.TestCase):
             description="A test pipeline",
             source=PipelineSource.USER_CREATED,
             tags=["test"],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
 
         added_pipeline = manager.add_pipeline(new_pipeline)
@@ -77,6 +88,11 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(added_pipeline.name, "user-defined-pipelines")
         self.assertEqual(len(added_pipeline.variants), 1)
 
+        # Verify variant ID was generated from variant name
+        variant = added_pipeline.variants[0]
+        self.assertEqual(variant.id, "cpu")  # slugified from "CPU"
+        self.assertFalse(variant.read_only)  # User-created variants are never read-only
+
         # Verify timestamps are datetime objects with UTC timezone
         self.assertIsInstance(added_pipeline.created_at, datetime)
         self.assertIsInstance(added_pipeline.modified_at, datetime)
@@ -85,7 +101,6 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(added_pipeline.created_at, added_pipeline.modified_at)
 
         # Verify variant timestamps
-        variant = added_pipeline.variants[0]
         self.assertIsInstance(variant.created_at, datetime)
         self.assertIsInstance(variant.modified_at, datetime)
         self.assertEqual(variant.created_at.tzinfo, timezone.utc)
@@ -108,8 +123,8 @@ class TestPipelineManager(unittest.TestCase):
             source=PipelineSource.USER_CREATED,
             tags=["multi", "test"],
             variants=[
-                create_variant(name="CPU"),
-                create_variant(name="GPU"),
+                create_variant_create(name="CPU"),
+                create_variant_create(name="GPU"),
             ],
         )
 
@@ -118,6 +133,15 @@ class TestPipelineManager(unittest.TestCase):
         variant_names = [v.name for v in added_pipeline.variants]
         self.assertIn("CPU", variant_names)
         self.assertIn("GPU", variant_names)
+
+        # Verify variant IDs were generated from names
+        variant_ids = [v.id for v in added_pipeline.variants]
+        self.assertIn("cpu", variant_ids)
+        self.assertIn("gpu", variant_ids)
+
+        # Verify all variants have read_only=False
+        for variant in added_pipeline.variants:
+            self.assertFalse(variant.read_only)
 
     def test_get_pipeline_by_id_not_found(self):
         manager = PipelineManager()
@@ -163,7 +187,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test pipeline for single stream",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(test_pipeline)
         variant_id = added.variants[0].id
@@ -224,7 +248,7 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []  # Reset pipelines for isolated test
 
-        # Create variant with tee element
+        # Create VariantCreate with tee element
         tee_graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
@@ -238,15 +262,10 @@ class TestPipelineManager(unittest.TestCase):
                 Edge(id="2", source="2", target="3"),
             ],
         )
-        timestamp = get_current_timestamp()
-        variant = Variant(
-            id="variant-tee",
+        variant_create = VariantCreate(
             name="CPU",
-            read_only=False,
             pipeline_graph=tee_graph,
             pipeline_graph_simple=tee_graph,
-            created_at=timestamp,
-            modified_at=timestamp,
         )
 
         test_pipeline = PipelineDefinition(
@@ -254,7 +273,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test pipeline for multiple streams",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[variant],
+            variants=[variant_create],
         )
         added = manager.add_pipeline(test_pipeline)
 
@@ -300,21 +319,16 @@ class TestPipelineManager(unittest.TestCase):
             edges=[Edge(id="0", source="0", target="1")],
         )
 
-        timestamp = get_current_timestamp()
         pipeline1 = PipelineDefinition(
             name="pipeline-1",
             description="First test pipeline",
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v1",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph1,
                     pipeline_graph_simple=graph1,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )
@@ -324,14 +338,10 @@ class TestPipelineManager(unittest.TestCase):
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v2",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph2,
                     pipeline_graph_simple=graph2,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )
@@ -378,7 +388,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(test_pipeline)
 
@@ -407,7 +417,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Original description",
             source=PipelineSource.USER_CREATED,
             tags=["original"],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
@@ -450,7 +460,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=["original"],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
@@ -483,7 +493,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -514,7 +524,6 @@ class TestPipelineManager(unittest.TestCase):
 
     def test_build_pipeline_command_with_video_output_enabled(self):
         """Test building pipeline command with video output enabled (file mode)."""
-        timestamp = get_current_timestamp()
         manager = PipelineManager()
         manager.pipelines = []
 
@@ -531,14 +540,10 @@ class TestPipelineManager(unittest.TestCase):
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v1",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )
@@ -589,7 +594,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -630,7 +635,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant(name="CPU")],
+            variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
         self.assertEqual(len(added.variants), 1)
@@ -705,8 +710,8 @@ class TestVariantCRUD(unittest.TestCase):
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                create_variant(name="CPU"),
-                create_variant(name="GPU"),
+                create_variant_create(name="CPU"),
+                create_variant_create(name="GPU"),
             ],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -739,7 +744,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -758,7 +763,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -777,7 +782,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant(name="CPU")],
+            variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
         original_variant_modified_at = added.variants[0].modified_at
@@ -817,7 +822,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -854,7 +859,7 @@ class TestVariantCRUD(unittest.TestCase):
             description="Test",
             source=PipelineSource.USER_CREATED,
             tags=[],
-            variants=[create_variant()],
+            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -887,21 +892,16 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
-        timestamp = get_current_timestamp()
         test_pipeline = PipelineDefinition(
             name="test-execution-config",
             description="Test pipeline for execution config",
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v1",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )
@@ -1008,21 +1008,16 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
-        timestamp = get_current_timestamp()
         another_pipeline = PipelineDefinition(
             name="test-execution-config-2",
             description="Another test pipeline",
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v2",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )
@@ -1076,21 +1071,16 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             ],
             edges=[Edge(id="0", source="0", target="1")],
         )
-        timestamp = get_current_timestamp()
         test_pipeline = PipelineDefinition(
             name="test-looping",
             description="Test pipeline for looping",
             source=PipelineSource.USER_CREATED,
             tags=[],
             variants=[
-                Variant(
-                    id="v1",
+                VariantCreate(
                     name="CPU",
-                    read_only=False,
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
-                    created_at=timestamp,
-                    modified_at=timestamp,
                 )
             ],
         )

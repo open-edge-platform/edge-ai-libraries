@@ -73,11 +73,14 @@ class PipelineManager:
         The method:
         * Generates a unique pipeline ID
         * Sets created_at and modified_at timestamps
+        * Generates unique variant IDs from variant names
+        * Sets read_only=False for all variants
         * Sets timestamps for all variants
         * Stores pipeline with variants containing both graph views
 
         Args:
             new_pipeline: PipelineDefinition with name, description, tags, and variants.
+                Variants should be VariantCreate objects (without id, read_only, or timestamps).
 
         Returns:
             Pipeline: Created pipeline with generated ID and timestamps.
@@ -95,15 +98,24 @@ class PipelineManager:
             # Set timestamps
             current_time = get_current_timestamp()
 
-            # Update timestamps for all variants
+            # Collect existing variant IDs for collision check
+            existing_variant_ids: List[str] = []
+
+            # Generate variant IDs and set timestamps for all variants
             variants_with_timestamps = []
-            for variant in new_pipeline.variants:
+            for variant_create in new_pipeline.variants:
+                # Generate variant ID from variant name (same logic as add_variant)
+                variant_id = generate_unique_id(
+                    variant_create.name, existing_variant_ids
+                )
+                existing_variant_ids.append(variant_id)
+
                 variant_with_ts = Variant(
-                    id=variant.id,
-                    name=variant.name,
-                    read_only=variant.read_only,
-                    pipeline_graph=variant.pipeline_graph,
-                    pipeline_graph_simple=variant.pipeline_graph_simple,
+                    id=variant_id,
+                    name=variant_create.name,
+                    read_only=False,  # User-created variants are never read-only
+                    pipeline_graph=variant_create.pipeline_graph,
+                    pipeline_graph_simple=variant_create.pipeline_graph_simple,
                     created_at=current_time,
                     modified_at=current_time,
                 )
