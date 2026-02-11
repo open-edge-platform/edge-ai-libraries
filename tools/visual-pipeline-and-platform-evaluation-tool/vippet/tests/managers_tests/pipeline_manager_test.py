@@ -1260,7 +1260,6 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         # Verify ID was generated from trimmed name
         self.assertEqual(added_pipeline.variants[0].id, "cpu")
 
-
     def test_add_pipeline_whitespace_only_variant_name_raises_error(self):
         """Test that whitespace-only variant name raises ValueError when adding pipeline.
 
