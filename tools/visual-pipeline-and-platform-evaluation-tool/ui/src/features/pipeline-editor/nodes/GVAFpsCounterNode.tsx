@@ -1,34 +1,58 @@
 import { Handle, Position } from "@xyflow/react";
+import { getHandleLeftPosition } from "../utils/graphLayout";
 
-const GVAFpsCounterNode = () => (
-  <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-red-400 min-w-[200px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-red-700">GVAFpsCounter</div>
-        <div className="text-xs text-gray-500 px-2 py-1 bg-red-100 rounded">
-          Counter
-        </div>
+export const GVAFpsCounterNodeWidth = 255;
+
+type GVAFpsCounterNodeProps = {
+  data: {
+    "starting-frame"?: number;
+  };
+};
+
+const GVAFpsCounterNode = ({ data }: GVAFpsCounterNodeProps) => (
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-red-400 min-w-[255px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-red-100 dark:bg-red-900 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-red-600 dark:text-red-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 6V4m0 2a6 6 0 016 6h2a8 8 0 10-16 0h2a6 6 0 016-6zm-3.343 5.757l-1.414 1.415M12 12l2.828 2.828"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600">GStreamer VA FPS counter</div>
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-red-700 dark:text-red-300">
+          GVAFpsCounter
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          {data["starting-frame"] !== undefined && (
+            <span>Start at frame: {data["starting-frame"]}</span>
+          )}
+        </div>
+      </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
-      position={Position.Left}
+      position={Position.Top}
       className="w-3 h-3 bg-red-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvafpscounter") }}
     />
 
-    {/* Output Handle */}
     <Handle
       type="source"
-      position={Position.Right}
+      position={Position.Bottom}
       className="w-3 h-3 bg-red-500!"
-      style={{ top: 40 }}
+      style={{ left: getHandleLeftPosition("gvafpscounter") }}
     />
   </div>
 );

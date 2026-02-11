@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -13,6 +13,23 @@ class PipelineType(str, Enum):
 class PipelineSource(str, Enum):
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
+
+
+class AppStatus(str, Enum):
+    """
+    Application status enum for tracking initialization progress.
+
+    Values:
+        STARTING: Application is starting, no initialization yet.
+        INITIALIZING: Application is initializing resources (e.g., loading videos).
+        READY: Application is fully initialized and ready to serve requests.
+        SHUTDOWN: Application is shutting down.
+    """
+
+    STARTING = "starting"
+    INITIALIZING = "initializing"
+    READY = "ready"
+    SHUTDOWN = "shutdown"
 
 
 class TestJobState(str, Enum):
@@ -102,6 +119,19 @@ class ModelCategory(str, Enum):
 class OptimizationType(str, Enum):
     PREPROCESS = "preprocess"
     OPTIMIZE = "optimize"
+
+
+class CameraType(str, Enum):
+    """
+    Type of camera device.
+
+    Values:
+        USB: USB camera connected directly to the system.
+        NETWORK: Network camera accessible via IP protocols.
+    """
+
+    USB = "USB"
+    NETWORK = "NETWORK"
 
 
 class Node(BaseModel):
@@ -194,19 +224,20 @@ class PipelineCreationResponse(BaseModel):
 
 class PipelineDescription(BaseModel):
     """
-    Request or response body containing a pipeline description string.
+    Request or response body containing a GStreamer pipeline string.
 
-    The string is a single launch line in the selected pipeline
-    framework (for example GStreamer).
+    The pipeline_description field contains a complete GStreamer launch line
+    with elements separated by '!' symbols, for example:
+    "filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink"
 
     Attributes:
-        pipeline_description: Full pipeline description line to be converted
+        pipeline_description: Complete GStreamer pipeline string to be converted
             or executed.
     """
 
     pipeline_description: str = Field(
         ...,
-        description="GStreamer-like pipeline string.",
+        description="GStreamer pipeline string with elements separated by '!'.",
         examples=["videotestsrc ! videoconvert ! autovideosink"],
     )
 
@@ -243,6 +274,66 @@ class PipelineGraph(BaseModel):
                 {"id": "1", "source": "1", "target": "2"},
             ]
         ],
+    )
+
+
+class PipelineGraphResponse(BaseModel):
+    """
+    Response body containing both advanced and simple views of a pipeline graph.
+
+    Used by the /convert/to-graph endpoint to return both representations
+    at once.
+
+    Attributes:
+        pipeline_graph: Advanced view with all technical elements including
+            queues, converters, caps nodes, and other plumbing elements.
+            This view contains the complete pipeline structure as parsed
+            from the pipeline description.
+        pipeline_graph_simple: Simplified view showing only meaningful elements
+            such as sources, inference nodes (gva*), and sinks. Technical
+            plumbing elements are hidden and edges are reconnected to show
+            direct connections between visible nodes.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "pipeline_graph": {
+                "nodes": [
+                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
+                  {"id": "1", "type": "decodebin", "data": {}},
+                  {"id": "2", "type": "queue", "data": {}},
+                  {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
+                  {"id": "4", "type": "fakesink", "data": {}}
+                ],
+                "edges": [
+                  {"id": "0", "source": "0", "target": "1"},
+                  {"id": "1", "source": "1", "target": "2"},
+                  {"id": "2", "source": "2", "target": "3"},
+                  {"id": "3", "source": "3", "target": "4"}
+                ]
+              },
+              "pipeline_graph_simple": {
+                "nodes": [
+                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
+                  {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
+                  {"id": "4", "type": "fakesink", "data": {}}
+                ],
+                "edges": [
+                  {"id": "0", "source": "0", "target": "3"},
+                  {"id": "1", "source": "3", "target": "4"}
+                ]
+              }
+            }
+    """
+
+    pipeline_graph: PipelineGraph = Field(
+        ...,
+        description="Advanced graph view with all pipeline elements including technical plumbing.",
+    )
+    pipeline_graph_simple: PipelineGraph = Field(
+        ...,
+        description="Simplified graph view showing only sources, inference nodes, and sinks.",
     )
 
 
@@ -333,11 +424,15 @@ class Pipeline(BaseModel):
         id: Unique pipeline identifier generated by the backend.
         name: Logical pipeline name (may have multiple versions).
         version: Version number of this pipeline definition.
-        description: Human readable description.
+        description: Human-readable text describing what the pipeline does.
         source: Origin of the pipeline (PREDEFINED or USER_CREATED).
         type: Pipeline type (for example GStreamer).
-        pipeline_graph: Structured graph representation derived from
-            the launch string.
+        pipeline_graph: Structured graph representation (advanced view) derived from
+            the GStreamer pipeline string. Contains all technical elements including queues,
+            converters, caps nodes, etc.
+        pipeline_graph_simple: Simplified graph representation showing only meaningful
+            elements (sources, inference nodes, sinks) with technical plumbing hidden.
+            This view is auto-generated from pipeline_graph.
         parameters: Optional default parameter set for this pipeline.
 
     Example:
@@ -351,6 +446,10 @@ class Pipeline(BaseModel):
               "source": "USER_CREATED",
               "type": "GStreamer",
               "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              },
+              "pipeline_graph_simple": {
                 "nodes": [...],
                 "edges": [...]
               },
@@ -369,6 +468,7 @@ class Pipeline(BaseModel):
     source: PipelineSource
     type: PipelineType
     pipeline_graph: PipelineGraph
+    pipeline_graph_simple: PipelineGraph
     parameters: Optional[PipelineParameters]
 
 
@@ -380,12 +480,13 @@ class PipelineDefinition(BaseModel):
         name: Non-empty pipeline name.
         version: Pipeline version (must be >= 1). For a new name this
             must be 1; for an existing name it must be the next version.
-        description: Non-empty human-readable pipeline description.
+        description: Non-empty human-readable text describing what the pipeline does.
         source: Pipeline source. For create endpoint this value is
             overwritten to USER_CREATED.
         type: Pipeline type (e.g. GStreamer).
-        pipeline_description: GStreamer launch string that will be
-            parsed into a PipelineGraph.
+        pipeline_description: Complete GStreamer pipeline string that will be
+            parsed into a PipelineGraph. This is the actual GStreamer launch line
+            with elements separated by '!' symbols.
         parameters: Optional default parameter set.
 
     Example:
@@ -412,14 +513,16 @@ class PipelineDefinition(BaseModel):
         description="Pipeline version (must be greater than or equal to 1).",
     )
     description: str = Field(
-        ..., min_length=1, description="Non-empty human-readable pipeline description."
+        ...,
+        min_length=1,
+        description="Non-empty human-readable text describing what the pipeline does.",
     )
     source: PipelineSource = PipelineSource.USER_CREATED
     type: PipelineType
     pipeline_description: str = Field(
         ...,
         min_length=1,
-        description="GStreamer pipeline definition string (e.g., 'fakesrc ! fakesink').",
+        description="Complete GStreamer pipeline string with elements separated by '!' (e.g., 'filesrc location=input.mp4 ! decodebin ! fakesink').",
     )
     parameters: Optional[PipelineParameters]
 
@@ -431,21 +534,38 @@ class PipelineUpdate(BaseModel):
     All fields are optional; at least one must be provided when calling
     the update endpoint.
 
+    Important: Only ONE of pipeline_graph or pipeline_graph_simple should be provided.
+    If both are provided, the request will be rejected with 400 error.
+
     Attributes:
         name: Optional new pipeline name (non-empty if provided).
-        description: Optional new description (non-empty if provided).
-        pipeline_graph: Optional new graph; must be non-empty and valid.
+        description: Optional new human-readable text describing what the pipeline does (non-empty if provided).
+        pipeline_graph: Optional new advanced graph; must be non-empty and valid.
+            When provided, simple view is auto-generated from it.
+        pipeline_graph_simple: Optional new simple graph with property changes.
+            When provided, changes are merged into the advanced view using
+            apply_simple_view_changes(), and new simple view is regenerated.
         parameters: Optional new default parameters for the pipeline.
 
-    Example:
+    Example (updating advanced view):
         .. code-block:: json
 
             {
-              "description": "Updated pipeline description",
-              "parameters": {
-                "default": {
-                  "max-runtime": 120
-                }
+              "description": "Updated pipeline with better preprocessing",
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              }
+            }
+
+    Example (updating simple view):
+        .. code-block:: json
+
+            {
+              "description": "Updated inference parameters",
+              "pipeline_graph_simple": {
+                "nodes": [...],
+                "edges": [...]
               }
             }
     """
@@ -453,6 +573,7 @@ class PipelineUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     pipeline_graph: Optional[PipelineGraph] = None
+    pipeline_graph_simple: Optional[PipelineGraph] = None
     parameters: Optional[PipelineParameters] = None
 
 
@@ -528,23 +649,72 @@ class PipelineRequestOptimize(BaseModel):
     parameters: Optional[Dict[str, Any]]
 
 
-class VideoOutputConfig(BaseModel):
+class OutputMode(str, Enum):
     """
-    Generic configuration of optional encoded video output.
+    Mode for pipeline output generation.
+
+    Values:
+        DISABLED: No output generation (default).
+        FILE: Save output to file.
+        LIVE_STREAM: Stream output live to media server.
+    """
+
+    DISABLED = "disabled"
+    FILE = "file"
+    LIVE_STREAM = "live_stream"
+
+
+class ExecutionConfig(BaseModel):
+    """
+    Configuration for pipeline execution behavior.
+
+    This configuration controls both output generation and runtime limits
+    for test pipelines.
 
     Attributes:
-        enabled: Flag to enable or disable video output generation.
+        output_mode: Mode for pipeline output generation.
+            - disabled: No output (fakesink remains, default)
+            - file: Save video to file (only allowed with max_runtime=0)
+            - live_stream: Stream output live to media server
+        max_runtime: Maximum runtime in seconds for the pipeline.
+            - 0: Run until natural completion (EOS), no time limit (default)
+            - >0: Stop pipeline after this duration, with looping if EOS comes early
+                  (only allowed with output_mode=disabled or output_mode=live_stream)
+            - <0: Not allowed (will be rejected)
 
-    Example:
+    Example (disabled output, no runtime limit):
         .. code-block:: json
 
             {
-              "enabled": false
+              "output_mode": "disabled",
+              "max_runtime": 0
+            }
+
+    Example (save to file, run until EOS):
+        .. code-block:: json
+
+            {
+              "output_mode": "file",
+              "max_runtime": 0
+            }
+
+    Example (live streaming with 60 second limit):
+        .. code-block:: json
+
+            {
+              "output_mode": "live_stream",
+              "max_runtime": 60
             }
     """
 
-    enabled: bool = Field(
-        default=False, description="Flag to enable or disable video output generation."
+    output_mode: OutputMode = Field(
+        default=OutputMode.DISABLED,
+        description="Mode for pipeline output generation.",
+    )
+    max_runtime: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
     )
 
 
@@ -554,7 +724,7 @@ class PerformanceTestSpec(BaseModel):
 
     Attributes:
         pipeline_performance_specs: List of pipelines and their stream counts.
-        video_output: Optional configuration for storing encoded video outputs.
+        execution_config: Configuration for output generation and runtime limits.
     """
 
     pipeline_performance_specs: list[PipelinePerformanceSpec] = Field(
@@ -567,12 +737,10 @@ class PerformanceTestSpec(BaseModel):
             ]
         ],
     )
-    video_output: VideoOutputConfig = Field(
-        default=VideoOutputConfig(
-            enabled=False,
-        ),
-        description="Video output configuration.",
-        examples=[{"enabled": False}],
+    execution_config: ExecutionConfig = Field(
+        default=ExecutionConfig(),
+        description="Execution configuration for output and runtime.",
+        examples=[{"output_mode": "disabled", "max_runtime": 0}],
     )
 
 
@@ -583,7 +751,7 @@ class DensityTestSpec(BaseModel):
     Attributes:
         fps_floor: Minimum acceptable FPS per stream.
         pipeline_density_specs: List of pipelines with relative stream_rate ratios.
-        video_output: Optional configuration for storing encoded video outputs.
+        execution_config: Configuration for output generation and runtime limits.
     """
 
     fps_floor: int = Field(
@@ -601,12 +769,10 @@ class DensityTestSpec(BaseModel):
             ]
         ],
     )
-    video_output: VideoOutputConfig = Field(
-        default=VideoOutputConfig(
-            enabled=False,
-        ),
-        description="Video output configuration.",
-        examples=[{"enabled": False}],
+    execution_config: ExecutionConfig = Field(
+        default=ExecutionConfig(),
+        description="Execution configuration for output and runtime.",
+        examples=[{"output_mode": "disabled", "max_runtime": 0}],
     )
 
 
@@ -639,6 +805,9 @@ class TestsJobStatus(BaseModel):
         streams_per_pipeline: List of stream counts per pipeline.
         video_output_paths: Mapping from pipeline id to list of output file paths.
         error_message: Error description when state is ERROR or ABORTED.
+
+    Note: live_stream_urls is intentionally not included here because density tests
+    do not support live-streaming. PerformanceJobStatus adds this field separately.
     """
 
     id: str
@@ -657,10 +826,16 @@ class PerformanceJobStatus(TestsJobStatus):
     """
     Status of a performance test job.
 
-    Inherits all fields from TestsJobStatus without changes.
+    Inherits all fields from TestsJobStatus and adds live_stream_urls
+    for live-streaming output mode support.
+
+    Attributes:
+        live_stream_urls: Mapping from pipeline id to live stream URL
+            when using live_stream output mode. Only available for
+            performance tests.
     """
 
-    pass
+    live_stream_urls: Optional[Dict[str, str]]
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -668,6 +843,8 @@ class DensityJobStatus(TestsJobStatus):
     Status of a density test job.
 
     Inherits all fields from TestsJobStatus without changes.
+    Does not include live_stream_urls because density tests do not support
+    live-streaming output mode (only disabled or file modes are allowed).
     """
 
     pass
@@ -724,10 +901,12 @@ class OptimizationJobStatus(BaseModel):
         elapsed_time: Elapsed time in milliseconds.
         state: Current job state.
         total_fps: Measured FPS for optimized pipeline (for OPTIMIZE).
-        original_pipeline_graph: Original pipeline graph before optimization.
-        optimized_pipeline_graph: Optimized pipeline graph (if available).
-        original_pipeline_description: Original GStreamer pipeline string.
-        optimized_pipeline_description: Optimized GStreamer pipeline string (if any).
+        original_pipeline_graph: Original pipeline graph (advanced view) before optimization.
+        original_pipeline_graph_simple: Original pipeline graph (simple view) before optimization.
+        optimized_pipeline_graph: Optimized pipeline graph (advanced view) if available.
+        optimized_pipeline_graph_simple: Optimized pipeline graph (simple view) if available.
+        original_pipeline_description: Original GStreamer pipeline string before optimization.
+        optimized_pipeline_description: Optimized GStreamer pipeline string after optimization (if any).
         error_message: Error details when state is ERROR or ABORTED.
     """
 
@@ -738,7 +917,9 @@ class OptimizationJobStatus(BaseModel):
     state: OptimizationJobState
     total_fps: Optional[float]
     original_pipeline_graph: PipelineGraph
+    original_pipeline_graph_simple: PipelineGraph
     optimized_pipeline_graph: Optional[PipelineGraph]
+    optimized_pipeline_graph_simple: Optional[PipelineGraph]
     original_pipeline_description: str
     optimized_pipeline_description: Optional[str]
     error_message: Optional[str]
@@ -915,3 +1096,198 @@ class Video(BaseModel):
     frame_count: int
     codec: str
     duration: float
+
+
+class CameraDetails(BaseModel):
+    """Base class for camera-specific details."""
+
+    pass
+
+
+class USBCameraDetails(CameraDetails):
+    """
+    USB camera specific details.
+
+    Attributes:
+        device_path: System device path (e.g., /dev/video0).
+        resolution: Supported or current resolution (optional, e.g., "1920x1080").
+    """
+
+    device_path: str
+    resolution: Optional[str]
+
+
+class NetworkCameraDetails(CameraDetails):
+    """
+    Network camera specific details.
+
+    Attributes:
+        ip: IP address of the camera.
+        port: Port number for ONVIF communication.
+        profiles: List of ONVIF profiles available on this camera (populated after authentication).
+    """
+
+    ip: str
+    port: int
+    profiles: list["CameraProfileInfo"]
+
+
+class Camera(BaseModel):
+    """
+    Camera device information supporting both USB and network cameras.
+
+    Common attributes apply to all camera types. Type-specific details are stored
+    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+
+    Attributes:
+        device_id: Unique identifier for the camera.
+        device_name: Human-readable camera name.
+        device_type: Type of camera (USB or NETWORK).
+        details: Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK).
+
+    Example (USB Camera):
+        .. code-block:: json
+
+            {
+              "device_id": "usb_camera_0",
+              "device_name": "Integrated Camera",
+              "device_type": "USB",
+              "details": {
+                "device_path": "/dev/video0",
+                "resolution": "1920x1080"
+              }
+            }
+
+    Example (Network Camera):
+        .. code-block:: json
+
+            {
+              "device_id": "network_camera_192.168.1.100_80",
+              "device_name": "ONVIF Camera 192.168.1.100",
+              "device_type": "NETWORK",
+              "details": {
+                "ip": "192.168.1.100",
+                "port": 80,
+                "profiles": [
+                  {
+                    "name": "Profile_1",
+                    "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                    "resolution": "1920x1080",
+                    "encoding": "H264",
+                    "framerate": 30,
+                    "bitrate": 4096
+                  },
+                  {
+                    "name": "Profile_2",
+                    "rtsp_url": "rtsp://192.168.1.100:554/stream2",
+                    "resolution": "1280x720",
+                    "encoding": "H264",
+                    "framerate": 15,
+                    "bitrate": 2048
+                  }
+                ]
+              }
+            }
+    """
+
+    device_id: str
+    device_name: str
+    device_type: CameraType
+    details: Union[USBCameraDetails, NetworkCameraDetails]
+
+
+class CameraProfilesRequest(BaseModel):
+    """
+    Request model for camera profile retrieval (camera_id provided in path).
+
+    Attributes:
+        username: Username for ONVIF authentication.
+        password: Password for ONVIF authentication.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "username": "admin",
+              "password": "password123"
+            }
+    """
+
+    username: str
+    password: str
+
+
+class CameraProfileInfo(BaseModel):
+    """
+    Detailed ONVIF camera profile information.
+
+    Attributes:
+        name: Profile name.
+        rtsp_url: RTSP stream URL.
+        resolution: Video resolution (e.g., "1920x1080").
+        encoding: Video encoding format (e.g., "H264", "MPEG4").
+        framerate: Frame rate limit.
+        bitrate: Bitrate limit.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "name": "Profile_1",
+              "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+              "resolution": "1920x1080",
+              "encoding": "H264",
+              "framerate": 30,
+              "bitrate": 4096
+            }
+    """
+
+    name: str
+    rtsp_url: Optional[str] = None
+    resolution: Optional[str] = None
+    encoding: Optional[str] = None
+    framerate: Optional[int] = None
+    bitrate: Optional[int] = None
+
+
+class CameraAuthResponse(BaseModel):
+    """
+    Response model for camera authentication attempt.
+
+    Returns the authenticated camera with populated ONVIF profiles.
+    After successful authentication, the camera's profile list is updated
+    with all available ONVIF profiles from the device.
+
+    Attributes:
+        camera: Camera object with updated profile information.
+
+    Example:
+        .. code-block:: json
+
+            {
+              "camera": {
+                "device_id": "network_camera_192.168.1.100_80",
+                "device_name": "ONVIF Camera 192.168.1.100",
+                "device_type": "NETWORK",
+                "details": {
+                  "ip": "192.168.1.100",
+                  "port": 80,
+                  "profiles": [
+                    {
+                      "name": "Profile_1",
+                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+                      "resolution": "1920x1080",
+                      "encoding": "H264",
+                      "framerate": 30,
+                      "bitrate": 4096
+                    }
+                  ]
+                }
+              }
+            }
+    """
+
+    camera: Camera = Field(
+        ...,
+        description="Camera object with populated ONVIF profiles after successful authentication.",
+    )

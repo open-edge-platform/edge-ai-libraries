@@ -1,13 +1,16 @@
+import re
 import os
 import unittest
 from dataclasses import dataclass
+from typing import Optional
 from unittest.mock import MagicMock, patch
-from graph import Graph, Node, Edge
-from video_encoder import ENCODER_DEVICE_GPU, ENCODER_DEVICE_CPU
 
-mock_models_manager = MagicMock()
-mock_videos_manager = MagicMock()
-mock_model_proc_manager = MagicMock()
+from graph import Edge, Graph, Node
+from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+
+# Create mock instances for SupportedModelsManager and VideosManager
+mock_models_manager_instance = MagicMock()
+mock_videos_manager_instance = MagicMock()
 
 
 def _mock_get_video_filename(path: str) -> str:
@@ -18,7 +21,9 @@ def _mock_get_video_path(filename: str) -> str:
     return os.path.join("/tmp", filename)
 
 
-def _mock_find_model_by_name(name: str):
+def _mock_find_installed_model_by_model_and_proc_path(
+    model_path: str, model_proc_path: Optional[str] = None
+):
     mapped_names = [
         "yolov8_license_plate_detector",
         "ch_PP-OCRv4_rec_infer",
@@ -37,9 +42,11 @@ def _mock_find_model_by_name(name: str):
         "${YOLO11n_POST_MODEL}",
     ]
 
-    if name in mapped_names:
+    base_name = os.path.splitext(os.path.basename(model_path))[0]
+
+    if base_name in mapped_names:
         mock_model = MagicMock()
-        mock_model.display_name = name
+        mock_model.display_name = base_name
         return mock_model
     else:
         return None
@@ -63,15 +70,14 @@ def _mock_find_model_by_display_name(name: str):
     return mock_model
 
 
-mock_models_manager.find_installed_model_by_name.side_effect = _mock_find_model_by_name
-mock_models_manager.find_installed_model_by_display_name.side_effect = (
+mock_models_manager_instance.find_installed_model_by_model_and_proc_path.side_effect = (
+    _mock_find_installed_model_by_model_and_proc_path
+)
+mock_models_manager_instance.find_installed_model_by_display_name.side_effect = (
     _mock_find_model_by_display_name
 )
-mock_videos_manager.get_video_filename.side_effect = _mock_get_video_filename
-mock_videos_manager.get_video_path.side_effect = _mock_get_video_path
-mock_model_proc_manager.get_path.side_effect = (
-    lambda configured_model_proc: os.path.join("/models/proc", configured_model_proc)
-)
+mock_videos_manager_instance.get_video_filename.side_effect = _mock_get_video_filename
+mock_videos_manager_instance.get_video_path.side_effect = _mock_get_video_path
 
 
 @dataclass
@@ -507,7 +513,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5s_416}+PROC",
-                        "model-proc": "${MODEL_YOLOv5s_416}",
                         "model-instance-id": "detect0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -528,7 +533,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "model-instance-id": "classify0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -604,7 +608,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5s_416}+PROC",
-                        "model-proc": "${MODEL_YOLOv5s_416}",
                         "model-instance-id": "detect0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -623,7 +626,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "model-instance-id": "classify0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -757,7 +759,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -783,7 +784,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -833,7 +833,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -857,7 +856,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -926,7 +924,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5m}+PROC",
-                        "model-proc": "${MODEL_YOLOv5m}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -952,7 +949,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -969,7 +965,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1021,7 +1016,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv5m}+PROC",
-                        "model-proc": "${MODEL_YOLOv5m}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1045,7 +1039,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1061,7 +1054,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1127,7 +1119,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1153,7 +1144,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1170,7 +1160,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1216,7 +1205,6 @@ parse_test_cases = [
                     type="gvadetect",
                     data={
                         "model": "${MODEL_YOLOv11n}+PROC",
-                        "model-proc": "${MODEL_YOLOv11n}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1240,7 +1228,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_RESNET}+PROC",
-                        "model-proc": "${MODEL_RESNET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1256,7 +1243,6 @@ parse_test_cases = [
                     type="gvaclassify",
                     data={
                         "model": "${MODEL_MOBILENET}+PROC",
-                        "model-proc": "${MODEL_MOBILENET}",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -1948,6 +1934,726 @@ unsorted_nodes_edges = [
 ]
 
 
+@dataclass
+class GraphTestCase:
+    pipeline_description: str
+    original_pipeline_graph: Graph
+    original_pipeline_graph_simple: Graph
+    modified_pipeline_graph_simple: Graph
+    modified_pipeline_graph: Graph
+
+
+# Positive test cases for apply_simple_view_changes
+# These test cases verify that property modifications are correctly applied
+apply_simple_view_changes_positive_test_cases = [
+    # Test case: Modify single node property
+    GraphTestCase(
+        pipeline_description="test_modify_single_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed GPU -> CPU
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed GPU -> CPU
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: Modify multiple node properties
+    GraphTestCase(
+        pipeline_description="test_modify_multiple_properties",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "resnet", "device": "GPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "resnet", "device": "GPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "CPU", "threshold": "0.7"},
+                ),  # Changed device and threshold
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "mobilenet", "device": "CPU"},
+                ),  # Changed model and device
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "input.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "CPU", "threshold": "0.7"},
+                ),
+                Node(
+                    id="2",
+                    type="gvaclassify",
+                    data={"model": "mobilenet", "device": "CPU"},
+                ),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: No changes (identity test)
+    GraphTestCase(
+        pipeline_description="test_no_changes",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+    # Test case: Add new property to existing node
+    GraphTestCase(
+        pipeline_description="test_add_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Added device property
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Added device property
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+    ),
+    # Test case: Remove property from existing node
+    GraphTestCase(
+        pipeline_description="test_remove_property",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"model": "yolo", "device": "GPU", "threshold": "0.5"},
+                ),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Removed threshold property
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
+                ),  # Removed threshold property
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+    ),
+]
+
+
+# Negative test cases for apply_simple_view_changes
+# These test cases verify that unsupported operations raise appropriate errors
+@dataclass
+class NegativeGraphTestCase:
+    test_name: str
+    original_pipeline_graph: Graph
+    original_pipeline_graph_simple: Graph
+    modified_pipeline_graph_simple: Graph
+    expected_error_message: str
+
+
+apply_simple_view_changes_negative_test_cases = [
+    # Test case: Add new edge
+    NegativeGraphTestCase(
+        test_name="test_add_edge",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+                Edge(id="2", source="0", target="3"),  # New edge added
+            ],
+        ),
+        expected_error_message="Edge additions are not supported in simple view",
+    ),
+    # Test case: Remove edge
+    NegativeGraphTestCase(
+        test_name="test_remove_edge",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                # Edge from 1 to 2 removed
+            ],
+        ),
+        expected_error_message="Edge removals are not supported in simple view",
+    ),
+    # Test case: Modify edge source
+    NegativeGraphTestCase(
+        test_name="test_modify_edge_source",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="0", target="2"),  # Changed source from 1 to 0
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        expected_error_message="Edge modifications are not supported in simple view",
+    ),
+    # Test case: Modify edge target
+    NegativeGraphTestCase(
+        test_name="test_modify_edge_target",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="3"),  # Changed target from 2 to 3
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        expected_error_message="Edge modifications are not supported in simple view",
+    ),
+    # Test case: Add new node
+    NegativeGraphTestCase(
+        test_name="test_add_node",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+                Node(id="3", type="gvatrack", data={}),  # New node added
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        expected_error_message="Node additions are not supported in simple view",
+    ),
+    # Test case: Remove node
+    NegativeGraphTestCase(
+        test_name="test_remove_node",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                # Node id="2" removed
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="3"),
+            ],
+        ),
+        expected_error_message="Node removals are not supported in simple view",
+    ),
+    # Test case: Change node type
+    NegativeGraphTestCase(
+        test_name="test_change_node_type",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1", type="gvaclassify", data={"model": "yolo"}
+                ),  # Changed type from gvadetect to gvaclassify
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        ),
+        expected_error_message="Node type changes are not supported in simple view",
+    ),
+    # Test case: Multiple edges added
+    NegativeGraphTestCase(
+        test_name="test_multiple_edges_added",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="0", target="2"),  # Added edge
+                Edge(id="4", source="1", target="3"),  # Added edge
+            ],
+        ),
+        expected_error_message="Edge additions are not supported in simple view",
+    ),
+    # Test case: Multiple nodes removed
+    NegativeGraphTestCase(
+        test_name="test_multiple_nodes_removed",
+        original_pipeline_graph=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        ),
+        original_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvatrack", data={}),
+                Node(id="3", type="gvaclassify", data={"model": "resnet"}),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        ),
+        modified_pipeline_graph_simple=Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                # Nodes 2, 3 removed
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="4"),
+            ],
+        ),
+        expected_error_message="Node removals are not supported in simple view",
+    ),
+]
+
+
 class TestToFromDict(unittest.TestCase):
     def test_to_from_dict(self):
         self.maxDiff = None
@@ -1970,10 +2676,12 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
-    @patch("graph.model_proc_manager", mock_model_proc_manager)
-    @patch("graph.models_manager", mock_models_manager)
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_graph_to_description(self):
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_graph_to_description(self, mock_videos_cls, mock_models_cls):
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
         self.maxDiff = None
 
         for tc in parse_test_cases + unsorted_nodes_edges:
@@ -1982,9 +2690,12 @@ class TestGraphToDescription(unittest.TestCase):
 
 
 class TestDescriptionToGraph(unittest.TestCase):
-    @patch("graph.models_manager", mock_models_manager)
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_description_to_graph(self):
+    @patch("graph.SupportedModelsManager")
+    @patch("graph.VideosManager")
+    def test_description_to_graph(self, mock_videos_cls, mock_models_cls):
+        mock_videos_cls.return_value = mock_videos_manager_instance
+        mock_models_cls.return_value = mock_models_manager_instance
+
         self.maxDiff = None
 
         for tc in parse_test_cases:
@@ -2125,9 +2836,11 @@ class TestParseDescription(unittest.TestCase):
 
 
 class TestNegativeCases(unittest.TestCase):
-    @patch("graph.videos_manager", mock_videos_manager)
-    def test_circular_graph_raises_error(self):
+    @patch("graph.VideosManager")
+    def test_circular_graph_raises_error(self, mock_videos_cls):
         """Test that a circular graph is detected and raises an error."""
+        mock_videos_cls.return_value = mock_videos_manager_instance
+
         # Create a circular graph: node 0 -> node 1 -> node 2 -> node 0
         circular_graph = Graph(
             nodes=[
@@ -2306,6 +3019,8 @@ class TestToSimpleView(unittest.TestCase):
     by filtering out technical elements and reconnecting visible nodes.
     """
 
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
     def test_simple_view_generation(self):
         """
         Test that to_simple_view() generates the expected simplified graphs.
@@ -2376,6 +3091,1182 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
+    def test_simple_view_with_invisible_elements(self):
+        """
+        Test that SIMPLE_VIEW_INVISIBLE_ELEMENTS excludes specified elements.
+
+        This test verifies that:
+        - Elements matching invisible patterns are excluded even if they match visible patterns
+        - Other visible elements (like gvametaconvert, gvadetect) remain visible
+        - Edges are properly reconnected through the newly hidden nodes
+        """
+        # Compile the test-specific invisible patterns
+        test_invisible_patterns = [
+            re.compile("^gvafpscounter$"),
+            re.compile("^gvametapublish$"),
+        ]
+
+        # Create a graph with gvafpscounter and gvametapublish that should be hidden
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="gvafpscounter", data={"starting-frame": "500"}),
+                Node(id="4", type="gvametaconvert", data={"format": "json"}),
+                Node(id="5", type="gvametapublish", data={"method": "file"}),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        )
+
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
+
+            # Expected: filesrc, gvadetect, gvametaconvert, fakesink
+            # gvafpscounter and gvametapublish should be excluded
+            expected_node_types = ["filesrc", "gvadetect", "gvametaconvert", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
+
+            self.assertEqual(actual_node_types, expected_node_types)
+
+            # Check edges are properly reconnected
+            self.assertEqual(len(simple_view.edges), 3)
+            # filesrc -> gvadetect
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "2")
+            # gvadetect -> gvametaconvert
+            self.assertEqual(simple_view.edges[1].source, "2")
+            self.assertEqual(simple_view.edges[1].target, "4")
+            # gvametaconvert -> fakesink
+            self.assertEqual(simple_view.edges[2].source, "4")
+            self.assertEqual(simple_view.edges[2].target, "6")
+
+    def test_simple_view_invisible_wildcard_pattern(self):
+        """
+        Test that wildcard patterns work in SIMPLE_VIEW_INVISIBLE_ELEMENTS.
+
+        This test verifies that a wildcard pattern like 'gva*' excludes all gva elements.
+        """
+        # Compile wildcard pattern: gva*
+        test_invisible_patterns = [re.compile("^gva.*$")]
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvadetect", data={"model": "yolo"}),
+                Node(id="2", type="gvametaconvert", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        with patch("graph._COMPILED_INVISIBLE_PATTERNS", test_invisible_patterns):
+            simple_view = graph.to_simple_view()
+
+            # All gva* elements should be hidden
+            expected_node_types = ["filesrc", "fakesink"]
+            actual_node_types = [node.type for node in simple_view.nodes]
+
+            self.assertEqual(actual_node_types, expected_node_types)
+
+            # Direct edge from filesrc to fakesink
+            self.assertEqual(len(simple_view.edges), 1)
+            self.assertEqual(simple_view.edges[0].source, "0")
+            self.assertEqual(simple_view.edges[0].target, "3")
+
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
+    def test_simple_view_empty_invisible_elements(self):
+        """
+        Test that empty SIMPLE_VIEW_INVISIBLE_ELEMENTS does not exclude anything.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # gvafpscounter should be visible (matches gva* pattern, no exclusion)
+        expected_node_types = ["filesrc", "gvafpscounter", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter")
+    def test_simple_view_invisible_single_element(self):
+        """
+        Test exclusion of a single specific element type.
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="gvafpscounter", data={}),
+                Node(id="2", type="gvadetect", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Only gvafpscounter should be hidden, gvadetect should remain
+        expected_node_types = ["filesrc", "gvadetect", "fakesink"]
+        actual_node_types = [node.type for node in simple_view.nodes]
+
+        self.assertEqual(actual_node_types, expected_node_types)
+
+
+class TestApplySimpleViewChanges(unittest.TestCase):
+    """
+    Test the apply_simple_view_changes method which merges property changes
+    from the simple view back into the advanced view.
+    """
+
+    def test_positive_cases(self):
+        """
+        Test successful application of property changes from simple view to advanced view.
+
+        This test verifies that:
+        - Property modifications in simple view are correctly applied to advanced view
+        - Hidden nodes in advanced view remain unchanged
+        - Node IDs and structure are preserved
+        - Multiple property changes work correctly
+        - Adding and removing properties works
+        """
+        self.maxDiff = None
+
+        for tc in apply_simple_view_changes_positive_test_cases:
+            with self.subTest(test=tc.pipeline_description):
+                result = Graph.apply_simple_view_changes(
+                    modified_simple=tc.modified_pipeline_graph_simple,
+                    original_simple=tc.original_pipeline_graph_simple,
+                    original_advanced=tc.original_pipeline_graph,
+                )
+
+                # Verify that the result matches the expected graph
+                self.assertEqual(
+                    len(result.nodes), len(tc.modified_pipeline_graph.nodes)
+                )
+
+                # Check each node
+                for i, (actual_node, expected_node) in enumerate(
+                    zip(result.nodes, tc.modified_pipeline_graph.nodes)
+                ):
+                    self.assertEqual(
+                        actual_node.id,
+                        expected_node.id,
+                        f"Node {i} ID mismatch: expected {expected_node.id}, got {actual_node.id}",
+                    )
+                    self.assertEqual(
+                        actual_node.type,
+                        expected_node.type,
+                        f"Node {i} type mismatch: expected {expected_node.type}, got {actual_node.type}",
+                    )
+                    self.assertDictEqual(
+                        actual_node.data,
+                        expected_node.data,
+                        f"Node {i} data mismatch: expected {expected_node.data}, got {actual_node.data}",
+                    )
+
+                # Verify edges remain unchanged
+                self.assertEqual(
+                    len(result.edges), len(tc.modified_pipeline_graph.edges)
+                )
+                for i, (actual_edge, expected_edge) in enumerate(
+                    zip(result.edges, tc.modified_pipeline_graph.edges)
+                ):
+                    self.assertEqual(actual_edge.id, expected_edge.id)
+                    self.assertEqual(actual_edge.source, expected_edge.source)
+                    self.assertEqual(actual_edge.target, expected_edge.target)
+
+    def test_negative_cases(self):
+        """
+        Test that unsupported operations raise appropriate ValueError exceptions.
+
+        This test verifies that:
+        - Adding edges raises ValueError with clear message
+        - Removing edges raises ValueError with clear message
+        - Modifying edge source/target raises ValueError with clear message
+        - Adding nodes raises ValueError with clear message
+        - Removing nodes raises ValueError with clear message
+        - Changing node type raises ValueError with clear message
+        - Error messages contain specific details about what changed
+        """
+        self.maxDiff = None
+
+        for tc in apply_simple_view_changes_negative_test_cases:
+            with self.subTest(test=tc.test_name):
+                with self.assertRaises(ValueError) as cm:
+                    Graph.apply_simple_view_changes(
+                        modified_simple=tc.modified_pipeline_graph_simple,
+                        original_simple=tc.original_pipeline_graph_simple,
+                        original_advanced=tc.original_pipeline_graph,
+                    )
+
+                # Verify error message contains expected text
+                self.assertIn(
+                    tc.expected_error_message,
+                    str(cm.exception),
+                    f"Error message should contain '{tc.expected_error_message}', but got: {str(cm.exception)}",
+                )
+
+    def test_does_not_modify_input_graphs(self):
+        """
+        Test that apply_simple_view_changes does not modify the input graphs.
+
+        This ensures that the method creates a deep copy and works on that copy,
+        leaving the original graphs unchanged.
+        """
+        # Create test graphs
+        original_advanced = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        original_simple = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        modified_simple = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
+                ),  # Changed
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        # Store original values for comparison
+        original_advanced_node_2_device = original_advanced.nodes[2].data["device"]
+
+        # Apply changes
+        result = Graph.apply_simple_view_changes(
+            modified_simple=modified_simple,
+            original_simple=original_simple,
+            original_advanced=original_advanced,
+        )
+
+        # Verify original_advanced was not modified
+        self.assertEqual(
+            original_advanced.nodes[2].data["device"],
+            original_advanced_node_2_device,
+            "Original advanced graph should not be modified",
+        )
+
+        # Verify result has the changed value
+        self.assertEqual(
+            result.nodes[2].data["device"],
+            "CPU",
+            "Result graph should have the modified value",
+        )
+
+
+class TestApplyLoopingModifications(unittest.TestCase):
+    """Test cases for Graph.apply_looping_modifications method."""
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_filesrc_replaced_with_multifilesrc(self, mock_videos_cls, mock_isfile):
+        """Test that filesrc is replaced with multifilesrc loop=true."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc is replaced with multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # Location should be just filename (basename of ts_path)
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_qtdemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
+        """Test that qtdemux is replaced with tsdemux."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_matroskademux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
+        """Test that matroskademux is replaced with tsdemux."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mkv"}),
+                Node(id="1", type="matroskademux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_avidemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
+        """Test that avidemux is replaced with tsdemux."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.avi"}),
+                Node(id="1", type="avidemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_cls, mock_isfile):
+        """Test that splitmuxsink is replaced with fakesink."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(
+                    id="2",
+                    type="splitmuxsink",
+                    data={"location": "/output/file_%02d.mp4", "max-size-time": "10"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check splitmuxsink is replaced with fakesink
+        self.assertEqual(result.nodes[2].type, "fakesink")
+        # Check old properties are cleared
+        self.assertNotIn("location", result.nodes[2].data)
+        self.assertNotIn("max-size-time", result.nodes[2].data)
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_original_graph_not_modified(self, mock_videos_cls, mock_isfile):
+        """Test that apply_looping_modifications creates a deep copy."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        original_graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        # Store original values
+        original_type = original_graph.nodes[0].type
+        original_location = original_graph.nodes[0].data.get("location")
+
+        # Apply modifications
+        result = original_graph.apply_looping_modifications()
+
+        # Verify original is unchanged
+        self.assertEqual(original_graph.nodes[0].type, original_type)
+        self.assertEqual(
+            original_graph.nodes[0].data.get("location"), original_location
+        )
+        self.assertNotIn("loop", original_graph.nodes[0].data)
+
+        # Verify result is modified
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+
+    @patch("graph.VideosManager")
+    def test_ts_path_not_found_raises_error(self, mock_videos_cls):
+        """Test that ValueError is raised when get_ts_path returns None."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = None
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.xyz"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot get TS path", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_ts_file_created_when_not_exists(self, mock_isfile, mock_videos_cls):
+        """Test that TS file is created when it does not exist on disk."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_instance.ensure_ts_file.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+        # First call (checking if ts exists) returns False, subsequent calls return True
+        mock_isfile.side_effect = [False, True]
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Verify ensure_ts_file was called
+        mock_videos_instance.ensure_ts_file.assert_called_once()
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_ts_conversion_failure_raises_error(self, mock_isfile, mock_videos_cls):
+        """Test that ValueError is raised when TS conversion fails."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = "/videos/input/video.mp4"
+        mock_videos_instance.ensure_ts_file.return_value = None  # Conversion failed
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Failed to create TS file", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_source_video_not_found_raises_error(self, mock_isfile, mock_videos_cls):
+        """Test that ValueError is raised when source video cannot be found."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_instance.get_video_path.return_value = None  # Source not found
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = False
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.apply_looping_modifications()
+
+        self.assertIn("Cannot find source video", str(cm.exception))
+
+    @patch("graph.VideosManager")
+    @patch("os.path.isfile")
+    def test_multiple_modifications_in_complex_pipeline(
+        self, mock_isfile, mock_videos_cls
+    ):
+        """Test looping modifications in a complex pipeline with tee."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+        mock_isfile.return_value = True  # TS file exists
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="qtdemux", data={}),
+                Node(id="2", type="h264parse", data={}),
+                Node(id="3", type="tee", data={"name": "t0"}),
+                Node(id="4", type="queue", data={}),
+                Node(
+                    id="5",
+                    type="splitmuxsink",
+                    data={"location": "/output/file.mp4"},
+                ),
+                Node(id="6", type="queue", data={}),
+                Node(id="7", type="gvadetect", data={"model": "yolo"}),
+                Node(id="8", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="3", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Check filesrc -> multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        self.assertEqual(result.nodes[0].data["location"], "video.ts")
+
+        # Check qtdemux -> tsdemux
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+        # Check splitmuxsink -> fakesink
+        self.assertEqual(result.nodes[5].type, "fakesink")
+
+        # Check other nodes are unchanged
+        self.assertEqual(result.nodes[3].type, "tee")
+        self.assertEqual(result.nodes[7].type, "gvadetect")
+        self.assertEqual(result.nodes[8].type, "fakesink")
+
+    @patch("graph.VideosManager")
+    def test_filesrc_without_location(self, mock_videos_cls):
+        """Test filesrc without location property is still modified."""
+        mock_videos_instance = MagicMock()
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        # Type should be changed to multifilesrc
+        self.assertEqual(result.nodes[0].type, "multifilesrc")
+        self.assertEqual(result.nodes[0].data["loop"], "true")
+        # No location to modify
+        self.assertNotIn("location", result.nodes[0].data)
+        # get_ts_path should not be called
+        mock_videos_instance.get_ts_path.assert_not_called()
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("graph.VideosManager")
+    def test_flvdemux_replaced_with_tsdemux(self, mock_videos_cls, mock_isfile):
+        """Test that flvdemux is replaced with tsdemux."""
+        mock_videos_instance = MagicMock()
+        mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
+        mock_videos_cls.return_value = mock_videos_instance
+
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.flv"}),
+                Node(id="1", type="flvdemux", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.apply_looping_modifications()
+
+        self.assertEqual(result.nodes[1].type, "tsdemux")
+
+
+class TestUnifyModelInstanceIds(unittest.TestCase):
+    """Test cases for Graph.unify_model_instance_ids method."""
+
+    def test_same_device_and_model_get_same_instance_id(self):
+        """Test that nodes with identical device and model get the same model-instance-id."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                        "model-proc": "yolov8.json",
+                    },
+                ),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                        "model-proc": "different.json",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Both nodes should have the same model-instance-id
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"],
+            result.nodes[1].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+
+    def test_different_device_get_different_instance_id(self):
+        """Test that nodes with different devices get different model-instance-ids."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={
+                        "device": "CPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Nodes should have different model-instance-ids
+        self.assertNotEqual(
+            result.nodes[0].data["model-instance-id"],
+            result.nodes[1].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+        self.assertEqual(
+            result.nodes[1].data["model-instance-id"], "cpu_yolov8_detector"
+        )
+
+    def test_different_model_get_different_instance_id(self):
+        """Test that nodes with different models get different model-instance-ids."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "resnet_classifier",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Nodes should have different model-instance-ids
+        self.assertNotEqual(
+            result.nodes[0].data["model-instance-id"],
+            result.nodes[1].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+        self.assertEqual(
+            result.nodes[1].data["model-instance-id"], "gpu_resnet_classifier"
+        )
+
+    def test_gvadetect_and_gvaclassify_with_same_params_get_same_id(self):
+        """Test that gvadetect and gvaclassify with same device/model get same ID."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+                Node(
+                    id="1",
+                    type="gvaclassify",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Both nodes should have the same model-instance-id
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"],
+            result.nodes[1].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+
+    def test_other_node_types_not_modified(self):
+        """Test that non-gva inference nodes are not modified."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # None of these nodes should have model-instance-id
+        for node in result.nodes:
+            self.assertNotIn("model-instance-id", node.data)
+
+    def test_empty_graph(self):
+        """Test that empty graph is handled correctly."""
+        graph = Graph(nodes=[], edges=[])
+
+        result = graph.unify_model_instance_ids()
+
+        self.assertEqual(len(result.nodes), 0)
+        self.assertEqual(len(result.edges), 0)
+
+    def test_nodes_without_device_or_model_properties(self):
+        """Test that nodes missing device or model properties get sanitized IDs."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="gvadetect", data={}),
+                Node(id="1", type="gvaclassify", data={"device": "GPU"}),
+                Node(id="2", type="gvadetect", data={"model": "yolov8"}),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Node without any properties gets empty string combination
+        self.assertEqual(result.nodes[0].data["model-instance-id"], "_")
+        # Node with only device
+        self.assertEqual(result.nodes[1].data["model-instance-id"], "gpu_")
+        # Node with only model
+        self.assertEqual(result.nodes[2].data["model-instance-id"], "_yolov8")
+
+    def test_special_characters_sanitized(self):
+        """Test that special characters in device and model are sanitized."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU.0",
+                        "model": "yolov8/detector@v1",
+                    },
+                ),
+                Node(
+                    id="1",
+                    type="gvaclassify",
+                    data={
+                        "device": "NPU (Intel)",
+                        "model": "model name with spaces",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Special characters should be replaced with underscores
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_0_yolov8_detector_v1"
+        )
+        self.assertEqual(
+            result.nodes[1].data["model-instance-id"],
+            "npu__intel__model_name_with_spaces",
+        )
+
+    def test_uppercase_converted_to_lowercase(self):
+        """Test that uppercase characters are converted to lowercase."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "YOLOv8_Detector",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # All characters should be lowercase
+        self.assertEqual(
+            result.nodes[0].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+        self.assertTrue(result.nodes[0].data["model-instance-id"].islower())
+
+    def test_original_graph_not_modified(self):
+        """Test that the original graph is not modified (deep copy is used)."""
+        original_graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvadetect",
+                    data={
+                        "device": "GPU",
+                        "model": "yolov8_detector",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        result = original_graph.unify_model_instance_ids()
+
+        # Original graph should not have model-instance-id
+        self.assertNotIn("model-instance-id", original_graph.nodes[0].data)
+        # Result graph should have model-instance-id
+        self.assertIn("model-instance-id", result.nodes[0].data)
+
+    def test_multiple_nodes_complex_scenario(self):
+        """Test a complex scenario with multiple nodes of different types."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(id="2", type="queue", data={}),
+                Node(
+                    id="3",
+                    type="gvaclassify",
+                    data={"device": "GPU", "model": "resnet_classifier"},
+                ),
+                Node(
+                    id="4",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(
+                    id="5",
+                    type="gvaclassify",
+                    data={"device": "CPU", "model": "resnet_classifier"},
+                ),
+                Node(id="6", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Non-gva nodes should not have model-instance-id
+        self.assertNotIn("model-instance-id", result.nodes[0].data)
+        self.assertNotIn("model-instance-id", result.nodes[2].data)
+        self.assertNotIn("model-instance-id", result.nodes[6].data)
+
+        # Nodes 1 and 4 have same device and model -> same ID
+        self.assertEqual(
+            result.nodes[1].data["model-instance-id"],
+            result.nodes[4].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[1].data["model-instance-id"], "gpu_yolov8_detector"
+        )
+
+        # Node 3 has different model -> different ID
+        self.assertEqual(
+            result.nodes[3].data["model-instance-id"], "gpu_resnet_classifier"
+        )
+
+        # Node 5 has different device -> different ID from node 3
+        self.assertNotEqual(
+            result.nodes[3].data["model-instance-id"],
+            result.nodes[5].data["model-instance-id"],
+        )
+        self.assertEqual(
+            result.nodes[5].data["model-instance-id"], "cpu_resnet_classifier"
+        )
+
+    def test_full_pipeline_build_with_multiple_tee_branches_and_model_sharing(self):
+        """Test that model-instance-ids are correctly unified across multiple tee branches.
+
+        This test simulates a complex scenario where:
+        - Pipeline has multiple tee branches
+        - The same models are used across different branches
+        - Model instance IDs should be unified when device and model match
+        """
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="tee", data={"name": "t"}),
+                # Branch 1: GPU yolov8 -> GPU resnet
+                Node(id="3", type="queue", data={}),
+                Node(
+                    id="4",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(
+                    id="5",
+                    type="gvaclassify",
+                    data={"device": "GPU", "model": "resnet_classifier"},
+                ),
+                Node(id="6", type="fakesink", data={}),
+                # Branch 2: GPU yolov8 -> CPU resnet
+                Node(id="7", type="queue", data={}),
+                Node(
+                    id="8",
+                    type="gvadetect",
+                    data={"device": "GPU", "model": "yolov8_detector"},
+                ),
+                Node(
+                    id="9",
+                    type="gvaclassify",
+                    data={"device": "CPU", "model": "resnet_classifier"},
+                ),
+                Node(id="10", type="fakesink", data={}),
+                # Branch 3: CPU mobilenet
+                Node(id="11", type="queue", data={}),
+                Node(
+                    id="12",
+                    type="gvadetect",
+                    data={"device": "CPU", "model": "mobilenet_detector"},
+                ),
+                Node(id="13", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                # Branch 1
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+                # Branch 2
+                Edge(id="6", source="2", target="7"),
+                Edge(id="7", source="7", target="8"),
+                Edge(id="8", source="8", target="9"),
+                Edge(id="9", source="9", target="10"),
+                # Branch 3
+                Edge(id="10", source="2", target="11"),
+                Edge(id="11", source="11", target="12"),
+                Edge(id="12", source="12", target="13"),
+            ],
+        )
+
+        result = graph.unify_model_instance_ids()
+
+        # Verify non-inference nodes don't have model-instance-id
+        for node_id in ["0", "1", "2", "3", "6", "7", "10", "11", "13"]:
+            node = next(n for n in result.nodes if n.id == node_id)
+            self.assertNotIn("model-instance-id", node.data)
+
+        # Get inference nodes
+        detect_gpu_yolov8_branch1 = next(n for n in result.nodes if n.id == "4")
+        classify_gpu_resnet_branch1 = next(n for n in result.nodes if n.id == "5")
+        detect_gpu_yolov8_branch2 = next(n for n in result.nodes if n.id == "8")
+        classify_cpu_resnet_branch2 = next(n for n in result.nodes if n.id == "9")
+        detect_cpu_mobilenet_branch3 = next(n for n in result.nodes if n.id == "12")
+
+        # Verify that GPU yolov8 detectors in branch1 and branch2 share the same instance ID
+        self.assertEqual(
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            detect_gpu_yolov8_branch2.data["model-instance-id"],
+        )
+        self.assertEqual(
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            "gpu_yolov8_detector",
+        )
+
+        # Verify GPU resnet classifier has correct ID
+        self.assertEqual(
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            "gpu_resnet_classifier",
+        )
+
+        # Verify CPU resnet classifier has different ID from GPU version
+        self.assertEqual(
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+            "cpu_resnet_classifier",
+        )
+        self.assertNotEqual(
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+        )
+
+        # Verify CPU mobilenet has unique ID
+        self.assertEqual(
+            detect_cpu_mobilenet_branch3.data["model-instance-id"],
+            "cpu_mobilenet_detector",
+        )
+
+        # Verify all IDs are unique except for the shared GPU yolov8
+        all_instance_ids = [
+            detect_gpu_yolov8_branch1.data["model-instance-id"],
+            classify_gpu_resnet_branch1.data["model-instance-id"],
+            detect_gpu_yolov8_branch2.data["model-instance-id"],
+            classify_cpu_resnet_branch2.data["model-instance-id"],
+            detect_cpu_mobilenet_branch3.data["model-instance-id"],
+        ]
+        unique_ids = set(all_instance_ids)
+        # Should have 4 unique IDs (GPU yolov8 is shared, so counted once)
+        self.assertEqual(len(unique_ids), 4)
 
 
 if __name__ == "__main__":

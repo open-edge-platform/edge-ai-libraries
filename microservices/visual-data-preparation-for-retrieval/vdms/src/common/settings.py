@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
     # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
     SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
+    MAX_PARALLEL_WORKERS: int | None = Field(
+        default=None,
+        description="Hard cap for SDK parallel worker threads; auto-calculated when unset",
+    )
+    EMBEDDING_BATCH_SIZE: int = Field(
+        default=32,
+        ge=1,
+        description="Items per embedding batch for SDK mode",
+    )
     DEVICE: str = Field(
         default="CPU",
         validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),
@@ -65,6 +74,10 @@ class Settings(BaseSettings):
     DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
 
+    # Telemetry persistence settings
+    TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
+    TELEMETRY_MAX_RECORDS: int = 100
+
     # Allow environment override for bucket name (useful for different deployments)
     # If PM_MINIO_BUCKET is set (from sample app), use that; otherwise use DEFAULT_BUCKET_NAME
     @property
@@ -72,5 +85,12 @@ class Settings(BaseSettings):
         """Get the effective bucket name, checking environment variables first"""
         import os
         return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
+
+    @field_validator("MAX_PARALLEL_WORKERS", mode="before")
+    @classmethod
+    def normalize_max_parallel_workers(cls, value):
+        if value in (None, ""):
+            return None
+        return value
 
 settings = Settings()

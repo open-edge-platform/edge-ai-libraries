@@ -59,11 +59,11 @@ class TestModelsAPI(unittest.TestCase):
                 "/fake/path/yolo_proc.json",
             ),
         ]
-        with patch(
-            "api.routes.models.get_supported_models_manager"
-        ) as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.models.SupportedModelsManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_installed_models.return_value = mock_models
+            mock_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)
@@ -95,11 +95,11 @@ class TestModelsAPI(unittest.TestCase):
                 "/fake/path/mobilenet_proc.json",
             ),
         ]
-        with patch(
-            "api.routes.models.get_supported_models_manager"
-        ) as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.models.SupportedModelsManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_installed_models.return_value = mock_models
+            mock_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)
@@ -109,11 +109,11 @@ class TestModelsAPI(unittest.TestCase):
 
     def test_get_models_empty_list(self):
         """Test GET /models returns empty list when no models available."""
-        with patch(
-            "api.routes.models.get_supported_models_manager"
-        ) as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.models.SupportedModelsManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_installed_models.return_value = []
+            mock_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)
@@ -132,11 +132,11 @@ class TestModelsAPI(unittest.TestCase):
                 "/fake/path/weird_proc.json",
             ),
         ]
-        with patch(
-            "api.routes.models.get_supported_models_manager"
-        ) as mock_get_manager:
-            mock_manager_instance = mock_get_manager.return_value
+        with patch("api.routes.models.SupportedModelsManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
             mock_manager_instance.get_all_installed_models.return_value = mock_models
+            mock_manager_cls.return_value = mock_manager_instance
+
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)

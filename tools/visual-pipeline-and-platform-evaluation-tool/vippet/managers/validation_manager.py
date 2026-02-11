@@ -1,11 +1,9 @@
 import logging
-import subprocess
-import sys
 import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from api.api_schemas import (
     PipelineValidation,
@@ -14,31 +12,9 @@ from api.api_schemas import (
     ValidationJobState,
 )
 from graph import Graph
+from pipeline_runner import PipelineRunner, PipelineValidationResult
 
 logger = logging.getLogger("validation_manager")
-
-# Singleton instance for ValidationManager
-_validation_manager_instance: Optional["ValidationManager"] = None
-
-
-def get_validation_manager() -> "ValidationManager":
-    """
-    Return the singleton instance of :class:`ValidationManager`.
-
-    The first call lazily creates the instance.  If initialization fails
-    for any reason the error is logged and the process is terminated.
-
-    Keeping a dedicated accessor function allows tests to patch or
-    replace the singleton if needed.
-    """
-    global _validation_manager_instance
-    if _validation_manager_instance is None:
-        try:
-            _validation_manager_instance = ValidationManager()
-        except Exception as e:  # pragma: no cover - defensive
-            logger.error("Failed to initialize ValidationManager: %s", e)
-            sys.exit(1)
-    return _validation_manager_instance
 
 
 @dataclass
@@ -57,163 +33,47 @@ class ValidationJob:
     pipeline_description: str
     state: ValidationJobState
     start_time: int
-    end_time: Optional[int] = None
-    is_valid: Optional[bool] = None
-    error_message: Optional[List[str]] = None
-
-
-class ValidatorRunner:
-    """
-    Thin wrapper around the external ``validator.py`` script.
-
-    All direct subprocess interaction is encapsulated here to make the
-    manager logic easier to unit-test (this class can be mocked).
-    """
-
-    def __init__(self) -> None:
-        self.logger = logging.getLogger("ValidatorRunner")
-
-    def run(
-        self,
-        pipeline_description: str,
-        max_runtime: int,
-        hard_timeout: int,
-    ) -> Tuple[bool, List[str]]:
-        """
-        Execute ``validator.py`` in a subprocess and return its outcome.
-
-        Parameters
-        ----------
-        pipeline_description:
-            GStreamer pipeline launch string to be validated. This is
-            passed as the last CLI argument to ``validator.py`` so that
-            the validator does not depend on stdin semantics.
-        max_runtime:
-            Soft execution limit in seconds, taken from the request
-            parameters (or defaulted by the manager).
-        hard_timeout:
-            Hard upper bound in seconds; after this the subprocess is
-            forcibly terminated regardless of state.
-
-        Returns
-        -------
-        (is_valid, errors):
-            * ``is_valid`` – ``True`` if the pipeline is considered valid,
-              ``False`` otherwise.
-            * ``errors`` – list of human-readable error strings produced
-              by ``validator.py`` (possibly empty when valid).
-        """
-        # Build the command; the pipeline string is passed as the last argument.
-        cmd = [
-            sys.executable,
-            "validator.py",
-            "--max-runtime",
-            str(max_runtime),
-            pipeline_description,
-        ]
-
-        payload = {"pipeline_description": pipeline_description}
-        self.logger.debug(
-            "Starting validator subprocess with cmd=%s, payload=%s", cmd, payload
-        )
-
-        # Start subprocess with pipes for stdout/stderr so we can capture and parse all messages.
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-        try:
-            # Wait for completion up to the hard timeout.
-            stdout, stderr = proc.communicate(timeout=hard_timeout)
-        except subprocess.TimeoutExpired:
-            # If the process exceeds the overall timeout, kill it and
-            # attempt to read any remaining stderr for diagnostics.
-            self.logger.warning(
-                "validator.py timed out after %s seconds, killing process", hard_timeout
-            )
-            proc.kill()
-            # collect as much information as possible
-            stdout, stderr = proc.communicate()
-            errors = self._parse_stderr(stderr)
-            errors.append(
-                "Pipeline validation timed out: validator.py did not finish "
-                "within the allowed time and had to be terminated."
-            )
-            return False, errors
-
-        self.logger.debug(
-            "validator.py finished with returncode=%s, stdout=%r, stderr=%r",
-            proc.returncode,
-            stdout,
-            stderr,
-        )
-
-        # Normal completion: inspect return code and stderr.
-        errors = self._parse_stderr(stderr)
-
-        # The pipeline is considered valid only if exit code is 0 and there
-        # are no error messages.
-        is_valid = proc.returncode == 0 and len(errors) == 0
-        return is_valid, errors
-
-    @staticmethod
-    def _parse_stderr(raw_stderr: str) -> List[str]:
-        """
-        Parse raw stderr from ``validator.py`` into a list of clean messages.
-
-        The implementation:
-
-        * splits stderr into lines,
-        * filters only lines starting with ``"validator - ERROR - "``,
-        * strips that prefix from each selected line,
-        * trims surrounding whitespace,
-        * discards lines that are empty or contain only whitespace,
-        * returns messages as a list of strings.
-        """
-        if not raw_stderr:
-            return []
-
-        messages: List[str] = []
-        prefix = "validator - ERROR - "
-
-        for line in raw_stderr.splitlines():
-            # Only consider messages produced by validator's ERROR logger.
-            if not line.startswith(prefix):
-                continue
-
-            # Remove prefix and trim whitespace.
-            content = line[len(prefix) :].strip()
-            if not content:
-                # Skip messages that become empty / whitespace-only
-                # after cutting the prefix.
-                continue
-
-            messages.append(content)
-
-        return messages
+    end_time: int | None = None
+    is_valid: bool | None = None
+    error_message: list[str] | None = None
 
 
 class ValidationManager:
     """
-    Manage validation jobs that call the external ``validator.py`` tool.
+    Thread-safe singleton that manages validation jobs using PipelineRunner to execute pipelines.
+
+    Implements singleton pattern using __new__ with double-checked locking.
+    Create instances with ValidationManager() to get the shared singleton instance.
 
     Responsibilities:
 
     * create and track :class:`ValidationJob` instances,
     * run validations asynchronously in background threads,
-    * spawn a separate subprocess for ``validator.py`` per job to guard
-      against crashes such as segmentation faults,
+    * use :class:`PipelineRunner` in validation mode to execute pipelines,
     * expose job status and summaries in a thread-safe manner.
     """
 
+    _instance: Optional["ValidationManager"] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> "ValidationManager":
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
+        # Protect against multiple initialization
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
+
         # All known jobs keyed by job id
-        self.jobs: Dict[str, ValidationJob] = {}
+        self.jobs: dict[str, ValidationJob] = {}
         # Shared lock protecting access to ``jobs``
-        self.lock = threading.Lock()
+        self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("ValidationManager")
 
     @staticmethod
@@ -234,8 +94,8 @@ class ValidationManager:
         * converts the pipeline graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
         * creates a new :class:`ValidationJob` with RUNNING state,
-        * spawns a background thread that executes ``validator.py`` via
-          :class:`ValidatorRunner`.
+        * spawns a background thread that executes the pipeline via
+          :class:`PipelineRunner` in validation mode.
 
         Raises
         ------
@@ -243,9 +103,7 @@ class ValidationManager:
             If user-provided parameters are invalid (e.g. ``max-runtime``
             is less than 1).
         """
-        # Convert PipelineGraph to a launch string once and reuse it for
-        # the lifetime of the job.  This mirrors the approach used in
-        # :mod:`optimization_manager`.
+        # Convert PipelineGraph to a launch string
         pipeline_description = Graph.from_dict(
             validation_request.pipeline_graph.model_dump()
         ).to_pipeline_description()
@@ -253,7 +111,7 @@ class ValidationManager:
         params = validation_request.parameters or {}
         max_runtime = params.get("max-runtime", 10)
 
-        # Max runtime must be a positive integer.
+        # Max runtime must be a positive integer for validation mode
         try:
             max_runtime = int(max_runtime)
         except (TypeError, ValueError):
@@ -264,7 +122,7 @@ class ValidationManager:
                 "Parameter 'max-runtime' must be greater than or equal to 1."
             )
 
-        # Hard timeout is max-runtime + 60 seconds as specified.
+        # Hard timeout is max-runtime + 60 seconds
         hard_timeout = max_runtime + 60
 
         job_id = self._generate_job_id()
@@ -276,7 +134,7 @@ class ValidationManager:
             pipeline_description=pipeline_description,
         )
 
-        with self.lock:
+        with self._jobs_lock:
             self.jobs[job_id] = job
 
         self.logger.info(
@@ -305,19 +163,29 @@ class ValidationManager:
         """
         Execute the validation process in a background thread.
 
-        The method delegates the actual work to :class:`ValidatorRunner`
-        and then updates the corresponding :class:`ValidationJob`
-        accordingly.
+        The method uses :class:`PipelineRunner` in validation mode and updates
+        the corresponding :class:`ValidationJob` accordingly.
         """
-        runner = ValidatorRunner()
         try:
-            is_valid, errors = runner.run(
-                pipeline_description=pipeline_description,
+            # Create PipelineRunner in validation mode
+            runner = PipelineRunner(
+                mode="validation",
                 max_runtime=max_runtime,
                 hard_timeout=hard_timeout,
             )
 
-            with self.lock:
+            # Run pipeline validation
+            result = runner.run(pipeline_description)
+
+            # Type narrowing: PipelineRunner in validation mode returns PipelineValidationResult
+            if not isinstance(result, PipelineValidationResult):
+                self._update_job_error(
+                    job_id,
+                    "Unexpected result type from pipeline runner",
+                )
+                return
+
+            with self._jobs_lock:
                 job = self.jobs.get(job_id)
                 if job is None:
                     # Job might have been pruned in a future extension;
@@ -325,10 +193,10 @@ class ValidationManager:
                     return
 
                 job.end_time = int(time.time() * 1000)
-                job.is_valid = is_valid
-                job.error_message = errors if errors else None
+                job.is_valid = result.is_valid
+                job.error_message = result.errors if result.errors else None
 
-                if is_valid:
+                if result.is_valid:
                     job.state = ValidationJobState.COMPLETED
                     self.logger.info(
                         "Validation job %s completed successfully (pipeline is valid)",
@@ -337,21 +205,22 @@ class ValidationManager:
                 else:
                     job.state = ValidationJobState.ERROR
                     self.logger.error(
-                        "Validation job %s failed with errors: %s", job_id, errors
+                        "Validation job %s failed with errors: %s",
+                        job_id,
+                        result.errors,
                     )
 
         except Exception as e:
-            # Any unexpected exception is treated as an ERROR state for the job.
+            # Any unexpected exception is treated as an ERROR state
             self._update_job_error(job_id, str(e))
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """
         Mark the job as failed and persist the error message.
 
-        Used both for validation errors produced by ``validator.py`` and
-        for unexpected exceptions in the manager itself.
+        Used for unexpected exceptions in the manager itself.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is not None:
                 job.state = ValidationJobState.ERROR
@@ -384,13 +253,13 @@ class ValidationManager:
             error_message=job.error_message,
         )
 
-    def get_all_job_statuses(self) -> List[ValidationJobStatus]:
+    def get_all_job_statuses(self) -> list[ValidationJobStatus]:
         """
         Return statuses for all known validation jobs.
 
-        Access is protected by a lock to avoid reading partial updates.
+        Access is protected by a _jobs_lock to avoid reading partial updates.
         """
-        with self.lock:
+        with self._jobs_lock:
             statuses = [self._build_job_status(job) for job in self.jobs.values()]
             self.logger.debug(
                 "Current validation job statuses: %s",
@@ -398,13 +267,13 @@ class ValidationManager:
             )
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[ValidationJobStatus]:
+    def get_job_status(self, job_id: str) -> ValidationJobStatus | None:
         """
         Return the status for a single validation job.
 
         ``None`` is returned when the job id is unknown.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None
@@ -412,14 +281,14 @@ class ValidationManager:
             self.logger.debug("Validation job status for %s: %s", job_id, status)
             return status
 
-    def get_job_summary(self, job_id: str) -> Optional[ValidationJobSummary]:
+    def get_job_summary(self, job_id: str) -> ValidationJobSummary | None:
         """
         Return a short summary for a single validation job.
 
         The summary intentionally contains only the job id and the
         original validation request.
         """
-        with self.lock:
+        with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None

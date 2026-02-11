@@ -1,10 +1,11 @@
+# yamllint disable
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: dlstreamer-pipeline-server
   name: dlstreamer-pipeline-server-deployment
-  namespace: {{ $.Values.namespace }}
+  namespace: {{$.Values.namespace}}
 spec:
   replicas: 1
   selector:
@@ -18,10 +19,10 @@ spec:
         app: dlstreamer-pipeline-server
     spec:
       securityContext:
-        supplementalGroups: [109,110,992]
+        supplementalGroups: [109, 110, 992]
       {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
       imagePullSecrets:
-      - name: registryauth
+        - name: registryauth
       {{- end }}
 
       initContainers:
@@ -77,10 +78,15 @@ spec:
               - ALL
         {{- end }}
         terminationMessagePath: /tmp/termination-log
-        {{- if $.Values.gpu.enabled }}
+        {{- if or $.Values.gpu.enabled $.Values.npu.enabled }}
         resources:
           limits:
+            {{- if $.Values.gpu.enabled }}
             {{ $.Values.gpu.type }}: {{ $.Values.gpu.count }}
+            {{- end }}
+            {{- if $.Values.npu.enabled }}
+            npu.intel.com/accel: {{ $.Values.npu.count }}
+            {{- end }}
         {{- end }}
         env:
         - name: REST_SERVER_PORT
@@ -107,12 +113,18 @@ spec:
           subPath: config.json
         - mountPath: /var/cache/pipeline_root
           name: vol-pipeline-root-tmpfs0
+        {{- if $.Values.privileged_access_required }}
+        {{- if not $.Values.gpu.enabled }}
         - name: dev-dri
           mountPath: /dev/dri
           readOnly: true # Reduce risk while preserving access to GPU devices
+        {{- end }}
+        {{- if not $.Values.npu.enabled }}
         - name: dev-accel
           mountPath: /dev/accel
           readOnly: true # Reduce risk while preserving access to NPU devices
+        {{- end }}
+        {{- end }}
         - name: dev-shm
           mountPath: /dev/shm
         - name: tmp
@@ -132,12 +144,18 @@ spec:
           name: dlstreamer-pipeline-server-config-input
       - name: vol-pipeline-root-tmpfs0
         emptyDir: {}
+      {{- if $.Values.privileged_access_required }}
+      {{- if not $.Values.gpu.enabled }}
       - name: dev-dri
         hostPath:
           path: /dev/dri
+      {{- end }}
+      {{- if not $.Values.npu.enabled }}
       - name: dev-accel
         hostPath:
           path: /dev/accel
+      {{- end }}
+      {{- end }}
       - name: dev-shm
         hostPath:
           path: /dev/shm

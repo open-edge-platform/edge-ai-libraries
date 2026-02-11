@@ -17,7 +17,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 # Function to stop Docker containers
 stop_containers() {
     echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -85,7 +85,7 @@ elif [ "$1" = "--clean-data" ]; then
     echo -e "${YELLOW}Removing Docker volumes created by the application... ${NC}"
 
     # Remove volumes 
-    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep  2>/dev/null || true
+    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep docker_collector_signals 2>/dev/null || true
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}All volumes were successfully removed. ${NC}"
@@ -186,7 +186,11 @@ export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
 export PM_LLM_MAX_CONTEXT_LENGTH=${PM_LLM_MAX_CONTEXT_LENGTH:-90000}
 export PM_LLM_CONCURRENT=2
 export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
+PM_MULTI_FRAME_COUNT_DEFAULTED=false
+if [[ -z "${PM_MULTI_FRAME_COUNT+x}" ]]; then
+    export PM_MULTI_FRAME_COUNT=12
+    PM_MULTI_FRAME_COUNT_DEFAULTED=true
+fi
 export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
@@ -260,6 +264,8 @@ export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 
 # Application configuration
 export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+export MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-""}
+export EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
 export ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
 export ALLOW_METHODS=${ALLOW_METHODS:-*}
 export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
@@ -390,6 +396,9 @@ export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
 
 export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
 
+# Telemetry collector toggle for search (disabled by default)
+export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
+
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
 export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
@@ -516,7 +525,7 @@ convert_object_detection_models() {
     source ov_model_venv/bin/activate
 
     echo -e  "Installing required packages for model conversion..."
-    pip install -q "ultralytics==8.3.232" "openvino==2025.3.0" --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install -q "ultralytics==8.3.232" "openvino==2025.4.1" --extra-index-url https://download.pytorch.org/whl/cpu
     
     # Run script to convert the model to OpenVINO format and verify conversion
     echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
@@ -541,7 +550,7 @@ export_model_for_ovms() {
 
     # Download the OVMS model export script
     if [ ! -f export_model.py ]; then
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
+        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
     else
         echo -e  "${YELLOW}Model export script already exists, skipping download${NC}"
     fi
@@ -559,7 +568,33 @@ export_model_for_ovms() {
     source ovms_venv/bin/activate
     
     # Install requirements in the virtual environment
-    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
+    local ovms_requirements_url="https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/tags/v2025.4.1/demos/common/export_models/requirements.txt"
+    local tmp_requirements
+    tmp_requirements=$(mktemp)
+
+    if ! curl -fsSL "$ovms_requirements_url" -o "$tmp_requirements"; then
+        echo -e "${RED}ERROR: Failed to download OVMS requirements from ${ovms_requirements_url}.${NC}"
+        deactivate
+        rm -rf ovms_venv
+        rm -f "$tmp_requirements"
+        return 1
+    fi
+
+    if grep -q '^transformers' "$tmp_requirements"; then
+        sed -i 's/^transformers.*/transformers==4.53.3/' "$tmp_requirements"
+    else
+        echo 'transformers==4.53.3' >> "$tmp_requirements"
+    fi
+
+    pip install --no-cache-dir -r "$tmp_requirements"
+    local pip_status=$?
+    rm -f "$tmp_requirements"
+    if [ $pip_status -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to install OVMS requirements.${NC}"
+        deactivate
+        rm -rf ovms_venv
+        return 1
+    fi
     if [ "$GATED_MODEL" = true ]; then
         pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 # Install huggingface-hub for downloading gated models
         echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
@@ -609,6 +644,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
         export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
+        if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
+            echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
+        else
+            echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
+        fi && \
     echo -e  "[pipeline-manager] ${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
     
     # Create YOLOX models volume for all modes that include search functionality
@@ -747,7 +788,9 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export PM_VLM_CONCURRENT=1
         export PM_LLM_CONCURRENT=1
         export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-        export PM_MULTI_FRAME_COUNT=6
+        if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
+            export PM_MULTI_FRAME_COUNT=6
+        fi
         export WORKERS=1        
         echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
     else
@@ -810,7 +853,13 @@ elif [ "$1" = "--search" ]; then
     fi
 
     # If search is enabled, set up video search only
-    APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml" 
+    APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml"
+    if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
+        APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
+        echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
+    else
+        echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
+    fi
     echo -e  "[video-search] ${GREEN}Setting up Video Search application${NC}"
 
     # if config is passed, set the command to only generate the config

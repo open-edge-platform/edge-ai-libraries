@@ -4,10 +4,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.tests_manager import get_tests_manager
+from managers.tests_manager import TestsManager
 
 router = APIRouter()
-test_manager = get_tests_manager()
 logger = logging.getLogger("api.routes.tests")
 
 
@@ -46,8 +45,9 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
         body: PerformanceTestSpec
             * pipeline_performance_specs – list of pipelines and number of
               streams per pipeline.
-            * video_output – configuration for optional encoded video output
-              (enabled flag).
+            * execution_config – configuration for output mode and runtime limits:
+              - output_mode: disabled (default), file, or live_stream
+              - max_runtime: maximum runtime in seconds (0 = run until EOS)
 
     Returns:
         202 Accepted:
@@ -56,7 +56,8 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             MessageResponse if the request is invalid at manager level, for
             example:
             * all stream counts are zero,
-            * pipeline ids do not exist (if validated up front in future).
+            * pipeline ids do not exist (if validated up front in future),
+            * output_mode=file combined with max_runtime > 0.
         500 Internal Server Error:
             MessageResponse if an unexpected error occurs when creating the
             job or starting the background thread.
@@ -77,8 +78,9 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
                 {"id": "pipeline-a3f5d9e1", "streams": 8},
                 {"id": "pipeline-b7c2e114", "streams": 4}
               ],
-              "video_output": {
-                "enabled": false
+              "execution_config": {
+                "output_mode": "disabled",
+                "max_runtime": 0
               }
             }
 
@@ -97,7 +99,13 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             }
     """
     try:
-        job_id = test_manager.test_performance(body)
+        pipeline_ids = [spec.id for spec in body.pipeline_performance_specs]
+        if len(pipeline_ids) != len(set(pipeline_ids)):
+            raise ValueError(
+                "Duplicate pipeline IDs found in pipeline_performance_specs"
+            )
+
+        job_id = TestsManager().test_performance(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
         logger.error("Invalid performance test request: %s", e)
@@ -152,7 +160,9 @@ def run_density_test(body: schemas.DensityTestSpec):
             * fps_floor – minimum acceptable FPS per stream.
             * pipeline_density_specs – list of pipelines with stream_rate
               percentages that must sum to 100.
-            * video_output – configuration for optional encoded video output.
+            * execution_config – configuration for output mode and runtime limits:
+              - output_mode: disabled (default) or file (live_stream not supported)
+              - max_runtime: maximum runtime in seconds (0 = run until EOS)
 
     Returns:
         202 Accepted:
@@ -160,6 +170,8 @@ def run_density_test(body: schemas.DensityTestSpec):
         400 Bad Request:
             MessageResponse when:
             * pipeline_density_specs.stream_rate values do not sum to 100,
+            * output_mode is live_stream (not supported for density tests),
+            * output_mode=file combined with max_runtime > 0,
             * other validation errors raised by Benchmark or TestsManager.
         500 Internal Server Error:
             MessageResponse for unexpected errors when creating or starting
@@ -184,8 +196,9 @@ def run_density_test(body: schemas.DensityTestSpec):
                 {"id": "pipeline-a3f5d9e1", "stream_rate": 50},
                 {"id": "pipeline-b7c2e114", "stream_rate": 50}
               ],
-              "video_output": {
-                "enabled": false
+              "execution_config": {
+                "output_mode": "disabled",
+                "max_runtime": 0
               }
             }
 
@@ -204,7 +217,11 @@ def run_density_test(body: schemas.DensityTestSpec):
             }
     """
     try:
-        job_id = test_manager.test_density(body)
+        pipeline_ids = [spec.id for spec in body.pipeline_density_specs]
+        if len(pipeline_ids) != len(set(pipeline_ids)):
+            raise ValueError("Duplicate pipeline IDs found in pipeline_density_specs")
+
+        job_id = TestsManager().test_density(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
         logger.error("Invalid density test request: %s", e)

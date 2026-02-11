@@ -13,160 +13,212 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useEffect, useState } from "react";
-import { nodeTypes } from "@/features/pipeline-editor/nodes";
-import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useState,
+} from "react";
+import { defaultNodeWidth, nodeTypes } from "@/features/pipeline-editor/nodes";
 import { type Pipeline } from "@/api/api.generated";
 import {
   createGraphLayout,
   LayoutDirection,
 } from "@/features/pipeline-editor/utils/graphLayout";
 import { useTheme } from "next-themes";
+import { PipelineEditorContext } from "./PipelineEditorContext.ts";
+
+export interface PipelineEditorHandle {
+  updateNodeData: (
+    nodeId: string,
+    updatedData: Record<string, unknown>,
+  ) => void;
+}
 
 interface PipelineEditorProps {
   pipelineData?: Pipeline;
   onNodesChange?: (nodes: ReactFlowNode[]) => void;
   onEdgesChange?: (edges: ReactFlowEdge[]) => void;
   onViewportChange?: (viewport: Viewport) => void;
+  onNodeSelect?: (node: ReactFlowNode | null) => void;
   initialNodes?: ReactFlowNode[];
   initialEdges?: ReactFlowEdge[];
   initialViewport?: Viewport;
   shouldFitView?: boolean;
+  isSimpleGraph: boolean;
 }
 
-const PipelineEditorContent = ({
-  pipelineData,
-  onNodesChange: onNodesChangeCallback,
-  onEdgesChange: onEdgesChangeCallback,
-  onViewportChange: onViewportChangeCallback,
-  initialNodes,
-  initialEdges,
-  initialViewport,
-  shouldFitView,
-}: PipelineEditorProps) => {
-  const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<ReactFlowNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge>([]);
-  const { getViewport, setViewport, fitView } = useReactFlow();
-  const [hasInitialized, setHasInitialized] = useState(false);
-
-  const onNodeClick: NodeMouseHandler = (event, node) => {
-    event.stopPropagation();
-    setSelectedNode(node);
-  };
-
-  const onPaneClick = () => {
-    setSelectedNode(null);
-  };
-
-  const handleNodeDataUpdate = (
-    nodeId: string,
-    updatedData: Record<string, unknown>,
+const PipelineEditorContent = forwardRef<
+  PipelineEditorHandle,
+  PipelineEditorProps
+>(
+  (
+    {
+      pipelineData,
+      onNodesChange: onNodesChangeCallback,
+      onEdgesChange: onEdgesChangeCallback,
+      onViewportChange: onViewportChangeCallback,
+      onNodeSelect,
+      initialNodes,
+      initialEdges,
+      initialViewport,
+      shouldFitView,
+      isSimpleGraph,
+    },
+    ref,
   ) => {
-    setNodes((currentNodes) => {
-      const updatedNodes = currentNodes.map((node) =>
-        node.id === nodeId ? { ...node, data: updatedData } : node,
-      );
-      onNodesChangeCallback?.(updatedNodes);
-      return updatedNodes;
-    });
-  };
+    const [nodes, setNodes, onNodesChange] = useNodesState<ReactFlowNode>([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge>([]);
+    const { getViewport, setViewport, fitView } = useReactFlow();
+    const [hasInitialized, setHasInitialized] = useState(false);
 
-  const { theme } = useTheme();
+    const onNodeClick: NodeMouseHandler = (event, node) => {
+      event.stopPropagation();
+      onNodeSelect?.(node);
+    };
 
-  useEffect(() => {
-    onNodesChangeCallback?.(nodes);
-  }, [nodes, onNodesChangeCallback]);
+    const onPaneClick = () => {
+      onNodeSelect?.(null);
+    };
 
-  useEffect(() => {
-    onEdgesChangeCallback?.(edges);
-  }, [edges, onEdgesChangeCallback]);
-
-  useEffect(() => {
-    if (!hasInitialized) {
-      if (initialNodes && initialEdges) {
-        setNodes(initialNodes);
-        setEdges(initialEdges);
-
-        setTimeout(() => {
-          if (shouldFitView) {
-            fitView();
-          } else if (initialViewport) {
-            setViewport(initialViewport);
-          }
-        }, 0);
-        setHasInitialized(true);
-      } else if (pipelineData?.pipeline_graph) {
-        const nodes = pipelineData.pipeline_graph.nodes ?? [];
-        const edges = pipelineData.pipeline_graph.edges ?? [];
-
-        const transformedNodes = nodes.map(
-          (node) =>
-            ({
-              ...node,
-              type: node.type,
-            }) as ReactFlowNode,
+    const handleNodeDataUpdate = useCallback(
+      (nodeId: string, updatedData: Record<string, unknown>) => {
+        setNodes((currentNodes) =>
+          currentNodes.map((node) =>
+            node.id === nodeId ? { ...node, data: updatedData } : node,
+          ),
         );
+      },
+      [setNodes],
+    );
 
-        const nodesWithPositions = createGraphLayout(
-          transformedNodes,
-          edges,
-          LayoutDirection.LeftToRight,
-        );
+    const { theme } = useTheme();
 
-        setNodes(nodesWithPositions);
-        setEdges(edges);
-        setHasInitialized(true);
+    useImperativeHandle(ref, () => ({
+      updateNodeData: handleNodeDataUpdate,
+    }));
+
+    useEffect(() => {
+      onNodesChangeCallback?.(nodes);
+    }, [nodes, onNodesChangeCallback]);
+
+    useEffect(() => {
+      onEdgesChangeCallback?.(edges);
+    }, [edges, onEdgesChangeCallback]);
+
+    useEffect(() => {
+      setHasInitialized(false);
+    }, [isSimpleGraph]);
+
+    useEffect(() => {
+      if (!hasInitialized) {
+        if (initialNodes && initialEdges) {
+          setNodes(initialNodes);
+          setEdges(initialEdges);
+
+          setTimeout(() => {
+            if (shouldFitView) {
+              fitView();
+            } else if (initialViewport) {
+              setViewport(initialViewport);
+            }
+          }, 0);
+          setHasInitialized(true);
+        } else if (
+          pipelineData?.pipeline_graph ||
+          pipelineData?.pipeline_graph_simple
+        ) {
+          const graphToUse = isSimpleGraph
+            ? pipelineData.pipeline_graph_simple
+            : pipelineData.pipeline_graph;
+          const nodes = graphToUse?.nodes ?? [];
+          const edges = graphToUse?.edges ?? [];
+
+          const transformedNodes = nodes.map(
+            (node) =>
+              ({
+                ...node,
+                type: node.type,
+              }) as ReactFlowNode,
+          );
+
+          const nodesWithPositions = createGraphLayout(
+            transformedNodes,
+            edges,
+            LayoutDirection.TopToBottom,
+          );
+
+          setNodes(nodesWithPositions);
+          setEdges(edges);
+
+          setTimeout(() => {
+            if (initialViewport) {
+              setViewport(initialViewport);
+            } else {
+              const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
+              setViewport({ x: viewportX, y: 50, zoom: 1 });
+            }
+          }, 0);
+
+          setHasInitialized(true);
+        }
       }
-    }
-  }, [
-    pipelineData,
-    initialNodes,
-    initialEdges,
-    initialViewport,
-    shouldFitView,
-    hasInitialized,
-    setNodes,
-    setEdges,
-    setViewport,
-    fitView,
-  ]);
+    }, [
+      pipelineData,
+      initialNodes,
+      initialEdges,
+      initialViewport,
+      shouldFitView,
+      hasInitialized,
+      setNodes,
+      setEdges,
+      setViewport,
+      fitView,
+      isSimpleGraph,
+    ]);
 
-  return (
-    <>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        onMoveEnd={() => {
-          const viewport = getViewport();
-          onViewportChangeCallback?.(viewport);
-        }}
-        nodesDraggable={true}
-        fitView
-        colorMode={theme === "dark" ? "dark" : "light"}
-        className="h-full w-full"
-      >
-        <Controls />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-      </ReactFlow>
-
-      <NodeDataPanel
-        selectedNode={selectedNode}
-        onNodeDataUpdate={handleNodeDataUpdate}
-      />
-    </>
-  );
-};
-
-const PipelineEditor = (props: PipelineEditorProps) => (
-  <ReactFlowProvider>
-    <PipelineEditorContent {...props} />
-  </ReactFlowProvider>
+    return (
+      <PipelineEditorContext.Provider value={{ simpleGraph: isSimpleGraph }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          onMoveEnd={() => {
+            const viewport = getViewport();
+            onViewportChangeCallback?.(viewport);
+          }}
+          nodesDraggable={true}
+          colorMode={theme === "dark" ? "dark" : "light"}
+          className="h-full w-full"
+          defaultViewport={{ x: 0, y: 50, zoom: 1 }}
+          defaultEdgeOptions={{
+            animated: true,
+            style: { strokeWidth: 2 },
+            type: "smoothstep",
+          }}
+        >
+          <Controls />
+          <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        </ReactFlow>
+      </PipelineEditorContext.Provider>
+    );
+  },
 );
+
+const PipelineEditor = forwardRef<PipelineEditorHandle, PipelineEditorProps>(
+  (props, ref) => (
+    <ReactFlowProvider>
+      <PipelineEditorContent {...props} ref={ref} />
+    </ReactFlowProvider>
+  ),
+);
+
+PipelineEditor.displayName = "PipelineEditor";
+PipelineEditorContent.displayName = "PipelineEditorContent";
 
 export default PipelineEditor;

@@ -63,17 +63,22 @@ cd edge-ai-libraries/microservices/model-download/chart
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `env.HUGGINGFACEHUB_API_TOKEN` and proxy settings as required
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the proxy settings as required
 
 Below is a summary of key configuration options available in the `values.yaml` file:
 
 | Parameter           | Description                                 | Example Value            | Required |
 |---------------------|---------------------------------------------|--------------------------|----------|
 | `env.HUGGINGFACEHUB_API_TOKEN`      | Hugging Face access token                   | `hf_xxx`                 | Yes      |
+| `env.GETI_WORKSPACE_ID` | GETI workspace ID |  | Yes, For GETI connection |
+| `env.GETI_HOST` | GETI connection host address |  | Yes, For GETI connection |
+| `env.GETI_TOKEN` | GETI Personal Access token |  | Yes, For GETI connection |
+| `env.GETI_SERVER_API_VERSION` | GETI API version | `v1` | Yes, For GETI connection |
+| `env.GETI_SERVER_SSL_VERIFY` | Enables SSL certificate validation for HTTPS/HTTP GETI hosts | `False` | Yes, For GETI connection |
 | `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
-| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins | `all` | Yes |
+| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, openvino and geti`) or `all` to enable all available plugins | `all` | Yes |
 | `image.repository`	| image repository url	| intel/model-download | Yes |
-| `image.tag`	        | latest image tag	    | 1.0.1                | Yes |
+| `image.tag`	        | latest image tag	    | rc3_2026.0              | Yes |
 
 
 > **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.

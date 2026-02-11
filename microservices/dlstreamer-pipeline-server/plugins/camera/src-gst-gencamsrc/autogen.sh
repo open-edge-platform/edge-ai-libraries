@@ -1,4 +1,9 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Apache v2 license
+# Copyright (C) 2024-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
 # you can either set the environment variables AUTOCONF, AUTOHEADER, AUTOMAKE,
 # ACLOCAL, AUTOPOINT and/or LIBTOOLIZE to the right versions, or leave them
 # unset and get the defaults

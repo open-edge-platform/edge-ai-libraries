@@ -14,7 +14,7 @@ import { toast } from "sonner";
 type DownloadPipelineButtonProps = {
   nodes: Node[];
   edges: Edge[];
-  viewport: Viewport;
+  viewport?: Viewport;
   pipelineName: string;
 };
 

@@ -15,23 +15,33 @@ class ModelPrecision(str, Enum):
 class DeviceType(str, Enum):
     CPU = "CPU"
     GPU = "GPU"
+    NPU = "NPU"
 
 class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
     ULTRALYTICS = "ultralytics"
     OLLAMA = "ollama"
     OPENVINO = "openvino"
+    GETI = "geti"
 
 class ModelType(str, Enum):
     LLM = "llm"
+    VLM = "vlm"
     EMBEDDINGS = "embeddings"
     RERANKER = "rerank"
     VISION = "vision"
 
 class Config(BaseModel):
-    precision: ModelPrecision = ModelPrecision.INT8
-    device: DeviceType = DeviceType.CPU
+    precision: Optional[ModelPrecision] = None
+    device: Optional[DeviceType] = None
     cache_size: Optional[int] = Field(None, gt=0)
+    model_group_id: Optional[str] = None
+    export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
+    optimized_model_id: Optional[str] = None
+    model_only: Optional[bool] = Field(None, description="For optimized Geti models: exclude code")
+    class Config:
+        extra = "allow"
+
 
 
 class ModelResult(TypedDict):
@@ -58,6 +68,7 @@ class ModelRequest(BaseModel):
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None
+
 
 
 class ModelDownloadRequest(BaseModel):

@@ -6,16 +6,13 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from managers.optimization_manager import get_optimization_manager
-from managers.pipeline_manager import get_pipeline_manager
-from managers.validation_manager import get_validation_manager
+from managers.optimization_manager import OptimizationManager
+from managers.pipeline_manager import PipelineManager
+from managers.validation_manager import ValidationManager
 
 TEMP_DIR = tempfile.gettempdir()
 
 router = APIRouter()
-pipeline_manager = get_pipeline_manager()
-optimization_manager = get_optimization_manager()
-validation_manager = get_validation_manager()
 logger = logging.getLogger("api.routes.pipelines")
 
 
@@ -37,17 +34,18 @@ logger = logging.getLogger("api.routes.pipelines")
 )
 def create_pipeline(body: schemas.PipelineDefinition):
     """
-    Create a new user-defined pipeline from a GStreamer launch string.
+    Create a new user-defined pipeline from a GStreamer pipeline string.
 
     Request body:
         body: PipelineDefinition
             * name – non-empty pipeline name.
             * version – positive integer. Must be exactly 1 for a new name,
               or "last_version + 1" for an existing name.
-            * description – non-empty human-readable description.
+            * description – non-empty human-readable text describing what the pipeline does.
             * source – ignored and forced to USER_CREATED by this endpoint.
             * type – pipeline type (currently GStreamer is used).
-            * pipeline_description – full GStreamer launch string.
+            * pipeline_description – complete GStreamer pipeline string with elements
+              separated by '!' symbols (e.g., "filesrc location=input.mp4 ! decodebin ! fakesink").
             * parameters – optional default parameters for this pipeline.
 
     Returns:
@@ -56,7 +54,8 @@ def create_pipeline(body: schemas.PipelineDefinition):
         400 Bad Request:
             MessageResponse when:
             * versioning rules are violated (e.g. version not next in sequence),
-            * pipeline name or definition is invalid at manager level.
+            * pipeline name or description is invalid at manager level,
+            * GStreamer pipeline string cannot be parsed.
         500 Internal Server Error:
             MessageResponse when an unexpected error occurs while creating
             the pipeline.
@@ -64,10 +63,11 @@ def create_pipeline(body: schemas.PipelineDefinition):
     Success conditions:
         * PipelineDefinition is structurally valid.
         * PipelineManager successfully adds the pipeline and converts the
-          launch string to a graph.
+          GStreamer pipeline string to a graph.
 
     Failure conditions (high level):
         * Version conflicts or invalid name → 400.
+        * Invalid GStreamer pipeline string → 400.
         * Any other unhandled error in PipelineManager / Graph → 500.
 
     Request example:
@@ -103,7 +103,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
     try:
         # Enforce USER_CREATED source for pipelines created via API
         body.source = schemas.PipelineSource.USER_CREATED
-        pipeline = pipeline_manager.add_pipeline(body)
+        pipeline = PipelineManager().add_pipeline(body)
 
         return JSONResponse(
             content=schemas.PipelineCreationResponse(id=pipeline.id).model_dump(),
@@ -147,8 +147,8 @@ def validate_pipeline(body: schemas.PipelineValidation):
     Operation:
         * Convert the provided PipelineGraph to a GStreamer launch string.
         * Extract validation parameters (for example ``max-runtime``).
-        * Create a new validation job and run ``validator.py`` in a
-          background thread.
+        * Create a new validation job and run ``gst_runner.py`` in validation
+          mode in a background thread.
         * Return the generated job id.
 
     Request body:
@@ -156,6 +156,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
             * type – pipeline type (currently GStreamer).
             * pipeline_graph – nodes and edges representation of the pipeline.
             * parameters – optional dict, e.g. ``{"max-runtime": 10}``.
+              Note: max-runtime must be greater than 0 for validation mode.
 
     Returns:
         202 Accepted:
@@ -212,7 +213,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
             }
     """
     try:
-        job_id = validation_manager.run_validation(body)
+        job_id = ValidationManager().run_validation(body)
         return JSONResponse(
             content=schemas.ValidationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
@@ -273,11 +274,15 @@ def get_pipelines():
                   "nodes": [...],
                   "edges": [...]
                 },
+                "pipeline_graph_simple": {
+                  "nodes": [...],
+                  "edges": [...]
+                },
                 "parameters": null
               }
             ]
     """
-    return pipeline_manager.get_pipelines()
+    return PipelineManager().get_pipelines()
 
 
 @router.get(
@@ -293,13 +298,19 @@ def get_pipeline(pipeline_id: str):
     """
     Get details of a single pipeline by its id.
 
+    Operation:
+        Retrieve the full pipeline definition including both advanced and simple
+        graph views, metadata, and parameters.
+
     Path parameters:
         pipeline_id: Unique identifier of the pipeline (for example
             ``"pipeline-a3f5d9e1"``).
 
     Returns:
         200 OK:
-            Pipeline object with full graph and metadata.
+            Pipeline object with full graph (both views) and metadata:
+            - pipeline_graph: Advanced view
+            - pipeline_graph_simple: Simple view
         404 Not Found:
             MessageResponse if pipeline with given id does not exist.
         500 Internal Server Error:
@@ -307,6 +318,7 @@ def get_pipeline(pipeline_id: str):
 
     Success conditions:
         * Pipeline with the given id is present in PipelineManager.
+        * Both graph views are available.
 
     Failure conditions:
         * Unknown id → 404.
@@ -326,6 +338,10 @@ def get_pipeline(pipeline_id: str):
                 "nodes": [...],
                 "edges": [...]
               },
+              "pipeline_graph_simple": {
+                "nodes": [...],
+                "edges": [...]
+              },
               "parameters": {
                 "default": {
                   "max-runtime": 60
@@ -341,7 +357,7 @@ def get_pipeline(pipeline_id: str):
             }
     """
     try:
-        return pipeline_manager.get_pipeline_by_id(pipeline_id)
+        return PipelineManager().get_pipeline_by_id(pipeline_id)
     except ValueError as e:
         logger.warning("Pipeline %s not found: %s", pipeline_id, e)
         return JSONResponse(
@@ -374,6 +390,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     """
     Partially update selected fields of an existing pipeline.
 
+    Important: Only ONE of pipeline_graph or pipeline_graph_simple should be provided
+    when updating graph structure. If both are provided, the request will fail with
+    400 error.
+
     Path parameters:
         pipeline_id: ID of the pipeline to update.
 
@@ -381,21 +401,28 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         body: PipelineUpdate
             Any combination of:
             * name – new pipeline name (non-empty string).
-            * description – new human-readable description (non-empty string).
-            * pipeline_graph – new graph representation. It must contain at
-              least one node and one edge and must be convertible to a valid
-              pipeline description string.
+            * description – new human-readable text describing what the pipeline does (non-empty string).
+            * pipeline_graph – new advanced graph. When provided, simple view is
+              auto-generated from it. Graph must contain at least one node and one edge.
+            * pipeline_graph_simple – modified simple graph with property changes only.
+              When provided, changes are merged into advanced view using
+              apply_simple_view_changes(), and both views are regenerated.
+              Structural changes (add/remove nodes or edges) are not allowed and will
+              result in 400 error.
             * parameters – new pipeline parameters.
 
     Returns:
         200 OK:
-            Updated Pipeline object.
+            Updated Pipeline object with both graph views.
         400 Bad Request:
             MessageResponse when:
             * none of the updatable fields is provided,
+            * both pipeline_graph and pipeline_graph_simple are provided,
             * provided name or description is empty,
             * provided pipeline_graph has no nodes/edges or cannot be
-              converted to a valid pipeline description.
+              converted to a valid GStreamer pipeline string,
+            * provided pipeline_graph_simple contains structural changes
+              (add/remove nodes or edges, modify edge endpoints).
         404 Not Found:
             MessageResponse when pipeline id does not exist.
         500 Internal Server Error:
@@ -404,31 +431,56 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     Success conditions:
         * Pipeline with the given id exists.
         * At least one valid field is provided and passes validation.
-        * For pipeline_graph, Graph.to_pipeline_description() succeeds.
+        * For pipeline_graph, Graph.to_pipeline_description() succeeds and produces
+          a valid GStreamer pipeline string.
+        * For pipeline_graph_simple, Graph.apply_simple_view_changes() succeeds.
 
     Failure conditions:
         * Validation failures in this handler or PipelineManager.update_pipeline.
+        * Both graph fields provided → 400.
+        * Structural changes in simple view → 400.
         * Unknown id → 404.
         * Any other exception → 500.
 
-    Request example:
+    Request example (updating advanced view):
         .. code-block:: json
 
             {
               "name": "vehicle-detection-v2",
               "description": "Updated pipeline with better preprocessing",
-              "parameters": {
-                "default": {
-                  "max-runtime": 120
-                }
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
               }
             }
 
-    Error response example (400, empty body):
+    Request example (updating simple view):
         .. code-block:: json
 
             {
-              "message": "At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided."
+              "description": "Updated inference parameters",
+              "pipeline_graph_simple": {
+                "nodes": [
+                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
+                  {"id": "2", "type": "gvadetect", "data": {"model": "yolo", "device": "CPU"}},
+                  {"id": "3", "type": "fakesink", "data": {}}
+                ],
+                "edges": [...]
+              }
+            }
+
+    Error response example (400, both graphs provided):
+        .. code-block:: json
+
+            {
+              "message": "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
+            }
+
+    Error response example (400, structural change in simple view):
+        .. code-block:: json
+
+            {
+              "message": "Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes."
             }
     """
     if (
@@ -436,8 +488,22 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         and body.description is None
         and body.parameters is None
         and body.pipeline_graph is None
+        and body.pipeline_graph_simple is None
     ):
-        message = "At least one of 'name', 'description', 'parameters' or 'pipeline_graph' must be provided."
+        message = "At least one of 'name', 'description', 'parameters', 'pipeline_graph' or 'pipeline_graph_simple' must be provided."
+        logger.error(
+            "Invalid update request for pipeline %s: %s",
+            pipeline_id,
+            message,
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(message=message).model_dump(),
+            status_code=400,
+        )
+
+    # Validate that only one graph type is provided
+    if body.pipeline_graph is not None and body.pipeline_graph_simple is not None:
+        message = "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
         logger.error(
             "Invalid update request for pipeline %s: %s",
             pipeline_id,
@@ -488,25 +554,54 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
                 status_code=400,
             )
 
+    if body.pipeline_graph_simple is not None:
+        if not body.pipeline_graph_simple.nodes or not body.pipeline_graph_simple.edges:
+            message = "Field 'pipeline_graph_simple' must contain at least one node and one edge."
+            logger.error(
+                "Invalid update request for pipeline %s: %s",
+                pipeline_id,
+                message,
+            )
+            return JSONResponse(
+                content=schemas.MessageResponse(message=message).model_dump(),
+                status_code=400,
+            )
+
     try:
-        updated_pipeline = pipeline_manager.update_pipeline(
+        updated_pipeline = PipelineManager().update_pipeline(
             pipeline_id=pipeline_id,
             name=body.name,
             description=body.description,
             pipeline_graph=body.pipeline_graph,
+            pipeline_graph_simple=body.pipeline_graph_simple,
             parameters=body.parameters,
         )
         return updated_pipeline
     except ValueError as e:
-        logger.warning(
-            "Failed to update pipeline %s due to invalid input: %s",
-            pipeline_id,
-            e,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=str(e)).model_dump(),
-            status_code=404,
-        )
+        # ValueError is used both for "not found" and validation errors.
+        # Check message to determine appropriate status code.
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            logger.warning(
+                "Failed to update pipeline %s - not found: %s",
+                pipeline_id,
+                e,
+            )
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
+        else:
+            # Validation error (e.g. from apply_simple_view_changes)
+            logger.warning(
+                "Failed to update pipeline %s due to invalid input: %s",
+                pipeline_id,
+                e,
+            )
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
     except Exception as e:
         logger.error(
             "Unexpected error while updating pipeline %s", pipeline_id, exc_info=True
@@ -587,8 +682,8 @@ def optimize_pipeline(pipeline_id: str, body: schemas.PipelineRequestOptimize):
             }
     """
     try:
-        pipeline = pipeline_manager.get_pipeline_by_id(pipeline_id)
-        job_id = optimization_manager.run_optimization(pipeline, body)
+        pipeline = PipelineManager().get_pipeline_by_id(pipeline_id)
+        job_id = OptimizationManager().run_optimization(pipeline, body)
         return schemas.OptimizationJobResponse(job_id=job_id)
     except ValueError as e:
         logger.warning(
@@ -659,7 +754,7 @@ def delete_pipeline(pipeline_id: str):
             }
     """
     try:
-        pipeline_manager.delete_pipeline_by_id(pipeline_id)
+        PipelineManager().delete_pipeline_by_id(pipeline_id)
     except ValueError as e:
         logger.warning("Pipeline %s not found for deletion: %s", pipeline_id, e)
         return JSONResponse(

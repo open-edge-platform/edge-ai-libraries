@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
-from models import get_supported_models_manager
+from models import SupportedModelsManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.models")
@@ -61,8 +61,7 @@ def get_models():
             ]
     """
     try:
-        supported_models_manager = get_supported_models_manager()
-        models = supported_models_manager.get_all_installed_models()
+        models = SupportedModelsManager().get_all_installed_models()
 
         def to_model_category(model_type: str) -> schemas.ModelCategory | None:
             """

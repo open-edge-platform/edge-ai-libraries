@@ -39,6 +39,8 @@ class HuggingFacePlugin(ModelDownloadPlugin):
             revision=revision,
         )
 
+        logger.info(f"Model {model_name} downloaded to {model_downloaded_path}")
+
         host_path = hub_dir
         if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
             host_prefix = os.getenv("MODEL_PATH", "models")
@@ -57,7 +59,7 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     def download_task(self, task: DownloadTask, output_dir: str, **kwargs):
         raise NotImplementedError("HuggingFace plugin does not support task-based downloading")
 
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: list, **kwargs) -> dict:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: list, **kwargs) -> dict:
         return {
             "model_name": model_name,
             "source": "huggingface",

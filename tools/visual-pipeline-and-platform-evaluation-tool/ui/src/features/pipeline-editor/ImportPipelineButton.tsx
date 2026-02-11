@@ -109,13 +109,13 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
       }).unwrap();
 
       const nodesWithPositions = createGraphLayout(
-        result.nodes.map((node) => ({
+        result.pipeline_graph.nodes.map((node) => ({
           id: node.id,
           type: node.type,
           data: node.data,
           position: { x: 0, y: 0 },
         })),
-        result.edges,
+        result.pipeline_graph.edges,
       );
 
       const viewport: Viewport = {
@@ -124,7 +124,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
         zoom: 1,
       };
 
-      onImport(nodesWithPositions, result.edges, viewport, true);
+      onImport(nodesWithPositions, result.pipeline_graph.edges, viewport, true);
 
       toast.success("Pipeline imported successfully");
       setDialogOpen(false);

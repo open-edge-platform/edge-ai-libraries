@@ -19,7 +19,7 @@ This sample application simplifies the development, customization, and deploymen
 applications in diverse deployment scenarios with out-of-the-box support for on-prem and edge
 environments.
 
-![Chat Q&A web interface](./images/ChatQnA_Webpage.png)
+![Chat Q&A web interface](./_assets/ChatQnA_Webpage.png)
 
 ## Overview and Architecture
 
@@ -89,7 +89,7 @@ these microservices from source.
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture).
 
-![system architecture diagram](./images/TEAI_ChatQnA.png)
+![system architecture diagram](./_assets/TEAI_ChatQnA.png)
 
 ## How to Use the Application
 
@@ -112,22 +112,21 @@ response from the final set of documents. It is possible to use any supported mo
 the applications. Detailed documentation provides full information on validated models and
 models supported overall.
 
-Detailed hardware and software requirements are available [here](./system-requirements).
+Refer to the [detailed hardware and software requirements](./get-started/system-requirements).
 
 This sample application is ready for deployment with Edge Orchestrator. Download the
 [deployment package](./deploy-with-edge-orchestrator) and follow the instructions.
 
 ## Benchmark Results
 
-Detailed metrics and analysis can be found in the benchmark report [here](./benchmarks).
+Detailed metrics and analysis can be found in [the benchmark report](./benchmarks).
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-overview-architecture
-system-requirements
 get-started
+how-it-works
 build-from-source
 deploy-with-helm
 deploy-with-edge-orchestrator
