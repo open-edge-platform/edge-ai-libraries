@@ -39,5 +39,5 @@ data:
   XDG_CACHE_HOME: "/home/appuser/.cache"
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
+  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
   no_proxy_env: {{ .Values.global.proxy.no_proxy | quote }}
