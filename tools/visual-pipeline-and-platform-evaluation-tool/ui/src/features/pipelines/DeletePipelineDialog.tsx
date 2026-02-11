@@ -9,7 +9,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useDeletePipelineMutation } from "@/api/api.generated";
+import { type Pipeline, useDeletePipelineMutation } from "@/api/api.generated";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils";
 import { Trash2 } from "lucide-react";
@@ -17,11 +17,7 @@ import { Trash2 } from "lucide-react";
 type DeletePipelineDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  pipeline: {
-    id: string;
-    name: string;
-    variantCount: number;
-  } | null;
+  pipeline: Pipeline | null;
   onSuccess?: () => void;
 };
 
@@ -59,15 +55,22 @@ export const DeletePipelineDialog = ({
           </AlertDialogMedia>
           <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
           <AlertDialogDescription className="text-justify">
-            Are you sure you want to delete <b>{pipeline?.name}</b> pipeline?
-            {pipeline && pipeline.variantCount > 0 && (
-              <>
-                {" "}
-                This will also delete all {pipeline.variantCount} variant
-                {pipeline.variantCount !== 1 ? "s" : ""}.
-              </>
-            )}{" "}
-            This action cannot be undone.
+            <p>
+              Are you sure you want to delete <b>{pipeline?.name}</b> pipeline?
+            </p>
+            {pipeline && pipeline.variants.length > 0 && (
+              <p>
+                This will also delete{" "}
+                <b>
+                  {pipeline.variants.length !== 1
+                    ? "all"
+                    : pipeline.variants[0].name}
+                </b>{" "}
+                variant
+                {pipeline.variants.length !== 1 ? "s" : ""}.
+              </p>
+            )}
+            <p>This action cannot be undone!</p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -77,7 +77,7 @@ export const Home = () => {
 
   const sortedPipelines = pipelines
     ? [...pipelines].sort((p1, p2) =>
-        compareDesc(new Date(p2.modified_at), new Date(p1.modified_at)),
+        compareDesc(new Date(p1.modified_at), new Date(p2.modified_at)),
       )
     : [];
 

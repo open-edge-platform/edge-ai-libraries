@@ -131,8 +131,9 @@ export const Pipelines = () => {
         description: new Date().toISOString(),
       });
 
-      if (videoOutputEnabled && jobStatus.video_output_paths && id) {
-        const paths = jobStatus.video_output_paths[id];
+      if (videoOutputEnabled && jobStatus.video_output_paths) {
+        // const paths = jobStatus.video_output_paths[id]; // TODO: Fix key mismatch - not using pipelineId as key
+        const paths = Object.values(jobStatus.video_output_paths)[0];
         if (paths && paths.length > 0) {
           const videoPath = [...paths].pop();
           if (videoPath) {

@@ -24,6 +24,7 @@ import {
 import { DeletePipelineDialog } from "./DeletePipelineDialog";
 import { CreatePipelineButton } from "./CreatePipelineButton.tsx";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
+import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 
 type PipelineCardsProps = {
   pipelines: Pipeline[];
@@ -35,17 +36,11 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const { tagColorMap } = usePipelineTagColors(pipelines);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [pipelineToDelete, setPipelineToDelete] = useState<{
-    id: string;
-    name: string;
-    variantCount: number;
-  } | null>(null);
+  const [pipelineToDelete, setPipelineToDelete] = useState<Pipeline | null>(
+    null,
+  );
 
-  const handleDeleteClick = (pipeline: {
-    id: string;
-    name: string;
-    variantCount: number;
-  }) => {
+  const handleDeleteClick = (pipeline: Pipeline) => {
     setPipelineToDelete(pipeline);
     setDeleteDialogOpen(true);
   };
@@ -67,10 +62,10 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                 : "hover:-translate-y-1 hover:shadow-md"
             }`}
           >
-            {pipeline.thumbnail && pipeline.variants.length > 0 && (
+            {pipeline.variants.length > 0 && (
               <Link to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}`}>
                 <img
-                  src={pipeline.thumbnail}
+                  src={pipeline.thumbnail ?? thumbnailPlaceholder}
                   alt={pipeline.name}
                   className="w-full object-cover"
                 />
@@ -104,7 +99,7 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem>Edit Pipeline</DropdownMenuItem>
                     <DropdownMenuItem>Duplicate Pipeline</DropdownMenuItem>
-                    {pipeline.source !== "PREDEFINED" ? (
+                    {pipeline.source === "PREDEFINED" ? (
                       <DropdownMenuItem
                         variant="destructive"
                         disabled
@@ -127,11 +122,7 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                         variant="destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteClick({
-                            id: pipeline.id,
-                            name: pipeline.name,
-                            variantCount: pipeline.variants.length,
-                          });
+                          handleDeleteClick(pipeline);
                         }}
                       >
                         Delete

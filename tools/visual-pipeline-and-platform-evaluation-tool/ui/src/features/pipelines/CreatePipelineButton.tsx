@@ -123,6 +123,9 @@ export const CreatePipelineButton = () => {
     const handleCreatePipeline = async () => {
       if (!pendingPipelineData) return;
 
+      // empty string is value that should fall into "default"
+      const variantName = pendingPipelineData.variantName || "default";
+
       try {
         const response = await createPipeline({
           pipelineDefinition: {
@@ -135,7 +138,7 @@ export const CreatePipelineButton = () => {
                 : undefined,
             variants: [
               {
-                name: pendingPipelineData.variantName || "default",
+                name: variantName,
                 pipeline_graph: pendingPipelineData.pipelineGraph,
                 pipeline_graph_simple: pendingPipelineData.pipelineGraphSimple,
               },
@@ -150,7 +153,7 @@ export const CreatePipelineButton = () => {
           setValidationStatus("");
           setPendingPipelineData(null);
           toast.success("Pipeline created successfully");
-          navigate(`/pipelines/${response.id}`);
+          navigate(`/pipelines/${response.id}/${variantName}`);
         }
       } catch (error) {
         const errorMessage = isApiError(error)
