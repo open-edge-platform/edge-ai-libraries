@@ -126,6 +126,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
 @router.post(
     "/validate",
     operation_id="validate_pipeline",
+    status_code=202,
     responses={
         202: {
             "description": "Pipeline validation started",
@@ -558,6 +559,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
 @router.post(
     "/{pipeline_id}/variants/{variant_id}/optimize",
     operation_id="optimize_variant",
+    status_code=202,
     responses={
         202: {
             "description": "Variant optimization started",
@@ -645,8 +647,10 @@ def optimize_variant(
         )
 
         job_id = OptimizationManager().run_optimization(variant_to_optimize, body)
-        return schemas.OptimizationJobResponse(job_id=job_id)
-
+        return JSONResponse(
+            content=schemas.OptimizationJobResponse(job_id=job_id).model_dump(),
+            status_code=202,
+        )
     except ValueError as e:
         if "not found" in str(e).lower():
             logger.warning(

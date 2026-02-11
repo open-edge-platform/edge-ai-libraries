@@ -1016,14 +1016,6 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
           "202": {
             "description": "Pipeline validation started",
             "content": {
@@ -1311,14 +1303,6 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
           "202": {
             "description": "Variant optimization started",
             "content": {

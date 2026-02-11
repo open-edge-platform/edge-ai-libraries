@@ -148,7 +148,10 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
         internal_spec = _convert_performance_test_spec(body)
 
         job_id = TestsManager().test_performance(internal_spec)
-        return schemas.TestJobResponse(job_id=job_id)
+        return JSONResponse(
+            content=schemas.TestJobResponse(job_id=job_id).model_dump(),
+            status_code=202,
+        )
     except ValueError as e:
         logger.error("Invalid performance test request: %s", e)
         return JSONResponse(
@@ -307,7 +310,10 @@ def run_density_test(body: schemas.DensityTestSpec):
         internal_spec = _convert_density_test_spec(body)
 
         job_id = TestsManager().test_density(internal_spec)
-        return schemas.TestJobResponse(job_id=job_id)
+        return JSONResponse(
+            content=schemas.TestJobResponse(job_id=job_id).model_dump(),
+            status_code=202,
+        )
     except ValueError as e:
         logger.error("Invalid density test request: %s", e)
         return JSONResponse(
