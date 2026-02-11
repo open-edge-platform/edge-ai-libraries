@@ -98,6 +98,7 @@ export const CreatePipelineButton = () => {
     tags: string[];
     variantName: string;
     pipelineGraph: PipelineGraph;
+    pipelineGraphSimple: PipelineGraph;
   } | null>(null);
 
   const [createPipeline, { isLoading: isCreating }] =
@@ -136,13 +137,9 @@ export const CreatePipelineButton = () => {
               {
                 name: pendingPipelineData.variantName || "default",
                 pipeline_graph: pendingPipelineData.pipelineGraph,
+                pipeline_graph_simple: pendingPipelineData.pipelineGraphSimple,
               },
             ],
-            parameters: {
-              default: {
-                additionalProp1: {},
-              },
-            },
           },
         }).unwrap();
 
@@ -252,6 +249,7 @@ export const CreatePipelineButton = () => {
           tags: data.tags,
           variantName: data.variantName.trim(),
           pipelineGraph: graphResponse.pipeline_graph,
+          pipelineGraphSimple: graphResponse.pipeline_graph_simple,
         });
       } else {
         // Immediate validation response
