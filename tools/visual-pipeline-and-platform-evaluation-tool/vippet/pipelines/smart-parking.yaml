@@ -14,7 +14,7 @@ variants:
       videoconvert !
       video/x-raw !
       gvadetect
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=opencv
         device=CPU
         threshold=0.7
@@ -43,7 +43,7 @@ variants:
       vapostproc !
       video/x-raw(memory:VAMemory) !
       gvadetect
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=va-surface-sharing
         device=GPU
         batch_size=8
@@ -76,7 +76,7 @@ variants:
       vapostproc !
       video/x-raw(memory:VAMemory) !
       gvadetect
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=va
         device=NPU
         batch_size=1
