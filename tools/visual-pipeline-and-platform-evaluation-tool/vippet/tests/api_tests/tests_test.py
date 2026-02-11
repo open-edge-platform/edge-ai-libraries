@@ -6,17 +6,46 @@ from fastapi.testclient import TestClient
 
 import api.api_schemas as schemas
 from api.routes.tests import router as tests_router
+from internal_types import InternalPerformanceTestSpec, InternalDensityTestSpec
 from managers.tests_manager import TestsManager
 from managers.pipeline_manager import PipelineManager
+
+
+def create_mock_pipeline(pipeline_id: str, name: str = "Test Pipeline"):
+    """Helper to create a mock Pipeline object."""
+    mock_pipeline = MagicMock()
+    mock_pipeline.id = pipeline_id
+    mock_pipeline.name = name
+    return mock_pipeline
+
+
+def create_mock_variant(variant_id: str):
+    """Helper to create a mock Variant object with pipeline_graph."""
+    mock_variant = MagicMock()
+    mock_variant.id = variant_id
+    mock_variant.pipeline_graph = MagicMock()
+    mock_variant.pipeline_graph.model_dump.return_value = {
+        "nodes": [
+            {"id": "0", "type": "fakesrc", "data": {}},
+            {"id": "1", "type": "fakesink", "data": {}},
+        ],
+        "edges": [{"id": "0", "source": "0", "target": "1"}],
+    }
+    return mock_variant
 
 
 class TestTestsAPI(unittest.TestCase):
     """
     Integration-style unit tests for the tests HTTP API.
 
-    The tests use FastAPI's TestClient and patch the TestsManager singleton
-    so we can precisely control the behavior of the underlying manager without
-    touching its real implementation or any background threads.
+    The tests use FastAPI's TestClient and patch the TestsManager and
+    PipelineManager singletons so we can precisely control the behavior
+    of the underlying managers without touching their real implementations
+    or any background threads.
+
+    Note: Since the route layer now converts API types to internal types,
+    we need to mock PipelineManager for variant resolution and TestsManager
+    for job creation.
     """
 
     @classmethod
@@ -49,8 +78,11 @@ class TestTestsAPI(unittest.TestCase):
     # /tests/performance - Variant Reference
     # ------------------------------------------------------------------
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_returns_job_id(self, mock_tests_manager_cls):
+    def test_run_performance_test_returns_job_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/performance endpoint should accept a PerformanceTestSpec
         with variant reference and return a TestJobResponse with a job_id.
@@ -58,12 +90,21 @@ class TestTestsAPI(unittest.TestCase):
         This test validates:
         * HTTP 202 status (Accepted),
         * response contains job_id field,
-        * test_manager.test_performance() is called with the correct spec.
+        * test_manager.test_performance() is called with InternalPerformanceTestSpec.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_performance.return_value = "test-job-123"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-test123", "Test Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-abc123"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "test-job-123"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a performance test request with variant reference
         request_body = {
@@ -87,31 +128,39 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("job_id", data)
         self.assertEqual(data["job_id"], "test-job-123")
 
-        # Verify manager was called with correct spec
-        mock_manager.test_performance.assert_called_once()
-        call_args = mock_manager.test_performance.call_args[0][0]
-        self.assertIsInstance(call_args, schemas.PerformanceTestSpec)
+        # Verify manager was called with InternalPerformanceTestSpec
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        self.assertIsInstance(call_args, InternalPerformanceTestSpec)
         self.assertEqual(len(call_args.pipeline_performance_specs), 1)
 
-        # Verify the pipeline is a VariantReference
-        pipeline_spec = call_args.pipeline_performance_specs[0]
-        self.assertIsInstance(pipeline_spec.pipeline, schemas.VariantReference)
-        self.assertEqual(pipeline_spec.pipeline.pipeline_id, "pipeline-test123")
-        self.assertEqual(pipeline_spec.pipeline.variant_id, "variant-abc123")
-        self.assertEqual(pipeline_spec.streams, 2)
+        # Verify the internal spec has resolved pipeline information
+        internal_spec = call_args.pipeline_performance_specs[0]
+        self.assertEqual(
+            internal_spec.pipeline_id,
+            "/pipelines/pipeline-test123/variants/variant-abc123",
+        )
+        self.assertEqual(internal_spec.pipeline_name, "Test Pipeline")
+        self.assertEqual(internal_spec.streams, 2)
 
+        # Verify original_request is stored
+        self.assertIn("pipeline_performance_specs", call_args.original_request)
+
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_with_inline_graph_returns_job_id(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/performance endpoint should accept a PerformanceTestSpec
         with inline graph and return a TestJobResponse with a job_id.
         """
-        # Arrange: configure mock to return a job ID
-        mock_tests_manager_cls.return_value.test_performance.return_value = (
-            "graph-job-456"
-        )
+        # Arrange: configure mocks (PipelineManager not needed for inline graphs)
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "graph-job-456"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a performance test request with inline graph
         request_body = {
@@ -148,27 +197,38 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("job_id", data)
         self.assertEqual(data["job_id"], "graph-job-456")
 
-        # Verify manager was called with correct spec
-        mock_tests_manager_cls.return_value.test_performance.assert_called_once()
-        call_args = mock_tests_manager_cls.return_value.test_performance.call_args[0][0]
-        self.assertIsInstance(call_args, schemas.PerformanceTestSpec)
+        # Verify manager was called with InternalPerformanceTestSpec
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        self.assertIsInstance(call_args, InternalPerformanceTestSpec)
 
-        # Verify the pipeline is a GraphInline
-        pipeline_spec = call_args.pipeline_performance_specs[0]
-        self.assertIsInstance(pipeline_spec.pipeline, schemas.GraphInline)
-        self.assertIsNotNone(pipeline_spec.pipeline.pipeline_graph)
-        self.assertEqual(pipeline_spec.streams, 4)
+        # Verify the internal spec has inline graph format ID
+        internal_spec = call_args.pipeline_performance_specs[0]
+        self.assertTrue(internal_spec.pipeline_id.startswith("__graph-"))
+        self.assertEqual(internal_spec.streams, 4)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_with_multiple_pipelines(self, mock_tests_manager_cls):
+    def test_run_performance_test_with_multiple_pipelines(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/performance endpoint should accept multiple pipeline specs
         in a single request with mixed sources (variant + inline graph).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_manager.test_performance.return_value = "multi-job-456"
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc123", "Pipeline ABC"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "multi-job-456"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with multiple pipeline specs (mixed sources)
         request_body = {
@@ -209,33 +269,37 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "multi-job-456")
 
         # Verify manager was called with correct spec
-        mock_manager.test_performance.assert_called_once()
-        call_args = mock_manager.test_performance.call_args[0][0]
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
         self.assertEqual(len(call_args.pipeline_performance_specs), 2)
 
-        # First spec should be variant reference
-        self.assertIsInstance(
-            call_args.pipeline_performance_specs[0].pipeline, schemas.VariantReference
+        # First spec should be variant reference format
+        self.assertTrue(
+            call_args.pipeline_performance_specs[0].pipeline_id.startswith(
+                "/pipelines/"
+            )
         )
         self.assertEqual(call_args.pipeline_performance_specs[0].streams, 1)
 
-        # Second spec should be inline graph
-        self.assertIsInstance(
-            call_args.pipeline_performance_specs[1].pipeline, schemas.GraphInline
+        # Second spec should be inline graph format
+        self.assertTrue(
+            call_args.pipeline_performance_specs[1].pipeline_id.startswith("__graph-")
         )
         self.assertEqual(call_args.pipeline_performance_specs[1].streams, 3)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_with_invalid_body_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/performance endpoint should return 422 if the request body
         is invalid (e.g., missing required fields).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager = MagicMock()
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with missing pipeline_performance_specs
         request_body = {}
@@ -243,19 +307,21 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_manager.test_performance.assert_not_called()
+        mock_tests_manager.test_performance.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_with_invalid_streams_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/performance endpoint should return 422 if streams value
         is invalid (e.g., negative number).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager = MagicMock()
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with negative streams
         request_body = {
@@ -275,11 +341,12 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_manager.test_performance.assert_not_called()
+        mock_tests_manager.test_performance.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_with_invalid_source_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/performance endpoint should return 422 if pipeline source
@@ -302,18 +369,29 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_tests_manager_cls.test_performance.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_with_file_output(self, mock_tests_manager_cls):
+    def test_run_performance_test_with_file_output(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/performance endpoint should accept execution_config
         with file output mode.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_performance.return_value = "file-job-456"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-file123", "File Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "file-job-456"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a performance test request with file output
         request_body = {
@@ -341,24 +419,38 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "file-job-456")
 
         # Verify manager was called with correct spec including file output
-        mock_manager.test_performance.assert_called_once()
-        call_args = mock_manager.test_performance.call_args[0][0]
-        self.assertIsInstance(call_args, schemas.PerformanceTestSpec)
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        self.assertIsInstance(call_args, InternalPerformanceTestSpec)
+        from internal_types import InternalOutputMode
+
         self.assertEqual(
-            call_args.execution_config.output_mode, schemas.OutputMode.FILE
+            call_args.execution_config.output_mode, InternalOutputMode.FILE
         )
         self.assertEqual(call_args.execution_config.max_runtime, 0)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_with_live_stream_output(self, mock_tests_manager_cls):
+    def test_run_performance_test_with_live_stream_output(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/performance endpoint should accept execution_config
         with live_stream output mode.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_performance.return_value = "stream-job-789"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-stream123", "Stream Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-gpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "stream-job-789"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a performance test request with live_stream output
         request_body = {
@@ -385,23 +477,37 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "stream-job-789")
 
         # Verify manager was called with correct spec including live_stream output
-        mock_manager.test_performance.assert_called_once()
-        call_args = mock_manager.test_performance.call_args[0][0]
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        from internal_types import InternalOutputMode
+
         self.assertEqual(
-            call_args.execution_config.output_mode, schemas.OutputMode.LIVE_STREAM
+            call_args.execution_config.output_mode, InternalOutputMode.LIVE_STREAM
         )
         self.assertEqual(call_args.execution_config.max_runtime, 60)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_with_max_runtime(self, mock_tests_manager_cls):
+    def test_run_performance_test_with_max_runtime(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/performance endpoint should accept execution_config
         with max_runtime for time-limited execution.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_performance.return_value = "runtime-job-999"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-runtime123", "Runtime Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-npu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "runtime-job-999"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a performance test request with max_runtime
         request_body = {
@@ -428,25 +534,35 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "runtime-job-999")
 
         # Verify manager was called with correct spec including max_runtime
-        mock_manager.test_performance.assert_called_once()
-        call_args = mock_manager.test_performance.call_args[0][0]
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        from internal_types import InternalOutputMode
+
         self.assertEqual(
-            call_args.execution_config.output_mode, schemas.OutputMode.DISABLED
+            call_args.execution_config.output_mode, InternalOutputMode.DISABLED
         )
         self.assertEqual(call_args.execution_config.max_runtime, 120)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_performance_test_manager_raises_value_error_returns_400(
-        self, mock_tests_manager_cls
+    def test_run_performance_test_variant_not_found_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
-        The /tests/performance endpoint should return 400 if test_manager
-        raises ValueError (e.g., variant not found).
+        The /tests/performance endpoint should return 400 if the referenced
+        variant does not exist.
         """
-        # Arrange: configure mock to raise ValueError
-        mock_tests_manager_cls.return_value.test_performance.side_effect = ValueError(
+        # Arrange: configure mock to raise ValueError for variant not found
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
+        )
+        mock_pipeline_manager.get_variant_by_ids.side_effect = ValueError(
             "Variant 'variant-unknown' not found in pipeline 'pipeline-abc'."
         )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager_cls.return_value = MagicMock()
 
         # Act: send a valid request
         request_body = {
@@ -470,18 +586,30 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("message", data)
         self.assertIn("not found", data["message"])
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_performance_test_manager_raises_exception_returns_500(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/performance endpoint should return 500 if test_manager
         raises an unexpected exception.
         """
-        # Arrange: configure mock to raise RuntimeError
-        mock_tests_manager_cls.return_value.test_performance.side_effect = RuntimeError(
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.side_effect = RuntimeError(
             "Unexpected error"
         )
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a valid request
         request_body = {
@@ -504,12 +632,92 @@ class TestTestsAPI(unittest.TestCase):
         data = response.json()
         self.assertIn("message", data)
 
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_empty_specs_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if
+        pipeline_performance_specs is empty.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty pipeline_performance_specs
+        request_body = {
+            "pipeline_performance_specs": [],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: should return 400 (validation in route layer)
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("cannot be empty", data["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_duplicate_pipeline_ids_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if there are
+        duplicate pipeline_ids after resolution.
+        """
+        # Arrange: configure mocks to return same resolved ID
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with duplicate pipeline references
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 1,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 2,
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: should return 400 for duplicate IDs
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("Duplicate", data["message"])
+
     # ------------------------------------------------------------------
     # /tests/density - Variant Reference
     # ------------------------------------------------------------------
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_returns_job_id(self, mock_tests_manager_cls):
+    def test_run_density_test_returns_job_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/density endpoint should accept a DensityTestSpec
         with variant reference and return a TestJobResponse with a job_id.
@@ -517,12 +725,21 @@ class TestTestsAPI(unittest.TestCase):
         This test validates:
         * HTTP 202 status (Accepted),
         * response contains job_id field,
-        * test_manager.test_density() is called with the correct spec.
+        * test_manager.test_density() is called with InternalDensityTestSpec.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_density.return_value = "density-job-789"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-ghi789", "GHI Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-job-789"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a density test request with variant reference
         request_body = {
@@ -547,32 +764,40 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("job_id", data)
         self.assertEqual(data["job_id"], "density-job-789")
 
-        # Verify manager was called with correct spec
-        mock_manager.test_density.assert_called_once()
-        call_args = mock_manager.test_density.call_args[0][0]
-        self.assertIsInstance(call_args, schemas.DensityTestSpec)
+        # Verify manager was called with InternalDensityTestSpec
+        mock_tests_manager.test_density.assert_called_once()
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        self.assertIsInstance(call_args, InternalDensityTestSpec)
         self.assertEqual(call_args.fps_floor, 30)
         self.assertEqual(len(call_args.pipeline_density_specs), 1)
 
-        # Verify the pipeline is a VariantReference
-        pipeline_spec = call_args.pipeline_density_specs[0]
-        self.assertIsInstance(pipeline_spec.pipeline, schemas.VariantReference)
-        self.assertEqual(pipeline_spec.pipeline.pipeline_id, "pipeline-ghi789")
-        self.assertEqual(pipeline_spec.pipeline.variant_id, "variant-cpu")
-        self.assertEqual(pipeline_spec.stream_rate, 100)
+        # Verify the internal spec has resolved pipeline information
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertEqual(
+            internal_spec.pipeline_id, "/pipelines/pipeline-ghi789/variants/variant-cpu"
+        )
+        self.assertEqual(internal_spec.pipeline_name, "GHI Pipeline")
+        self.assertEqual(internal_spec.stream_rate, 100)
 
+        # Verify original_request is stored
+        self.assertIn("pipeline_density_specs", call_args.original_request)
+        self.assertEqual(call_args.original_request["fps_floor"], 30)
+
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_density_test_with_inline_graph_returns_job_id(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/density endpoint should accept a DensityTestSpec
         with inline graph and return a TestJobResponse with a job_id.
         """
-        # Arrange: configure mock to return a job ID
-        mock_tests_manager_cls.return_value.test_density.return_value = (
-            "density-graph-job"
-        )
+        # Arrange: configure mocks
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-graph-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a density test request with inline graph
         request_body = {
@@ -609,22 +834,39 @@ class TestTestsAPI(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["job_id"], "density-graph-job")
 
-        # Verify the pipeline is a GraphInline
-        call_args = mock_tests_manager_cls.return_value.test_density.call_args[0][0]
-        pipeline_spec = call_args.pipeline_density_specs[0]
-        self.assertIsInstance(pipeline_spec.pipeline, schemas.GraphInline)
-        self.assertIsNotNone(pipeline_spec.pipeline.pipeline_graph)
+        # Verify the internal spec has inline graph format ID
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertTrue(internal_spec.pipeline_id.startswith("__graph-"))
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_with_multiple_pipelines(self, mock_tests_manager_cls):
+    def test_run_density_test_with_multiple_pipelines(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/density endpoint should accept multiple pipeline specs
         in a single request with stream_rate values summing to 100.
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_manager.test_density.return_value = "density-multi-999"
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager = MagicMock()
+
+        def get_pipeline_side_effect(pid):
+            if pid == "pipeline-jkl012":
+                return create_mock_pipeline(pid, "JKL Pipeline")
+            elif pid == "pipeline-mno345":
+                return create_mock_pipeline(pid, "MNO Pipeline")
+            raise ValueError(f"Pipeline {pid} not found")
+
+        mock_pipeline_manager.get_pipeline_by_id.side_effect = get_pipeline_side_effect
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-multi-999"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with multiple pipeline specs
         request_body = {
@@ -657,23 +899,35 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "density-multi-999")
 
         # Verify manager was called with correct spec
-        mock_manager.test_density.assert_called_once()
-        call_args = mock_manager.test_density.call_args[0][0]
+        mock_tests_manager.test_density.assert_called_once()
+        call_args = mock_tests_manager.test_density.call_args[0][0]
         self.assertEqual(call_args.fps_floor, 25)
         self.assertEqual(len(call_args.pipeline_density_specs), 2)
         self.assertEqual(call_args.pipeline_density_specs[0].stream_rate, 50)
         self.assertEqual(call_args.pipeline_density_specs[1].stream_rate, 50)
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_with_mixed_sources(self, mock_tests_manager_cls):
+    def test_run_density_test_with_mixed_sources(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/density endpoint should accept mixed pipeline sources
         (variant reference + inline graph) in a single request.
         """
         # Arrange
-        mock_tests_manager_cls.return_value.test_density.return_value = (
-            "density-mixed-job"
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "ABC Pipeline"
         )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-mixed-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with mixed pipeline sources
         request_body = {
@@ -714,26 +968,28 @@ class TestTestsAPI(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["job_id"], "density-mixed-job")
 
-        # Verify mixed sources
-        call_args = mock_tests_manager_cls.return_value.test_density.call_args[0][0]
-        self.assertIsInstance(
-            call_args.pipeline_density_specs[0].pipeline, schemas.VariantReference
+        # Verify mixed sources in internal spec
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        self.assertTrue(
+            call_args.pipeline_density_specs[0].pipeline_id.startswith("/pipelines/")
         )
-        self.assertIsInstance(
-            call_args.pipeline_density_specs[1].pipeline, schemas.GraphInline
+        self.assertTrue(
+            call_args.pipeline_density_specs[1].pipeline_id.startswith("__graph-")
         )
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_density_test_with_invalid_body_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/density endpoint should return 422 if the request body
         is invalid (e.g., missing required fields).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager = MagicMock()
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with missing fps_floor
         request_body = {
@@ -752,19 +1008,21 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_manager.test_density.assert_not_called()
+        mock_tests_manager.test_density.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_density_test_with_invalid_fps_floor_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/density endpoint should return 422 if fps_floor value
         is invalid (e.g., negative number).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager = MagicMock()
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with negative fps_floor
         request_body = {
@@ -785,19 +1043,21 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_manager.test_density.assert_not_called()
+        mock_tests_manager.test_density.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_density_test_with_invalid_stream_rate_returns_422(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/density endpoint should return 422 if stream_rate value
         is invalid (e.g., negative number).
         """
         # Arrange
-        mock_manager = MagicMock()
-        mock_tests_manager_cls.return_value = mock_manager
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager = MagicMock()
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send request with negative stream_rate
         request_body = {
@@ -818,17 +1078,29 @@ class TestTestsAPI(unittest.TestCase):
 
         # Assert: FastAPI validation should reject the request
         self.assertEqual(response.status_code, 422)
-        mock_manager.test_density.assert_not_called()
+        mock_tests_manager.test_density.assert_not_called()
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_with_file_output(self, mock_tests_manager_cls):
+    def test_run_density_test_with_file_output(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
         """
         The /tests/density endpoint should accept file output mode.
         """
-        # Arrange: configure mock to return a job ID
-        mock_manager = MagicMock()
-        mock_manager.test_density.return_value = "density-file-job"
-        mock_tests_manager_cls.return_value = mock_manager
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-density-file", "Density File Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-file-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a density test request with file output
         request_body = {
@@ -854,25 +1126,35 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(data["job_id"], "density-file-job")
 
         # Verify manager was called with correct spec including file output
-        mock_manager.test_density.assert_called_once()
-        call_args = mock_manager.test_density.call_args[0][0]
-        self.assertIsInstance(call_args, schemas.DensityTestSpec)
+        mock_tests_manager.test_density.assert_called_once()
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        self.assertIsInstance(call_args, InternalDensityTestSpec)
+        from internal_types import InternalOutputMode
+
         self.assertEqual(
-            call_args.execution_config.output_mode, schemas.OutputMode.FILE
+            call_args.execution_config.output_mode, InternalOutputMode.FILE
         )
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
-    def test_run_density_test_manager_raises_value_error_returns_400(
-        self, mock_tests_manager_cls
+    def test_run_density_test_variant_not_found_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
-        The /tests/density endpoint should return 400 if test_manager
-        raises ValueError (e.g., stream_rate doesn't sum to 100).
+        The /tests/density endpoint should return 400 if the referenced
+        variant does not exist.
         """
         # Arrange: configure mock to raise ValueError
-        mock_tests_manager_cls.return_value.test_density.side_effect = ValueError(
-            "Pipeline stream_rate ratios must sum to 100%, got 110%"
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
         )
+        mock_pipeline_manager.get_variant_by_ids.side_effect = ValueError(
+            "Variant 'variant-unknown' not found in pipeline 'pipeline-abc'."
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager_cls.return_value = MagicMock()
 
         # Act: send a valid request
         request_body = {
@@ -882,18 +1164,10 @@ class TestTestsAPI(unittest.TestCase):
                     "pipeline": {
                         "source": "variant",
                         "pipeline_id": "pipeline-abc",
-                        "variant_id": "variant-cpu",
+                        "variant_id": "variant-unknown",
                     },
-                    "stream_rate": 60,
-                },
-                {
-                    "pipeline": {
-                        "source": "variant",
-                        "pipeline_id": "pipeline-def",
-                        "variant_id": "variant-gpu",
-                    },
-                    "stream_rate": 50,
-                },
+                    "stream_rate": 100,
+                }
             ],
             "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
@@ -903,20 +1177,30 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         data = response.json()
         self.assertIn("message", data)
-        self.assertIn("100%", data["message"])
+        self.assertIn("not found", data["message"])
 
+    @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
     def test_run_density_test_manager_raises_exception_returns_500(
-        self, mock_tests_manager_cls
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
     ):
         """
         The /tests/density endpoint should return 500 if test_manager
         raises an unexpected exception.
         """
-        # Arrange: configure mock to raise RuntimeError
-        mock_tests_manager_cls.return_value.test_density.side_effect = RuntimeError(
-            "Unexpected error"
+        # Arrange: configure mocks
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
         )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.side_effect = RuntimeError("Unexpected error")
+        mock_tests_manager_cls.return_value = mock_tests_manager
 
         # Act: send a valid request
         request_body = {
@@ -939,6 +1223,85 @@ class TestTestsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         data = response.json()
         self.assertIn("message", data)
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_empty_specs_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if
+        pipeline_density_specs is empty.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty pipeline_density_specs
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert: should return 400 (validation in route layer)
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("cannot be empty", data["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_duplicate_pipeline_ids_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if there are
+        duplicate pipeline_ids after resolution.
+        """
+        # Arrange: configure mocks to return same resolved ID
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "Pipeline ABC"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with duplicate pipeline references
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "stream_rate": 50,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "stream_rate": 50,
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert: should return 400 for duplicate IDs
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("Duplicate", data["message"])
 
     # ------------------------------------------------------------------
     # Schema validation tests

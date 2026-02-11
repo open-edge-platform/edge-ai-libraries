@@ -7,19 +7,18 @@ from api.api_schemas import (
     PipelineSource,
     Pipeline,
     PipelineDefinition,
-    PipelinePerformanceSpec,
-    ExecutionConfig,
-    OutputMode,
     PipelineGraph,
     Variant,
-    VariantReference,
-    GraphInline,
 )
 from graph import Graph, OUTPUT_PLACEHOLDER
 from pipelines.loader import PipelineLoader
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelinePerformanceSpec,
+)
 from utils import (
     generate_unique_id,
-    generate_pipeline_graph_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
 )
@@ -402,45 +401,31 @@ class PipelineManager:
 
     def build_pipeline_command(
         self,
-        pipeline_performance_specs: list[PipelinePerformanceSpec],
-        execution_config: ExecutionConfig,
+        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
+        execution_config: InternalExecutionConfig,
     ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
         """
-        Build a complete executable GStreamer pipeline command from run specifications.
+        Build a complete executable GStreamer pipeline command from internal specifications.
 
-        This method takes pipeline specifications with stream counts, retrieves the
-        corresponding pipeline graphs (either from stored variants or inline graphs),
-        and constructs a complete GStreamer command line that can be executed to run
-        all specified pipelines with all their streams.
-
-        The returned pipeline IDs follow these conventions:
-        * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-        * For inline graph: "__graph-{16-char-hash}"
-
-        These IDs are used consistently as keys in video_output_paths and live_stream_urls
-        dictionaries, making it easy to correlate results with pipeline sources.
+        This method takes internal pipeline specifications with resolved Graph objects and
+        stream counts, and constructs a complete GStreamer command line that can be executed
+        to run all specified pipelines with all their streams.
 
         Args:
-            pipeline_performance_specs: List of PipelinePerformanceSpec defining pipelines and streams.
-                Each spec.pipeline must be either VariantReference or GraphInline.
-            execution_config: Configuration for output generation and runtime limits.
+            pipeline_performance_specs: List of InternalPipelinePerformanceSpec with
+                resolved pipeline_id, pipeline_name, pipeline_graph (as Graph object), and streams.
+            execution_config: InternalExecutionConfig for output generation and runtime limits.
 
         Returns:
             tuple: (Complete GStreamer command string,
                     dictionary mapping pipeline IDs to output file paths,
                     dictionary mapping pipeline IDs to live stream URLs)
 
-            Pipeline ID format:
-            * Variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-            * Inline graph: "__graph-{16-char-hash}"
-
             Note: live_stream_urls will be empty for density tests since they do not
             support live-streaming output mode. The caller is responsible for validating
             that output_mode=live_stream is not used with density tests.
 
         Raises:
-            ValueError: If any referenced pipeline is not found.
-            ValueError: If any referenced variant is not found.
             ValueError: If execution_config.max_runtime is negative.
             ValueError: If output_mode=file is combined with max_runtime>0.
         """
@@ -456,7 +441,7 @@ class PipelineManager:
 
         # Validate output_mode + max_runtime combination
         if (
-            execution_config.output_mode == OutputMode.FILE
+            execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
         ):
             raise ValueError(
@@ -474,38 +459,14 @@ class PipelineManager:
         # Looping is only supported for disabled and live_stream modes
         needs_looping = (
             execution_config.max_runtime > 0
-            and execution_config.output_mode != OutputMode.FILE
+            and execution_config.output_mode != InternalOutputMode.FILE
         )
 
-        for pipeline_index, run_spec in enumerate(pipeline_performance_specs):
-            # Resolve graph source to pipeline ID and graph using pattern matching
-            match run_spec.pipeline:
-                case VariantReference(pipeline_id=pid, variant_id=vid):
-                    pipeline = self.get_pipeline_by_id(pid)
-                    variant = self.get_variant_by_ids(pid, vid)
-
-                    pipeline_graph_dict = variant.pipeline_graph.model_dump()
-                    # Use variant path format for ID
-                    pipeline_id = f"/pipelines/{pid}/variants/{vid}"
-                    pipeline_name = pipeline.name
-
-                case GraphInline(pipeline_graph=graph):
-                    # Use inline pipeline graph
-                    pipeline_graph_dict = graph.model_dump()
-                    # Generate synthetic ID from graph hash
-                    pipeline_id = generate_pipeline_graph_id(pipeline_graph_dict)
-                    # Synthetic pipeline name based on pipeline ID
-                    pipeline_name = pipeline_id
-
-                case _:
-                    raise ValueError(
-                        f"Invalid pipeline source type in spec at index {pipeline_index}"
-                    )
-
-            # Convert pipeline graph dict back to Graph object
-            base_graph = Graph.from_dict(pipeline_graph_dict)
-
-            base_graph = base_graph.unify_model_instance_ids()
+        for pipeline_index, spec in enumerate(pipeline_performance_specs):
+            # Use resolved pipeline information from internal spec
+            pipeline_id = spec.pipeline_id
+            pipeline_name = spec.pipeline_name
+            base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
             # Apply looping modifications if needed
             if needs_looping:
@@ -520,20 +481,20 @@ class PipelineManager:
             output_mode = execution_config.output_mode
 
             # prepare main video output path if output is enabled (file or live stream)
-            if output_mode != OutputMode.DISABLED:
+            if output_mode != InternalOutputMode.DISABLED:
                 # Retrieve input video filenames and recommended encoder device
                 input_video_filenames = base_graph.get_input_video_filenames()
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
-                if output_mode == OutputMode.FILE:
+                if output_mode == InternalOutputMode.FILE:
                     output_subpipeline, output_path = (
                         video_encoder.create_video_output_subpipeline(
                             pipeline_id, encoder_device, input_video_filenames
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
-                elif output_mode == OutputMode.LIVE_STREAM:
+                elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
                             pipeline_id,
@@ -544,10 +505,10 @@ class PipelineManager:
                     live_stream_urls[pipeline_id] = stream_url
 
             # Build pipeline parts for all streams of this pipeline specification
-            for stream_index in range(run_spec.streams):
+            for stream_index in range(spec.streams):
                 graph_instance = deepcopy(base_graph)
 
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
+                if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
@@ -557,7 +518,7 @@ class PipelineManager:
 
                 unique_pipeline_str = graph_instance.to_pipeline_description()
 
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
+                if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Replace the main output placeholder with the actual output subpipeline (file or live stream)
                     if OUTPUT_PLACEHOLDER not in unique_pipeline_str:
                         raise ValueError(

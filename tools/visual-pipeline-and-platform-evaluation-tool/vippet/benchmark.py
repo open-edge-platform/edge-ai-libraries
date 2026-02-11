@@ -10,16 +10,13 @@ import math
 from typing import List
 
 from pipeline_runner import PipelineRunner, PipelineRunResult
-from api.api_schemas import (
-    PipelineDensitySpec,
-    PipelinePerformanceSpec,
-    PipelineStreamSpec,
-    ExecutionConfig,
-    OutputMode,
-    VariantReference,
-    GraphInline,
+from api.api_schemas import PipelineStreamSpec
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelineDensitySpec,
+    InternalPipelinePerformanceSpec,
 )
-from utils import generate_pipeline_graph_id
 from managers.pipeline_manager import PipelineManager
 
 
@@ -65,13 +62,13 @@ class Benchmark:
 
     @staticmethod
     def _calculate_streams_per_pipeline(
-        pipeline_benchmark_specs: list[PipelineDensitySpec], total_streams: int
+        pipeline_density_specs: list[InternalPipelineDensitySpec], total_streams: int
     ) -> list[int]:
         """
         Calculate the number of streams for each pipeline based on their stream_rate ratios.
 
         Args:
-            pipeline_benchmark_specs: List of PipelineDensitySpec with stream_rate ratios.
+            pipeline_density_specs: List of InternalPipelineDensitySpec with stream_rate ratios.
             total_streams: Total number of streams to distribute.
 
         Returns:
@@ -81,7 +78,7 @@ class Benchmark:
             ValueError: If stream_rate ratios don't sum to 100.
         """
         # Validate that ratios sum to 100
-        total_ratio = sum(spec.stream_rate for spec in pipeline_benchmark_specs)
+        total_ratio = sum(spec.stream_rate for spec in pipeline_density_specs)
         if total_ratio != 100:
             raise ValueError(
                 f"Pipeline stream_rate ratios must sum to 100%, got {total_ratio}%"
@@ -91,8 +88,8 @@ class Benchmark:
         streams_per_pipeline_counts = []
         remaining_streams = total_streams
 
-        for i, spec in enumerate(pipeline_benchmark_specs):
-            if i == len(pipeline_benchmark_specs) - 1:
+        for i, spec in enumerate(pipeline_density_specs):
+            if i == len(pipeline_density_specs) - 1:
                 # Last pipeline gets all remaining streams to handle rounding
                 streams_per_pipeline_counts.append(remaining_streams)
             else:
@@ -105,25 +102,23 @@ class Benchmark:
 
     def run(
         self,
-        pipeline_benchmark_specs: list[PipelineDensitySpec],
+        pipeline_density_specs: list[InternalPipelineDensitySpec],
         fps_floor: float,
-        execution_config: ExecutionConfig,
+        execution_config: InternalExecutionConfig,
     ) -> BenchmarkResult:
         """
         Run the benchmark and return the best configuration.
 
         Args:
-            pipeline_benchmark_specs: List of PipelineDensitySpec with stream_rate ratios.
-                Each spec.pipeline must be either VariantReference or GraphInline.
+            pipeline_density_specs: List of InternalPipelineDensitySpec with resolved
+                pipeline information and stream_rate ratios.
             fps_floor: Minimum FPS threshold per stream.
-            execution_config: Execution configuration for output and runtime.
+            execution_config: InternalExecutionConfig for output and runtime.
                 Note: output_mode=live_stream is not supported for density tests.
 
         Returns:
             BenchmarkResult with optimal stream configuration. The streams_per_pipeline
-            field contains pipeline IDs in the format:
-            * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-            * For inline graph: "__graph-{16-char-hash}"
+            field contains pipeline IDs already resolved in internal specs.
 
         Raises:
             ValueError: If output_mode is live_stream (not supported for density tests).
@@ -131,7 +126,7 @@ class Benchmark:
             RuntimeError: If pipeline execution fails.
         """
         # Validate that live_stream is not used for density tests
-        if execution_config.output_mode == OutputMode.LIVE_STREAM:
+        if execution_config.output_mode == InternalOutputMode.LIVE_STREAM:
             raise ValueError(
                 "Density tests do not support output_mode='live_stream'. "
                 "Use output_mode='disabled' or output_mode='file' instead."
@@ -155,18 +150,20 @@ class Benchmark:
         while True:
             # Calculate streams per pipeline based on ratios
             streams_per_pipeline_counts = self._calculate_streams_per_pipeline(
-                pipeline_benchmark_specs, n_streams
+                pipeline_density_specs, n_streams
             )
 
             # Build run specs with calculated stream counts
-            # Copy pipeline source from density spec to performance spec
+            # Convert density specs to performance specs for pipeline command building
             run_specs = [
-                PipelinePerformanceSpec(
-                    pipeline=spec.pipeline,  # Copy the discriminated union
+                InternalPipelinePerformanceSpec(
+                    pipeline_id=spec.pipeline_id,
+                    pipeline_name=spec.pipeline_name,
+                    pipeline_graph=spec.pipeline_graph,
                     streams=streams,
                 )
                 for spec, streams in zip(
-                    pipeline_benchmark_specs, streams_per_pipeline_counts
+                    pipeline_density_specs, streams_per_pipeline_counts
                 )
             ]
 
@@ -210,24 +207,13 @@ class Benchmark:
                 higher_bound,
             )
 
-            # Build streams_per_pipeline with proper pipeline IDs
-            streams_per_pipeline_with_ids = []
-            for spec, stream_count in zip(
-                pipeline_benchmark_specs, streams_per_pipeline_counts
-            ):
-                match spec.pipeline:
-                    case VariantReference(pipeline_id=pid, variant_id=vid):
-                        # Use variant path format for ID
-                        pipeline_id = f"/pipelines/{pid}/variants/{vid}"
-                    case GraphInline(pipeline_graph=graph):
-                        # Generate synthetic ID from graph hash
-                        pipeline_id = generate_pipeline_graph_id(graph.model_dump())
-                    case _:
-                        raise ValueError("Invalid pipeline source type")
-
-                streams_per_pipeline_with_ids.append(
-                    PipelineStreamSpec(id=pipeline_id, streams=stream_count)
+            # Build streams_per_pipeline with pipeline IDs
+            streams_per_pipeline_with_ids = [
+                PipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
+                for spec, stream_count in zip(
+                    pipeline_density_specs, streams_per_pipeline_counts
                 )
+            ]
 
             # increase number of streams exponentially until we drop below fps_floor
             if exponential:
@@ -275,21 +261,12 @@ class Benchmark:
             )
         else:
             # Fallback to last attempt - build streams_per_pipeline from last run
-            streams_per_pipeline_with_ids = []
-            for spec, stream_count in zip(
-                pipeline_benchmark_specs, streams_per_pipeline_counts
-            ):
-                match spec.pipeline:
-                    case VariantReference(pipeline_id=pid, variant_id=vid):
-                        pipeline_id = f"/pipelines/{pid}/variants/{vid}"
-                    case GraphInline(pipeline_graph=graph):
-                        pipeline_id = generate_pipeline_graph_id(graph.model_dump())
-                    case _:
-                        raise ValueError("Invalid pipeline source type")
-
-                streams_per_pipeline_with_ids.append(
-                    PipelineStreamSpec(id=pipeline_id, streams=stream_count)
+            streams_per_pipeline_with_ids = [
+                PipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
+                for spec, stream_count in zip(
+                    pipeline_density_specs, streams_per_pipeline_counts
                 )
+            ]
 
             bm_result = BenchmarkResult(
                 n_streams=n_streams,

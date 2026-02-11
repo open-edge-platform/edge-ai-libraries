@@ -2,12 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from api.api_schemas import (
-    ExecutionConfig,
-    OutputMode,
-    PipelineDensitySpec,
     PipelineStreamSpec,
-    VariantReference,
-    GraphInline,
     PipelineGraph,
     Node,
     Edge,
@@ -16,25 +11,18 @@ from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
+from graph import Graph
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelineDensitySpec,
+)
 from pipeline_runner import PipelineRunResult
 
 
-def create_variant_density_spec(
-    pipeline_id: str, variant_id: str, stream_rate: int = 100
-) -> PipelineDensitySpec:
-    """Helper to create PipelineDensitySpec with VariantReference."""
-    return PipelineDensitySpec(
-        pipeline=VariantReference(
-            pipeline_id=pipeline_id,
-            variant_id=variant_id,
-        ),
-        stream_rate=stream_rate,
-    )
-
-
-def create_simple_graph() -> PipelineGraph:
-    """Helper to create a simple test pipeline graph."""
-    return PipelineGraph(
+def create_simple_graph() -> Graph:
+    """Helper to create a simple test pipeline Graph object."""
+    pipeline_graph = PipelineGraph(
         nodes=[
             Node(id="0", type="filesrc", data={"location": "/videos/test.mp4"}),
             Node(id="1", type="fakesink", data={}),
@@ -43,25 +31,47 @@ def create_simple_graph() -> PipelineGraph:
             Edge(id="0", source="0", target="1"),
         ],
     )
+    return Graph.from_dict(pipeline_graph.model_dump())
 
 
-def create_inline_density_spec(stream_rate: int = 100) -> PipelineDensitySpec:
-    """Helper to create PipelineDensitySpec with inline graph."""
-    return PipelineDensitySpec(
-        pipeline=GraphInline(
-            pipeline_graph=create_simple_graph(),
-        ),
+def create_internal_density_spec(
+    pipeline_id: str, pipeline_name: str, stream_rate: int = 100
+) -> InternalPipelineDensitySpec:
+    """Helper to create InternalPipelineDensitySpec for testing."""
+    return InternalPipelineDensitySpec(
+        pipeline_id=pipeline_id,
+        pipeline_name=pipeline_name,
+        pipeline_graph=create_simple_graph(),
         stream_rate=stream_rate,
+    )
+
+
+def create_internal_execution_config(
+    output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
+    max_runtime: float = 0,
+) -> InternalExecutionConfig:
+    """Helper to create InternalExecutionConfig for testing."""
+    return InternalExecutionConfig(
+        output_mode=output_mode,
+        max_runtime=max_runtime,
     )
 
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.fps_floor = 30
-        # Use new format with VariantReference
+        # Use internal types with resolved pipeline information
         self.pipeline_benchmark_specs = [
-            create_variant_density_spec("pipeline-test1", "variant-1", stream_rate=50),
-            create_variant_density_spec("pipeline-test2", "variant-2", stream_rate=50),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-test1/variants/variant-1",
+                pipeline_name="Test Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-test2/variants/variant-2",
+                pipeline_name="Test Pipeline 2",
+                stream_rate=50,
+            ),
         ]
         self.benchmark = Benchmark()
 
@@ -132,7 +142,7 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
             )
 
             self.assertEqual(result, expected_result)
@@ -151,7 +161,7 @@ class TestBenchmark(unittest.TestCase):
             self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
             )
 
     @patch("benchmark.PipelineManager")
@@ -172,7 +182,7 @@ class TestBenchmark(unittest.TestCase):
                 _ = self.benchmark.run(
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
-                    execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                    execution_config=create_internal_execution_config(),
                 )
 
     @patch("benchmark.PipelineManager")
@@ -191,15 +201,27 @@ class TestBenchmark(unittest.TestCase):
                 _ = self.benchmark.run(
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
-                    execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                    execution_config=create_internal_execution_config(),
                 )
 
     def test_calculate_streams_per_pipeline(self):
-        # Use new format with VariantReference
+        # Use internal types with resolved pipeline information
         pipeline_benchmark_specs = [
-            create_variant_density_spec("pipeline-1", "variant-1", stream_rate=50),
-            create_variant_density_spec("pipeline-2", "variant-2", stream_rate=30),
-            create_variant_density_spec("pipeline-3", "variant-3", stream_rate=20),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-1/variants/variant-1",
+                pipeline_name="Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-2/variants/variant-2",
+                pipeline_name="Pipeline 2",
+                stream_rate=30,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-3/variants/variant-3",
+                pipeline_name="Pipeline 3",
+                stream_rate=20,
+            ),
         ]
 
         # Test with total_streams = 10
@@ -228,7 +250,9 @@ class TestBenchmark(unittest.TestCase):
             self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.LIVE_STREAM),
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.LIVE_STREAM
+                ),
             )
 
         self.assertIn(
@@ -262,8 +286,8 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(
-                    output_mode=OutputMode.FILE, max_runtime=0
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.FILE, max_runtime=0
                 ),
             )
 
@@ -291,8 +315,8 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(
-                    output_mode=OutputMode.DISABLED, max_runtime=60
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.DISABLED, max_runtime=60
                 ),
             )
 
@@ -305,9 +329,13 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
-        # Create specs with inline graphs
+        # Create specs with inline graph format (synthetic ID)
         inline_specs = [
-            create_inline_density_spec(stream_rate=100),
+            create_internal_density_spec(
+                pipeline_id="__graph-1234567890abcdef",
+                pipeline_name="__graph-1234567890abcdef",
+                stream_rate=100,
+            ),
         ]
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
@@ -325,7 +353,7 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 inline_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
             )
 
             self.assertIsInstance(result, BenchmarkResult)
@@ -353,7 +381,7 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
             )
 
             # Check that all pipeline IDs use the variant path format
@@ -375,10 +403,18 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
-        # Mix of variant reference and inline graph
+        # Mix of variant reference format and inline graph format
         mixed_specs = [
-            create_variant_density_spec("pipeline-1", "variant-1", stream_rate=50),
-            create_inline_density_spec(stream_rate=50),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-1/variants/variant-1",
+                pipeline_name="Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="__graph-abcdef1234567890",
+                pipeline_name="__graph-abcdef1234567890",
+                stream_rate=50,
+            ),
         ]
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
@@ -392,7 +428,7 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 mixed_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
             )
 
             self.assertIsInstance(result, BenchmarkResult)

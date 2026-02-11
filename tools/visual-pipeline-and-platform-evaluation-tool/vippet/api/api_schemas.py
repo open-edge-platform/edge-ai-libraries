@@ -1119,10 +1119,11 @@ class PerformanceJobSummary(BaseModel):
     Attributes:
         id: Job identifier.
         request: Original PerformanceTestSpec used to start the job.
+            Stored as dict and validated on output.
     """
 
     id: str
-    request: PerformanceTestSpec
+    request: Dict[str, Any]
 
 
 class DensityJobSummary(BaseModel):
@@ -1132,10 +1133,11 @@ class DensityJobSummary(BaseModel):
     Attributes:
         id: Job identifier.
         request: Original DensityTestSpec used to start the job.
+            Stored as dict and validated on output.
     """
 
     id: str
-    request: DensityTestSpec
+    request: Dict[str, Any]
 
 
 class OptimizationJobResponse(BaseModel):
