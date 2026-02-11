@@ -22,7 +22,7 @@ variants:
       gvametaconvert add-empty-results=true !
       queue !
       gvafpscounter starting-frame=100 !
-      fakesink
+      fakesink name=default_output_sink
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/warehouse.avi !
@@ -46,7 +46,7 @@ variants:
       gvametaconvert add-empty-results=true !
       queue !
       gvafpscounter starting-frame=100 !
-      fakesink
+      fakesink name=default_output_sink
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/warehouse.avi !
@@ -69,4 +69,4 @@ variants:
       gvametaconvert add-empty-results=true !
       queue !
       gvafpscounter starting-frame=100 !
-      fakesink
+      fakesink name=default_output_sink

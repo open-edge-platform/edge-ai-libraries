@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, type FC } from 'react';
+import { useEffect, useRef, type FC } from 'react';
 
 import NotificationList from './components/Notification/NotificationList.tsx';
 import MainPage from './components/MainPage/MainPage.tsx';
@@ -33,6 +33,8 @@ const App: FC = () => {
   const dispatch = useAppDispatch();
 
   const connectedSockets: Set<string> = new Set<string>();
+  const searchListenerAttachedRef = useRef(false);
+  const connectionLoggedRef = useRef(false);
 
   useEffect(() => {
     if (!Object.keys(FeatureMux).includes(FEATURE_MUX)) {
@@ -110,10 +112,25 @@ const App: FC = () => {
         }
       }
     }
-    if (FEATURE_SEARCH === FEATURE_STATE.ON) {
+    if (!connectionLoggedRef.current) {
+      socket.on('connect', () => {
+        console.log('[socket] connected', socket.id);
+      });
+      socket.on('connect_error', (err) => {
+        console.error('[socket] connect_error', err.message || err);
+      });
+      socket.on('disconnect', (reason) => {
+        console.warn('[socket] disconnected', reason);
+      });
+      connectionLoggedRef.current = true;
+    }
+
+    if (!searchListenerAttachedRef.current && FEATURE_SEARCH !== FEATURE_STATE.OFF) {
       socket.on('search:update', (data: SearchQuery) => {
+        console.log('[socket] search:update received', data.queryId);
         dispatch(SearchActions.updateSearchQuery(data));
       });
+      searchListenerAttachedRef.current = true;
     }
   }, [connectedSockets, dispatch, summaryIds]);
 

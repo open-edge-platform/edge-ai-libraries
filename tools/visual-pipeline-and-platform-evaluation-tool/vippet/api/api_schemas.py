@@ -775,6 +775,7 @@ class PipelineDefinition(BaseModel):
             overwritten to USER_CREATED.
         tags: List of tags for categorizing the pipeline.
         variants: List of pipeline variants for different hardware targets.
+            Each variant requires name, pipeline_graph, and pipeline_graph_simple.
 
     Example:
         .. code-block:: json
@@ -785,9 +786,7 @@ class PipelineDefinition(BaseModel):
               "tags": ["detection", "vehicle"],
               "variants": [
                 {
-                  "id": "variant-1",
                   "name": "CPU",
-                  "read_only": false,
                   "pipeline_graph": {...},
                   "pipeline_graph_simple": {...}
                 }
@@ -806,7 +805,7 @@ class PipelineDefinition(BaseModel):
         default=[],
         description="List of tags for categorizing the pipeline.",
     )
-    variants: List[Variant] = Field(
+    variants: List[VariantCreate] = Field(
         ...,
         min_length=1,
         description="List of pipeline variants for different hardware targets.",

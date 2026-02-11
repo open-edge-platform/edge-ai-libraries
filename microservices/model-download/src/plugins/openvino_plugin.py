@@ -38,11 +38,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("precision", "int8"))
+        weight_format = config.get("precision", kwargs.get("precision")) or "int8"
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
-        target_device = config.get("device", kwargs.get("device", "CPU"))
+        target_device = config.get("device", kwargs.get("device")) or "CPU"
         cache_size = config.get("cache", kwargs.get("cache_size"))
 
         if target_device.upper() == "NPU":
@@ -148,7 +148,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         # Step 1: Log in to Hugging Face,
-        logger.info("Logging in to Hugging Face...")
+        logger.info(f"Logging in to Hugging Face with token...")
         check_login = subprocess.run(
             ["hf", "auth", "whoami"],
             capture_output=True,
@@ -312,7 +312,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         raise NotImplementedError("OpenVINO converter does not support task-based downloading")
     
-    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+    async def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
         """
         Post-process the converted files.
         For OpenVINO conversion, this is handled by the download/convert method directly.

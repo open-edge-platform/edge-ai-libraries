@@ -192,39 +192,6 @@ class TestPipelinesAPI(unittest.TestCase):
         )
 
     @patch("api.routes.pipelines.PipelineManager")
-    def test_create_pipeline_with_read_only_variant_rejected(
-        self, mock_pipeline_manager_cls
-    ):
-        """Test that creating a pipeline with read_only=true variant is rejected."""
-        timestamp = _get_test_timestamp()
-        new_pipeline = {
-            "name": "user-defined-pipelines",
-            "description": "A custom test pipeline",
-            "tags": [],
-            "variants": [
-                {
-                    "id": "variant-1",
-                    "name": "CPU",
-                    "read_only": True,  # This should be rejected
-                    "pipeline_graph": schemas.PipelineGraph.model_validate_json(
-                        self.test_graph
-                    ).model_dump(),
-                    "pipeline_graph_simple": schemas.PipelineGraph.model_validate_json(
-                        self.test_graph
-                    ).model_dump(),
-                    "created_at": timestamp.isoformat(),
-                    "modified_at": timestamp.isoformat(),
-                }
-            ],
-        }
-
-        response = self.client.post("/pipelines", json=new_pipeline)
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("read_only", response.json()["message"])
-        mock_pipeline_manager_cls.return_value.add_pipeline.assert_not_called()
-
-    @patch("api.routes.pipelines.PipelineManager")
     def test_create_pipeline_duplicate(self, mock_pipeline_manager_cls):
         mock_manager = MagicMock()
         mock_manager.add_pipeline.side_effect = ValueError("Pipeline already exists.")

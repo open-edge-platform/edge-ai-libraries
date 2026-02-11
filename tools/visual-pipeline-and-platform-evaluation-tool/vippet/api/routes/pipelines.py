@@ -38,7 +38,6 @@ def create_pipeline(body: schemas.PipelineDefinition):
 
     Operation:
         * Enforce USER_CREATED source
-        * Validate that no variant has read_only=true
         * Delegate to PipelineManager.add_pipeline()
         * Return generated pipeline ID
 
@@ -46,6 +45,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
         * Pipeline ID (generated from name)
         * Pipeline created_at and modified_at timestamps
         * Variant IDs (generated from variant names)
+        * Variant read_only=False for all variants
         * Variant created_at and modified_at timestamps
         * Pipeline thumbnail is always None for user-created pipelines
 
@@ -55,26 +55,22 @@ def create_pipeline(body: schemas.PipelineDefinition):
             * description – non-empty human-readable text describing what the pipeline does.
             * source – ignored and forced to USER_CREATED by this endpoint.
             * tags – list of tags for categorizing the pipeline.
-            * variants – list of pipeline variants with their graphs.
-                Note: read_only field in variants will be set to false and cannot be changed.
-                Note: created_at and modified_at in variants are ignored and set by backend.
+            * variants – list of VariantCreate objects with name, pipeline_graph,
+                and pipeline_graph_simple. The backend generates IDs and sets read_only=False.
 
     Returns:
         201 Created:
             PipelineCreationResponse with generated pipeline id.
         400 Bad Request:
-            MessageResponse when pipeline definition is invalid or when
-            attempting to set read_only=true.
+            MessageResponse when pipeline definition is invalid.
         500 Internal Server Error:
             MessageResponse when an unexpected error occurs.
 
     Success conditions:
         * PipelineDefinition is structurally valid
-        * No variant has read_only=true
         * PipelineManager successfully creates pipeline
 
     Failure conditions:
-        * Any variant has read_only=true → 400
         * Invalid pipeline definition at manager level → 400
         * Any other unhandled error → 500
 
@@ -87,9 +83,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
               "tags": ["detection", "vehicle"],
               "variants": [
                 {
-                  "id": "variant-1",
                   "name": "CPU",
-                  "read_only": false,
                   "pipeline_graph": {...},
                   "pipeline_graph_simple": {...}
                 }
@@ -102,30 +96,10 @@ def create_pipeline(body: schemas.PipelineDefinition):
             {
               "id": "pipeline-a3f5d9e1"
             }
-
-    Error response example (400):
-        .. code-block:: json
-
-            {
-              "message": "Cannot set read_only=true for user-created pipeline variants. This field is reserved for PREDEFINED pipelines only."
-            }
     """
     try:
         # Enforce USER_CREATED source for pipelines created via API
         body.source = schemas.PipelineSource.USER_CREATED
-
-        # Reject any attempt to set read_only=true for user-created pipelines
-        for variant in body.variants:
-            if variant.read_only:
-                return JSONResponse(
-                    content=schemas.MessageResponse(
-                        message="Cannot set read_only=true for user-created pipeline variants. "
-                        "This field is reserved for PREDEFINED pipelines only."
-                    ).model_dump(),
-                    status_code=400,
-                )
-            # Ensure read_only is false
-            variant.read_only = False
 
         pipeline = PipelineManager().add_pipeline(body)
 

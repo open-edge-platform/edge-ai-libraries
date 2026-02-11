@@ -28,6 +28,15 @@ export const enTranslations = {
   tagsHelperText: 'Select tags to filter the results',
   AddingSearches: '({{count}}) search in progress',
   topK: 'Search Output Count',
+  timeFilterLabel: 'Time Filter',
+  timeFilterUnit: 'Unit',
+  timeFilterNone: 'None',
+  timeFilterCustom: 'Custom',
+  timeFilterCustomValue: 'Custom value',
+  timeFilterMinutes: 'Minutes',
+  timeFilterHours: 'Hours',
+  timeFilterDays: 'Days',
+  timeFilterWeeks: 'Weeks',
   searchInProgress: 'searching',
   customVideoTags: 'Custom Tags',
   videoTagsinfo: 'Custom tags help organize and search your videos. Add descriptive keywords separated by commas (e.g., "outdoor, interview, drone"). These tags will be used to improve search relevance and categorization.',
@@ -187,6 +196,7 @@ export const enTranslations = {
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',
+  timeoutError: 'Request timed out while processing the video. Please try again.',
 
   // Video selector translations
   orSelectExisting: 'Or select from recent uploads',
