@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "videoSummaryManager.fullname" . }}
+  name: {{ include "pipelinemanager.fullname" . }}
   labels:
-    app: {{ .Values.videoSummaryManager.name }}
+    app: {{ .Values.pipelinemanager.name }}
 spec:
-  replicas: {{ .Values.videoSummaryManager.replicaCount | default 1 }}
+  replicas: {{ .Values.pipelinemanager.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: {{ .Values.videoSummaryManager.name }}
+      app: {{ .Values.pipelinemanager.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.videoSummaryManager.name }}
+        app: {{ .Values.pipelinemanager.name }}
     spec:
       initContainers:
         {{- if .Values.videosearch.enabled }}
@@ -66,20 +66,24 @@ spec:
         {{ end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
-          imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
+          image: "{{ .Values.pipelinemanager.image.repository }}:{{ .Values.pipelinemanager.image.tag }}"
+          imagePullPolicy: {{ .Values.pipelinemanager.image.pullPolicy }}
+          {{- with .Values.pipelinemanager.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: 3000
-              name: {{ .Values.videoSummaryManager.containerPortName }}
+              name: {{ .Values.pipelinemanager.containerPortName }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
               value: "{{ .Values.global.proxy.https_proxy }}"
             - name: MINIO_PROTOCOL
-              value: {{ .Values.videoSummaryManager.minioProtocol | quote }}
+              value: {{ .Values.pipelinemanager.minioProtocol | quote }}
             - name: MINIO_HOST
               value: {{ include "minioserver.name" .Subcharts.minioserver }}
             - name: MINIO_PORT
@@ -89,7 +93,7 @@ spec:
             - name: MINIO_ROOT_PASSWORD
               value: {{ required "Value for MINIO_ROOT_PASSWORD is required!" .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
             - name: MINIO_BUCKET
-              value: {{ .Values.videoSummaryManager.minioBucket | quote }}
+              value: {{ .Values.pipelinemanager.minioBucket | quote }}
             - name: EVAM_HOST
               value: "{{ .Values.videoingestion.name }}"
             - name: EVAM_PIPELINE_PORT
@@ -107,35 +111,35 @@ spec:
             - name: RABBITMQ_AMQP_PORT
               value: "{{ .Values.rabbitmq.service.amqpPort }}"
             - name: LLM_SUMMARIZATION_KEY
-              value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_KEY }}"
+              value: "{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_KEY }}"
             - name: LLM_SUMMARIZATION_API
-              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
+              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
             - name: LLM_SUMMARIZATION_DEVICE
-              value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
+              value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
             - name: LLM_MODEL_NAME
               value: {{ .Values.global.llmName | quote }}
             - name: VLM_CAPTIONING_KEY
-              value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_KEY }}"
+              value: "{{ .Values.pipelinemanager.env.VLM_CAPTIONING_KEY }}"
             - name: VLM_CAPTIONING_API
               value: "http://{{ .Values.vlminference.name }}:8000/v1"
             - name: VLM_CAPTIONING_DEVICE
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
               value: {{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}
             - name: LLM_CONCURRENT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}{{ end }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.videoSummaryManager.env.VLM_CONCURRENT }}{{ end }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.VLM_CONCURRENT }}{{ end }}"
             - name: SUMMARIZATION_MAX_COMPLETION_TOKENS
-              value: "{{ .Values.videoSummaryManager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
+              value: "{{ .Values.pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
             - name: CAPTIONING_MAX_COMPLETION_TOKENS
-              value: "{{ .Values.videoSummaryManager.env.CAPTIONING_MAX_COMPLETION_TOKENS }}"
+              value: "{{ .Values.pipelinemanager.env.CAPTIONING_MAX_COMPLETION_TOKENS }}"
             - name: MAX_CONTEXT_LENGTH
-              value: "{{ .Values.videoSummaryManager.env.MAX_CONTEXT_LENGTH }}"
+              value: "{{ .Values.pipelinemanager.env.MAX_CONTEXT_LENGTH }}"
             - name: LLM_MODEL_API
-              value: "{{ .Values.videoSummaryManager.env.LLM_MODEL_API }}"
+              value: "{{ .Values.pipelinemanager.env.LLM_MODEL_API }}"
             - name: MULTI_FRAME_COUNT
-              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}6{{ else }}{{ .Values.videoSummaryManager.env.MULTI_FRAME_COUNT }}{{ end }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}6{{ else }}{{ .Values.pipelinemanager.env.MULTI_FRAME_COUNT }}{{ end }}"
             - name: DB_HOST
               value: "{{ .Values.postgresql.name }}"
             - name: DB_PORT
@@ -149,13 +153,21 @@ spec:
             - name: AUDIO_HOST
               value: "http://{{ .Values.audioanalyzer.name }}:{{ .Values.audioanalyzer.service.port }}"
             - name: AUDIO_DEVICE
-              value: "{{ .Values.videoSummaryManager.env.AUDIO_DEVICE }}"
+              value: "{{ .Values.pipelinemanager.env.AUDIO_DEVICE }}"
             - name: OTLP_TRACE_URL
               value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
+            {{- if and .Values.vdmsdataprep.enabled .Values.vsscollector.enabled }}
+            - name: DATAPREP_TELEMETRY_URL
+              value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}/v1/dataprep/telemetry?limit=1"
+            {{- end }}
+            {{- if .Values.vsscollector.enabled }}
+            - name: TELEMETRY_SIGNAL_DIR
+              value: "/app/.collector-signals"
+            {{- end }}
             - name: SUMMARY_FEATURE
-              value: "{{ .Values.videoSummaryManager.env.SUMMARY_FEATURE }}"
+              value: "{{ .Values.pipelinemanager.env.SUMMARY_FEATURE }}"
             - name: SEARCH_FEATURE
-              value: "{{ .Values.videoSummaryManager.env.SEARCH_FEATURE }}"
+              value: "{{ .Values.pipelinemanager.env.SEARCH_FEATURE }}"
             {{- if .Values.videosearch.enabled }}
             - name: SEARCH_ENDPOINT
               value: "http://{{ .Values.videosearch.name }}:{{ .Values.videosearch.service.port }}"
@@ -163,12 +175,34 @@ spec:
               value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}"
             {{- end }}
             - name: USE_OVMS
-              value: "{{ .Values.videoSummaryManager.env.USE_OVMS }}"
+              value: "{{ .Values.pipelinemanager.env.USE_OVMS }}"
+          {{- if .Values.vsscollector.enabled }}
+          volumeMounts:
+            - name: collector-signals
+              mountPath: /app/.collector-signals
+              subPath: {{ .Values.vsscollector.signalVolume.subPath | quote }}
+          {{- end }}
       nodeSelector:
-        {{- toYaml .Values.videoSummaryManager.nodeSelector | nindent 8 }}
+        {{- toYaml .Values.pipelinemanager.nodeSelector | nindent 8 }}
+      {{- with .Values.pipelinemanager.affinity }}
       affinity:
-        {{- toYaml .Values.videoSummaryManager.affinity | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       tolerations:
-        {{- toYaml .Values.videoSummaryManager.tolerations | nindent 8 }}
+        {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
       tolerations:
-        {{- toYaml .Values.videoSummaryManager.tolerations | nindent 8 }}
+        {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
+      {{- if .Values.vsscollector.enabled }}
+      volumes:
+        - name: collector-signals
+          {{- if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}/collector-signals
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- end }}
