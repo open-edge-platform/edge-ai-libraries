@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EllipsisVertical, Lock } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link } from "react-router";
 import {
@@ -23,16 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import { DeletePipelineDialog } from "./DeletePipelineDialog";
 import { CreatePipelineButton } from "./CreatePipelineButton.tsx";
-
-const TAG_COLORS = [
-  "electric-aqua",
-  "electric-cobalt",
-  "electric-coral",
-  "electric-daisy",
-  "electric-geode",
-  "electric-moss",
-  "electric-rust",
-] as const;
+import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 
 type PipelineCardsProps = {
   pipelines: Pipeline[];
@@ -41,6 +32,7 @@ type PipelineCardsProps = {
 
 export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const { theme } = useTheme();
+  const { tagColorMap } = usePipelineTagColors(pipelines);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pipelineToDelete, setPipelineToDelete] = useState<{
@@ -48,20 +40,6 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
     name: string;
     variantCount: number;
   } | null>(null);
-
-  const tagColorMap = useMemo(() => {
-    const uniqueTags = Array.from(
-      new Set(pipelines.flatMap((p) => p.tags ?? [])),
-    ).sort();
-
-    if (uniqueTags.length > TAG_COLORS.length) {
-      throw new Error(
-        `Not enough colors for tags. Found ${uniqueTags.length} unique tags but only ${TAG_COLORS.length} colors available.`,
-      );
-    }
-
-    return new Map(uniqueTags.map((tag, index) => [tag, TAG_COLORS[index]]));
-  }, [pipelines]);
 
   const handleDeleteClick = (pipeline: {
     id: string;

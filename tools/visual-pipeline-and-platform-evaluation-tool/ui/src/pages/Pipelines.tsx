@@ -416,6 +416,9 @@ export const Pipelines = () => {
         })),
       };
 
+      // TODO: for predefined pipelines we cannot pass simple_graph, cannot sync changes
+      // so most likely can just pass advanced graph, no matter what mode is active
+
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
           execution_config: {
@@ -426,7 +429,9 @@ export const Pipelines = () => {
             {
               pipeline: {
                 source: "graph",
-                pipeline_graph: graphData,
+                //pipeline_graph: graphData,
+                pipeline_graph: data!.variants.find((v) => v.id === variant)!
+                  .pipeline_graph,
               },
               streams: 1,
             },
@@ -634,9 +639,11 @@ export const Pipelines = () => {
           </div>
 
           <div className="flex gap-2">
-            {id && (
+            {id && variant && (
               <ViewModeSwitcher
                 pipelineId={id}
+                variant={variant}
+                isPredefined={data.source === "PREDEFINED"}
                 isSimpleMode={isSimpleMode}
                 currentNodes={currentNodes}
                 currentEdges={currentEdges}

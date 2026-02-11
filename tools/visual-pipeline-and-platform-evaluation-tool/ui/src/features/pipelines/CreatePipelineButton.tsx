@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useTheme } from "next-themes";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useAppSelector } from "@/store/hooks";
+import { selectPipelines } from "@/store/reducers/pipelines";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.tsx";
 import {
+  type PipelineGraph,
   useCreatePipelineMutation,
   useGetValidationJobStatusQuery,
   useToGraphMutation,
@@ -19,19 +26,70 @@ import { isApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox.tsx";
+import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
+
+const formSchema = z.object({
+  name: z
+    .string()
+    .min(3, "Name must be at least 3 characters")
+    .max(20, "Name must be at most 20 characters"),
+  description: z.string().min(1, "Description is required"),
+  tags: z.array(z.string()).min(1, "At least one tag is required"),
+  variantName: z.union([
+    z.string().min(3, "Variant name must be at least 3 characters"),
+    z.literal(""),
+  ]),
+  pipelineDescription: z.string().min(1, "Pipeline description is required"),
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 export const CreatePipelineButton = () => {
+  const { theme } = useTheme();
   const navigate = useNavigate();
+  const pipelines = useAppSelector(selectPipelines);
+  const { tagColorMap, availableTags } = usePipelineTagColors(pipelines);
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [pipelineDescription, setPipelineDescription] = useState("");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+    setValue,
+    trigger,
+  } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      tags: [],
+      variantName: "",
+      pipelineDescription: "",
+    },
+  });
+
+  const tags = watch("tags");
+
   const [validationJobId, setValidationJobId] = useState<string | null>(null);
   const [validationStatus, setValidationStatus] = useState<string>("");
   const [pendingPipelineData, setPendingPipelineData] = useState<{
     name: string;
     description: string;
-    pipelineDescription: string;
+    tags: string[];
+    variantName: string;
+    pipelineGraph: PipelineGraph;
   } | null>(null);
 
   const [createPipeline, { isLoading: isCreating }] =
@@ -59,10 +117,19 @@ export const CreatePipelineButton = () => {
       try {
         const response = await createPipeline({
           pipelineDefinition: {
-            name: pendingPipelineData.name.trim(),
-            description: pendingPipelineData.description.trim(),
+            name: pendingPipelineData.name,
+            description: pendingPipelineData.description,
             source: "USER_CREATED",
-            pipeline_description: pendingPipelineData.pipelineDescription,
+            tags:
+              pendingPipelineData.tags.length > 0
+                ? pendingPipelineData.tags
+                : undefined,
+            variants: [
+              {
+                name: pendingPipelineData.variantName || "default",
+                pipeline_graph: pendingPipelineData.pipelineGraph,
+              },
+            ],
             parameters: {
               default: {
                 additionalProp1: {},
@@ -73,9 +140,7 @@ export const CreatePipelineButton = () => {
 
         if (response.id) {
           setOpen(false);
-          setName("");
-          setDescription("");
-          setPipelineDescription("");
+          reset();
           setValidationJobId(null);
           setValidationStatus("");
           setPendingPipelineData(null);
@@ -128,6 +193,8 @@ export const CreatePipelineButton = () => {
     navigate,
     pendingPipelineData,
     validationJobId,
+    tags,
+    reset,
   ]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,17 +204,13 @@ export const CreatePipelineButton = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      setPipelineDescription(content);
+      setValue("pipelineDescription", content);
+      trigger("pipelineDescription");
     };
     reader.readAsText(file);
   };
 
-  const handleAdd = async () => {
-    if (!name.trim() || !description.trim() || !pipelineDescription.trim()) {
-      toast.error("Name, description and pipeline description are required");
-      return;
-    }
-
+  const onSubmit = async (data: FormData) => {
     // Reset any previous validation state
     setValidationJobId(null);
     setValidationStatus("");
@@ -158,7 +221,7 @@ export const CreatePipelineButton = () => {
       setValidationStatus("Converting pipeline description...");
       const graphResponse = await toGraph({
         pipelineDescription: {
-          pipeline_description: pipelineDescription,
+          pipeline_description: data.pipelineDescription,
         },
       }).unwrap();
 
@@ -176,9 +239,11 @@ export const CreatePipelineButton = () => {
         setValidationStatus("Waiting for validation...");
         // Store the pipeline data for later use when validation completes
         setPendingPipelineData({
-          name: name.trim(),
-          description: description.trim(),
-          pipelineDescription: pipelineDescription,
+          name: data.name.trim(),
+          description: data.description.trim(),
+          tags: data.tags,
+          variantName: data.variantName.trim(),
+          pipelineGraph: graphResponse.pipeline_graph,
         });
       } else {
         // Immediate validation response
@@ -203,14 +268,25 @@ export const CreatePipelineButton = () => {
     isConverting || isValidating || !!validationJobId || isCreating;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          reset();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue dark:hover:border-energy-blue hover:bg-blue-50 dark:hover:bg-energy-blue/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue  dark:hover:text-energy-blue">
           <Plus className="w-12 h-12" />
           <span className="text-lg font-medium">Create Pipeline</span>
         </button>
       </DialogTrigger>
-      <DialogContent className="!max-w-6xl">
+      <DialogContent
+        className="max-w-6xl!"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Create Pipeline</DialogTitle>
         </DialogHeader>
@@ -222,11 +298,15 @@ export const CreatePipelineButton = () => {
             <Input
               id="name"
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              {...register("name")}
               placeholder="Enter pipeline name..."
               className="w-full px-3 py-2 border"
             />
+            {errors.name && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -239,11 +319,105 @@ export const CreatePipelineButton = () => {
             <Input
               id="description"
               type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              {...register("description")}
               placeholder="Enter pipeline description..."
               className="w-full px-3 py-2 border"
             />
+            {errors.description && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="tags" className="block text-sm font-medium mb-2">
+              Tags
+            </label>
+            <Combobox
+              value={tags}
+              onValueChange={(newTags) => {
+                setValue("tags", newTags);
+                trigger("tags");
+              }}
+              multiple
+            >
+              <ComboboxChips>
+                {tags.map((tag) => {
+                  const color = tagColorMap.get(tag);
+                  return (
+                    <ComboboxChip
+                      key={tag}
+                      style={
+                        color
+                          ? {
+                              backgroundColor:
+                                theme === "dark"
+                                  ? `var(--${color})`
+                                  : `color-mix(in oklch, var(--${color}) 50%, white)`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {tag}
+                    </ComboboxChip>
+                  );
+                })}
+                <ComboboxChipsInput
+                  placeholder="Add tags..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.currentTarget.value) {
+                      e.preventDefault();
+                      const newTag = e.currentTarget.value.trim();
+                      if (newTag && !tags.includes(newTag)) {
+                        setValue("tags", [...tags, newTag]);
+                        trigger("tags");
+                        e.currentTarget.value = "";
+                      }
+                    }
+                  }}
+                />
+              </ComboboxChips>
+              <ComboboxContent>
+                <ComboboxList>
+                  {availableTags.length > 0 ? (
+                    availableTags.map((tag) => (
+                      <ComboboxItem key={tag} value={tag}>
+                        {tag}
+                      </ComboboxItem>
+                    ))
+                  ) : (
+                    <ComboboxEmpty>No tags available.</ComboboxEmpty>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+            {errors.tags && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.tags.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="variant-name"
+              className="block text-sm font-medium mb-2"
+            >
+              Variant Name
+            </label>
+            <Input
+              id="variant-name"
+              type="text"
+              {...register("variantName")}
+              placeholder="default"
+              className="w-full px-3 py-2 border"
+            />
+            {errors.variantName && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.variantName.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -258,7 +432,7 @@ export const CreatePipelineButton = () => {
               type="file"
               accept=".txt"
               onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+              className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
             />
           </div>
 
@@ -271,39 +445,27 @@ export const CreatePipelineButton = () => {
             </label>
             <Textarea
               id="pipeline-description"
-              value={pipelineDescription}
-              onChange={(e) => setPipelineDescription(e.target.value)}
+              {...register("pipelineDescription")}
               placeholder="Paste or upload your pipeline description here..."
               className="w-full h-64 p-3 border resize-none font-mono text-sm"
             />
+            {errors.pipelineDescription && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.pipelineDescription.message}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setOpen(false);
-                setName("");
-                setDescription("");
-                setPipelineDescription("");
-              }}
-            >
+            <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleAdd}
-              disabled={
-                isLoading ||
-                !name.trim() ||
-                !description.trim() ||
-                !pipelineDescription.trim()
-              }
-            >
+            <Button onClick={handleSubmit(onSubmit)} disabled={isLoading}>
               {validationStatus
                 ? validationStatus
                 : isLoading
                   ? "Processing..."
-                  : "Add"}
+                  : "Create"}
             </Button>
           </div>
         </div>
