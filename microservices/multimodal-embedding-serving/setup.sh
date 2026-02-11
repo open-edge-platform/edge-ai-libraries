@@ -27,7 +27,7 @@ export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
 export DEFAULT_NUM_FRAMES=64
 
 # OpenVINO configuration
-export EMBEDDING_USE_OV=false
+export EMBEDDING_USE_OV=true
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 

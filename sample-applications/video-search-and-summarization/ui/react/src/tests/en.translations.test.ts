@@ -167,6 +167,12 @@ describe('English translations test suite', () => {
     it('should have serverError translation', () => {
       expect(enTranslations.serverError).toBe('Server error occured');
     });
+
+    it('should have timeoutError translation', () => {
+      expect(enTranslations.timeoutError).toBe(
+        'Request timed out while processing the video. Please try again.',
+      );
+    });
   });
 
   describe('File and media related translations', () => {

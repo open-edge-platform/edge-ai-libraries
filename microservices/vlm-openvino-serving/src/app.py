@@ -4,6 +4,7 @@
 import asyncio
 import copy
 import os
+import re
 import sys
 import time
 import uuid
@@ -24,6 +25,7 @@ from fastapi_utils.tasks import repeat_every
 from optimum.intel.openvino import OVModelForVisualCausalLM
 from qwen_vl_utils import process_vision_info
 from src.utils.common import ErrorMessages, ModelNames, logger, settings
+from PIL import Image
 from src.utils.data_models import (
     ChatCompletionChoice,
     ChatCompletionDelta,
@@ -48,10 +50,12 @@ from src.utils.utils import (
     convert_qwen_video_inputs,
     convert_frame_urls_to_video_tensors,
     extract_qwen_video_frames,
+    decode_base64_image,
     decode_and_save_video,
     get_best_video_backend,
     get_device_property,
     get_devices,
+    is_base64_image_data,
     is_model_ready,
     load_images,
     load_model_config,
@@ -204,12 +208,22 @@ class RequestQueueMiddleware(BaseHTTPMiddleware):
             query_params = dict(request.query_params)
             body = await request.body()  # Read the body (if applicable)
 
+            def _redact_base64_images(payload: str) -> str:
+                if not payload:
+                    return payload
+                return re.sub(
+                    r"data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+",
+                    "data:image/*;base64,<redacted>",
+                    payload,
+                )
+
             # Log the complete request details
             logger.debug(f"Request Method: {method}")
             logger.debug(f"Request URL: {url}")
             logger.debug(f"Request Headers: {headers}")
             logger.debug(f"Request Query Params: {query_params}")
-            logger.debug(f"Request Body: {body.decode('utf-8') if body else 'No Body'}")
+            raw_body = body.decode("utf-8") if body else "No Body"
+            logger.debug(f"Request Body: {_redact_base64_images(raw_body)}")
             with request_lock:
                 queued_requests.value += 1
                 logger.info(
@@ -585,7 +599,12 @@ async def chat_completions(request: ChatRequest):
 
         global pipe, processor, model_dir, model_config
         logger.info("Received a chat completion request.")
-        logger.debug(f"chat request: {request}")
+        redacted_request = re.sub(
+            r"data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+",
+            "data:image/*;base64,<redacted>",
+            str(request),
+        )
+        logger.debug(f"chat request: {redacted_request}")
 
         # Process the request and generate a response
         if request.model != settings.VLM_MODEL_NAME:
@@ -687,6 +706,13 @@ async def chat_completions(request: ChatRequest):
         config = ov_genai.GenerationConfig(
             **{k: v for k, v in config_kwargs.items() if v is not None}
         )
+        if processor is not None and hasattr(processor, "tokenizer"):
+            eos_token_id = getattr(processor.tokenizer, "eos_token_id", None)
+            if isinstance(eos_token_id, int):
+                config.eos_token_id = eos_token_id
+            eos_token = getattr(processor.tokenizer, "eos_token", None)
+            if isinstance(eos_token, str) and eos_token and not config.stop_strings:
+                config.stop_strings = {eos_token}
         logger.debug(
             f"config: { {k: v for k, v in config_kwargs.items() if v is not None} }"
         )
@@ -834,11 +860,18 @@ async def chat_completions(request: ChatRequest):
                 }
             elif len(image_urls) > 0:
                 logger.info("processing as single/multiple image prompt")
+                qwen_image_payload: List[Union[str, Image.Image]] = []
+                for image_url in image_urls:
+                    if is_base64_image_data(str(image_url)):
+                        qwen_image_payload.append(decode_base64_image(str(image_url)))
+                    else:
+                        qwen_image_payload.append(image_url)
                 messages = [
                     {
                         "role": "user",
                         "content": [
-                            {"type": "image", "image": img} for img in image_urls
+                            {"type": "image", "image": img}
+                            for img in qwen_image_payload
                         ]
                         + [{"type": "text", "text": prompt}],
                     }

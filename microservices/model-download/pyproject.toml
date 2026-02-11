@@ -9,7 +9,7 @@ requires-python = "==3.12.*"
 
 dependencies = [
     "fastapi==0.121.3",
-    "pydantic==2.12.3",
+    "pydantic==2.12.4",
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
@@ -33,19 +33,21 @@ cpu = [
 ]
 
 huggingface = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "transformers==4.53.3",
+    "torch==2.9.1+cpu",
+    "torchvision==0.24.1+cpu",
 ]
 
 ultralytics = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
     "ultralytics==8.2.3",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
 ]
 
 openvino = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
-    "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git@aed07975d817c124fd5d45375ac131d4a068b557",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "optimum-intel==1.27.0",
     "accelerate==1.11.0",
     "diffusers==0.35.2",  # for image generation
     "einops==0.8.1",
@@ -63,12 +65,19 @@ openvino = [
 ]
 
 ollama = [
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0"
     # Ollama is installed as a binary, no Python dependencies required
+]
+
+geti = [
+    "geti-sdk==2.13.0",
 ]
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32'"
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
