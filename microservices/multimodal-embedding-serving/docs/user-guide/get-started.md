@@ -27,7 +27,7 @@ Refer to the [Supported Models](./supported-models.md) list for additional choic
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=1.3.1
+export TAG=latest
 ```
 
 ### Optional Environment Variables
