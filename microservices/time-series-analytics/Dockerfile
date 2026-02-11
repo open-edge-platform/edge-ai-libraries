@@ -31,6 +31,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+
 WORKDIR /app
 
 # Install Kapacitor and other necessary packages
@@ -63,10 +66,10 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
 COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
-RUN pip install --no-cache-dir -r requirements.txt
+RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
-ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
+ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/:/app/venv/bin"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
@@ -111,15 +114,26 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         apt-get remove --purge -y gcc libffi-dev python3-dev; \
     fi
 
+ENV PATH="/app/venv/bin:$PATH"
+
 WORKDIR /app
 # Remove git and clean up to reduce image size
-RUN apt-get purge -y --auto-remove && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip /timeseries_user/.cache/pip
+# Clean up without breaking Intel GPU packages
+RUN rm -rf /var/lib/apt/lists/* \
+           /tmp/* \
+           /var/tmp/* \
+           /root/.cache/pip \
+           /timeseries_user/.cache/pip || true
+
+
+RUN chown -R $TIMESERIES_USER_NAME:$TIMESERIES_USER_NAME /app
 
 # Switch to non-root user for security
 USER $TIMESERIES_USER_NAME
 
+
+
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["/app/venv/bin/python", "main.py"]

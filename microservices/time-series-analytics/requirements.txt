@@ -1,3 +1,7 @@
+# === Core ML stack (order matters) ===
+setuptools==65.5.0
+packaging==23.0
+
 scikit-learn-intelex==2025.7.0
 scikit-learn==1.6.1
 asyncua==1.1.5
@@ -7,3 +11,4 @@ influxdb==5.3.2
 tomlkit==0.13.2
 protobuf==6.33.5
 dpctl==0.20.2
+requests==2.32.4

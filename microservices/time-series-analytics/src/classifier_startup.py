@@ -145,7 +145,7 @@ class KapacitorClassifier():
             return False
         if os.path.isfile(python_package_requirement_file):
             status = subprocess.run([
-                "pip3", "install", "-r", python_package_requirement_file,
+                "/app/venv/bin/pip", "install", "-r", python_package_requirement_file,
                 "--target", python_package_installation_path
             ], check=False)
             if status.returncode != SUCCESS:
@@ -435,7 +435,7 @@ def classifier_startup(config):
         udf_section = config_data.get('udf', {}).get('functions', {})
         udf_section[udf_name] = tomlkit.table()
 
-        udf_section[udf_name]['prog'] = 'python3'
+        udf_section[udf_name]['prog'] = '/app/venv/bin/python'
 
         udf_section[udf_name]['args'] = ["-u", os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", udf_name + ".py")] 
 
