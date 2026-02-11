@@ -6,8 +6,6 @@ from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
 from graph import Graph
-from managers.tests_manager import TestsManager
-from managers.pipeline_manager import PipelineManager
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -16,256 +14,12 @@ from internal_types import (
     InternalDensityTestSpec,
     InternalPerformanceTestSpec,
 )
-from utils import generate_pipeline_graph_id
+from managers.pipeline_manager import PipelineManager
+from managers.tests_manager import TestsManager
+from utils import generate_pipeline_graph_id, slugify_text
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.tests")
-
-
-def _convert_output_mode(mode: schemas.OutputMode) -> InternalOutputMode:
-    """
-    Convert API OutputMode to internal representation.
-
-    Args:
-        mode: API OutputMode enum value.
-
-    Returns:
-        InternalOutputMode with equivalent value.
-    """
-    mode_mapping = {
-        schemas.OutputMode.DISABLED: InternalOutputMode.DISABLED,
-        schemas.OutputMode.FILE: InternalOutputMode.FILE,
-        schemas.OutputMode.LIVE_STREAM: InternalOutputMode.LIVE_STREAM,
-    }
-    return mode_mapping[mode]
-
-
-def _convert_execution_config(
-    config: schemas.ExecutionConfig,
-) -> InternalExecutionConfig:
-    """
-    Convert API ExecutionConfig to internal representation.
-
-    Args:
-        config: API ExecutionConfig from request.
-
-    Returns:
-        InternalExecutionConfig with converted field values.
-    """
-    return InternalExecutionConfig(
-        output_mode=_convert_output_mode(config.output_mode),
-        max_runtime=config.max_runtime,
-    )
-
-
-def _convert_pipeline_density_spec(
-    spec: schemas.PipelineDensitySpec,
-    pipeline_manager: PipelineManager,
-) -> InternalPipelineDensitySpec:
-    """
-    Convert API PipelineDensitySpec to internal representation.
-
-    Resolves pipeline references to actual pipeline graphs and generates
-    appropriate pipeline IDs. Converts PipelineGraph to Graph object.
-
-    Args:
-        spec: API PipelineDensitySpec from request.
-        pipeline_manager: PipelineManager instance to resolve variant references.
-
-    Returns:
-        InternalPipelineDensitySpec with resolved pipeline information.
-
-    Raises:
-        ValueError: If referenced pipeline or variant does not exist.
-    """
-    match spec.pipeline:
-        case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
-            # Resolve variant reference - this raises ValueError if not found
-            pipeline = pipeline_manager.get_pipeline_by_id(pid)
-            variant = pipeline_manager.get_variant_by_ids(pid, vid)
-
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
-
-            return InternalPipelineDensitySpec(
-                pipeline_id=f"/pipelines/{pid}/variants/{vid}",
-                pipeline_name=pipeline.name,
-                pipeline_graph=graph,
-                stream_rate=spec.stream_rate,
-            )
-        case schemas.GraphInline(pipeline_graph=pipeline_graph):
-            # Use inline graph directly
-            pipeline_id = generate_pipeline_graph_id(pipeline_graph.model_dump())
-
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(pipeline_graph.model_dump())
-
-            return InternalPipelineDensitySpec(
-                pipeline_id=pipeline_id,
-                pipeline_name=pipeline_id,
-                pipeline_graph=graph,
-                stream_rate=spec.stream_rate,
-            )
-
-        case _:
-            raise ValueError("Invalid pipeline source type in density spec")
-
-
-def _convert_pipeline_performance_spec(
-    spec: schemas.PipelinePerformanceSpec,
-    pipeline_manager: PipelineManager,
-) -> InternalPipelinePerformanceSpec:
-    """
-    Convert API PipelinePerformanceSpec to internal representation.
-
-    Resolves pipeline references to actual pipeline graphs and generates
-    appropriate pipeline IDs. Converts PipelineGraph to Graph object.
-
-    Args:
-        spec: API PipelinePerformanceSpec from request.
-        pipeline_manager: PipelineManager instance to resolve variant references.
-
-    Returns:
-        InternalPipelinePerformanceSpec with resolved pipeline information.
-
-    Raises:
-        ValueError: If referenced pipeline or variant does not exist.
-    """
-    match spec.pipeline:
-        case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
-            # Resolve variant reference - this raises ValueError if not found
-            pipeline = pipeline_manager.get_pipeline_by_id(pid)
-            variant = pipeline_manager.get_variant_by_ids(pid, vid)
-
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
-
-            return InternalPipelinePerformanceSpec(
-                pipeline_id=f"/pipelines/{pid}/variants/{vid}",
-                pipeline_name=pipeline.name,
-                pipeline_graph=graph,
-                streams=spec.streams,
-            )
-        case schemas.GraphInline(pipeline_graph=pipeline_graph):
-            # Use inline graph directly
-            pipeline_id = generate_pipeline_graph_id(pipeline_graph.model_dump())
-
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(pipeline_graph.model_dump())
-
-            return InternalPipelinePerformanceSpec(
-                pipeline_id=pipeline_id,
-                pipeline_name=pipeline_id,
-                pipeline_graph=graph,
-                streams=spec.streams,
-            )
-        case _:
-            raise ValueError("Invalid pipeline source type in performance spec")
-
-
-def _convert_density_test_spec(
-    spec: schemas.DensityTestSpec,
-) -> InternalDensityTestSpec:
-    """
-    Convert and validate API DensityTestSpec to internal representation.
-
-    Performs the following validations:
-    - pipeline_density_specs list cannot be empty
-    - All pipeline_ids must be unique (no duplicates after resolution)
-
-    Args:
-        spec: API DensityTestSpec from request.
-
-    Returns:
-        InternalDensityTestSpec with resolved pipeline information and
-        original request stored as dict.
-
-    Raises:
-        ValueError: If validation fails or referenced pipeline/variant does not exist.
-    """
-    # Validate non-empty list
-    if not spec.pipeline_density_specs:
-        raise ValueError("pipeline_density_specs cannot be empty")
-
-    # Convert all pipeline specs
-    internal_specs: List[InternalPipelineDensitySpec] = []
-    seen_pipeline_ids: set[str] = set()
-
-    for pipeline_spec in spec.pipeline_density_specs:
-        internal_spec = _convert_pipeline_density_spec(pipeline_spec, PipelineManager())
-
-        # Check for duplicate pipeline_id
-        if internal_spec.pipeline_id in seen_pipeline_ids:
-            raise ValueError(
-                f"Duplicate pipeline_id found: '{internal_spec.pipeline_id}'. "
-                "Each pipeline must be unique in the request."
-            )
-        seen_pipeline_ids.add(internal_spec.pipeline_id)
-
-        internal_specs.append(internal_spec)
-
-    # Serialize original request to dict for storage in job
-    original_request_dict = spec.model_dump(mode="json")
-
-    return InternalDensityTestSpec(
-        fps_floor=spec.fps_floor,
-        pipeline_density_specs=internal_specs,
-        execution_config=_convert_execution_config(spec.execution_config),
-        original_request=original_request_dict,
-    )
-
-
-def _convert_performance_test_spec(
-    spec: schemas.PerformanceTestSpec,
-) -> InternalPerformanceTestSpec:
-    """
-    Convert and validate API PerformanceTestSpec to internal representation.
-
-    Performs the following validations:
-    - pipeline_performance_specs list cannot be empty
-    - All pipeline_ids must be unique (no duplicates after resolution)
-
-    Args:
-        spec: API PerformanceTestSpec from request.
-
-    Returns:
-        InternalPerformanceTestSpec with resolved pipeline information and
-        original request stored as dict.
-
-    Raises:
-        ValueError: If validation fails or referenced pipeline/variant does not exist.
-    """
-    # Validate non-empty list
-    if not spec.pipeline_performance_specs:
-        raise ValueError("pipeline_performance_specs cannot be empty")
-
-    # Convert all pipeline specs
-    internal_specs: List[InternalPipelinePerformanceSpec] = []
-    seen_pipeline_ids: set[str] = set()
-
-    for pipeline_spec in spec.pipeline_performance_specs:
-        internal_spec = _convert_pipeline_performance_spec(
-            pipeline_spec, PipelineManager()
-        )
-
-        # Check for duplicate pipeline_id
-        if internal_spec.pipeline_id in seen_pipeline_ids:
-            raise ValueError(
-                f"Duplicate pipeline_id found: '{internal_spec.pipeline_id}'. "
-                "Each pipeline must be unique in the request."
-            )
-        seen_pipeline_ids.add(internal_spec.pipeline_id)
-
-        internal_specs.append(internal_spec)
-
-    # Serialize original request to dict for storage in job
-    original_request_dict = spec.model_dump(mode="json")
-
-    return InternalPerformanceTestSpec(
-        pipeline_performance_specs=internal_specs,
-        execution_config=_convert_execution_config(spec.execution_config),
-        original_request=original_request_dict,
-    )
 
 
 @router.post(
@@ -568,3 +322,300 @@ def run_density_test(body: schemas.DensityTestSpec):
             ).model_dump(),
             status_code=500,
         )
+
+
+def _validate_and_get_graph_id(graph_inline: schemas.GraphInline) -> str:
+    """
+    Validate and return pipeline ID for inline graph.
+
+    If graph_id is provided, validates it:
+    - Trims whitespace
+    - Checks if empty after trim (raises ValueError)
+    - Validates URL-safety using slugify (raises ValueError if different)
+
+    If graph_id is not provided, generates ID from graph content hash.
+
+    Args:
+        graph_inline: GraphInline object with optional graph_id.
+
+    Returns:
+        Validated graph_id or generated hash-based ID.
+
+    Raises:
+        ValueError: If graph_id is empty after trim or contains invalid characters.
+    """
+    if graph_inline.graph_id is not None:
+        # Trim whitespace
+        trimmed_id = graph_inline.graph_id.strip()
+
+        # Check if empty after trim
+        if not trimmed_id:
+            raise ValueError("graph_id cannot be empty or contain only whitespace.")
+
+        # Validate URL-safety using slugify
+        slugified_id = slugify_text(trimmed_id, 64)
+        if slugified_id != trimmed_id:
+            raise ValueError(
+                f"graph_id '{trimmed_id}' contains characters that cannot be used in URL. "
+                f"Use only lowercase letters, numbers, and dashes. "
+                f"Suggested: '{slugified_id}'"
+            )
+
+        return trimmed_id
+    else:
+        # Generate hash-based ID
+        return generate_pipeline_graph_id(graph_inline.pipeline_graph.model_dump())
+
+
+def _convert_output_mode(mode: schemas.OutputMode) -> InternalOutputMode:
+    """
+    Convert API OutputMode to internal representation.
+
+    Args:
+        mode: API OutputMode enum value.
+
+    Returns:
+        InternalOutputMode with equivalent value.
+    """
+    mode_mapping = {
+        schemas.OutputMode.DISABLED: InternalOutputMode.DISABLED,
+        schemas.OutputMode.FILE: InternalOutputMode.FILE,
+        schemas.OutputMode.LIVE_STREAM: InternalOutputMode.LIVE_STREAM,
+    }
+    return mode_mapping[mode]
+
+
+def _convert_execution_config(
+    config: schemas.ExecutionConfig,
+) -> InternalExecutionConfig:
+    """
+    Convert API ExecutionConfig to internal representation.
+
+    Args:
+        config: API ExecutionConfig from request.
+
+    Returns:
+        InternalExecutionConfig with converted field values.
+    """
+    return InternalExecutionConfig(
+        output_mode=_convert_output_mode(config.output_mode),
+        max_runtime=config.max_runtime,
+    )
+
+
+def _convert_pipeline_density_spec(
+    spec: schemas.PipelineDensitySpec,
+    pipeline_manager: PipelineManager,
+) -> InternalPipelineDensitySpec:
+    """
+    Convert API PipelineDensitySpec to internal representation.
+
+    Resolves pipeline references to actual pipeline graphs and generates
+    appropriate pipeline IDs. Converts PipelineGraph to Graph object.
+
+    For GraphInline with graph_id: validates and uses the provided ID.
+    For GraphInline without graph_id: generates hash-based synthetic ID.
+
+    Args:
+        spec: API PipelineDensitySpec from request.
+        pipeline_manager: PipelineManager instance to resolve variant references.
+
+    Returns:
+        InternalPipelineDensitySpec with resolved pipeline information.
+
+    Raises:
+        ValueError: If referenced pipeline or variant does not exist,
+            or if graph_id validation fails.
+    """
+    match spec.pipeline:
+        case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
+            # Resolve variant reference - this raises ValueError if not found
+            pipeline = pipeline_manager.get_pipeline_by_id(pid)
+            variant = pipeline_manager.get_variant_by_ids(pid, vid)
+
+            # Convert PipelineGraph to Graph
+            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+
+            return InternalPipelineDensitySpec(
+                pipeline_id=f"/pipelines/{pid}/variants/{vid}",
+                pipeline_name=pipeline.name,
+                pipeline_graph=graph,
+                stream_rate=spec.stream_rate,
+            )
+        case schemas.GraphInline() as graph_inline:
+            # Validate and get pipeline ID
+            pipeline_id = _validate_and_get_graph_id(graph_inline)
+
+            # Convert PipelineGraph to Graph
+            graph = Graph.from_dict(graph_inline.pipeline_graph.model_dump())
+
+            return InternalPipelineDensitySpec(
+                pipeline_id=pipeline_id,
+                pipeline_name=pipeline_id,
+                pipeline_graph=graph,
+                stream_rate=spec.stream_rate,
+            )
+
+        case _:
+            raise ValueError("Invalid pipeline source type in density spec")
+
+
+def _convert_pipeline_performance_spec(
+    spec: schemas.PipelinePerformanceSpec,
+    pipeline_manager: PipelineManager,
+) -> InternalPipelinePerformanceSpec:
+    """
+    Convert API PipelinePerformanceSpec to internal representation.
+
+    Resolves pipeline references to actual pipeline graphs and generates
+    appropriate pipeline IDs. Converts PipelineGraph to Graph object.
+
+    For GraphInline with graph_id: validates and uses the provided ID.
+    For GraphInline without graph_id: generates hash-based synthetic ID.
+
+    Args:
+        spec: API PipelinePerformanceSpec from request.
+        pipeline_manager: PipelineManager instance to resolve variant references.
+
+    Returns:
+        InternalPipelinePerformanceSpec with resolved pipeline information.
+
+    Raises:
+        ValueError: If referenced pipeline or variant does not exist,
+            or if graph_id validation fails.
+    """
+    match spec.pipeline:
+        case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
+            # Resolve variant reference - this raises ValueError if not found
+            pipeline = pipeline_manager.get_pipeline_by_id(pid)
+            variant = pipeline_manager.get_variant_by_ids(pid, vid)
+
+            # Convert PipelineGraph to Graph
+            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+
+            return InternalPipelinePerformanceSpec(
+                pipeline_id=f"/pipelines/{pid}/variants/{vid}",
+                pipeline_name=pipeline.name,
+                pipeline_graph=graph,
+                streams=spec.streams,
+            )
+        case schemas.GraphInline() as graph_inline:
+            # Validate and get pipeline ID
+            pipeline_id = _validate_and_get_graph_id(graph_inline)
+
+            # Convert PipelineGraph to Graph
+            graph = Graph.from_dict(graph_inline.pipeline_graph.model_dump())
+
+            return InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name=pipeline_id,
+                pipeline_graph=graph,
+                streams=spec.streams,
+            )
+        case _:
+            raise ValueError("Invalid pipeline source type in performance spec")
+
+
+def _convert_density_test_spec(
+    spec: schemas.DensityTestSpec,
+) -> InternalDensityTestSpec:
+    """
+    Convert and validate API DensityTestSpec to internal representation.
+
+    Performs the following validations:
+    - pipeline_density_specs list cannot be empty
+    - All pipeline_ids must be unique (no duplicates after resolution)
+
+    Args:
+        spec: API DensityTestSpec from request.
+
+    Returns:
+        InternalDensityTestSpec with resolved pipeline information and
+        original request stored as dict.
+
+    Raises:
+        ValueError: If validation fails or referenced pipeline/variant does not exist.
+    """
+    # Validate non-empty list
+    if not spec.pipeline_density_specs:
+        raise ValueError("pipeline_density_specs cannot be empty")
+
+    # Convert all pipeline specs
+    internal_specs: List[InternalPipelineDensitySpec] = []
+    seen_pipeline_ids: set[str] = set()
+
+    for pipeline_spec in spec.pipeline_density_specs:
+        internal_spec = _convert_pipeline_density_spec(pipeline_spec, PipelineManager())
+
+        # Check for duplicate pipeline_id
+        if internal_spec.pipeline_id in seen_pipeline_ids:
+            raise ValueError(
+                f"Duplicate pipeline_id found: '{internal_spec.pipeline_id}'. "
+                "Each pipeline must be unique in the request."
+            )
+        seen_pipeline_ids.add(internal_spec.pipeline_id)
+
+        internal_specs.append(internal_spec)
+
+    # Serialize original request to dict for storage in job
+    original_request_dict = spec.model_dump(mode="json")
+
+    return InternalDensityTestSpec(
+        fps_floor=spec.fps_floor,
+        pipeline_density_specs=internal_specs,
+        execution_config=_convert_execution_config(spec.execution_config),
+        original_request=original_request_dict,
+    )
+
+
+def _convert_performance_test_spec(
+    spec: schemas.PerformanceTestSpec,
+) -> InternalPerformanceTestSpec:
+    """
+    Convert and validate API PerformanceTestSpec to internal representation.
+
+    Performs the following validations:
+    - pipeline_performance_specs list cannot be empty
+    - All pipeline_ids must be unique (no duplicates after resolution)
+
+    Args:
+        spec: API PerformanceTestSpec from request.
+
+    Returns:
+        InternalPerformanceTestSpec with resolved pipeline information and
+        original request stored as dict.
+
+    Raises:
+        ValueError: If validation fails or referenced pipeline/variant does not exist.
+    """
+    # Validate non-empty list
+    if not spec.pipeline_performance_specs:
+        raise ValueError("pipeline_performance_specs cannot be empty")
+
+    # Convert all pipeline specs
+    internal_specs: List[InternalPipelinePerformanceSpec] = []
+    seen_pipeline_ids: set[str] = set()
+
+    for pipeline_spec in spec.pipeline_performance_specs:
+        internal_spec = _convert_pipeline_performance_spec(
+            pipeline_spec, PipelineManager()
+        )
+
+        # Check for duplicate pipeline_id
+        if internal_spec.pipeline_id in seen_pipeline_ids:
+            raise ValueError(
+                f"Duplicate pipeline_id found: '{internal_spec.pipeline_id}'. "
+                "Each pipeline must be unique in the request."
+            )
+        seen_pipeline_ids.add(internal_spec.pipeline_id)
+
+        internal_specs.append(internal_spec)
+
+    # Serialize original request to dict for storage in job
+    original_request_dict = spec.model_dump(mode="json")
+
+    return InternalPerformanceTestSpec(
+        pipeline_performance_specs=internal_specs,
+        execution_config=_convert_execution_config(spec.execution_config),
+        original_request=original_request_dict,
+    )

@@ -153,7 +153,7 @@ class TestTestsAPI(unittest.TestCase):
     ):
         """
         The /tests/performance endpoint should accept a PerformanceTestSpec
-        with inline graph and return a TestJobResponse with a job_id.
+        with inline graph (no graph_id) and return a TestJobResponse with a job_id.
         """
         # Arrange: configure mocks (PipelineManager not needed for inline graphs)
         mock_pipeline_manager_cls.return_value = MagicMock()
@@ -202,10 +202,133 @@ class TestTestsAPI(unittest.TestCase):
         call_args = mock_tests_manager.test_performance.call_args[0][0]
         self.assertIsInstance(call_args, InternalPerformanceTestSpec)
 
-        # Verify the internal spec has inline graph format ID
+        # Verify the internal spec has generated hash-based ID (starts with __graph-)
         internal_spec = call_args.pipeline_performance_specs[0]
         self.assertTrue(internal_spec.pipeline_id.startswith("__graph-"))
         self.assertEqual(internal_spec.streams, 4)
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_inline_graph_custom_graph_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should accept inline graph with
+        custom graph_id and use it as pipeline_id.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "custom-id-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send request with custom graph_id
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "my-custom-pipeline",
+                        "pipeline_graph": {
+                            "nodes": [
+                                {"id": "0", "type": "filesrc", "data": {}},
+                                {"id": "1", "type": "fakesink", "data": {}},
+                            ],
+                            "edges": [{"id": "0", "source": "0", "target": "1"}],
+                        },
+                    },
+                    "streams": 2,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+
+        # Verify custom graph_id is used as pipeline_id
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        internal_spec = call_args.pipeline_performance_specs[0]
+        self.assertEqual(internal_spec.pipeline_id, "my-custom-pipeline")
+        self.assertEqual(internal_spec.pipeline_name, "my-custom-pipeline")
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_empty_graph_id_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if graph_id
+        is empty after trim.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty graph_id (whitespace only)
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "   ",
+                        "pipeline_graph": {
+                            "nodes": [{"id": "0", "type": "fakesrc", "data": {}}],
+                            "edges": [],
+                        },
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("empty", data["message"].lower())
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_invalid_graph_id_chars_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if graph_id
+        contains characters that are not URL-safe.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with invalid graph_id (contains uppercase and spaces)
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "My Pipeline ID",
+                        "pipeline_graph": {
+                            "nodes": [{"id": "0", "type": "fakesrc", "data": {}}],
+                            "edges": [],
+                        },
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("URL", data["message"])
 
     @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
@@ -790,7 +913,7 @@ class TestTestsAPI(unittest.TestCase):
     ):
         """
         The /tests/density endpoint should accept a DensityTestSpec
-        with inline graph and return a TestJobResponse with a job_id.
+        with inline graph (no graph_id) and return a TestJobResponse with a job_id.
         """
         # Arrange: configure mocks
         mock_pipeline_manager_cls.return_value = MagicMock()
@@ -838,6 +961,128 @@ class TestTestsAPI(unittest.TestCase):
         call_args = mock_tests_manager.test_density.call_args[0][0]
         internal_spec = call_args.pipeline_density_specs[0]
         self.assertTrue(internal_spec.pipeline_id.startswith("__graph-"))
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_inline_graph_custom_graph_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should accept inline graph with
+        custom graph_id and use it as pipeline_id.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-custom-id"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send request with custom graph_id
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "my-density-test",
+                        "pipeline_graph": {
+                            "nodes": [
+                                {"id": "0", "type": "filesrc", "data": {}},
+                                {"id": "1", "type": "fakesink", "data": {}},
+                            ],
+                            "edges": [{"id": "0", "source": "0", "target": "1"}],
+                        },
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+
+        # Verify custom graph_id is used
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertEqual(internal_spec.pipeline_id, "my-density-test")
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_empty_graph_id_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if graph_id is empty.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty graph_id
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "",
+                        "pipeline_graph": {
+                            "nodes": [{"id": "0", "type": "fakesrc", "data": {}}],
+                            "edges": [],
+                        },
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("empty", data["message"].lower())
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_invalid_graph_id_chars_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if graph_id
+        contains invalid characters.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with special characters
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "graph_id": "test@pipeline#123",
+                        "pipeline_graph": {
+                            "nodes": [{"id": "0", "type": "fakesrc", "data": {}}],
+                            "edges": [],
+                        },
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("URL", data["message"])
 
     @patch("api.routes.tests.PipelineManager")
     @patch("api.routes.tests.TestsManager")
@@ -1332,6 +1577,36 @@ class TestTestsAPI(unittest.TestCase):
         inline = schemas.GraphInline(pipeline_graph=graph)
         self.assertEqual(inline.source, "graph")
         self.assertIsNotNone(inline.pipeline_graph)
+
+    def test_graph_inline_with_graph_id(self):
+        """
+        GraphInline should accept optional graph_id field.
+        """
+        graph = schemas.PipelineGraph(
+            nodes=[
+                schemas.Node(id="0", type="filesrc", data={"location": "/test.mp4"}),
+                schemas.Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[schemas.Edge(id="0", source="0", target="1")],
+        )
+        inline = schemas.GraphInline(graph_id="my-custom-id", pipeline_graph=graph)
+        self.assertEqual(inline.source, "graph")
+        self.assertEqual(inline.graph_id, "my-custom-id")
+        self.assertIsNotNone(inline.pipeline_graph)
+
+    def test_graph_inline_without_graph_id(self):
+        """
+        GraphInline should work without graph_id (defaults to None).
+        """
+        graph = schemas.PipelineGraph(
+            nodes=[
+                schemas.Node(id="0", type="filesrc", data={}),
+            ],
+            edges=[],
+        )
+        inline = schemas.GraphInline(pipeline_graph=graph)
+        self.assertEqual(inline.source, "graph")
+        self.assertIsNone(inline.graph_id)
 
     def test_pipeline_performance_spec_with_variant_reference(self):
         """

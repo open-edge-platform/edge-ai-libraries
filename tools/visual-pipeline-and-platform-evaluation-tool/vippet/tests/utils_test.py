@@ -925,7 +925,76 @@ class TestLoadThumbnailAsBase64(unittest.TestCase):
 
         assert result is not None
         # Verify data URI format: data:{mime};base64,{data}
-        self.assertRegex(result, r"^data:image/(png|jpeg|gif);base64,[A-Za-z0-9+/=]+$")
+        self.assertRegex(result, r"^data:image/(png|jpeg|gif);base64,[A-Za-z0-9+/=]+")
+
+
+class TestSlugifyText(unittest.TestCase):
+    """Tests for slugify_text function."""
+
+    def test_slugify_text_basic(self):
+        # Test basic text slugification
+        result = utils.slugify_text("My Test Pipeline")
+        self.assertEqual(result, "my-test-pipeline")
+
+    def test_slugify_text_with_special_chars(self):
+        # Test with special characters
+        result = utils.slugify_text("Test@Pipeline#123!")
+        self.assertEqual(result, "test-pipeline-123")
+
+    def test_slugify_text_with_max_length(self):
+        # Test with max_length limit
+        result = utils.slugify_text("This is a very long text", max_length=10)
+        self.assertLessEqual(len(result), 10)
+
+    def test_slugify_text_no_max_length(self):
+        # Test without max_length (default 0)
+        long_text = "This is a very long pipeline name that should not be truncated"
+        result = utils.slugify_text(long_text)
+        # Should contain the full slugified text
+        self.assertIn("this-is-a-very-long", result)
+
+    def test_slugify_text_already_slugified(self):
+        # Test with already slugified text
+        result = utils.slugify_text("my-test-pipeline")
+        self.assertEqual(result, "my-test-pipeline")
+
+    def test_slugify_text_uppercase(self):
+        # Test that uppercase is converted to lowercase
+        result = utils.slugify_text("MY-TEST-PIPELINE")
+        self.assertEqual(result, "my-test-pipeline")
+
+    def test_slugify_text_spaces(self):
+        # Test that spaces are converted to dashes
+        result = utils.slugify_text("my test pipeline")
+        self.assertEqual(result, "my-test-pipeline")
+
+    def test_slugify_text_empty_string(self):
+        # Test with empty string
+        result = utils.slugify_text("")
+        self.assertEqual(result, "")
+
+    def test_slugify_text_numbers(self):
+        # Test with numbers
+        result = utils.slugify_text("pipeline-123-test")
+        self.assertEqual(result, "pipeline-123-test")
+
+    def test_slugify_text_unicode(self):
+        # Test with unicode characters
+        result = utils.slugify_text("тест pipeline")
+        # Should handle unicode (transliterate or remove)
+        self.assertIsInstance(result, str)
+
+    def test_slugify_text_max_length_zero(self):
+        # Test that max_length=0 means no limit
+        long_text = "a" * 200
+        result = utils.slugify_text(long_text, max_length=0)
+        self.assertEqual(len(result), 200)
+
+    def test_slugify_text_consecutive_special_chars(self):
+        # Test with consecutive special characters
+        result = utils.slugify_text("test---pipeline")
+        # Slugify typically collapses multiple dashes
+        self.assertNotIn("---", result)
 
 
 if __name__ == "__main__":

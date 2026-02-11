@@ -505,8 +505,12 @@ class GraphInline(BaseModel):
     Attributes:
         source: Discriminator field, always "graph" for this type.
         pipeline_graph: Complete pipeline graph to use.
+        graph_id: Optional custom identifier for this inline graph.
+            If provided, this ID is used instead of generating a hash-based ID.
+            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
+            If not provided, a synthetic ID is generated from graph content hash.
 
-    Example:
+    Example (without graph_id - uses generated hash):
         .. code-block:: json
 
             {
@@ -516,9 +520,26 @@ class GraphInline(BaseModel):
                 "edges": [...]
               }
             }
+
+    Example (with custom graph_id):
+        .. code-block:: json
+
+            {
+              "source": "graph",
+              "graph_id": "my-custom-pipeline",
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              }
+            }
     """
 
     source: Literal["graph"] = "graph"
+    graph_id: Optional[str] = Field(
+        default=None,
+        description="Optional custom identifier for inline graph. Must be URL-safe.",
+        examples=["my-custom-pipeline", "detection-gpu-v2"],
+    )
     pipeline_graph: PipelineGraph = Field(
         ...,
         description="Inline pipeline graph to use for the test.",

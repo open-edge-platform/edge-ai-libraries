@@ -15,6 +15,32 @@ from slugify import slugify
 logger = logging.getLogger("utils")
 
 
+def slugify_text(text: str, max_length: int = 0) -> str:
+    """
+    Convert text to URL-safe slug format.
+
+    Wrapper for the slugify library. Converts text to lowercase,
+    replaces spaces and special characters with dashes, and optionally
+    truncates to max_length.
+
+    Args:
+        text: The text to convert to a slug.
+        max_length: Maximum length of the result. If 0, no length limit is applied.
+
+    Returns:
+        URL-safe slug string.
+
+    Example:
+        >>> slugify_text("My Test Pipeline")
+        'my-test-pipeline'
+        >>> slugify_text("Very Long Name Here", max_length=10)
+        'very-long'
+    """
+    if max_length > 0:
+        return slugify(text, max_length=max_length)
+    return slugify(text)
+
+
 def generate_unique_id(
     text: str,
     existing_names: List[str],
