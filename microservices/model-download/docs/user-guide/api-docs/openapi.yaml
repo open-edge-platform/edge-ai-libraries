@@ -2,12 +2,12 @@ openapi: 3.0.0
 info:
   title: Model Download Service API
   description: |
-    API for downloading models from HuggingFace, Ollama, and Ultralytics hubs and converting models to OpenVINO IR format.
+    API for downloading models from HuggingFace, Ollama, Ultralytics and GETI hubs and converting models to OpenVINO IR format.
     This service provides endpoints to download models and optionally convert them to 
     OpenVINO Intermediate Representation (IR) format for optimized inference on Intel hardware.
 
     **Features:**
-    - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics)
+    - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics, GETI)
     - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
@@ -39,6 +39,7 @@ components:
         - ollama
         - ultralytics
         - openvino
+        - Geti
       description: The model hub source to download from
 
     ModelType:
@@ -321,7 +322,7 @@ paths:
     post:
       summary: Download and optionally convert models
       description: |
-        Downloads one or more models from HuggingFace, Ollama, or Ultralytics and optionally converts them
+        Downloads one or more models from HuggingFace, Ollama, Ultralytics, or GETI and optionally converts them
         to OpenVINO IR format for huggingface hub models. This endpoint processes requests asynchronously and returns job IDs immediately.
 
         **Conversion Behavior:**
@@ -388,6 +389,12 @@ paths:
                   models:
                     - name: yolov8s
                       hub: ultralytics
+              GETI_download:
+                summary: Download GETI model
+                value:
+                  models:
+                    - name: yolox-tiny
+                      hub: geti
               multiple_models:
                 summary: Download multiple models
                 value:
@@ -422,7 +429,7 @@ paths:
                 unsupported_hub:
                   summary: Unsupported model hub
                   value:
-                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'openvino'}."
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'openvino', 'geti'}."
                 plugin_unavailable:
                   summary: Plugin dependencies not installed
                   value:
@@ -558,7 +565,7 @@ paths:
       summary: List available plugins
       description: |
         Retrieve information about all available plugins, their capabilities, and status.
-        This includes both hub plugins (HuggingFace, Ollama, Ultralytics) and conversion plugins (OpenVINO).
+        This includes both hub plugins (HuggingFace, Ollama, Ultralytics, GETI) and conversion plugins (OpenVINO).
       operationId: listPlugins
       tags:
         - Plugins

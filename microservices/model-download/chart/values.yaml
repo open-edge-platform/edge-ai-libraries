@@ -11,7 +11,7 @@ modeldownload:
   name: model-download
   image:
     registry: "intel/"
-    tag: 1.0.1
+    tag: rc3_2026.0
     pullPolicy: IfNotPresent
 
   readinessProbe:
@@ -23,6 +23,11 @@ modeldownload:
     
   env:
     HUGGINGFACEHUB_API_TOKEN: ""
+    GETI_WORKSPACE_ID: ""
+    GETI_HOST: ""
+    GETI_TOKEN: ""
+    GETI_SERVER_API_VERSION: "v1"
+    GETI_SERVER_SSL_VERIFY: "False"
     ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
 
   service:

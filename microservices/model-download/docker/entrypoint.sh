@@ -102,6 +102,10 @@ install_dependencies() {
             print_info "Ultralytics dependencies will be installed via uv sync"
             # Additional setup can be added here if needed
             ;;
+        geti)
+            print_info "Geti plugin dependencies will be installed via uv sync"
+            print_info "Geti plugin requires: GETI_HOST,GETI_TOKEN, GETI_SERVER_API_VERSION"
+            ;;
         *)
             print_error "Unknown plugin: $plugin"
             return 1
@@ -112,6 +116,7 @@ install_dependencies() {
 # Parse arguments
 PLUGINS=""
 START_SERVICE=true
+EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -131,40 +136,37 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics")
-PLUGINS_LOWER=$(echo "$PLUGINS" | tr '[:upper:]' '[:lower:]')
-
-# Determine which plugins to activate
-print_header "Installing plugin dependencies"
-if [ "$PLUGINS_LOWER" = "all" ]; then
-    PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
-    print_info "Installing ALL plugins"
-else
-    # Split comma-separated plugins into array and convert to lowercase
-    IFS=',' read -ra PLUGIN_LIST_RAW <<< "$PLUGINS_LOWER"
-    PLUGIN_LIST=()
-    for plugin in "${PLUGIN_LIST_RAW[@]}"; do
-        # Trim whitespace and add to array
-        plugin=$(echo "$plugin" | xargs)
-        PLUGIN_LIST+=("$plugin")
-    done
-fi
+# Define all available plugins in the application
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti")
 
 # Install plugin-specific dependencies
-for plugin in "${PLUGIN_LIST[@]}"; do
-    install_dependencies "$plugin"
-done
+print_header "Installing plugin dependencies"
+if [ "$PLUGINS" = "all" ]; then
+    print_info "Installing ALL plugins"
+    
+    # Install dependencies for all available plugins
+    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
+        install_dependencies "$plugin"
+        # Add to extra args for uv sync
+        EXTRA_ARGS+=("--extra" "$plugin")
+    done
 
-# Save activated plugins to env file
-echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
-print_success "Activated plugins: ${PLUGIN_LIST[*]}"
-
-# Build the list of --extra arguments from the activated plugins
-EXTRA_ARGS=()
-for plugin in "${PLUGIN_LIST[@]}"; do
-    EXTRA_ARGS+=(--extra "$plugin")
-done
+    echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
+    print_success "All plugins are activated"
+else
+    # Split comma-separated plugins and install dependencies for each
+    IFS=',' read -ra PLUGIN_LIST <<< "$PLUGINS"
+    echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
+    
+    for plugin in "${PLUGIN_LIST[@]}"; do
+        plugin=$(echo "$plugin" | xargs)  # Trim whitespace
+        install_dependencies "$plugin"
+        # Add to extra args for uv sync
+        EXTRA_ARGS+=("--extra" "$plugin")
+    done
+    
+    print_success "Activated plugins: $PLUGINS"
+fi
 
 # Sync dependencies using UV
 print_header "Syncing dependencies with UV"

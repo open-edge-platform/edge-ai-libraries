@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -85,5 +85,12 @@ class Settings(BaseSettings):
         """Get the effective bucket name, checking environment variables first"""
         import os
         return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
+
+    @field_validator("MAX_PARALLEL_WORKERS", mode="before")
+    @classmethod
+    def normalize_max_parallel_workers(cls, value):
+        if value in (None, ""):
+            return None
+        return value
 
 settings = Settings()

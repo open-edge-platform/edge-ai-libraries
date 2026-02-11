@@ -17,6 +17,9 @@ from utils import generate_unique_filename
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
+# Internal constant used as a placeholder type for the main output sink in the graph.
+OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
+
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
 scripts_manager = get_scripts_manager()
@@ -462,32 +465,69 @@ class Graph:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
 
-            # Replace splitmuxsink with appsink (no output files during looping)
-            # fakesink can't be used to avoid misunderstanding which sink to override for live output
+            # Replace splitmuxsink with fakesink (no output files during looping)
             elif node.type == "splitmuxsink":
-                node.data.clear()  # Clear all properties to avoid invalid args for appsink
-                node.type = "appsink"
-                # Make appsink behave like fakesink: no signals and no backpressure
-                node.data["emit-signals"] = "false"
-                node.data["drop"] = "true"
-                node.data["max-buffers"] = "1"
-                logger.debug("Replaced splitmuxsink with appsink for looping support")
+                node.data.clear()  # Clear all properties to avoid invalid args for fakesink
+                node.type = "fakesink"
+                logger.debug("Replaced splitmuxsink with fakesink for looping support")
 
         return modified_graph
 
-    def prepare_output_sinks(self) -> tuple["Graph", list[str]]:
+    def prepare_main_output_placeholder(self) -> "Graph":
         """
-        Prepare output sink nodes with unique filenames in the output directory.
+        Convert default fakesink node to a main output placeholder.
+
+        Finds fakesink nodes with name="default_output_sink" and converts them to
+        "{OUTPUT_PLACEHOLDER}" type. This placeholder will be later replaced with
+        the actual main output subpipeline (file output or live stream).
 
         Returns:
-            tuple: (Graph object with updated sink nodes, list of output file paths)
+            Graph: New Graph instance with fakesink converted to placeholder
 
-        Iterates through all sink nodes, generates unique filenames with
-        timestamp and random suffix, updates the location to the output
-        directory, and collects the output paths.
+        Raises:
+            ValueError: If no fakesink with name='default_output_sink' is found in the graph
 
-        Note: This is used only during pipeline execution preparation and does
-        not affect the original graph stored in memory by the pipeline manager.
+        Note:
+            This is used to mark the location where main output (for user viewing)
+            should be inserted, distinct from intermediate output sinks that are part
+            of the pipeline definition.
+        """
+        modified_graph = copy.deepcopy(self)
+        placeholder_created = False
+
+        for node in modified_graph.nodes:
+            if (
+                node.type == "fakesink"
+                and node.data.get("name") == "default_output_sink"
+            ):
+                node.data.clear()
+                node.type = OUTPUT_PLACEHOLDER
+                placeholder_created = True
+                logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
+
+        if not placeholder_created:
+            raise ValueError(
+                "No fakesink with name='default_output_sink' found. "
+                "Please add 'fakesink name=default_output_sink' at the end of your pipeline "
+                "to specify where the output should be placed."
+            )
+
+        return modified_graph
+
+    def prepare_intermediate_output_sinks(self) -> tuple["Graph", list[str]]:
+        """
+        Prepare intermediate output sink nodes with unique filenames in the output directory.
+
+        This method handles intermediate/simulation output sinks (e.g., video recorder simulation)
+        that are part of the pipeline definition. These are distinct from main output sinks
+        which replace fakesink elements for user viewing (live stream or file output).
+
+        Returns:
+            tuple: (Graph object with updated sink nodes, list of intermediate output file paths)
+
+        Iterates through all sink nodes in the pipeline graph, generates unique filenames with
+        timestamp and random suffix, updates the location to the output directory, and collects
+        the output paths.
         """
         output_paths: list[str] = []
 
@@ -539,6 +579,69 @@ class Graph:
                 input_filenames.append(filename)
 
         return input_filenames
+
+    def unify_all_element_names(
+        self, pipeline_index: int, stream_index: int
+    ) -> "Graph":
+        """
+        Unify all element names in the graph to ensure uniqueness across multiple pipelines.
+
+        Args:
+            pipeline_index: Index of the pipeline (used in new element name)
+            stream_index: Index of the stream (used in new element name)
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if "name" in node.data:
+                old_name = node.data["name"]
+                node.data["name"] = f"{old_name}_{pipeline_index}_{stream_index}"
+                logger.debug(
+                    f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
+                )
+
+        return modified_graph
+
+    def unify_model_instance_ids(self) -> "Graph":
+        """
+        Unify model-instance-id for nodes with the same device and model.
+
+        Finds gvadetect and gvaclassify nodes and assigns the same model-instance-id
+        to nodes that share identical device and model properties.
+        This ensures model instances are properly reused when their configuration matches
+        across multiple pipelines.
+
+        Returns:
+            Graph: New Graph instance with unified model-instance-ids
+
+        Note:
+            Model-instance-id is created by combining device and model values,
+            with all characters lowercased and invalid characters replaced by underscores.
+            This ensures consistent IDs across different pipelines with matching configurations.
+        """
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if node.type not in {"gvadetect", "gvaclassify"}:
+                continue
+
+            device = node.data.get("device", "")
+            model = node.data.get("model", "")
+
+            # Sanitize each component: lowercase and replace invalid characters with underscores
+            # Valid characters are: alphanumeric, hyphen, underscore
+            sanitized_device = re.sub(r"[^a-z0-9_-]", "_", device.lower())
+            sanitized_model = re.sub(r"[^a-z0-9_-]", "_", model.lower())
+
+            model_instance_id = f"{sanitized_device}_{sanitized_model}"
+
+            node.data["model-instance-id"] = model_instance_id
+            logger.debug(
+                f"Assigned model-instance-id={model_instance_id} to node {node.id} "
+                f"(device={device}, model={model})"
+            )
+
+        return modified_graph
 
     def get_recommended_encoder_device(self) -> str:
         """

@@ -42,11 +42,10 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
       return;
     }
 
-    const url = new URL(
-      "whep",
-      `${window.location.protocol}//${window.location.host}/streams/stream_${pipelineId}/`,
-      //`http://<ip>:8889/stream_${pipelineId}/`,
-    );
+    const baseUrl =
+      import.meta.env.VITE_MEDIAMTX_BASE_URL || `${window.location.origin}/`;
+    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const url = new URL(`stream_${pipelineId}/whep`, normalizedBaseUrl);
 
     const reader = new MediaMTXWebRTCReader({
       url: url.toString(),

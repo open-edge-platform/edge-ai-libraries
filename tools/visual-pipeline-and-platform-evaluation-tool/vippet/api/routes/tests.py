@@ -99,6 +99,12 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
             }
     """
     try:
+        pipeline_ids = [spec.id for spec in body.pipeline_performance_specs]
+        if len(pipeline_ids) != len(set(pipeline_ids)):
+            raise ValueError(
+                "Duplicate pipeline IDs found in pipeline_performance_specs"
+            )
+
         job_id = TestsManager().test_performance(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:
@@ -211,6 +217,10 @@ def run_density_test(body: schemas.DensityTestSpec):
             }
     """
     try:
+        pipeline_ids = [spec.id for spec in body.pipeline_density_specs]
+        if len(pipeline_ids) != len(set(pipeline_ids)):
+            raise ValueError("Duplicate pipeline IDs found in pipeline_density_specs")
+
         job_id = TestsManager().test_density(body)
         return schemas.TestJobResponse(job_id=job_id)
     except ValueError as e:

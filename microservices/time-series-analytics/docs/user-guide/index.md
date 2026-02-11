@@ -30,9 +30,6 @@ Easily implement and deploy your own Python-based analytics logic, following Kap
 standards.
 - **Seamless Integration**: Automatically stores processed results back into InfluxDB for
 unified data management and visualization.
-- **Model Registry Support**: Dynamically fetch and deploy UDF scripts, machine learning
-models, and TICKscripts from the Model Registry microservice, enabling rapid customization
-and iteration.
 - **Versatile Use Cases**: Ideal for anomaly detection, alerting, and advanced time series
 analytics in industrial, IoT, and enterprise environments.
 
