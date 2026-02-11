@@ -154,6 +154,87 @@ class TestPipelineManager(unittest.TestCase):
             str(context.exception),
         )
 
+    def test_get_variant_by_ids_success(self):
+        """Test successful retrieval of variant by pipeline and variant IDs."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Add a test pipeline with a variant
+        new_pipeline = PipelineDefinition(
+            name="test-variant-lookup",
+            description="Test pipeline for variant lookup",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant_id = added.variants[0].id
+
+        # Retrieve variant by IDs
+        variant = manager.get_variant_by_ids(added.id, variant_id)
+
+        self.assertIsNotNone(variant)
+        self.assertEqual(variant.id, variant_id)
+        self.assertEqual(variant.name, "CPU")
+
+    def test_get_variant_by_ids_pipeline_not_found(self):
+        """Test get_variant_by_ids raises error when pipeline not found."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids("nonexistent-pipeline", "some-variant")
+
+        self.assertIn(
+            "Pipeline with id 'nonexistent-pipeline' not found.",
+            str(context.exception),
+        )
+
+    def test_get_variant_by_ids_variant_not_found(self):
+        """Test get_variant_by_ids raises error when variant not found."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-variant-lookup",
+            description="Test pipeline",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids(added.id, "nonexistent-variant")
+
+        self.assertIn(
+            f"Variant 'nonexistent-variant' not found in pipeline '{added.id}'.",
+            str(context.exception),
+        )
+
+    def test_get_variant_by_ids_returns_copy(self):
+        """Test that get_variant_by_ids returns a copy, not the original."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-variant-copy",
+            description="Test pipeline",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant_id = added.variants[0].id
+
+        # Get variant and modify it
+        variant = manager.get_variant_by_ids(added.id, variant_id)
+        variant.name = "MODIFIED"
+
+        # Original should be unchanged
+        original_variant = manager.get_variant_by_ids(added.id, variant_id)
+        self.assertEqual(original_variant.name, "CPU")
+
     def test_load_predefined_pipelines(self):
         manager = PipelineManager()
         pipelines = manager.get_pipelines()
@@ -733,6 +814,11 @@ class TestVariantCRUD(unittest.TestCase):
 
         # Verify pipeline's modified_at was updated (is later than original)
         self.assertGreater(retrieved.modified_at, original_modified_at)
+
+        # Verify get_variant_by_ids raises error for deleted variant
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids(added.id, variant_to_delete)
+        self.assertIn("not found", str(context.exception))
 
     def test_delete_last_variant_raises_error(self):
         """Test that deleting the last variant raises error."""

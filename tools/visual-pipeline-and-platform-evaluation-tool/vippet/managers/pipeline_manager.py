@@ -160,11 +160,57 @@ class PipelineManager:
                 return deepcopy(pipeline)
         raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
+    def get_variant_by_ids(self, pipeline_id: str, variant_id: str) -> Variant:
+        """
+        Retrieve a variant by pipeline ID and variant ID.
+
+        Args:
+            pipeline_id: The unique ID of the pipeline.
+            variant_id: The unique ID of the variant.
+
+        Returns:
+            Variant: The variant object.
+
+        Raises:
+            ValueError: If pipeline with given ID is not found.
+            ValueError: If variant with given ID is not found in the pipeline.
+        """
+        with self._pipelines_lock:
+            pipeline = self._find_pipeline_by_id(pipeline_id)
+            if pipeline is None:
+                raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
+
+            variant = self._find_variant_by_id(pipeline, variant_id)
+            if variant is None:
+                raise ValueError(
+                    f"Variant '{variant_id}' not found in pipeline '{pipeline_id}'."
+                )
+
+            return deepcopy(variant)
+
     def _find_pipeline_by_id(self, pipeline_id: str) -> Pipeline | None:
         """Find a pipeline by its ID."""
         for pipeline in self.pipelines:
             if pipeline.id == pipeline_id:
                 return pipeline
+        return None
+
+    def _find_variant_by_id(
+        self, pipeline: Pipeline, variant_id: str
+    ) -> Variant | None:
+        """
+        Find a variant by its ID within a pipeline.
+
+        Args:
+            pipeline: The pipeline to search in.
+            variant_id: The unique ID of the variant.
+
+        Returns:
+            Variant if found, None otherwise.
+        """
+        for variant in pipeline.variants:
+            if variant.id == variant_id:
+                return variant
         return None
 
     def update_pipeline(
@@ -393,6 +439,7 @@ class PipelineManager:
             that output_mode=live_stream is not used with density tests.
 
         Raises:
+            ValueError: If any referenced pipeline is not found.
             ValueError: If any referenced variant is not found.
             ValueError: If execution_config.max_runtime is negative.
             ValueError: If output_mode=file is combined with max_runtime>0.
@@ -434,20 +481,8 @@ class PipelineManager:
             # Resolve graph source to pipeline ID and graph using pattern matching
             match run_spec.pipeline:
                 case VariantReference(pipeline_id=pid, variant_id=vid):
-                    # Use stored variant
                     pipeline = self.get_pipeline_by_id(pid)
-
-                    # Find the specified variant
-                    variant = None
-                    for v in pipeline.variants:
-                        if v.id == vid:
-                            variant = v
-                            break
-
-                    if variant is None:
-                        raise ValueError(
-                            f"Variant '{vid}' not found in pipeline '{pid}'."
-                        )
+                    variant = self.get_variant_by_ids(pid, vid)
 
                     pipeline_graph_dict = variant.pipeline_graph.model_dump()
                     # Use variant path format for ID
@@ -609,6 +644,7 @@ class PipelineManager:
         Delete a variant from a pipeline.
 
         The method:
+        * Validates that pipeline exists
         * Validates that variant exists
         * Checks that variant is not read-only
         * Checks that it's not the last variant
@@ -630,12 +666,8 @@ class PipelineManager:
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
-            # Find the variant
-            variant_to_delete = None
-            for variant in pipeline.variants:
-                if variant.id == variant_id:
-                    variant_to_delete = variant
-                    break
+            # Find the variant using helper method
+            variant_to_delete = self._find_variant_by_id(pipeline, variant_id)
 
             if variant_to_delete is None:
                 raise ValueError(
@@ -674,6 +706,7 @@ class PipelineManager:
         Update an existing variant.
 
         The method:
+        * Validates that pipeline exists
         * Validates that variant exists and is not read-only
         * Ensures only one of pipeline_graph or pipeline_graph_simple is provided
         * For pipeline_graph: converts to GStreamer string, validates, and regenerates simple view
@@ -712,12 +745,8 @@ class PipelineManager:
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
-            # Find the variant
-            variant_to_update = None
-            for variant in pipeline.variants:
-                if variant.id == variant_id:
-                    variant_to_update = variant
-                    break
+            # Find the variant using helper method
+            variant_to_update = self._find_variant_by_id(pipeline, variant_id)
 
             if variant_to_update is None:
                 raise ValueError(
