@@ -63,6 +63,18 @@ export TAG="latest"
 
     **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
 
+    <details>
+    <summary>For EMT-S platform</summary>
+    If you are on an EMT-S platform, please set up the variables correspondingly by running
+
+    ``` bash
+    cd emt-s   # go to emt-s specific files
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
+    source env.sh 
+    ```
+    </details>
+
+
 3. Deploy with docker compose.
 
    ```bash

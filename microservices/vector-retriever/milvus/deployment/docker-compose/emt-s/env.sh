@@ -1,5 +1,5 @@
-host_ip=$(hostname -I | awk '{print $1}')
-HOST_IP=$(hostname -I | awk '{print $1}')
+host_ip=$(ip route get 1 | awk '{print $7}'|head -1)
+HOST_IP=$(ip route get 1 | awk '{print $7}'|head -1)
 USER_GROUP_ID=$(id -g)
 VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
@@ -10,12 +10,12 @@ export VIDEO_GROUP_ID
 export RENDER_GROUP_ID
 
 # Append the value of the public IP address to the no_proxy list 
-export no_proxy="localhost,127.0.0.1,::1,${host_ip}" 
+export no_proxy="localhost,127.0.0.1,::1,${host_ip},milvus-standalone,multimodal-embedding-serving,retriever-milvus"
 export no_proxy_env=${no_proxy},$HOST_IP
 export http_proxy=${http_proxy}
 export https_proxy=${https_proxy}
 
-export MILVUS_HOST=${host_ip}
+export MILVUS_HOST=milvus-standalone
 export MILVUS_PORT=19530
 export DOCKER_VOLUME_DIRECTORY="/opt"
 
@@ -37,7 +37,7 @@ fi
 
 export RETRIEVER_SERVICE_PORT=7770
 export EMBEDDING_SERVER_PORT=9777
-export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
+export EMBEDDING_BASE_URL="http://multimodal-embedding-serving:8000"
 # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14"
 
 docker volume create ov-models
