@@ -478,14 +478,17 @@ class Graph:
         Convert default fakesink node to a main output placeholder.
 
         Finds fakesink nodes with name="default_output_sink" and converts them to
-        "{OUTPUT_PLACEHOLDER}" type. This placeholder will be later replaced with
-        the actual main output subpipeline (file output or live stream).
+        "{OUTPUT_PLACEHOLDER}" type. If no named fakesink is found but there is
+        exactly one fakesink in the graph, that fakesink will be used automatically.
+        This placeholder will be later replaced with the actual main output
+        subpipeline (file output or live stream).
 
         Returns:
             Graph: New Graph instance with fakesink converted to placeholder
 
         Raises:
-            ValueError: If no fakesink with name='default_output_sink' is found in the graph
+            ValueError: If no fakesink is found in the graph
+            ValueError: If multiple fakesinks exist without explicit naming
 
         Note:
             This is used to mark the location where main output (for user viewing)
@@ -495,6 +498,7 @@ class Graph:
         modified_graph = copy.deepcopy(self)
         placeholder_created = False
 
+        # Try to find fakesink with explicit name="default_output_sink"
         for node in modified_graph.nodes:
             if (
                 node.type == "fakesink"
@@ -504,13 +508,34 @@ class Graph:
                 node.type = OUTPUT_PLACEHOLDER
                 placeholder_created = True
                 logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
+                break
 
+        # If not found, check if there's exactly one fakesink in the graph
         if not placeholder_created:
-            raise ValueError(
-                "No fakesink with name='default_output_sink' found. "
-                "Please add 'fakesink name=default_output_sink' at the end of your pipeline "
-                "to specify where the output should be placed."
-            )
+            fakesink_nodes = [
+                node for node in modified_graph.nodes if node.type == "fakesink"
+            ]
+
+            if len(fakesink_nodes) == 0:
+                raise ValueError(
+                    "No fakesink found in the graph. "
+                    "Please add 'fakesink' or 'fakesink name=default_output_sink' "
+                    "at the end of your pipeline to specify where the output should be placed."
+                )
+            elif len(fakesink_nodes) == 1:
+                # Exactly one fakesink - use it automatically
+                node = fakesink_nodes[0]
+                node.data.clear()
+                node.type = OUTPUT_PLACEHOLDER
+                placeholder_created = True
+                logger.debug(f"Converted node {node.id} to OUTPUT_PLACEHOLDER")
+            else:
+                # Multiple fakesinks - need explicit naming
+                raise ValueError(
+                    f"Found {len(fakesink_nodes)} fakesink nodes in the graph. "
+                    "Please specify which one should be the main output by adding "
+                    "'name=default_output_sink' to the desired fakesink element."
+                )
 
         return modified_graph
 
