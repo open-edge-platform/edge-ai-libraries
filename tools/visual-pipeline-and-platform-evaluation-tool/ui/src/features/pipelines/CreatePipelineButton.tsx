@@ -36,6 +36,14 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox.tsx";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field.tsx";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupText,
+} from "@/components/ui/input-group.tsx";
+import { Separator } from "@/components/ui/separator.tsx";
+import { Upload } from "lucide-react";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 
 const formSchema = z.object({
@@ -291,49 +299,32 @@ export const CreatePipelineButton = () => {
           <DialogTitle>Create Pipeline</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium mb-2">
-              Name
-            </label>
+          <Field>
+            <FieldLabel htmlFor="name">Name</FieldLabel>
             <Input
               id="name"
               type="text"
               {...register("name")}
               placeholder="Enter pipeline name..."
-              className="w-full px-3 py-2 border"
             />
-            {errors.name && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
+            <FieldError errors={errors.name ? [errors.name] : undefined} />
+          </Field>
 
-          <div>
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium mb-2"
-            >
-              Description
-            </label>
+          <Field>
+            <FieldLabel htmlFor="description">Description</FieldLabel>
             <Input
               id="description"
               type="text"
               {...register("description")}
               placeholder="Enter pipeline description..."
-              className="w-full px-3 py-2 border"
             />
-            {errors.description && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
+            <FieldError
+              errors={errors.description ? [errors.description] : undefined}
+            />
+          </Field>
 
-          <div>
-            <label htmlFor="tags" className="block text-sm font-medium mb-2">
-              Tags
-            </label>
+          <Field>
+            <FieldLabel htmlFor="tags">Tags</FieldLabel>
             <Combobox
               value={tags}
               onValueChange={(newTags) => {
@@ -392,69 +383,66 @@ export const CreatePipelineButton = () => {
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
-            {errors.tags && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.tags.message}
-              </p>
-            )}
-          </div>
+            <FieldError errors={errors.tags ? [errors.tags] : undefined} />
+          </Field>
 
-          <div>
-            <label
-              htmlFor="variant-name"
-              className="block text-sm font-medium mb-2"
-            >
-              Variant Name
-            </label>
+          <Field>
+            <FieldLabel htmlFor="variant-name">Variant Name</FieldLabel>
             <Input
               id="variant-name"
               type="text"
               {...register("variantName")}
               placeholder="default"
-              className="w-full px-3 py-2 border"
             />
-            {errors.variantName && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.variantName.message}
-              </p>
-            )}
-          </div>
+            <FieldError
+              errors={errors.variantName ? [errors.variantName] : undefined}
+            />
+          </Field>
 
-          <div>
-            <label
-              htmlFor="file-upload"
-              className="block text-sm font-medium mb-2"
-            >
+          <Field>
+            <FieldLabel htmlFor="file-upload">
               Upload file with Pipeline Description (.txt)
-            </label>
-            <input
-              id="file-upload"
-              type="file"
-              accept=".txt"
-              onChange={handleFileUpload}
-              className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-            />
-          </div>
+            </FieldLabel>
+            <InputGroup>
+              <InputGroupAddon
+                className="cursor-pointer bg-accent"
+                onClick={() => document.getElementById("file-upload")?.click()}
+              >
+                <InputGroupText className="cursor-pointer">
+                  <Upload />
+                  <span className="pr-3">Choose file</span>
+                </InputGroupText>
+              </InputGroupAddon>
+              <Separator orientation="vertical" className="h-6" />
+              <input
+                id="file-upload"
+                type="file"
+                accept=".txt"
+                onChange={handleFileUpload}
+                className="flex-1 bg-transparent text-sm file:hidden px-3 cursor-pointer"
+                onClick={() => document.getElementById("file-upload")?.click()}
+              />
+            </InputGroup>
+          </Field>
 
-          <div>
-            <label
-              htmlFor="pipeline-description"
-              className="block text-sm font-medium mb-2"
-            >
+          <Field>
+            <FieldLabel htmlFor="pipeline-description">
               Pipeline Description
-            </label>
+            </FieldLabel>
             <Textarea
               id="pipeline-description"
               {...register("pipelineDescription")}
               placeholder="Paste or upload your pipeline description here..."
-              className="w-full h-64 p-3 border resize-none font-mono text-sm"
+              className="h-64 resize-none"
             />
-            {errors.pipelineDescription && (
-              <p className="text-sm text-destructive mt-1">
-                {errors.pipelineDescription.message}
-              </p>
-            )}
-          </div>
+            <FieldError
+              errors={
+                errors.pipelineDescription
+                  ? [errors.pipelineDescription]
+                  : undefined
+              }
+            />
+          </Field>
 
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>
