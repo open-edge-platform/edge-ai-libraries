@@ -9,6 +9,7 @@ import api.api_schemas as schemas
 from managers.optimization_manager import OptimizationManager
 from managers.pipeline_manager import PipelineManager
 from managers.validation_manager import ValidationManager
+from graph import Graph
 
 TEMP_DIR = tempfile.gettempdir()
 
@@ -126,6 +127,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
 @router.post(
     "/validate",
     operation_id="validate_pipeline",
+    status_code=202,
     responses={
         202: {
             "description": "Pipeline validation started",
@@ -558,6 +560,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
 @router.post(
     "/{pipeline_id}/variants/{variant_id}/optimize",
     operation_id="optimize_variant",
+    status_code=202,
     responses={
         202: {
             "description": "Variant optimization started",
@@ -645,8 +648,10 @@ def optimize_variant(
         )
 
         job_id = OptimizationManager().run_optimization(variant_to_optimize, body)
-        return schemas.OptimizationJobResponse(job_id=job_id)
-
+        return JSONResponse(
+            content=schemas.OptimizationJobResponse(job_id=job_id).model_dump(),
+            status_code=202,
+        )
     except ValueError as e:
         if "not found" in str(e).lower():
             logger.warning(
@@ -1135,6 +1140,306 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Failed to update variant: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
+@router.post(
+    "/{pipeline_id}/variants/{variant_id}/convert-to-simple",
+    operation_id="convert_advanced_to_simple",
+    responses={
+        200: {
+            "description": "Converted simple graph",
+            "model": schemas.PipelineGraph,
+        },
+        400: {
+            "description": "Invalid graph or conversion failed",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
+        500: {"description": "Internal server error", "model": schemas.MessageResponse},
+    },
+)
+def convert_advanced_to_simple(
+    pipeline_id: str, variant_id: str, body: schemas.PipelineGraph
+):
+    """
+    Convert an advanced pipeline graph to simplified view without saving.
+
+    Operation:
+        * Validate that pipeline and variant exist
+        * Convert the provided advanced graph (PipelineGraph) to a Graph object
+        * Validate the advanced graph and generate simplified view
+        * Return the simplified graph without modifying the variant
+
+    This is a read-only conversion operation. The variant is not modified.
+    Use PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph to
+    save changes.
+
+    Path parameters:
+        pipeline_id: ID of the pipeline containing the variant.
+        variant_id: ID of the variant (used for context/validation).
+
+    Request body:
+        body: PipelineGraph
+            Advanced graph with all pipeline elements to convert.
+
+    Returns:
+        200 OK:
+            PipelineGraph representing the simplified view.
+        400 Bad Request:
+            MessageResponse when the graph is invalid or cannot be converted.
+        404 Not Found:
+            MessageResponse when pipeline or variant not found.
+        500 Internal Server Error:
+            MessageResponse for unexpected errors.
+
+    Success conditions:
+        * Pipeline and variant exist
+        * Advanced graph is valid and can be converted to GStreamer pipeline
+        * Simplified view is generated successfully
+
+    Failure conditions:
+        * Pipeline or variant not found → 404
+        * Invalid graph structure → 400
+        * Conversion error → 400
+        * Any other exception → 500
+
+    Request example:
+        .. code-block:: json
+
+            {
+              "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
+                {"id": "1", "type": "queue", "data": {}},
+                {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
+                {"id": "3", "type": "fakesink", "data": {}}
+              ],
+              "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+                {"id": "2", "source": "2", "target": "3"}
+              ]
+            }
+
+    Successful response example (200):
+        .. code-block:: json
+
+            {
+              "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
+                {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
+                {"id": "3", "type": "fakesink", "data": {}}
+              ],
+              "edges": [
+                {"id": "0", "source": "0", "target": "2"},
+                {"id": "1", "source": "2", "target": "3"}
+              ]
+            }
+    """
+    try:
+        # Validate pipeline and variant exist
+        manager = PipelineManager()
+
+        # Convert PipelineGraph to Graph object
+        advanced_graph = Graph.from_dict(body.model_dump())
+
+        # Validate and convert to simple view
+        simple_graph = manager.validate_and_convert_advanced_to_simple(advanced_graph)
+
+        # Convert back to PipelineGraph for response
+        result = schemas.PipelineGraph.model_validate(simple_graph.to_dict())
+
+        logger.info(
+            f"Converted advanced graph to simple for variant {variant_id} in pipeline {pipeline_id}"
+        )
+        return result
+
+    except ValueError as e:
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            logger.warning("Pipeline or variant not found: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.error("Invalid graph for conversion: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
+    except Exception as e:
+        logger.debug(
+            "Unexpected error while converting advanced to simple graph",
+            exc_info=True,
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to convert graph: {str(e)}"
+            ).model_dump(),
+            status_code=500,
+        )
+
+
+@router.post(
+    "/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
+    operation_id="convert_simple_to_advanced",
+    responses={
+        200: {
+            "description": "Converted advanced graph",
+            "model": schemas.PipelineGraph,
+        },
+        400: {
+            "description": "Invalid graph or conversion failed",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Pipeline or variant not found",
+            "model": schemas.MessageResponse,
+        },
+        500: {"description": "Internal server error", "model": schemas.MessageResponse},
+    },
+)
+def convert_simple_to_advanced(
+    pipeline_id: str, variant_id: str, body: schemas.PipelineGraph
+):
+    """
+    Convert a simplified pipeline graph to advanced view without saving.
+
+    Operation:
+        * Validate that pipeline and variant exist
+        * Convert the provided simple graph (PipelineGraph) to a Graph object
+        * Validate simple graph changes and merge into advanced view
+        * Return the updated advanced graph without modifying the variant
+
+    This is a read-only conversion operation. The variant is not modified.
+    The conversion uses the variant's current advanced graph as base and
+    applies property changes from the simple graph.
+
+    Use PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph_simple
+    to save changes.
+
+    Note: Only property modifications are allowed. Structural changes
+    (adding/removing nodes or edges) will be rejected.
+
+    Path parameters:
+        pipeline_id: ID of the pipeline containing the variant.
+        variant_id: ID of the variant whose advanced graph is used as base.
+
+    Request body:
+        body: PipelineGraph
+            Simplified graph with property changes to apply.
+
+    Returns:
+        200 OK:
+            PipelineGraph representing the updated advanced view.
+        400 Bad Request:
+            MessageResponse when the graph is invalid, contains structural
+            changes, or cannot be merged.
+        404 Not Found:
+            MessageResponse when pipeline or variant not found.
+        500 Internal Server Error:
+            MessageResponse for unexpected errors.
+
+    Success conditions:
+        * Pipeline and variant exist
+        * Simple graph contains only property changes (no structural changes)
+        * Changes can be merged into advanced graph
+        * Resulting advanced graph is valid
+
+    Failure conditions:
+        * Pipeline or variant not found → 404
+        * Structural changes detected (nodes/edges added/removed) → 400
+        * Invalid resulting graph → 400
+        * Any other exception → 500
+
+    Request example:
+        .. code-block:: json
+
+            {
+              "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
+                {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
+                {"id": "3", "type": "fakesink", "data": {}}
+              ],
+              "edges": [
+                {"id": "0", "source": "0", "target": "2"},
+                {"id": "1", "source": "2", "target": "3"}
+              ]
+            }
+
+    Successful response example (200):
+        .. code-block:: json
+
+            {
+              "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
+                {"id": "1", "type": "queue", "data": {}},
+                {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
+                {"id": "3", "type": "fakesink", "data": {}}
+              ],
+              "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+                {"id": "2", "source": "2", "target": "3"}
+              ]
+            }
+
+    Error response example (400, structural change):
+        .. code-block:: json
+
+            {
+              "message": "Invalid pipeline_graph_simple: Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes."
+            }
+    """
+    try:
+        # Validate pipeline and variant exist
+        manager = PipelineManager()
+        variant = manager.get_variant_by_ids(pipeline_id, variant_id)
+
+        # Convert PipelineGraph to Graph object
+        simple_graph = Graph.from_dict(body.model_dump())
+
+        # Validate and convert to advanced view
+        advanced_graph = manager.validate_and_convert_simple_to_advanced(
+            variant, simple_graph
+        )
+
+        # Convert back to PipelineGraph for response
+        result = schemas.PipelineGraph.model_validate(advanced_graph.to_dict())
+
+        logger.debug(
+            f"Converted simple graph to advanced for variant {variant_id} in pipeline {pipeline_id}"
+        )
+        return result
+
+    except ValueError as e:
+        error_message = str(e)
+        if "not found" in error_message.lower():
+            logger.warning("Pipeline or variant not found: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=404,
+            )
+        else:
+            logger.error("Invalid graph for conversion: %s", e)
+            return JSONResponse(
+                content=schemas.MessageResponse(message=error_message).model_dump(),
+                status_code=400,
+            )
+    except Exception as e:
+        logger.error(
+            "Unexpected error while converting simple to advanced graph",
+            exc_info=True,
+        )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Failed to convert graph: {str(e)}"
             ).model_dump(),
             status_code=500,
         )

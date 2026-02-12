@@ -505,8 +505,12 @@ class GraphInline(BaseModel):
     Attributes:
         source: Discriminator field, always "graph" for this type.
         pipeline_graph: Complete pipeline graph to use.
+        graph_id: Optional custom identifier for this inline graph.
+            If provided, this ID is used instead of generating a hash-based ID.
+            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
+            If not provided, a synthetic ID is generated from graph content hash.
 
-    Example:
+    Example (without graph_id - uses generated hash):
         .. code-block:: json
 
             {
@@ -516,17 +520,82 @@ class GraphInline(BaseModel):
                 "edges": [...]
               }
             }
+
+    Example (with custom graph_id):
+        .. code-block:: json
+
+            {
+              "source": "graph",
+              "graph_id": "my-custom-pipeline",
+              "pipeline_graph": {
+                "nodes": [...],
+                "edges": [...]
+              }
+            }
     """
 
     source: Literal["graph"] = "graph"
+    graph_id: Optional[str] = Field(
+        default=None,
+        description="Optional custom identifier for inline graph. Must be URL-safe.",
+        examples=["my-custom-pipeline", "detection-gpu-v2"],
+    )
     pipeline_graph: PipelineGraph = Field(
         ...,
         description="Inline pipeline graph to use for the test.",
     )
 
 
+class PipelineDescriptionSource(BaseModel):
+    """
+    Pipeline source from GStreamer pipeline description string.
+
+    Used when specifying a pipeline for tests by providing a GStreamer
+    pipeline description string that will be parsed into a graph.
+
+    Attributes:
+        source: Discriminator field, always "description" for this type.
+        pipeline_description: GStreamer pipeline string with elements separated by '!'.
+            Must be non-empty.
+        description_id: Optional custom identifier for this pipeline description.
+            If provided, this ID is used instead of generating a hash-based ID.
+            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
+            If not provided, a synthetic ID is generated from description content hash.
+
+    Example (without description_id - uses generated hash):
+        .. code-block:: json
+
+            {
+              "source": "description",
+              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+            }
+
+    Example (with custom description_id):
+        .. code-block:: json
+
+            {
+              "source": "description",
+              "description_id": "my-test-pipeline",
+              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+            }
+    """
+
+    source: Literal["description"] = "description"
+    pipeline_description: str = Field(
+        ...,
+        min_length=1,
+        description="GStreamer pipeline string with elements separated by '!'.",
+        examples=["videotestsrc ! videoconvert ! fakesink"],
+    )
+    description_id: Optional[str] = Field(
+        default=None,
+        description="Optional custom identifier for pipeline description. Must be URL-safe.",
+        examples=["my-test-pipeline", "detection-cpu-v1"],
+    )
+
+
 # Discriminated union for graph source
-GraphSource = Union[VariantReference, GraphInline]
+GraphSource = Union[VariantReference, GraphInline, PipelineDescriptionSource]
 
 
 class PipelineStreamSpec(BaseModel):
@@ -1119,10 +1188,11 @@ class PerformanceJobSummary(BaseModel):
     Attributes:
         id: Job identifier.
         request: Original PerformanceTestSpec used to start the job.
+            Stored as dict and validated on output.
     """
 
     id: str
-    request: PerformanceTestSpec
+    request: Dict[str, Any]
 
 
 class DensityJobSummary(BaseModel):
@@ -1132,10 +1202,11 @@ class DensityJobSummary(BaseModel):
     Attributes:
         id: Job identifier.
         request: Original DensityTestSpec used to start the job.
+            Stored as dict and validated on output.
     """
 
     id: str
-    request: DensityTestSpec
+    request: Dict[str, Any]
 
 
 class OptimizationJobResponse(BaseModel):

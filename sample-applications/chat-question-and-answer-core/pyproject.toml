@@ -11,10 +11,11 @@ docx2txt = "^0.9"
 faiss-cpu = "1.11.0"
 fastapi = "0.120.2"
 h11 = "0.16.0"
-langchain-core = "0.3.81"
+langchain-classic = "1.0.1"
+langchain-core = "1.2.11"
 langchain-community = "^0.3.9"
 pandas = "2.2.3"
-pillow = "^11.3.0"
+pillow = "12.1.1"
 pyarrow = "20.0.0"
 pypdf = "6.6.2"
 python-multipart = "0.0.22"
@@ -24,11 +25,11 @@ uvicorn = ">=0.21.0,<0.23.0"
 
 [tool.poetry.group.openvino.dependencies]
 huggingface_hub = "0.34.4"
-langchain-huggingface = "0.3.1"
+langchain-huggingface = "1.2.0"
 optimum = {extras = ["openvino", "nncf"], version = "2.0.0"}
 
 [tool.poetry.group.ollama.dependencies]
-langchain-ollama = "0.3.6"
+langchain-ollama = "1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"

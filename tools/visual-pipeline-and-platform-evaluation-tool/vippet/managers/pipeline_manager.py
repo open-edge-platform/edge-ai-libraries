@@ -7,19 +7,18 @@ from api.api_schemas import (
     PipelineSource,
     Pipeline,
     PipelineDefinition,
-    PipelinePerformanceSpec,
-    ExecutionConfig,
-    OutputMode,
     PipelineGraph,
     Variant,
-    VariantReference,
-    GraphInline,
 )
 from graph import Graph, OUTPUT_PLACEHOLDER
 from pipelines.loader import PipelineLoader
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelinePerformanceSpec,
+)
 from utils import (
     generate_unique_id,
-    generate_pipeline_graph_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
 )
@@ -39,6 +38,7 @@ class PipelineManager:
     * Load predefined pipelines from configuration
     * Create, read, update, delete user-created pipelines
     * Maintain variants with both advanced and simple views
+    * Convert between advanced and simple graph views
     * Build executable GStreamer pipeline commands with proper video encoding
     * Track creation and modification timestamps for pipelines and variants
     """
@@ -73,6 +73,7 @@ class PipelineManager:
         The method:
         * Generates a unique pipeline ID
         * Sets created_at and modified_at timestamps
+        * Trims and validates variant names (raises ValueError if empty after trimming)
         * Generates unique variant IDs from variant names
         * Sets read_only=False for all variants
         * Sets timestamps for all variants
@@ -87,6 +88,7 @@ class PipelineManager:
 
         Raises:
             ValueError: If pipeline definition is invalid.
+            ValueError: If any variant name is empty after trimming.
         """
         with self._pipelines_lock:
             # Get existing pipeline IDs for collision check
@@ -104,15 +106,16 @@ class PipelineManager:
             # Generate variant IDs and set timestamps for all variants
             variants_with_timestamps = []
             for variant_create in new_pipeline.variants:
+                # Validate and trim variant name
+                trimmed_name = self._validate_and_trim_variant_name(variant_create.name)
+
                 # Generate variant ID from variant name (same logic as add_variant)
-                variant_id = generate_unique_id(
-                    variant_create.name, existing_variant_ids
-                )
+                variant_id = generate_unique_id(trimmed_name, existing_variant_ids)
                 existing_variant_ids.append(variant_id)
 
                 variant_with_ts = Variant(
                     id=variant_id,
-                    name=variant_create.name,
+                    name=trimmed_name,
                     read_only=False,  # User-created variants are never read-only
                     pipeline_graph=variant_create.pipeline_graph,
                     pipeline_graph_simple=variant_create.pipeline_graph_simple,
@@ -402,45 +405,31 @@ class PipelineManager:
 
     def build_pipeline_command(
         self,
-        pipeline_performance_specs: list[PipelinePerformanceSpec],
-        execution_config: ExecutionConfig,
+        pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
+        execution_config: InternalExecutionConfig,
     ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
         """
-        Build a complete executable GStreamer pipeline command from run specifications.
+        Build a complete executable GStreamer pipeline command from internal specifications.
 
-        This method takes pipeline specifications with stream counts, retrieves the
-        corresponding pipeline graphs (either from stored variants or inline graphs),
-        and constructs a complete GStreamer command line that can be executed to run
-        all specified pipelines with all their streams.
-
-        The returned pipeline IDs follow these conventions:
-        * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-        * For inline graph: "__graph-{16-char-hash}"
-
-        These IDs are used consistently as keys in video_output_paths and live_stream_urls
-        dictionaries, making it easy to correlate results with pipeline sources.
+        This method takes internal pipeline specifications with resolved Graph objects and
+        stream counts, and constructs a complete GStreamer command line that can be executed
+        to run all specified pipelines with all their streams.
 
         Args:
-            pipeline_performance_specs: List of PipelinePerformanceSpec defining pipelines and streams.
-                Each spec.pipeline must be either VariantReference or GraphInline.
-            execution_config: Configuration for output generation and runtime limits.
+            pipeline_performance_specs: List of InternalPipelinePerformanceSpec with
+                resolved pipeline_id, pipeline_name, pipeline_graph (as Graph object), and streams.
+            execution_config: InternalExecutionConfig for output generation and runtime limits.
 
         Returns:
             tuple: (Complete GStreamer command string,
                     dictionary mapping pipeline IDs to output file paths,
                     dictionary mapping pipeline IDs to live stream URLs)
 
-            Pipeline ID format:
-            * Variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-            * Inline graph: "__graph-{16-char-hash}"
-
             Note: live_stream_urls will be empty for density tests since they do not
             support live-streaming output mode. The caller is responsible for validating
             that output_mode=live_stream is not used with density tests.
 
         Raises:
-            ValueError: If any referenced pipeline is not found.
-            ValueError: If any referenced variant is not found.
             ValueError: If execution_config.max_runtime is negative.
             ValueError: If output_mode=file is combined with max_runtime>0.
         """
@@ -456,7 +445,7 @@ class PipelineManager:
 
         # Validate output_mode + max_runtime combination
         if (
-            execution_config.output_mode == OutputMode.FILE
+            execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
         ):
             raise ValueError(
@@ -474,38 +463,14 @@ class PipelineManager:
         # Looping is only supported for disabled and live_stream modes
         needs_looping = (
             execution_config.max_runtime > 0
-            and execution_config.output_mode != OutputMode.FILE
+            and execution_config.output_mode != InternalOutputMode.FILE
         )
 
-        for pipeline_index, run_spec in enumerate(pipeline_performance_specs):
-            # Resolve graph source to pipeline ID and graph using pattern matching
-            match run_spec.pipeline:
-                case VariantReference(pipeline_id=pid, variant_id=vid):
-                    pipeline = self.get_pipeline_by_id(pid)
-                    variant = self.get_variant_by_ids(pid, vid)
-
-                    pipeline_graph_dict = variant.pipeline_graph.model_dump()
-                    # Use variant path format for ID
-                    pipeline_id = f"/pipelines/{pid}/variants/{vid}"
-                    pipeline_name = pipeline.name
-
-                case GraphInline(pipeline_graph=graph):
-                    # Use inline pipeline graph
-                    pipeline_graph_dict = graph.model_dump()
-                    # Generate synthetic ID from graph hash
-                    pipeline_id = generate_pipeline_graph_id(pipeline_graph_dict)
-                    # Synthetic pipeline name based on pipeline ID
-                    pipeline_name = pipeline_id
-
-                case _:
-                    raise ValueError(
-                        f"Invalid pipeline source type in spec at index {pipeline_index}"
-                    )
-
-            # Convert pipeline graph dict back to Graph object
-            base_graph = Graph.from_dict(pipeline_graph_dict)
-
-            base_graph = base_graph.unify_model_instance_ids()
+        for pipeline_index, spec in enumerate(pipeline_performance_specs):
+            # Use resolved pipeline information from internal spec
+            pipeline_id = spec.pipeline_id
+            pipeline_name = spec.pipeline_name
+            base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
             # Apply looping modifications if needed
             if needs_looping:
@@ -520,20 +485,20 @@ class PipelineManager:
             output_mode = execution_config.output_mode
 
             # prepare main video output path if output is enabled (file or live stream)
-            if output_mode != OutputMode.DISABLED:
+            if output_mode != InternalOutputMode.DISABLED:
                 # Retrieve input video filenames and recommended encoder device
                 input_video_filenames = base_graph.get_input_video_filenames()
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
-                if output_mode == OutputMode.FILE:
+                if output_mode == InternalOutputMode.FILE:
                     output_subpipeline, output_path = (
                         video_encoder.create_video_output_subpipeline(
                             pipeline_id, encoder_device, input_video_filenames
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
-                elif output_mode == OutputMode.LIVE_STREAM:
+                elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
                             pipeline_id,
@@ -544,10 +509,10 @@ class PipelineManager:
                     live_stream_urls[pipeline_id] = stream_url
 
             # Build pipeline parts for all streams of this pipeline specification
-            for stream_index in range(run_spec.streams):
+            for stream_index in range(spec.streams):
                 graph_instance = deepcopy(base_graph)
 
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
+                if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
@@ -557,7 +522,7 @@ class PipelineManager:
 
                 unique_pipeline_str = graph_instance.to_pipeline_description()
 
-                if output_mode != OutputMode.DISABLED and stream_index == 0:
+                if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Replace the main output placeholder with the actual output subpipeline (file or live stream)
                     if OUTPUT_PLACEHOLDER not in unique_pipeline_str:
                         raise ValueError(
@@ -587,7 +552,8 @@ class PipelineManager:
         Add a new variant to an existing pipeline.
 
         The method:
-        * Generates a unique variant ID
+        * Trims and validates variant name (raises ValueError if empty after trimming)
+        * Generates a unique variant ID from trimmed name
         * Creates variant with read_only=false
         * Sets created_at and modified_at timestamps for variant
         * Updates pipeline's modified_at timestamp
@@ -595,7 +561,7 @@ class PipelineManager:
 
         Args:
             pipeline_id: ID of the pipeline to add variant to.
-            name: Variant name (non-empty).
+            name: Variant name (trimmed, must be non-empty after trimming).
             pipeline_graph: Advanced graph representation.
             pipeline_graph_simple: Simplified graph representation.
 
@@ -604,17 +570,21 @@ class PipelineManager:
 
         Raises:
             ValueError: If pipeline with given ID is not found.
+            ValueError: If variant name is empty after trimming.
         """
         with self._pipelines_lock:
             pipeline = self._find_pipeline_by_id(pipeline_id)
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
+            # Validate and trim variant name
+            trimmed_name = self._validate_and_trim_variant_name(name)
+
             # Get existing variant IDs for collision check
             existing_variant_ids = [v.id for v in pipeline.variants]
 
-            # Generate new variant ID from variant name
-            variant_id = generate_unique_id(name, existing_variant_ids)
+            # Generate new variant ID from trimmed variant name
+            variant_id = generate_unique_id(trimmed_name, existing_variant_ids)
 
             # Set timestamps
             current_time = get_current_timestamp()
@@ -622,7 +592,7 @@ class PipelineManager:
             # Create new variant with read_only=false for user-created variants
             new_variant = Variant(
                 id=variant_id,
-                name=name,
+                name=trimmed_name,
                 read_only=False,
                 pipeline_graph=pipeline_graph,
                 pipeline_graph_simple=pipeline_graph_simple,
@@ -708,10 +678,10 @@ class PipelineManager:
         The method:
         * Validates that pipeline exists
         * Validates that variant exists and is not read-only
+        * If name is provided, trims and validates it (raises ValueError if empty after trimming)
         * Ensures only one of pipeline_graph or pipeline_graph_simple is provided
-        * For pipeline_graph: converts to GStreamer string, validates, and regenerates simple view
-        * For pipeline_graph_simple: applies changes to advanced view using
-          apply_simple_view_changes(), then regenerates both views
+        * For pipeline_graph: validates and regenerates simple view using _validate_and_convert_advanced_to_simple()
+        * For pipeline_graph_simple: validates and merges changes using _validate_and_convert_simple_to_advanced()
         * Updates provided fields
         * Updates variant's modified_at timestamp
         * Updates pipeline's modified_at timestamp
@@ -720,7 +690,7 @@ class PipelineManager:
         Args:
             pipeline_id: ID of the pipeline containing the variant.
             variant_id: ID of the variant to update.
-            name: Optional new variant name.
+            name: Optional new variant name (trimmed, must be non-empty after trimming if provided).
             pipeline_graph: Optional new advanced graph. When provided, simple view
                 is auto-generated from it. Mutually exclusive with pipeline_graph_simple.
             pipeline_graph_simple: Optional modified simple graph with property changes only.
@@ -736,6 +706,7 @@ class PipelineManager:
             ValueError: If pipeline is not found.
             ValueError: If variant is not found.
             ValueError: If variant is read-only (cannot update).
+            ValueError: If name is empty after trimming (when provided).
             ValueError: If both pipeline_graph and pipeline_graph_simple are provided.
             ValueError: If pipeline_graph cannot be converted to valid GStreamer string.
             ValueError: If pipeline_graph_simple contains structural changes.
@@ -763,33 +734,23 @@ class PipelineManager:
                     "Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one."
                 )
 
-            # Update name if provided
+            # Update name if provided (validate and trim)
             if name is not None:
-                variant_to_update.name = name
+                trimmed_name = self._validate_and_trim_variant_name(name)
+                variant_to_update.name = trimmed_name
 
             # Update pipeline_graph (advanced view)
             if pipeline_graph is not None:
-                # Validate that graph has nodes and edges
-                if not pipeline_graph.nodes or not pipeline_graph.edges:
-                    raise ValueError(
-                        "Field 'pipeline_graph' must contain at least one node and one edge."
-                    )
-
-                # Convert to Graph object and validate by generating pipeline description
+                # Convert PipelineGraph to Graph for validation
                 graph = Graph.from_dict(pipeline_graph.model_dump())
-                try:
-                    # Validate by converting to pipeline description
-                    _ = graph.to_pipeline_description()
-                except Exception as e:
-                    raise ValueError(
-                        f"Invalid pipeline_graph: cannot convert to valid GStreamer pipeline string. Error: {str(e)}"
-                    )
+
+                # Validate and generate simple view
+                simple_graph = self.validate_and_convert_advanced_to_simple(graph)
 
                 # Update advanced view
                 variant_to_update.pipeline_graph = pipeline_graph
 
-                # Auto-generate simple view from advanced view
-                simple_graph = graph.to_simple_view()
+                # Update simple view
                 variant_to_update.pipeline_graph_simple = PipelineGraph.model_validate(
                     simple_graph.to_dict()
                 )
@@ -800,46 +761,15 @@ class PipelineManager:
 
             # Update pipeline_graph_simple (simple view with property changes)
             elif pipeline_graph_simple is not None:
-                # Validate that graph has nodes and edges
-                if not pipeline_graph_simple.nodes or not pipeline_graph_simple.edges:
-                    raise ValueError(
-                        "Field 'pipeline_graph_simple' must contain at least one node and one edge."
-                    )
-
-                # Load current advanced graph
-                current_advanced_graph = Graph.from_dict(
-                    variant_to_update.pipeline_graph.model_dump()
-                )
-
-                # Load current simple graph (original, before user modifications)
-                current_simple_graph = Graph.from_dict(
-                    variant_to_update.pipeline_graph_simple.model_dump()
-                )
-
-                # Load the modified simple graph
+                # Convert PipelineGraph to Graph for validation
                 modified_simple_graph = Graph.from_dict(
                     pipeline_graph_simple.model_dump()
                 )
 
-                # Apply simple view changes to advanced graph
-                # This validates that only property changes are made, no structural changes
-                try:
-                    updated_advanced_graph = Graph.apply_simple_view_changes(
-                        modified_simple_graph,
-                        current_simple_graph,
-                        current_advanced_graph,
-                    )
-                except ValueError as e:
-                    # Re-raise validation errors from apply_simple_view_changes
-                    raise ValueError(f"Invalid pipeline_graph_simple: {str(e)}")
-
-                # Validate updated advanced graph can be converted to pipeline description
-                try:
-                    _ = updated_advanced_graph.to_pipeline_description()
-                except Exception as e:
-                    raise ValueError(
-                        f"Updated pipeline graph is invalid after applying simple view changes. Error: {str(e)}"
-                    )
+                # Validate and generate advanced view
+                updated_advanced_graph = self.validate_and_convert_simple_to_advanced(
+                    variant_to_update, modified_simple_graph
+                )
 
                 # Update both views
                 variant_to_update.pipeline_graph = PipelineGraph.model_validate(
@@ -863,3 +793,122 @@ class PipelineManager:
 
             self.logger.debug(f"Variant {variant_id} updated in pipeline {pipeline_id}")
             return variant_to_update
+
+    def validate_and_convert_advanced_to_simple(self, pipeline_graph: Graph) -> Graph:
+        """
+        Validate advanced graph and convert it to simple graph.
+
+        This method validates that the advanced graph can be converted to a valid
+        GStreamer pipeline string, then generates the simplified view.
+
+        Does not modify the variant - only performs validation and conversion.
+
+        Args:
+            variant: The variant context (used for error messages, not modified).
+            pipeline_graph: Advanced graph (Graph object) to validate and convert.
+
+        Returns:
+            Graph: Simplified graph generated from the advanced graph.
+
+        Raises:
+            ValueError: If graph has no nodes or edges.
+            ValueError: If graph cannot be converted to valid GStreamer pipeline string.
+        """
+        # Validate that graph has nodes and edges
+        if not pipeline_graph.nodes or not pipeline_graph.edges:
+            raise ValueError(
+                "Field 'pipeline_graph' must contain at least one node and one edge."
+            )
+
+        try:
+            # Validate by converting to pipeline description
+            _ = pipeline_graph.to_pipeline_description()
+        except Exception as e:
+            raise ValueError(
+                f"Invalid pipeline_graph: cannot convert to valid GStreamer pipeline string. Error: {str(e)}"
+            )
+
+        # Generate simple view from advanced view
+        simple_graph = pipeline_graph.to_simple_view()
+
+        return simple_graph
+
+    def validate_and_convert_simple_to_advanced(
+        self, variant: Variant, pipeline_graph_simple: Graph
+    ) -> Graph:
+        """
+        Validate simple graph changes and merge them into advanced graph.
+
+        This method validates that the simple graph contains only property changes
+        (no structural changes like adding/removing nodes or edges), then applies
+        those changes to the variant's current advanced graph.
+
+        Does not modify the variant - only performs validation and conversion.
+
+        Args:
+            variant: The variant containing the current advanced and simple graphs.
+            pipeline_graph_simple: Modified simple graph (Graph object) with property changes.
+
+        Returns:
+            Graph: Updated advanced graph with changes from simple graph applied.
+
+        Raises:
+            ValueError: If graph has no nodes or edges.
+            ValueError: If simple graph contains structural changes (nodes/edges added/removed).
+            ValueError: If updated advanced graph cannot be converted to valid GStreamer pipeline.
+        """
+        # Validate that graph has nodes and edges
+        if not pipeline_graph_simple.nodes or not pipeline_graph_simple.edges:
+            raise ValueError(
+                "Field 'pipeline_graph_simple' must contain at least one node and one edge."
+            )
+
+        # Load current advanced graph
+        current_advanced_graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+
+        # Load current simple graph (original, before user modifications)
+        current_simple_graph = Graph.from_dict(
+            variant.pipeline_graph_simple.model_dump()
+        )
+
+        # Apply simple view changes to advanced graph
+        # This validates that only property changes are made, no structural changes
+        try:
+            updated_advanced_graph = Graph.apply_simple_view_changes(
+                pipeline_graph_simple,
+                current_simple_graph,
+                current_advanced_graph,
+            )
+        except ValueError as e:
+            # Re-raise validation errors from apply_simple_view_changes
+            raise ValueError(f"Invalid pipeline_graph_simple: {str(e)}")
+
+        # Validate updated advanced graph can be converted to pipeline description
+        try:
+            _ = updated_advanced_graph.to_pipeline_description()
+        except Exception as e:
+            raise ValueError(
+                f"Updated pipeline graph is invalid after applying simple view changes. Error: {str(e)}"
+            )
+
+        return updated_advanced_graph
+
+    def _validate_and_trim_variant_name(self, name: str) -> str:
+        """
+        Validate and trim variant name.
+
+        Trims whitespace from the name and validates it is not empty.
+
+        Args:
+            name: Variant name to validate and trim.
+
+        Returns:
+            Trimmed variant name.
+
+        Raises:
+            ValueError: If name is empty after trimming.
+        """
+        trimmed_name = name.strip()
+        if not trimmed_name:
+            raise ValueError("Variant name cannot be empty.")
+        return trimmed_name

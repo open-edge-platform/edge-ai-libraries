@@ -15,6 +15,32 @@ from slugify import slugify
 logger = logging.getLogger("utils")
 
 
+def slugify_text(text: str, max_length: int = 0) -> str:
+    """
+    Convert text to URL-safe slug format.
+
+    Wrapper for the slugify library. Converts text to lowercase,
+    replaces spaces and special characters with dashes, and optionally
+    truncates to max_length.
+
+    Args:
+        text: The text to convert to a slug.
+        max_length: Maximum length of the result. If 0, no length limit is applied.
+
+    Returns:
+        URL-safe slug string.
+
+    Example:
+        >>> slugify_text("My Test Pipeline")
+        'my-test-pipeline'
+        >>> slugify_text("Very Long Name Here", max_length=10)
+        'very-long'
+    """
+    if max_length > 0:
+        return slugify(text, max_length=max_length)
+    return slugify(text)
+
+
 def generate_unique_id(
     text: str,
     existing_names: List[str],
@@ -91,6 +117,26 @@ def generate_pipeline_graph_id(pipeline_graph: dict) -> str:
     hash_digest = hashlib.sha256(graph_json.encode()).hexdigest()[:16]
 
     return f"__graph-{hash_digest}"
+
+
+def generate_pipeline_description_id(pipeline_description: str) -> str:
+    """
+    Generate a synthetic pipeline ID from a pipeline description string hash.
+
+    Used when a pipeline description string is provided instead of referencing
+    an existing pipeline by ID. The ID format is "__description-" followed by
+    a 16-character hash of the description content.
+
+    Args:
+        pipeline_description: GStreamer pipeline description string.
+
+    Returns:
+        Synthetic pipeline ID in format "__description-<16-char-hash>".
+    """
+    # Generate hash and take first 16 characters
+    hash_digest = hashlib.sha256(pipeline_description.encode()).hexdigest()[:16]
+
+    return f"__description-{hash_digest}"
 
 
 def make_tee_names_unique(

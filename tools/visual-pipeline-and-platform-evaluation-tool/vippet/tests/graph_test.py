@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-from graph import Edge, Graph, Node
+from graph import Edge, Graph, Node, OUTPUT_PLACEHOLDER
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
 # Create mock instances for SupportedModelsManager and VideosManager
@@ -4267,6 +4267,186 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
         unique_ids = set(all_instance_ids)
         # Should have 4 unique IDs (GPU yolov8 is shared, so counted once)
         self.assertEqual(len(unique_ids), 4)
+
+
+class TestPrepareMainOutputPlaceholder(unittest.TestCase):
+    """Test cases for Graph.prepare_main_output_placeholder method."""
+
+    def test_named_fakesink_is_converted_to_placeholder(self):
+        """Test that fakesink with name='default_output_sink' is converted to placeholder."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="fakesink",
+                    data={"name": "default_output_sink", "sync": "false"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # Check that fakesink is converted to OUTPUT_PLACEHOLDER
+        self.assertEqual(result.nodes[2].type, OUTPUT_PLACEHOLDER)
+        # Check that all properties are cleared
+        self.assertEqual(result.nodes[2].data, {})
+
+    def test_single_unnamed_fakesink_is_converted_to_placeholder(self):
+        """Test that single fakesink without name is automatically converted to placeholder."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # Check that the single fakesink is converted to OUTPUT_PLACEHOLDER
+        self.assertEqual(result.nodes[2].type, OUTPUT_PLACEHOLDER)
+        # Check that all properties are cleared
+        self.assertEqual(result.nodes[2].data, {})
+
+    def test_single_named_non_default_fakesink_is_auto_selected(self):
+        """Test that single fakesink with non-default name is automatically selected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="fakesink",
+                    data={"name": "my_custom_sink", "sync": "false"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # Check that the single fakesink is converted to OUTPUT_PLACEHOLDER
+        # even though it has a name different from "default_output_sink"
+        self.assertEqual(result.nodes[2].type, OUTPUT_PLACEHOLDER)
+        # Check that all properties including custom name are cleared
+        self.assertEqual(result.nodes[2].data, {})
+
+    def test_named_fakesink_takes_precedence_over_others(self):
+        """Test that named fakesink is preferred even when multiple fakesinks exist."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(id="3", type="fakesink", data={"sync": "false"}),
+                Node(
+                    id="4",
+                    type="fakesink",
+                    data={"name": "default_output_sink", "sync": "true"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="2", target="4"),
+            ],
+        )
+
+        result = graph.prepare_main_output_placeholder()
+
+        # Check that only the named fakesink is converted
+        self.assertEqual(result.nodes[3].type, "fakesink")  # unchanged
+        self.assertEqual(result.nodes[4].type, OUTPUT_PLACEHOLDER)
+        self.assertEqual(result.nodes[4].data, {})
+
+    def test_multiple_unnamed_fakesinks_raises_error(self):
+        """Test that multiple fakesinks without explicit naming raises ValueError."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(id="3", type="fakesink", data={"sync": "false"}),
+                Node(id="4", type="fakesink", data={"sync": "true"}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="2", target="4"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            graph.prepare_main_output_placeholder()
+
+        self.assertIn("Found 2 fakesink nodes", str(context.exception))
+        self.assertIn("name=default_output_sink", str(context.exception))
+
+    def test_multiple_named_default_output_sinks_raises_error(self):
+        """Test that multiple fakesinks with name='default_output_sink' raises ValueError."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(
+                    id="3",
+                    type="fakesink",
+                    data={"name": "default_output_sink", "sync": "false"},
+                ),
+                Node(
+                    id="4",
+                    type="fakesink",
+                    data={"name": "default_output_sink", "sync": "true"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="2", target="4"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            graph.prepare_main_output_placeholder()
+
+        self.assertIn("Found 2 fakesink nodes", str(context.exception))
+        self.assertIn("name='default_output_sink'", str(context.exception))
+
+    def test_no_fakesink_raises_error(self):
+        """Test that graph without any fakesink raises ValueError."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="autovideosink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            graph.prepare_main_output_placeholder()
+
+        self.assertIn("No fakesink found", str(context.exception))
 
 
 if __name__ == "__main__":
