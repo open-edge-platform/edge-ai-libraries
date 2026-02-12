@@ -25,7 +25,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Home, ChevronRight } from "lucide-react";
+import { Home, ChevronRight, ChevronLeft } from "lucide-react";
 import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
@@ -238,6 +238,7 @@ const DemoMode = () => {
   const [selectedConfigPipelineId, setSelectedConfigPipelineId] = useState<
     string | null
   >(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
@@ -684,7 +685,7 @@ const DemoMode = () => {
       setPerformanceJobId(null);
     } else if (performanceJobStatus?.state === "ERROR") {
       console.error(
-        "Performance test failed:",
+        "Throughput test failed:",
         performanceJobStatus.error_message,
       );
       setPerformanceErrorMessage(
@@ -735,11 +736,16 @@ const DemoMode = () => {
       setPipelineSelections([
         {
           pipelineId: pipelines[0].id,
-          stream_rate: 50,
+          stream_rate: 100,
         },
       ]);
     }
   }, [pipelines, pipelineSelections.length]);
+
+  useEffect(() => {
+    // Reset carousel index when pipeline selections change
+    setCarouselIndex(0);
+  }, [pipelineSelections.length]);
 
   useEffect(() => {
     if (pipelineSelections.length === 0) return;
@@ -769,12 +775,96 @@ const DemoMode = () => {
     });
   }, [pipelineSelections]);
 
-  const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
-      ),
-    );
+  const handleStreamRateChange = (pipelineId: string, newRate: number) => {
+    setPipelineSelections((prev) => {
+      // Jeśli jest tylko jeden pipeline, zawsze ustaw na 100%
+      if (prev.length === 1) {
+        return [{ ...prev[0], stream_rate: 100 }];
+      }
+
+      // Znajdź indeks zmienianego pipeline
+      const changedIndex = prev.findIndex(
+        (sel) => sel.pipelineId === pipelineId,
+      );
+      if (changedIndex === -1) return prev;
+
+      // Ogranicz wartość do zakresu 0-100
+      const clampedRate = Math.max(0, Math.min(100, newRate));
+
+      // Oblicz sumę tych, które nie będą dostosowywane
+      let fixedSum = clampedRate; // zmieniany suwak
+
+      // Jeśli to ostatni suwak, dostosowujemy pierwszy, więc dodaj sumy środkowych
+      if (changedIndex === prev.length - 1) {
+        // Dla ostatniego: suma środkowych (od 1 do length-2)
+        for (let i = 1; i < prev.length - 1; i++) {
+          fixedSum += prev[i].stream_rate;
+        }
+      } else {
+        // Dla innych: suma tych przed zmienionym
+        for (let i = 0; i < changedIndex; i++) {
+          fixedSum += prev[i].stream_rate;
+        }
+      }
+
+      // Oblicz pozostałą wartość do rozdzielenia
+      const remainingRate = 100 - fixedSum;
+
+      // Wybierz suwaki do dostosowania
+      let toAdjust: typeof prev;
+      if (changedIndex === prev.length - 1) {
+        // Dla ostatniego - dostosuj tylko pierwszy
+        toAdjust = [prev[0]];
+      } else {
+        // Dla pozostałych - dostosuj wszystkie poniżej
+        toAdjust = prev.slice(changedIndex + 1);
+      }
+
+      // Oblicz sumę tych do dostosowania
+      const adjustSum = toAdjust.reduce((sum, sel) => sum + sel.stream_rate, 0);
+
+      // Rozdziel proporcjonalnie lub równo
+      const adjusted = toAdjust.map((sel) => {
+        const proportion =
+          adjustSum > 0 ? sel.stream_rate / adjustSum : 1 / toAdjust.length;
+        const newValue = proportion * remainingRate;
+        return {
+          ...sel,
+          stream_rate: Math.round(newValue),
+        };
+      });
+
+      // Korekta błędów zaokrągleń
+      const sumAdjusted = adjusted.reduce(
+        (sum, sel) => sum + sel.stream_rate,
+        0,
+      );
+      const diff = remainingRate - sumAdjusted;
+      if (diff !== 0 && adjusted.length > 0) {
+        adjusted[0] = {
+          ...adjusted[0],
+          stream_rate: adjusted[0].stream_rate + diff,
+        };
+      }
+
+      // Złóż wynik
+      return prev.map((sel, idx) => {
+        if (idx === changedIndex) {
+          return { ...sel, stream_rate: clampedRate };
+        }
+
+        if (changedIndex === prev.length - 1 && idx === 0) {
+          // Ostatni suwak - zwróć dostosowany pierwszy
+          return adjusted[0];
+        } else if (changedIndex !== prev.length - 1 && idx > changedIndex) {
+          // Nie ostatni - zwróć dostosowane poniżej
+          const adjustedIdx = idx - changedIndex - 1;
+          return adjusted[adjustedIdx];
+        }
+
+        return sel; // Pozostaw bez zmian
+      });
+    });
   };
 
   const handlePerformanceStreamsChange = (
@@ -913,7 +1003,7 @@ const DemoMode = () => {
         }).unwrap();
         setPerformanceJobId(result.job_id);
       } catch (err) {
-        console.error("Failed to run performance test:", err);
+        console.error("Failed to run throughput test:", err);
       }
       return;
     }
@@ -1091,11 +1181,15 @@ const DemoMode = () => {
                   onClick={() => {
                     if (selectedModels.size > 0) {
                       // Initialize pipeline selections with selected pipelines
-                      const selections = Array.from(
-                        selectedModels.values(),
-                      ).map((id) => ({
+                      const pipelineIds = Array.from(selectedModels.values());
+                      const count = pipelineIds.length;
+                      const baseRate = Math.floor(100 / count);
+                      const remainder = 100 - baseRate * count;
+
+                      const selections = pipelineIds.map((id, index) => ({
                         pipelineId: id,
-                        stream_rate: 50,
+                        stream_rate:
+                          index === 0 ? baseRate + remainder : baseRate,
                       }));
                       setPipelineSelections(selections);
                       // Set first pipeline as selected for configuration
@@ -1117,13 +1211,21 @@ const DemoMode = () => {
             </div>
           ) : demoStep === "configuration" ? (
             (() => {
+              const cardsPerPage = 4;
+              const totalPages = Math.ceil(
+                pipelineSelections.length / cardsPerPage,
+              );
+              const startIdx = carouselIndex * cardsPerPage;
+              const endIdx = startIdx + cardsPerPage;
+              const visiblePipelines = pipelineSelections.slice(
+                startIdx,
+                endIdx,
+              );
+
               const pipelineCardsSection = (
-                <div
-                  className="h-[190px] overflow-y-auto pr-1 scroll-smooth"
-                  onWheel={handleFastScroll}
-                >
-                  <div className="grid grid-cols-4 gap-2 pb-6">
-                    {pipelineSelections.map((selection) => {
+                <div className="relative h-[190px]">
+                  <div className="grid grid-cols-4 gap-2 h-full">
+                    {visiblePipelines.map((selection) => {
                       const pipeline = pipelines.find(
                         (p) => p.id === selection.pipelineId,
                       );
@@ -1170,6 +1272,47 @@ const DemoMode = () => {
                       );
                     })}
                   </div>
+
+                  {/* Carousel navigation buttons */}
+                  {totalPages > 1 && (
+                    <>
+                      <button
+                        onClick={() =>
+                          setCarouselIndex((prev) => Math.max(0, prev - 1))
+                        }
+                        disabled={carouselIndex === 0}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all"
+                      >
+                        <ChevronLeft className="w-5 h-5 text-slate-200" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setCarouselIndex((prev) =>
+                            Math.min(totalPages - 1, prev + 1),
+                          )
+                        }
+                        disabled={carouselIndex >= totalPages - 1}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all"
+                      >
+                        <ChevronRight className="w-5 h-5 text-slate-200" />
+                      </button>
+
+                      {/* Dots indicator */}
+                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                        {Array.from({ length: totalPages }).map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCarouselIndex(idx)}
+                            className={`w-2 h-2 rounded-full transition-all ${
+                              idx === carouselIndex
+                                ? "bg-blue-500 w-6"
+                                : "bg-slate-600 hover:bg-slate-500"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
 
@@ -1839,7 +1982,7 @@ const DemoMode = () => {
                                       : "text-slate-300 hover:text-white"
                                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
-                                  Performance Test
+                                  Throughput Test
                                 </button>
                                 <button
                                   type="button"
@@ -2115,7 +2258,7 @@ const DemoMode = () => {
                                     ></div>
                                   </div>
                                   <span className="text-neutral-300 text-xs">
-                                    Running performance test...
+                                    Running throughput test...
                                   </span>
                                 </div>
                                 <TestProgressIndicator />
@@ -2364,7 +2507,7 @@ const DemoMode = () => {
                           {actionButtonsSection}
                         </div>
                       </div>
-                      <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
+                      <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 flex flex-col">
                         {resultsSection}
                       </div>
                     </div>
@@ -2421,7 +2564,7 @@ const DemoMode = () => {
                         {actionButtonsSection}
                       </div>
                     </div>
-                    <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 max-h-[100%] self-start">
+                    <div className="row-start-1 col-start-2 row-span-2 h-full min-h-0 flex flex-col">
                       {resultsSection}
                     </div>
                   </div>
