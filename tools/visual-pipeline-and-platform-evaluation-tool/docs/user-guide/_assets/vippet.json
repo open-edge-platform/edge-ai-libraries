@@ -3242,6 +3242,9 @@
               },
               {
                 "$ref": "#/components/schemas/GraphInline"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineDescriptionSource"
               }
             ],
             "title": "Pipeline",
@@ -3249,6 +3252,7 @@
             "discriminator": {
               "propertyName": "source",
               "mapping": {
+                "description": "#/components/schemas/PipelineDescriptionSource",
                 "graph": "#/components/schemas/GraphInline",
                 "variant": "#/components/schemas/VariantReference"
               }
@@ -3289,6 +3293,47 @@
         ],
         "title": "PipelineDescription",
         "description": "Request or response body containing a GStreamer pipeline string.\n\nThe pipeline_description field contains a complete GStreamer launch line\nwith elements separated by '!' symbols, for example:\n\"filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink\"\n\nAttributes:\n    pipeline_description: Complete GStreamer pipeline string to be converted\n        or executed."
+      },
+      "PipelineDescriptionSource": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "description",
+            "title": "Source",
+            "default": "description"
+          },
+          "pipeline_description": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Pipeline Description",
+            "description": "GStreamer pipeline string with elements separated by '!'.",
+            "examples": [
+              "videotestsrc ! videoconvert ! fakesink"
+            ]
+          },
+          "description_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Id",
+            "description": "Optional custom identifier for pipeline description. Must be URL-safe.",
+            "examples": [
+              "my-test-pipeline",
+              "detection-cpu-v1"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_description"
+        ],
+        "title": "PipelineDescriptionSource",
+        "description": "Pipeline source from GStreamer pipeline description string.\n\nUsed when specifying a pipeline for tests by providing a GStreamer\npipeline description string that will be parsed into a graph.\n\nAttributes:\n    source: Discriminator field, always \"description\" for this type.\n    pipeline_description: GStreamer pipeline string with elements separated by '!'.\n        Must be non-empty.\n    description_id: Optional custom identifier for this pipeline description.\n        If provided, this ID is used instead of generating a hash-based ID.\n        The ID must be URL-safe (only lowercase letters, numbers, and dashes).\n        If not provided, a synthetic ID is generated from description content hash.\n\nExample (without description_id - uses generated hash):\n    .. code-block:: json\n\n        {\n          \"source\": \"description\",\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n        }\n\nExample (with custom description_id):\n    .. code-block:: json\n\n        {\n          \"source\": \"description\",\n          \"description_id\": \"my-test-pipeline\",\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n        }"
       },
       "PipelineGraph": {
         "properties": {
@@ -3378,6 +3423,9 @@
               },
               {
                 "$ref": "#/components/schemas/GraphInline"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineDescriptionSource"
               }
             ],
             "title": "Pipeline",
@@ -3385,6 +3433,7 @@
             "discriminator": {
               "propertyName": "source",
               "mapping": {
+                "description": "#/components/schemas/PipelineDescriptionSource",
                 "graph": "#/components/schemas/GraphInline",
                 "variant": "#/components/schemas/VariantReference"
               }

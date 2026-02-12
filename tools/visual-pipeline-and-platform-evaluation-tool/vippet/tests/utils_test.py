@@ -580,6 +580,149 @@ class TestGeneratePipelineGraphId(unittest.TestCase):
         self.assertNotEqual(id1, id2)
 
 
+class TestGeneratePipelineDescriptionId(unittest.TestCase):
+    """Tests for generate_pipeline_description_id function.
+
+    This function generates synthetic pipeline IDs from pipeline description string hashes.
+    Used when pipeline descriptions are provided instead of referencing stored variants.
+    """
+
+    def test_generate_pipeline_description_id_format(self):
+        # Test that the generated ID follows the expected format: __description-<16-char-hash>
+        pipeline_description = "videotestsrc ! videoconvert ! fakesink"
+        result = utils.generate_pipeline_description_id(pipeline_description)
+
+        # Should start with __description- prefix
+        self.assertTrue(result.startswith("__description-"))
+
+        # Should match pattern: __description-<16 hex chars>
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_hash_length(self):
+        # Test that hash part is exactly 16 characters
+        pipeline_description = "filesrc location=/test.mp4 ! decodebin ! fakesink"
+        result = utils.generate_pipeline_description_id(pipeline_description)
+
+        # Extract hash part after "__description-"
+        hash_part = result[len("__description-") :]
+        self.assertEqual(len(hash_part), 16)
+
+        # All characters should be valid hex
+        self.assertTrue(all(c in "0123456789abcdef" for c in hash_part))
+
+    def test_generate_pipeline_description_id_consistency(self):
+        # Test that same input produces same output (deterministic)
+        pipeline_description = "videotestsrc ! queue ! videoconvert ! fakesink"
+
+        # Generate ID multiple times
+        result1 = utils.generate_pipeline_description_id(pipeline_description)
+        result2 = utils.generate_pipeline_description_id(pipeline_description)
+        result3 = utils.generate_pipeline_description_id(pipeline_description)
+
+        # All should be identical
+        self.assertEqual(result1, result2)
+        self.assertEqual(result2, result3)
+
+    def test_generate_pipeline_description_id_different_inputs(self):
+        # Test that different inputs produce different outputs
+        desc1 = "videotestsrc ! fakesink"
+        desc2 = "filesrc location=/test.mp4 ! fakesink"
+        desc3 = "videotestsrc ! videoconvert ! autovideosink"
+
+        id1 = utils.generate_pipeline_description_id(desc1)
+        id2 = utils.generate_pipeline_description_id(desc2)
+        id3 = utils.generate_pipeline_description_id(desc3)
+
+        # All IDs should be different
+        self.assertNotEqual(id1, id2)
+        self.assertNotEqual(id2, id3)
+        self.assertNotEqual(id1, id3)
+
+    def test_generate_pipeline_description_id_empty_string(self):
+        # Test with empty string (edge case)
+        empty_desc = ""
+        result = utils.generate_pipeline_description_id(empty_desc)
+
+        # Should still return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_whitespace_only(self):
+        # Test with whitespace only string
+        whitespace_desc = "   "
+        result = utils.generate_pipeline_description_id(whitespace_desc)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_complex_pipeline(self):
+        # Test with complex pipeline description
+        complex_desc = (
+            "filesrc location=/videos/input/test.mp4 ! decodebin ! videoconvert ! "
+            "gvadetect model=/models/yolo.xml device=CPU threshold=0.5 ! "
+            "gvawatermark ! videoconvert ! fakesink"
+        )
+
+        result = utils.generate_pipeline_description_id(complex_desc)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_with_special_chars(self):
+        # Test with special characters in description
+        special_desc = "filesrc location='/path with spaces/file (1).mp4' ! fakesink"
+
+        result = utils.generate_pipeline_description_id(special_desc)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_with_unicode(self):
+        # Test with unicode characters in description
+        unicode_desc = "filesrc location=/путь/к/файлу.mp4 ! fakesink"
+
+        result = utils.generate_pipeline_description_id(unicode_desc)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_small_change(self):
+        # Test that small changes produce different IDs
+        desc1 = "videotestsrc ! fakesink"
+        desc2 = "videotestsrc  ! fakesink"  # Extra space
+
+        id1 = utils.generate_pipeline_description_id(desc1)
+        id2 = utils.generate_pipeline_description_id(desc2)
+
+        # Different descriptions should produce different IDs
+        self.assertNotEqual(id1, id2)
+
+    def test_generate_pipeline_description_id_newlines(self):
+        # Test with newlines in description
+        desc_with_newlines = "videotestsrc !\n  videoconvert !\n  fakesink"
+
+        result = utils.generate_pipeline_description_id(desc_with_newlines)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_pipeline_description_id_long_description(self):
+        # Test with very long pipeline description
+        long_desc = " ! ".join(["queue"] * 100) + " ! fakesink"
+
+        result = utils.generate_pipeline_description_id(long_desc)
+
+        # Should return valid format
+        pattern = r"^__description-[0-9a-f]{16}$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+
 class TestGetCurrentTimestamp(unittest.TestCase):
     """Tests for get_current_timestamp function."""
 

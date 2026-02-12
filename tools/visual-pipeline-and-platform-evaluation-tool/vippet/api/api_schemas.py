@@ -546,8 +546,56 @@ class GraphInline(BaseModel):
     )
 
 
+class PipelineDescriptionSource(BaseModel):
+    """
+    Pipeline source from GStreamer pipeline description string.
+
+    Used when specifying a pipeline for tests by providing a GStreamer
+    pipeline description string that will be parsed into a graph.
+
+    Attributes:
+        source: Discriminator field, always "description" for this type.
+        pipeline_description: GStreamer pipeline string with elements separated by '!'.
+            Must be non-empty.
+        description_id: Optional custom identifier for this pipeline description.
+            If provided, this ID is used instead of generating a hash-based ID.
+            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
+            If not provided, a synthetic ID is generated from description content hash.
+
+    Example (without description_id - uses generated hash):
+        .. code-block:: json
+
+            {
+              "source": "description",
+              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+            }
+
+    Example (with custom description_id):
+        .. code-block:: json
+
+            {
+              "source": "description",
+              "description_id": "my-test-pipeline",
+              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+            }
+    """
+
+    source: Literal["description"] = "description"
+    pipeline_description: str = Field(
+        ...,
+        min_length=1,
+        description="GStreamer pipeline string with elements separated by '!'.",
+        examples=["videotestsrc ! videoconvert ! fakesink"],
+    )
+    description_id: Optional[str] = Field(
+        default=None,
+        description="Optional custom identifier for pipeline description. Must be URL-safe.",
+        examples=["my-test-pipeline", "detection-cpu-v1"],
+    )
+
+
 # Discriminated union for graph source
-GraphSource = Union[VariantReference, GraphInline]
+GraphSource = Union[VariantReference, GraphInline, PipelineDescriptionSource]
 
 
 class PipelineStreamSpec(BaseModel):

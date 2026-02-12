@@ -16,7 +16,11 @@ from internal_types import (
 )
 from managers.pipeline_manager import PipelineManager
 from managers.tests_manager import TestsManager
-from utils import generate_pipeline_graph_id, slugify_text
+from utils import (
+    generate_pipeline_graph_id,
+    generate_pipeline_description_id,
+    slugify_text,
+)
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.tests")
@@ -373,6 +377,53 @@ def _validate_and_get_graph_id(graph_inline: schemas.GraphInline) -> str:
         return generate_pipeline_graph_id(graph_inline.pipeline_graph.model_dump())
 
 
+def _validate_and_get_description_id(
+    description_source: schemas.PipelineDescriptionSource,
+) -> str:
+    """
+    Validate and return pipeline ID for pipeline description source.
+
+    If description_id is provided, validates it:
+    - Trims whitespace
+    - Checks if empty after trim (raises ValueError)
+    - Validates URL-safety using slugify (raises ValueError if different)
+
+    If description_id is not provided, generates ID from description content hash.
+
+    Args:
+        description_source: PipelineDescriptionSource object with optional description_id.
+
+    Returns:
+        Validated description_id or generated hash-based ID.
+
+    Raises:
+        ValueError: If description_id is empty after trim or contains invalid characters.
+    """
+    if description_source.description_id is not None:
+        # Trim whitespace
+        trimmed_id = description_source.description_id.strip()
+
+        # Check if empty after trim
+        if not trimmed_id:
+            raise ValueError(
+                "description_id cannot be empty or contain only whitespace."
+            )
+
+        # Validate URL-safety using slugify
+        slugified_id = slugify_text(trimmed_id, 64)
+        if slugified_id != trimmed_id:
+            raise ValueError(
+                f"description_id '{trimmed_id}' contains characters that cannot be used in URL. "
+                f"Use only lowercase letters, numbers, and dashes. "
+                f"Suggested: '{slugified_id}'"
+            )
+
+        return trimmed_id
+    else:
+        # Generate hash-based ID
+        return generate_pipeline_description_id(description_source.pipeline_description)
+
+
 def _convert_output_mode(mode: schemas.OutputMode) -> InternalOutputMode:
     """
     Convert API OutputMode to internal representation.
@@ -421,6 +472,8 @@ def _convert_pipeline_density_spec(
 
     For GraphInline with graph_id: validates and uses the provided ID.
     For GraphInline without graph_id: generates hash-based synthetic ID.
+    For PipelineDescriptionSource: parses description into graph using
+        Graph.from_pipeline_description().
 
     Args:
         spec: API PipelineDensitySpec from request.
@@ -431,7 +484,8 @@ def _convert_pipeline_density_spec(
 
     Raises:
         ValueError: If referenced pipeline or variant does not exist,
-            or if graph_id validation fails.
+            if graph_id/description_id validation fails, or if pipeline
+            description parsing fails.
     """
     match spec.pipeline:
         case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
@@ -461,7 +515,21 @@ def _convert_pipeline_density_spec(
                 pipeline_graph=graph,
                 stream_rate=spec.stream_rate,
             )
+        case schemas.PipelineDescriptionSource() as description_source:
+            # Validate and get pipeline ID
+            pipeline_id = _validate_and_get_description_id(description_source)
 
+            # Parse pipeline description into Graph
+            graph = Graph.from_pipeline_description(
+                description_source.pipeline_description
+            )
+
+            return InternalPipelineDensitySpec(
+                pipeline_id=pipeline_id,
+                pipeline_name=pipeline_id,
+                pipeline_graph=graph,
+                stream_rate=spec.stream_rate,
+            )
         case _:
             raise ValueError("Invalid pipeline source type in density spec")
 
@@ -478,6 +546,8 @@ def _convert_pipeline_performance_spec(
 
     For GraphInline with graph_id: validates and uses the provided ID.
     For GraphInline without graph_id: generates hash-based synthetic ID.
+    For PipelineDescriptionSource: parses description into graph using
+        Graph.from_pipeline_description().
 
     Args:
         spec: API PipelinePerformanceSpec from request.
@@ -488,7 +558,8 @@ def _convert_pipeline_performance_spec(
 
     Raises:
         ValueError: If referenced pipeline or variant does not exist,
-            or if graph_id validation fails.
+            if graph_id/description_id validation fails, or if pipeline
+            description parsing fails.
     """
     match spec.pipeline:
         case schemas.VariantReference(pipeline_id=pid, variant_id=vid):
@@ -511,6 +582,21 @@ def _convert_pipeline_performance_spec(
 
             # Convert PipelineGraph to Graph
             graph = Graph.from_dict(graph_inline.pipeline_graph.model_dump())
+
+            return InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name=pipeline_id,
+                pipeline_graph=graph,
+                streams=spec.streams,
+            )
+        case schemas.PipelineDescriptionSource() as description_source:
+            # Validate and get pipeline ID
+            pipeline_id = _validate_and_get_description_id(description_source)
+
+            # Parse pipeline description into Graph
+            graph = Graph.from_pipeline_description(
+                description_source.pipeline_description
+            )
 
             return InternalPipelinePerformanceSpec(
                 pipeline_id=pipeline_id,

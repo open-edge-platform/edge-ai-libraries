@@ -119,6 +119,26 @@ def generate_pipeline_graph_id(pipeline_graph: dict) -> str:
     return f"__graph-{hash_digest}"
 
 
+def generate_pipeline_description_id(pipeline_description: str) -> str:
+    """
+    Generate a synthetic pipeline ID from a pipeline description string hash.
+
+    Used when a pipeline description string is provided instead of referencing
+    an existing pipeline by ID. The ID format is "__description-" followed by
+    a 16-character hash of the description content.
+
+    Args:
+        pipeline_description: GStreamer pipeline description string.
+
+    Returns:
+        Synthetic pipeline ID in format "__description-<16-char-hash>".
+    """
+    # Generate hash and take first 16 characters
+    hash_digest = hashlib.sha256(pipeline_description.encode()).hexdigest()[:16]
+
+    return f"__description-{hash_digest}"
+
+
 def make_tee_names_unique(
     pipeline_str: str, pipeline_index: int, stream_index: int
 ) -> str:

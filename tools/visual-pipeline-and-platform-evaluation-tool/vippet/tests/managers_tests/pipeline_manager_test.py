@@ -64,8 +64,8 @@ def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
 
 
 def create_internal_execution_config(
-        output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
-        max_runtime: float = 0,
+    output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
+    max_runtime: float = 0,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
@@ -75,10 +75,10 @@ def create_internal_execution_config(
 
 
 def create_internal_performance_spec(
-        pipeline_id: str,
-        pipeline_name: str,
-        streams: int = 1,
-        graph: Graph | None = None,
+    pipeline_id: str,
+    pipeline_name: str,
+    streams: int = 1,
+    graph: Graph | None = None,
 ) -> InternalPipelinePerformanceSpec:
     """Helper to create InternalPipelinePerformanceSpec for testing."""
     if graph is None:
@@ -992,7 +992,7 @@ class TestGraphConversionMethods(unittest.TestCase):
         self.assertEqual(videotestsrc_node.data["pattern"], "1")
 
     def test_validate_and_convert_simple_to_advanced_structural_change_raises_error(
-            self,
+        self,
     ):
         """Test that structural changes in simple graph raise error."""
         manager = PipelineManager()

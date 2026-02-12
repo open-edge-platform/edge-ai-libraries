@@ -1549,6 +1549,446 @@ class TestTestsAPI(unittest.TestCase):
         self.assertIn("Duplicate", data["message"])
 
     # ------------------------------------------------------------------
+    # /tests/performance - Pipeline Description Source
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_pipeline_description_returns_job_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should accept a PerformanceTestSpec
+        with pipeline description source and return a TestJobResponse with job_id.
+        Uses Graph.from_pipeline_description to create graph from description.
+        """
+        # Arrange: configure mocks (PipelineManager not needed for description source)
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "description-job-123"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send a performance test request with pipeline description
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "pipeline_description": "videotestsrc ! videoconvert ! fakesink",
+                    },
+                    "streams": 2,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: verify response
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertIn("job_id", data)
+        self.assertEqual(data["job_id"], "description-job-123")
+
+        # Verify manager was called with InternalPerformanceTestSpec
+        mock_tests_manager.test_performance.assert_called_once()
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        self.assertIsInstance(call_args, InternalPerformanceTestSpec)
+
+        # Verify the internal spec has generated hash-based ID (starts with __description-)
+        internal_spec = call_args.pipeline_performance_specs[0]
+        self.assertTrue(internal_spec.pipeline_id.startswith("__description-"))
+        self.assertEqual(internal_spec.streams, 2)
+
+        # Verify pipeline_graph was created from description
+        self.assertIsNotNone(internal_spec.pipeline_graph)
+        self.assertGreater(len(internal_spec.pipeline_graph.nodes), 0)
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_pipeline_description_custom_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should accept pipeline description
+        with custom description_id and use it as pipeline_id.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "custom-desc-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send request with custom description_id
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "my-test-description",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+
+        # Verify custom description_id is used as pipeline_id
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        internal_spec = call_args.pipeline_performance_specs[0]
+        self.assertEqual(internal_spec.pipeline_id, "my-test-description")
+        self.assertEqual(internal_spec.pipeline_name, "my-test-description")
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_empty_description_id_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if description_id
+        is empty after trim.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty description_id
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "   ",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("empty", data["message"].lower())
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_invalid_description_id_chars_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 400 if description_id
+        contains invalid URL characters.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with invalid description_id
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "My Description ID",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("message", data)
+        self.assertIn("URL", data["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_empty_pipeline_description_returns_422(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should return 422 if pipeline_description
+        is empty (pydantic validation).
+        """
+        # Act: send request with empty pipeline_description
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "pipeline_description": "",
+                    },
+                    "streams": 1,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert: FastAPI validation should reject the request
+        self.assertEqual(response.status_code, 422)
+
+    # ------------------------------------------------------------------
+    # /tests/density - Pipeline Description Source
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_pipeline_description_returns_job_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should accept a DensityTestSpec
+        with pipeline description source and return a TestJobResponse with job_id.
+        Uses Graph.from_pipeline_description to create graph from description.
+        """
+        # Arrange: configure mocks
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-desc-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send a density test request with pipeline description
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "pipeline_description": "videotestsrc ! queue ! fakesink",
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert: verify response
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["job_id"], "density-desc-job")
+
+        # Verify the internal spec has description format ID
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertTrue(internal_spec.pipeline_id.startswith("__description-"))
+
+        # Verify pipeline_graph was created from description
+        self.assertIsNotNone(internal_spec.pipeline_graph)
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_pipeline_description_custom_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should accept pipeline description
+        with custom description_id and use it as pipeline_id.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-custom-desc"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send request with custom description_id
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "my-density-description",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+
+        # Verify custom description_id is used
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertEqual(internal_spec.pipeline_id, "my-density-description")
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_empty_description_id_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if description_id
+        is empty after trim.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with empty description_id
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("empty", data["message"].lower())
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_with_invalid_description_id_chars_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/density endpoint should return 400 if description_id
+        contains invalid URL characters.
+        """
+        # Arrange
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        # Act: send request with invalid description_id
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "description_id": "test@desc#123",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("URL", data["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_performance_test_with_mixed_sources_including_description(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        The /tests/performance endpoint should accept mixed pipeline sources
+        including variant, inline graph, and pipeline description.
+        """
+        # Arrange
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-abc", "ABC Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_performance.return_value = "mixed-job-789"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send request with all three source types
+        request_body = {
+            "pipeline_performance_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 1,
+                },
+                {
+                    "pipeline": {
+                        "source": "graph",
+                        "pipeline_graph": {
+                            "nodes": [
+                                {"id": "0", "type": "filesrc", "data": {}},
+                                {"id": "1", "type": "fakesink", "data": {}},
+                            ],
+                            "edges": [{"id": "0", "source": "0", "target": "1"}],
+                        },
+                    },
+                    "streams": 2,
+                },
+                {
+                    "pipeline": {
+                        "source": "description",
+                        "pipeline_description": "videotestsrc ! fakesink",
+                    },
+                    "streams": 3,
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/performance", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["job_id"], "mixed-job-789")
+
+        # Verify all three sources are converted correctly
+        call_args = mock_tests_manager.test_performance.call_args[0][0]
+        self.assertEqual(len(call_args.pipeline_performance_specs), 3)
+
+        # First spec should be variant reference format
+        self.assertTrue(
+            call_args.pipeline_performance_specs[0].pipeline_id.startswith(
+                "/pipelines/"
+            )
+        )
+        # Second spec should be inline graph format
+        self.assertTrue(
+            call_args.pipeline_performance_specs[1].pipeline_id.startswith("__graph-")
+        )
+        # Third spec should be description format
+        self.assertTrue(
+            call_args.pipeline_performance_specs[2].pipeline_id.startswith(
+                "__description-"
+            )
+        )
+
+    # ------------------------------------------------------------------
     # Schema validation tests
     # ------------------------------------------------------------------
 
@@ -1707,6 +2147,61 @@ class TestTestsAPI(unittest.TestCase):
         )
         self.assertEqual(config.output_mode, schemas.OutputMode.LIVE_STREAM)
         self.assertEqual(config.max_runtime, 60)
+
+    def test_pipeline_description_source_discriminator(self):
+        """
+        PipelineDescriptionSource should have source='description' as discriminator.
+        """
+        desc = schemas.PipelineDescriptionSource(
+            pipeline_description="videotestsrc ! fakesink"
+        )
+        self.assertEqual(desc.source, "description")
+        self.assertEqual(desc.pipeline_description, "videotestsrc ! fakesink")
+        self.assertIsNone(desc.description_id)
+
+    def test_pipeline_description_source_with_description_id(self):
+        """
+        PipelineDescriptionSource should accept optional description_id field.
+        """
+        desc = schemas.PipelineDescriptionSource(
+            description_id="my-custom-desc",
+            pipeline_description="videotestsrc ! fakesink",
+        )
+        self.assertEqual(desc.source, "description")
+        self.assertEqual(desc.description_id, "my-custom-desc")
+        self.assertEqual(desc.pipeline_description, "videotestsrc ! fakesink")
+
+    def test_pipeline_performance_spec_with_description_source(self):
+        """
+        PipelinePerformanceSpec should accept PipelineDescriptionSource.
+        """
+        desc = schemas.PipelineDescriptionSource(
+            pipeline_description="videotestsrc ! videoconvert ! fakesink"
+        )
+        spec = schemas.PipelinePerformanceSpec(pipeline=desc, streams=3)
+        self.assertIsInstance(spec.pipeline, schemas.PipelineDescriptionSource)
+        self.assertEqual(spec.streams, 3)
+
+    def test_pipeline_density_spec_with_description_source(self):
+        """
+        PipelineDensitySpec should accept PipelineDescriptionSource.
+        """
+        desc = schemas.PipelineDescriptionSource(
+            pipeline_description="videotestsrc ! fakesink"
+        )
+        spec = schemas.PipelineDensitySpec(pipeline=desc, stream_rate=100)
+        self.assertIsInstance(spec.pipeline, schemas.PipelineDescriptionSource)
+        self.assertEqual(spec.stream_rate, 100)
+
+    def test_pipeline_stream_spec_description_hash_format(self):
+        """
+        PipelineStreamSpec should accept __description-{hash} format for ID.
+        """
+        spec = schemas.PipelineStreamSpec(
+            id="__description-abcd1234efgh5678", streams=2
+        )
+        self.assertTrue(spec.id.startswith("__description-"))
+        self.assertEqual(spec.streams, 2)
 
 
 if __name__ == "__main__":
