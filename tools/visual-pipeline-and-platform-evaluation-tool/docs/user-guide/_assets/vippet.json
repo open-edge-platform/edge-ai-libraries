@@ -1581,6 +1581,190 @@
         }
       }
     },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-simple": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Convert Advanced To Simple",
+        "description": "Convert an advanced pipeline graph to simplified view without saving.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Convert the provided advanced graph (PipelineGraph) to a Graph object\n    * Validate the advanced graph and generate simplified view\n    * Return the simplified graph without modifying the variant\n\nThis is a read-only conversion operation. The variant is not modified.\nUse PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph to\nsave changes.\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant (used for context/validation).\n\nRequest body:\n    body: PipelineGraph\n        Advanced graph with all pipeline elements to convert.\n\nReturns:\n    200 OK:\n        PipelineGraph representing the simplified view.\n    400 Bad Request:\n        MessageResponse when the graph is invalid or cannot be converted.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Advanced graph is valid and can be converted to GStreamer pipeline\n    * Simplified view is generated successfully\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Invalid graph structure \u2192 400\n    * Conversion error \u2192 400\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"video.mp4\"}},\n            {\"id\": \"1\", \"type\": \"queue\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"detection\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n            {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"video.mp4\"}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"detection\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"2\"},\n            {\"id\": \"1\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }",
+        "operationId": "convert_advanced_to_simple",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineGraph"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Converted simple graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Convert Simple To Advanced",
+        "description": "Convert a simplified pipeline graph to advanced view without saving.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Convert the provided simple graph (PipelineGraph) to a Graph object\n    * Validate simple graph changes and merge into advanced view\n    * Return the updated advanced graph without modifying the variant\n\nThis is a read-only conversion operation. The variant is not modified.\nThe conversion uses the variant's current advanced graph as base and\napplies property changes from the simple graph.\n\nUse PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph_simple\nto save changes.\n\nNote: Only property modifications are allowed. Structural changes\n(adding/removing nodes or edges) will be rejected.\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant whose advanced graph is used as base.\n\nRequest body:\n    body: PipelineGraph\n        Simplified graph with property changes to apply.\n\nReturns:\n    200 OK:\n        PipelineGraph representing the updated advanced view.\n    400 Bad Request:\n        MessageResponse when the graph is invalid, contains structural\n        changes, or cannot be merged.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Simple graph contains only property changes (no structural changes)\n    * Changes can be merged into advanced graph\n    * Resulting advanced graph is valid\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Structural changes detected (nodes/edges added/removed) \u2192 400\n    * Invalid resulting graph \u2192 400\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"new_video.mp4\"}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"new_model\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"2\"},\n            {\"id\": \"1\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"new_video.mp4\"}},\n            {\"id\": \"1\", \"type\": \"queue\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"new_model\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n            {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nError response example (400, structural change):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid pipeline_graph_simple: Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes.\"\n        }",
+        "operationId": "convert_simple_to_advanced",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineGraph"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Converted advanced graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tests/performance": {
       "post": {
         "tags": [

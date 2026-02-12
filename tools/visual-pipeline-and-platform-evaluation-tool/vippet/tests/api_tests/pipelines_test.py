@@ -906,6 +906,184 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertIn("pipeline_graph", variant)
         self.assertIn("pipeline_graph_simple", variant)
 
+    # ------------------------------------------------------------------
+    # Convert graph endpoints tests
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_advanced_to_simple_success(self, mock_pipeline_manager_cls):
+        """Test successful conversion from advanced to simple graph."""
+        from graph import Graph
+
+        mock_manager = MagicMock()
+
+        # Mock the conversion method to return a simple graph
+        simple_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "test.mp4"}},
+                {"id": "1", "type": "autovideosink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+        mock_simple_graph = Graph.from_dict(simple_graph_dict)
+        mock_manager.validate_and_convert_advanced_to_simple.return_value = (
+            mock_simple_graph
+        )
+
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/pipeline-abc123/variants/variant-123/convert-to-simple",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("nodes", data)
+        self.assertIn("edges", data)
+        mock_manager.validate_and_convert_advanced_to_simple.assert_called_once()
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_advanced_to_simple_pipeline_not_found(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test conversion when pipeline not found."""
+        mock_manager = MagicMock()
+        mock_manager.validate_and_convert_advanced_to_simple.side_effect = ValueError(
+            "Pipeline with id 'nonexistent' not found."
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/nonexistent/variants/variant-123/convert-to-simple",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_advanced_to_simple_invalid_graph(self, mock_pipeline_manager_cls):
+        """Test conversion with invalid graph."""
+        mock_manager = MagicMock()
+        mock_manager.validate_and_convert_advanced_to_simple.side_effect = ValueError(
+            "Invalid pipeline_graph: cannot convert to valid GStreamer pipeline string."
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/pipeline-abc123/variants/variant-123/convert-to-simple",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid", response.json()["message"])
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_simple_to_advanced_success(self, mock_pipeline_manager_cls):
+        """Test successful conversion from simple to advanced graph."""
+        from graph import Graph
+
+        mock_variant = self._create_test_variant()
+        mock_manager = MagicMock()
+        mock_manager.get_variant_by_ids.return_value = mock_variant
+
+        # Mock the conversion method to return an advanced graph
+        advanced_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "test.mp4"}},
+                {"id": "1", "type": "queue", "data": {}},
+                {"id": "2", "type": "autovideosink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+            ],
+        }
+        mock_advanced_graph = Graph.from_dict(advanced_graph_dict)
+        mock_manager.validate_and_convert_simple_to_advanced.return_value = (
+            mock_advanced_graph
+        )
+
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/pipeline-abc123/variants/variant-123/convert-to-advanced",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("nodes", data)
+        self.assertIn("edges", data)
+        mock_manager.get_variant_by_ids.assert_called_once_with(
+            "pipeline-abc123", "variant-123"
+        )
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_simple_to_advanced_pipeline_not_found(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test conversion when pipeline not found."""
+        mock_manager = MagicMock()
+        mock_manager.get_variant_by_ids.side_effect = ValueError(
+            "Pipeline with id 'nonexistent' not found."
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/nonexistent/variants/variant-123/convert-to-advanced",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_convert_simple_to_advanced_structural_change_rejected(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test conversion with structural changes is rejected."""
+        mock_variant = self._create_test_variant()
+        mock_manager = MagicMock()
+        mock_manager.get_variant_by_ids.return_value = mock_variant
+        mock_manager.validate_and_convert_simple_to_advanced.side_effect = ValueError(
+            "Invalid pipeline_graph_simple: Node additions are not supported."
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        payload = schemas.PipelineGraph.model_validate_json(
+            self.test_graph
+        ).model_dump()
+
+        response = self.client.post(
+            "/pipelines/pipeline-abc123/variants/variant-123/convert-to-advanced",
+            json=payload,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid", response.json()["message"])
+
 
 class TestPipelineThumbnailRedaction(unittest.TestCase):
     """Test that Pipeline.thumbnail is redacted when converting to string."""

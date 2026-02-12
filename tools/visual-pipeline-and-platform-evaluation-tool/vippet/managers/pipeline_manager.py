@@ -38,6 +38,7 @@ class PipelineManager:
     * Load predefined pipelines from configuration
     * Create, read, update, delete user-created pipelines
     * Maintain variants with both advanced and simple views
+    * Convert between advanced and simple graph views
     * Build executable GStreamer pipeline commands with proper video encoding
     * Track creation and modification timestamps for pipelines and variants
     """
@@ -679,9 +680,8 @@ class PipelineManager:
         * Validates that variant exists and is not read-only
         * If name is provided, trims and validates it (raises ValueError if empty after trimming)
         * Ensures only one of pipeline_graph or pipeline_graph_simple is provided
-        * For pipeline_graph: converts to GStreamer string, validates, and regenerates simple view
-        * For pipeline_graph_simple: applies changes to advanced view using
-          apply_simple_view_changes(), then regenerates both views
+        * For pipeline_graph: validates and regenerates simple view using _validate_and_convert_advanced_to_simple()
+        * For pipeline_graph_simple: validates and merges changes using _validate_and_convert_simple_to_advanced()
         * Updates provided fields
         * Updates variant's modified_at timestamp
         * Updates pipeline's modified_at timestamp
@@ -741,27 +741,16 @@ class PipelineManager:
 
             # Update pipeline_graph (advanced view)
             if pipeline_graph is not None:
-                # Validate that graph has nodes and edges
-                if not pipeline_graph.nodes or not pipeline_graph.edges:
-                    raise ValueError(
-                        "Field 'pipeline_graph' must contain at least one node and one edge."
-                    )
-
-                # Convert to Graph object and validate by generating pipeline description
+                # Convert PipelineGraph to Graph for validation
                 graph = Graph.from_dict(pipeline_graph.model_dump())
-                try:
-                    # Validate by converting to pipeline description
-                    _ = graph.to_pipeline_description()
-                except Exception as e:
-                    raise ValueError(
-                        f"Invalid pipeline_graph: cannot convert to valid GStreamer pipeline string. Error: {str(e)}"
-                    )
+
+                # Validate and generate simple view
+                simple_graph = self.validate_and_convert_advanced_to_simple(graph)
 
                 # Update advanced view
                 variant_to_update.pipeline_graph = pipeline_graph
 
-                # Auto-generate simple view from advanced view
-                simple_graph = graph.to_simple_view()
+                # Update simple view
                 variant_to_update.pipeline_graph_simple = PipelineGraph.model_validate(
                     simple_graph.to_dict()
                 )
@@ -772,46 +761,15 @@ class PipelineManager:
 
             # Update pipeline_graph_simple (simple view with property changes)
             elif pipeline_graph_simple is not None:
-                # Validate that graph has nodes and edges
-                if not pipeline_graph_simple.nodes or not pipeline_graph_simple.edges:
-                    raise ValueError(
-                        "Field 'pipeline_graph_simple' must contain at least one node and one edge."
-                    )
-
-                # Load current advanced graph
-                current_advanced_graph = Graph.from_dict(
-                    variant_to_update.pipeline_graph.model_dump()
-                )
-
-                # Load current simple graph (original, before user modifications)
-                current_simple_graph = Graph.from_dict(
-                    variant_to_update.pipeline_graph_simple.model_dump()
-                )
-
-                # Load the modified simple graph
+                # Convert PipelineGraph to Graph for validation
                 modified_simple_graph = Graph.from_dict(
                     pipeline_graph_simple.model_dump()
                 )
 
-                # Apply simple view changes to advanced graph
-                # This validates that only property changes are made, no structural changes
-                try:
-                    updated_advanced_graph = Graph.apply_simple_view_changes(
-                        modified_simple_graph,
-                        current_simple_graph,
-                        current_advanced_graph,
-                    )
-                except ValueError as e:
-                    # Re-raise validation errors from apply_simple_view_changes
-                    raise ValueError(f"Invalid pipeline_graph_simple: {str(e)}")
-
-                # Validate updated advanced graph can be converted to pipeline description
-                try:
-                    _ = updated_advanced_graph.to_pipeline_description()
-                except Exception as e:
-                    raise ValueError(
-                        f"Updated pipeline graph is invalid after applying simple view changes. Error: {str(e)}"
-                    )
+                # Validate and generate advanced view
+                updated_advanced_graph = self.validate_and_convert_simple_to_advanced(
+                    variant_to_update, modified_simple_graph
+                )
 
                 # Update both views
                 variant_to_update.pipeline_graph = PipelineGraph.model_validate(
@@ -835,6 +793,105 @@ class PipelineManager:
 
             self.logger.debug(f"Variant {variant_id} updated in pipeline {pipeline_id}")
             return variant_to_update
+
+    def validate_and_convert_advanced_to_simple(self, pipeline_graph: Graph) -> Graph:
+        """
+        Validate advanced graph and convert it to simple graph.
+
+        This method validates that the advanced graph can be converted to a valid
+        GStreamer pipeline string, then generates the simplified view.
+
+        Does not modify the variant - only performs validation and conversion.
+
+        Args:
+            variant: The variant context (used for error messages, not modified).
+            pipeline_graph: Advanced graph (Graph object) to validate and convert.
+
+        Returns:
+            Graph: Simplified graph generated from the advanced graph.
+
+        Raises:
+            ValueError: If graph has no nodes or edges.
+            ValueError: If graph cannot be converted to valid GStreamer pipeline string.
+        """
+        # Validate that graph has nodes and edges
+        if not pipeline_graph.nodes or not pipeline_graph.edges:
+            raise ValueError(
+                "Field 'pipeline_graph' must contain at least one node and one edge."
+            )
+
+        try:
+            # Validate by converting to pipeline description
+            _ = pipeline_graph.to_pipeline_description()
+        except Exception as e:
+            raise ValueError(
+                f"Invalid pipeline_graph: cannot convert to valid GStreamer pipeline string. Error: {str(e)}"
+            )
+
+        # Generate simple view from advanced view
+        simple_graph = pipeline_graph.to_simple_view()
+
+        return simple_graph
+
+    def validate_and_convert_simple_to_advanced(
+        self, variant: Variant, pipeline_graph_simple: Graph
+    ) -> Graph:
+        """
+        Validate simple graph changes and merge them into advanced graph.
+
+        This method validates that the simple graph contains only property changes
+        (no structural changes like adding/removing nodes or edges), then applies
+        those changes to the variant's current advanced graph.
+
+        Does not modify the variant - only performs validation and conversion.
+
+        Args:
+            variant: The variant containing the current advanced and simple graphs.
+            pipeline_graph_simple: Modified simple graph (Graph object) with property changes.
+
+        Returns:
+            Graph: Updated advanced graph with changes from simple graph applied.
+
+        Raises:
+            ValueError: If graph has no nodes or edges.
+            ValueError: If simple graph contains structural changes (nodes/edges added/removed).
+            ValueError: If updated advanced graph cannot be converted to valid GStreamer pipeline.
+        """
+        # Validate that graph has nodes and edges
+        if not pipeline_graph_simple.nodes or not pipeline_graph_simple.edges:
+            raise ValueError(
+                "Field 'pipeline_graph_simple' must contain at least one node and one edge."
+            )
+
+        # Load current advanced graph
+        current_advanced_graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+
+        # Load current simple graph (original, before user modifications)
+        current_simple_graph = Graph.from_dict(
+            variant.pipeline_graph_simple.model_dump()
+        )
+
+        # Apply simple view changes to advanced graph
+        # This validates that only property changes are made, no structural changes
+        try:
+            updated_advanced_graph = Graph.apply_simple_view_changes(
+                pipeline_graph_simple,
+                current_simple_graph,
+                current_advanced_graph,
+            )
+        except ValueError as e:
+            # Re-raise validation errors from apply_simple_view_changes
+            raise ValueError(f"Invalid pipeline_graph_simple: {str(e)}")
+
+        # Validate updated advanced graph can be converted to pipeline description
+        try:
+            _ = updated_advanced_graph.to_pipeline_description()
+        except Exception as e:
+            raise ValueError(
+                f"Updated pipeline graph is invalid after applying simple view changes. Error: {str(e)}"
+            )
+
+        return updated_advanced_graph
 
     def _validate_and_trim_variant_name(self, name: str) -> str:
         """

@@ -1,6 +1,6 @@
 import unittest
-from unittest.mock import patch
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from api.api_schemas import (
     Edge,
@@ -64,8 +64,8 @@ def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
 
 
 def create_internal_execution_config(
-    output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
-    max_runtime: float = 0,
+        output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
+        max_runtime: float = 0,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
@@ -75,10 +75,10 @@ def create_internal_execution_config(
 
 
 def create_internal_performance_spec(
-    pipeline_id: str,
-    pipeline_name: str,
-    streams: int = 1,
-    graph: Graph | None = None,
+        pipeline_id: str,
+        pipeline_name: str,
+        streams: int = 1,
+        graph: Graph | None = None,
 ) -> InternalPipelinePerformanceSpec:
     """Helper to create InternalPipelinePerformanceSpec for testing."""
     if graph is None:
@@ -858,6 +858,214 @@ class TestVariantCRUD(unittest.TestCase):
             )
 
         self.assertIn("Cannot update both", str(context.exception))
+
+
+class TestGraphConversionMethods(unittest.TestCase):
+    """Test cases for graph conversion private methods."""
+
+    def setUp(self):
+        PipelineManager._instance = None
+
+    def test_validate_and_convert_advanced_to_simple_success(self):
+        """Test successful conversion from advanced to simple graph."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Create a pipeline with a variant
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        manager.add_pipeline(new_pipeline)
+
+        # Create an advanced graph with some hidden elements (use videotestsrc, not filesrc)
+        advanced_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "queue", "data": {}},
+                {"id": "2", "type": "fakesink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+            ],
+        }
+        advanced_graph = Graph.from_dict(advanced_graph_dict)
+
+        # Convert to simple
+        simple_graph = manager.validate_and_convert_advanced_to_simple(advanced_graph)
+
+        # Verify simple graph has fewer nodes (queue should be hidden)
+        self.assertIsInstance(simple_graph, Graph)
+        self.assertLessEqual(len(simple_graph.nodes), len(advanced_graph.nodes))
+
+    def test_validate_and_convert_advanced_to_simple_empty_nodes_raises_error(self):
+        """Test that empty nodes in advanced graph raises error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        manager.add_pipeline(new_pipeline)
+
+        # Create empty graph
+        empty_graph = Graph(nodes=[], edges=[])
+
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_advanced_to_simple(empty_graph)
+
+        self.assertIn("at least one node and one edge", str(context.exception))
+
+    def test_validate_and_convert_simple_to_advanced_success(self):
+        """Test successful conversion from simple to advanced graph."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Create a pipeline with variant that has both graphs (use videotestsrc, not filesrc)
+        graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        simple_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+            ],
+        )
+
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[
+                VariantCreate(
+                    name="CPU",
+                    pipeline_graph=graph,
+                    pipeline_graph_simple=simple_graph,
+                )
+            ],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
+
+        # Modify simple graph (change property)
+        modified_simple_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {"pattern": "1"}},
+                {"id": "2", "type": "fakesink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "2"},
+            ],
+        }
+        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
+
+        # Convert to advanced
+        advanced_graph = manager.validate_and_convert_simple_to_advanced(
+            variant, modified_simple_graph
+        )
+
+        # Verify advanced graph has the new property
+        self.assertIsInstance(advanced_graph, Graph)
+        videotestsrc_node = next(
+            n for n in advanced_graph.nodes if n.type == "videotestsrc"
+        )
+        self.assertEqual(videotestsrc_node.data["pattern"], "1")
+
+    def test_validate_and_convert_simple_to_advanced_structural_change_raises_error(
+            self,
+    ):
+        """Test that structural changes in simple graph raise error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={}),
+                Node(id="1", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[
+                VariantCreate(
+                    name="CPU",
+                    pipeline_graph=graph,
+                    pipeline_graph_simple=graph,
+                )
+            ],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
+
+        # Try to add a node in simple graph (structural change)
+        modified_simple_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "fakesink", "data": {}},
+                {"id": "2", "type": "new_element", "data": {}},  # Added node
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+            ],
+        }
+        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
+
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_simple_to_advanced(
+                variant, modified_simple_graph
+            )
+
+        self.assertIn("Invalid pipeline_graph_simple", str(context.exception))
+
+    def test_validate_and_convert_simple_to_advanced_empty_nodes_raises_error(self):
+        """Test that empty nodes in simple graph raises error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
+
+        # Create empty graph
+        empty_graph = Graph(nodes=[], edges=[])
+
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_simple_to_advanced(variant, empty_graph)
+
+        self.assertIn("at least one node and one edge", str(context.exception))
 
 
 class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
