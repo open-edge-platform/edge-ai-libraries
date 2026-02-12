@@ -320,6 +320,7 @@ class TestsManager:
                 self.pipeline_manager.build_pipeline_command(
                     internal_spec.pipeline_performance_specs,
                     internal_spec.execution_config,
+                    job_id,
                 )
             )
 
@@ -445,6 +446,7 @@ class TestsManager:
                 pipeline_density_specs=internal_spec.pipeline_density_specs,
                 fps_floor=internal_spec.fps_floor,
                 execution_config=internal_spec.execution_config,
+                job_id=job_id,
             )
 
             # Update job with results

@@ -16,6 +16,7 @@ class TestVideoEncoderClass(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures and reset singleton."""
         VideoEncoder._instance = None
+        self.job_id = "test-job-123"
 
     def tearDown(self):
         """Reset singleton after each test."""
@@ -151,14 +152,14 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_id = "test-pipeline-123"
 
         subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         self.assertIn("vah264enc", subpipeline)
         self.assertIn("h264parse", subpipeline)
         self.assertIn("mp4mux", subpipeline)
         self.assertIn("filesink location=", subpipeline)
-        self.assertIn("pipeline_output_test-pipeline-123", output_path)
+        self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
 
     @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
@@ -182,7 +183,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_id = "test-pipeline-456"
 
         subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         self.assertIn("vah265enc", subpipeline)
@@ -210,7 +211,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_id = "test-pipeline-789"
 
         subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         # Verify CPU encoder is used
@@ -218,7 +219,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIn("h264parse", subpipeline)
         self.assertIn("mp4mux", subpipeline)
         self.assertIn("filesink location=", subpipeline)
-        self.assertIn("pipeline_output_test-pipeline-789", output_path)
+        self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
 
     @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
@@ -240,6 +241,7 @@ class TestVideoEncoderClass(unittest.TestCase):
                 "test-pipeline-999",
                 encoder_device,
                 ["input.mp4"],
+                self.job_id,
             )
 
         self.assertIn("Unsupported codec", str(context.exception))
@@ -268,6 +270,7 @@ class TestVideoEncoderClass(unittest.TestCase):
                 "test-pipeline-000",
                 encoder_device,
                 ["input.mp4"],
+                self.job_id,
             )
 
         self.assertIn("No suitable encoder found", str(context.exception))
@@ -279,6 +282,7 @@ class TestLiveStreamOutput(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures and reset singleton."""
         VideoEncoder._instance = None
+        self.job_id = "test-job-456"
 
     def tearDown(self):
         """Reset singleton after each test."""
@@ -306,7 +310,7 @@ class TestLiveStreamOutput(unittest.TestCase):
         pipeline_id = "test-pipeline-live"
 
         subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         # Verify encoder and RTSP sink are in the subpipeline
@@ -315,8 +319,8 @@ class TestLiveStreamOutput(unittest.TestCase):
         self.assertIn("rtspclientsink", subpipeline)
         self.assertIn("protocols=tcp", subpipeline)
 
-        # Verify stream URL format
-        expected_url = f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/stream_{pipeline_id}"
+        # Verify stream URL format includes both pipeline_id and job_id
+        expected_url = f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/stream-{pipeline_id}-{self.job_id}"
         self.assertEqual(stream_url, expected_url)
         self.assertIn(stream_url, subpipeline)
 
@@ -342,7 +346,7 @@ class TestLiveStreamOutput(unittest.TestCase):
         pipeline_id = "test-pipeline-h265"
 
         subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         self.assertIn("x265enc", subpipeline)
@@ -371,7 +375,7 @@ class TestLiveStreamOutput(unittest.TestCase):
         pipeline_id = "test-pipeline-gpu"
 
         subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"]
+            pipeline_id, encoder_device, ["input.mp4"], self.job_id
         )
 
         self.assertIn("vah264lpenc", subpipeline)
@@ -400,7 +404,7 @@ class TestLiveStreamOutput(unittest.TestCase):
 
         with self.assertRaises(ValueError) as context:
             encoder.create_live_stream_output_subpipeline(
-                pipeline_id, encoder_device, ["input.mp4"]
+                pipeline_id, encoder_device, ["input.mp4"], self.job_id
             )
 
         self.assertIn("No suitable encoder found", str(context.exception))

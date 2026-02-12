@@ -36,9 +36,10 @@ def slugify_text(text: str, max_length: int = 0) -> str:
         >>> slugify_text("Very Long Name Here", max_length=10)
         'very-long'
     """
+    regex_pattern = r"[^-a-z0-9_]+"
     if max_length > 0:
-        return slugify(text, max_length=max_length)
-    return slugify(text)
+        return slugify(text, max_length=max_length, regex_pattern=regex_pattern)
+    return slugify(text, regex_pattern=regex_pattern)
 
 
 def generate_unique_id(
@@ -215,11 +216,11 @@ def generate_unique_filename(filename: str) -> str:
         filename: Original filename (e.g., "video.mp4").
 
     Returns:
-        str: Unique filename with timestamp and suffix (e.g., "video_20231012_153045_abc123.mp4").
+        str: Unique filename with timestamp and suffix (e.g., "video-20231012_153045-abc123.mp4").
     """
     # Extract stem and extension
     path = Path(filename)
-    stem = Path(path.name).stem
+    stem = slugify_text(Path(path.name).stem)
     ext = path.suffix
 
     if not ext:
@@ -230,7 +231,7 @@ def generate_unique_filename(filename: str) -> str:
     suffix = uuid.uuid4().hex[:6]
 
     # Construct new filename
-    new_filename = f"{stem}_{timestamp}_{suffix}{ext}"
+    new_filename = f"{stem}-{timestamp}-{suffix}{ext}"
 
     return new_filename
 

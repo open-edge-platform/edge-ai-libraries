@@ -60,6 +60,7 @@ def create_internal_execution_config(
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.fps_floor = 30
+        self.job_id = "test-job-123"
         # Use internal types with resolved pipeline information
         self.pipeline_benchmark_specs = [
             create_internal_density_spec(
@@ -143,6 +144,7 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
             self.assertEqual(result, expected_result)
@@ -162,6 +164,7 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
     @patch("benchmark.PipelineManager")
@@ -183,6 +186,7 @@ class TestBenchmark(unittest.TestCase):
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
                     execution_config=create_internal_execution_config(),
+                    job_id=self.job_id,
                 )
 
     @patch("benchmark.PipelineManager")
@@ -202,6 +206,7 @@ class TestBenchmark(unittest.TestCase):
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
                     execution_config=create_internal_execution_config(),
+                    job_id=self.job_id,
                 )
 
     def test_calculate_streams_per_pipeline(self):
@@ -253,6 +258,7 @@ class TestBenchmark(unittest.TestCase):
                 execution_config=create_internal_execution_config(
                     output_mode=InternalOutputMode.LIVE_STREAM
                 ),
+                job_id=self.job_id,
             )
 
         self.assertIn(
@@ -289,6 +295,7 @@ class TestBenchmark(unittest.TestCase):
                 execution_config=create_internal_execution_config(
                     output_mode=InternalOutputMode.FILE, max_runtime=0
                 ),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)
@@ -318,6 +325,7 @@ class TestBenchmark(unittest.TestCase):
                 execution_config=create_internal_execution_config(
                     output_mode=InternalOutputMode.DISABLED, max_runtime=60
                 ),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)
@@ -354,6 +362,7 @@ class TestBenchmark(unittest.TestCase):
                 inline_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)
@@ -382,6 +391,7 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
             # Check that all pipeline IDs use the variant path format
@@ -429,6 +439,7 @@ class TestBenchmark(unittest.TestCase):
                 mixed_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)

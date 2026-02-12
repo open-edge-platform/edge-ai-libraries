@@ -407,6 +407,7 @@ class PipelineManager:
         self,
         pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
         execution_config: InternalExecutionConfig,
+        job_id: str,
     ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
         """
         Build a complete executable GStreamer pipeline command from internal specifications.
@@ -419,6 +420,7 @@ class PipelineManager:
             pipeline_performance_specs: List of InternalPipelinePerformanceSpec with
                 resolved pipeline_id, pipeline_name, pipeline_graph (as Graph object), and streams.
             execution_config: InternalExecutionConfig for output generation and runtime limits.
+            job_id: Unique job identifier used for generating output filenames and stream names.
 
         Returns:
             tuple: (Complete GStreamer command string,
@@ -477,7 +479,7 @@ class PipelineManager:
                 base_graph = base_graph.apply_looping_modifications()
 
             base_graph, intermediate_output_paths = (
-                base_graph.prepare_intermediate_output_sinks()
+                base_graph.prepare_intermediate_output_sinks(pipeline_id, job_id)
             )
 
             video_output_paths[pipeline_id] = intermediate_output_paths
@@ -494,7 +496,7 @@ class PipelineManager:
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline, output_path = (
                         video_encoder.create_video_output_subpipeline(
-                            pipeline_id, encoder_device, input_video_filenames
+                            pipeline_id, encoder_device, input_video_filenames, job_id
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
@@ -504,6 +506,7 @@ class PipelineManager:
                             pipeline_id,
                             encoder_device,
                             input_video_filenames,
+                            job_id,
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url
