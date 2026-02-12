@@ -15,7 +15,7 @@ data:
   APP_HOST: "vdms-dataprep"
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: "localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+  no_proxy: "localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
   MINIO_ACCESS_KEY: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
   MINIO_SECRET_KEY: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
   MINIO_ENDPOINT: {{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}
