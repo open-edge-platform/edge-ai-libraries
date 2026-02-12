@@ -15,14 +15,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.tsx";
 import {
-  type PipelineGraph,
   useCreatePipelineMutation,
   useGetValidationJobStatusQuery,
   useToGraphMutation,
   useValidatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils.ts";
+import { isApiError, isAsyncJobError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
@@ -90,84 +89,13 @@ export const CreatePipelineButton = () => {
 
   const tags = watch("tags");
 
-  const [pendingPipelineData, setPendingPipelineData] = useState<{
-    name: string;
-    description: string;
-    tags: string[];
-    variantName: string;
-    pipelineGraph: PipelineGraph;
-    pipelineGraphSimple: PipelineGraph;
-  } | null>(null);
-
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
   const [toGraph, { isLoading: isConverting }] = useToGraphMutation();
 
-  const {
-    execute: validatePipeline,
-    isLoading: isValidating,
-    isPolling,
-    jobStatus,
-  } = useAsyncJob({
+  const { execute: validatePipeline, isLoading: isValidating } = useAsyncJob({
     asyncJobHook: useValidatePipelineMutation,
     statusCheckHook: useGetValidationJobStatusQuery,
-    onSuccess: async () => {
-      if (!pendingPipelineData) return;
-
-      // empty string is value that should fall into "default"
-      const variantName = pendingPipelineData.variantName || "default";
-
-      try {
-        const response = await createPipeline({
-          pipelineDefinition: {
-            name: pendingPipelineData.name,
-            description: pendingPipelineData.description,
-            source: "USER_CREATED",
-            tags:
-              pendingPipelineData.tags.length > 0
-                ? pendingPipelineData.tags
-                : undefined,
-            variants: [
-              {
-                name: variantName,
-                pipeline_graph: pendingPipelineData.pipelineGraph,
-                pipeline_graph_simple: pendingPipelineData.pipelineGraphSimple,
-              },
-            ],
-          },
-        }).unwrap();
-
-        if (response.id) {
-          setOpen(false);
-          reset();
-          toast.success("Pipeline created successfully");
-          navigate(`/pipelines/${response.id}/${variantName}`);
-        }
-      } catch (error) {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error("Failed to create pipeline", {
-          description: errorMessage,
-        });
-        console.error("Failed to create pipeline:", error);
-      }
-    },
-    onError: (status) => {
-      const errors = status.error_message?.join(", ") ?? "Validation error";
-      toast.error("Pipeline validation error", {
-        description: errors,
-      });
-    },
-    onAbort: (status) => {
-      const errors = status.error_message?.join(", ") ?? "Validation aborted";
-      toast.error("Pipeline validation aborted", {
-        description: errors,
-      });
-    },
-    onFinally: () => {
-      setPendingPipelineData(null);
-    },
   });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,9 +112,6 @@ export const CreatePipelineButton = () => {
   };
 
   const onSubmit = async (data: FormData) => {
-    // Reset any previous validation state
-    setPendingPipelineData(null);
-
     try {
       // Step 1: Convert description to graph
       const graphResponse = await toGraph({
@@ -195,37 +120,65 @@ export const CreatePipelineButton = () => {
         },
       }).unwrap();
 
-      // Step 2: Validate pipeline graph (mutation + polling handled by hook)
-      // Store the pipeline data for later use when validation completes
-      setPendingPipelineData({
-        name: data.name.trim(),
-        description: data.description.trim(),
-        tags: data.tags,
-        variantName: data.variantName.trim(),
-        pipelineGraph: graphResponse.pipeline_graph,
-        pipelineGraphSimple: graphResponse.pipeline_graph_simple,
-      });
-
-      // Execute validation - waits for mutation + polling + completion
+      // Step 2: Validate pipeline graph
       await validatePipeline({
         pipelineValidationInput: {
           pipeline_graph: graphResponse.pipeline_graph,
         },
       });
 
-      // Job completed successfully (onSuccess already called)
+      // Step 3: Create pipeline
+      const variantName = data.variantName.trim() || "default";
+      const response = await createPipeline({
+        pipelineDefinition: {
+          name: data.name.trim(),
+          description: data.description.trim(),
+          source: "USER_CREATED",
+          tags: data.tags.length > 0 ? data.tags : undefined,
+          variants: [
+            {
+              name: variantName,
+              pipeline_graph: graphResponse.pipeline_graph,
+              pipeline_graph_simple: graphResponse.pipeline_graph_simple,
+            },
+          ],
+        },
+      }).unwrap();
+
+      if (response.id) {
+        setOpen(false);
+        reset();
+        toast.success("Pipeline created successfully");
+        navigate(`/pipelines/${response.id}/${variantName}`);
+      }
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to process pipeline", {
-        description: errorMessage,
-      });
-      setPendingPipelineData(null);
+      if (isAsyncJobError(error)) {
+        if (error.state === "ERROR") {
+          const errors = error.error_message?.join(", ") ?? "Validation error";
+          toast.error("Pipeline validation error", {
+            description: errors,
+          });
+        } else if (error.state === "ABORTED") {
+          const errors =
+            error.error_message?.join(", ") ?? "Validation aborted";
+          toast.error("Pipeline validation aborted", {
+            description: errors,
+          });
+        }
+      } else if (isApiError(error)) {
+        toast.error("Failed to process pipeline", {
+          description: error.data.message,
+        });
+      } else {
+        toast.error("Failed to process pipeline", {
+          description: "Unknown error",
+        });
+      }
+      console.error("Failed to process pipeline:", error);
     }
   };
 
-  const isLoading = isConverting || isValidating || isPolling || isCreating;
+  const isProcessing = isConverting || isValidating || isCreating;
 
   return (
     <Dialog
@@ -400,15 +353,8 @@ export const CreatePipelineButton = () => {
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit(onSubmit)} disabled={isLoading}>
-              {isConverting
-                ? "Converting..."
-                : jobStatus?.state === "PENDING" ||
-                    jobStatus?.state === "RUNNING"
-                  ? "Validating..."
-                  : isLoading
-                    ? "Processing..."
-                    : "Create"}
+            <Button onClick={handleSubmit(onSubmit)} disabled={isProcessing}>
+              {isProcessing ? "Processing..." : "Create"}
             </Button>
           </div>
         </div>

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-interface AsyncJobStatus {
+export interface AsyncJobStatus {
   id: string;
-  state: "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
-  is_valid?: boolean | null;
+  start_time: number;
+  elapsed_time: number;
+  state: "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
   error_message?: string[] | null;
 }
 
@@ -69,9 +70,12 @@ interface UseAsyncJobOptions<
  * });
  *
  * // Later, when you want to start the job:
- * await execute({
+ * // execute() returns the complete status object when the job completes
+ * const result = await execute({
  *   pipelineValidationInput: { pipeline_graph: graphData }
  * });
+ * // result.state === "COMPLETED"
+ * // result.id, result.error_message, and other fields are available
  */
 export function useAsyncJob<
   TMutationArgs,
@@ -135,13 +139,8 @@ export function useAsyncJob<
 
       try {
         if (jobStatus.state === "COMPLETED") {
-          if (jobStatus.is_valid !== false) {
-            await onSuccessRef.current?.(jobStatus);
-            jobResolveRef.current?.(jobStatus);
-          } else {
-            onErrorRef.current?.(jobStatus);
-            jobRejectRef.current?.(jobStatus);
-          }
+          await onSuccessRef.current?.(jobStatus);
+          jobResolveRef.current?.(jobStatus);
         } else if (jobStatus.state === "ERROR") {
           onErrorRef.current?.(jobStatus);
           jobRejectRef.current?.(jobStatus);
@@ -189,7 +188,6 @@ export function useAsyncJob<
   return {
     execute,
     isLoading: isMutating || isPolling,
-    isPolling,
     isMutating,
     jobStatus,
     reset,
