@@ -225,10 +225,10 @@ const DemoMode = () => {
     useState<string>("pipeline-config");
   const [activeTest, setActiveTest] = useState<
     "performance-test" | "density-test"
-  >("density-test");
+  >("performance-test");
   const [lastRunTest, setLastRunTest] = useState<
     "performance-test" | "density-test"
-  >("density-test");
+  >("performance-test");
   const isDensityRunning = isRunning;
   const isRunDisabled =
     activeTest === "performance-test"
@@ -759,7 +759,7 @@ const DemoMode = () => {
 
       pipelineSelections.forEach((selection) => {
         if (next[selection.pipelineId] == null) {
-          next[selection.pipelineId] = 8;
+          next[selection.pipelineId] = 1;
           changed = true;
         }
       });
@@ -997,7 +997,7 @@ const DemoMode = () => {
             },
             pipeline_performance_specs: pipelineSelections.map((selection) => ({
               id: selection.pipelineId,
-              streams: performanceStreams[selection.pipelineId] ?? 8,
+              streams: performanceStreams[selection.pipelineId] ?? 1,
             })),
           },
         }).unwrap();
@@ -1487,7 +1487,7 @@ const DemoMode = () => {
 
               const pipelineConfigSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full ${pipelineConfigContainerMaxHeightClass} overflow-hidden ${colors.testBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full mt-2 ${pipelineConfigContainerMaxHeightClass} overflow-hidden ${colors.testBorder}`}
                 >
                   <Accordion
                     type="single"
