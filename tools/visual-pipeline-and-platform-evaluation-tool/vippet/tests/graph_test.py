@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import MagicMock, patch
 
-from graph import Edge, Graph, Node, OUTPUT_PLACEHOLDER
+from graph import (
+    Edge,
+    Graph,
+    Node,
+    OUTPUT_PLACEHOLDER,
+    _prepare_generic_input,
+    _generic_input_to_source,
+)
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 
 # Create mock instances for SupportedModelsManager and VideosManager
@@ -4447,6 +4454,537 @@ class TestPrepareMainOutputPlaceholder(unittest.TestCase):
             graph.prepare_main_output_placeholder()
 
         self.assertIn("No fakesink found", str(context.exception))
+
+
+class TestGenericInputConversion(unittest.TestCase):
+    """Test suite for _prepare_generic_input and _generic_input_to_source functions."""
+
+    def test_prepare_generic_input_filesrc(self):
+        """Test conversion of filesrc to generic input."""
+        nodes = [
+            Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+
+        _prepare_generic_input(nodes)
+
+        self.assertEqual(nodes[0].type, "input")
+        self.assertEqual(nodes[0].data["kind"], "file")
+        self.assertEqual(nodes[0].data["source"], "video.mp4")
+        # Ensure old data is cleared
+        self.assertNotIn("location", nodes[0].data)
+
+    def test_prepare_generic_input_multifilesrc(self):
+        """Test conversion of multifilesrc to generic input."""
+        nodes = [
+            Node(id="0", type="multifilesrc", data={"location": "frame_%04d.png"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+
+        _prepare_generic_input(nodes)
+
+        self.assertEqual(nodes[0].type, "input")
+        self.assertEqual(nodes[0].data["kind"], "file")
+        self.assertEqual(nodes[0].data["source"], "frame_%04d.png")
+
+    def test_prepare_generic_input_v4l2src(self):
+        """Test conversion of v4l2src to generic input."""
+        nodes = [
+            Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+
+        _prepare_generic_input(nodes)
+
+        self.assertEqual(nodes[0].type, "input")
+        self.assertEqual(nodes[0].data["kind"], "camera")
+        self.assertEqual(nodes[0].data["source"], "/dev/video0")
+        self.assertNotIn("device", nodes[0].data)
+
+    def test_prepare_generic_input_rtspsrc(self):
+        """Test conversion of rtspsrc to generic input."""
+        nodes = [
+            Node(
+                id="0",
+                type="rtspsrc",
+                data={"location": "rtsp://192.168.1.100:554/stream"},
+            ),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+
+        _prepare_generic_input(nodes)
+
+        self.assertEqual(nodes[0].type, "input")
+        self.assertEqual(nodes[0].data["kind"], "camera")
+        self.assertEqual(nodes[0].data["source"], "rtsp://192.168.1.100:554/stream")
+        self.assertNotIn("location", nodes[0].data)
+
+    def test_prepare_generic_input_no_source_nodes(self):
+        """Test that non-source nodes are left unchanged."""
+        nodes = [
+            Node(id="0", type="decodebin3", data={}),
+            Node(id="1", type="queue", data={}),
+        ]
+
+        original_nodes = [Node(id=n.id, type=n.type, data=n.data.copy()) for n in nodes]
+        _prepare_generic_input(nodes)
+
+        # Nodes should remain unchanged
+        self.assertEqual(nodes[0].type, original_nodes[0].type)
+        self.assertEqual(nodes[1].type, original_nodes[1].type)
+
+    def test_generic_input_to_source_file(self):
+        """Test conversion of generic file input to filesrc."""
+        nodes = [
+            Node(id="0", type="input", data={"kind": "file", "source": "video.mp4"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        _generic_input_to_source(nodes, edges)
+
+        self.assertEqual(nodes[0].type, "filesrc")
+        self.assertEqual(nodes[0].data["location"], "video.mp4")
+        self.assertNotIn("kind", nodes[0].data)
+        self.assertNotIn("source", nodes[0].data)
+
+    def test_generic_input_to_source_camera_v4l2(self):
+        """Test conversion of generic camera input to v4l2src."""
+        nodes = [
+            Node(
+                id="0", type="input", data={"kind": "camera", "source": "/dev/video0"}
+            ),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        _generic_input_to_source(nodes, edges)
+
+        self.assertEqual(nodes[0].type, "v4l2src")
+        self.assertEqual(nodes[0].data["device"], "/dev/video0")
+        self.assertNotIn("kind", nodes[0].data)
+        self.assertNotIn("source", nodes[0].data)
+
+    def test_generic_input_to_source_camera_rtsp(self):
+        """Test conversion of generic camera input to rtspsrc for RTSP URLs."""
+        nodes = [
+            Node(
+                id="0",
+                type="input",
+                data={"kind": "camera", "source": "rtsp://192.168.1.100:554/stream"},
+            ),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        _generic_input_to_source(nodes, edges)
+
+        self.assertEqual(nodes[0].type, "rtspsrc")
+        self.assertEqual(nodes[0].data["location"], "rtsp://192.168.1.100:554/stream")
+
+    def test_generic_input_to_source_camera_rtsps(self):
+        """Test conversion of generic camera input to rtspsrc for RTSPS URLs."""
+        nodes = [
+            Node(
+                id="0",
+                type="input",
+                data={"kind": "camera", "source": "rtsps://192.168.1.100:554/stream"},
+            ),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        _generic_input_to_source(nodes, edges)
+
+        self.assertEqual(nodes[0].type, "rtspsrc")
+        self.assertEqual(nodes[0].data["location"], "rtsps://192.168.1.100:554/stream")
+
+    def test_generic_input_to_source_camera_requires_decodebin3(self):
+        """Test that camera input without decodebin3 raises ValueError."""
+        nodes = [
+            Node(
+                id="0", type="input", data={"kind": "camera", "source": "/dev/video0"}
+            ),
+            Node(id="1", type="queue", data={}),  # Wrong element - should be decodebin3
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        with self.assertRaises(ValueError) as context:
+            _generic_input_to_source(nodes, edges)
+
+        self.assertIn("requires a decodebin3 element", str(context.exception))
+        self.assertIn("found 'queue' instead", str(context.exception))
+
+    def test_generic_input_to_source_camera_no_following_element(self):
+        """Test that camera input without any following element raises ValueError."""
+        nodes = [
+            Node(
+                id="0", type="input", data={"kind": "camera", "source": "/dev/video0"}
+            ),
+        ]
+        edges = []  # No edges - no following element
+
+        with self.assertRaises(ValueError) as context:
+            _generic_input_to_source(nodes, edges)
+
+        self.assertIn("requires a decodebin3 element", str(context.exception))
+        self.assertIn("no element follows the input", str(context.exception))
+
+    def test_generic_input_to_source_file_no_decodebin3_required(self):
+        """Test that file input does not require decodebin3 (can be followed by any element)."""
+        nodes = [
+            Node(id="0", type="input", data={"kind": "file", "source": "video.mp4"}),
+            Node(id="1", type="queue", data={}),  # Any element is OK for files
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        # Should not raise an error
+        _generic_input_to_source(nodes, edges)
+
+        self.assertEqual(nodes[0].type, "filesrc")
+        self.assertEqual(nodes[0].data["location"], "video.mp4")
+
+    def test_round_trip_conversion_filesrc(self):
+        """Test full round-trip conversion for filesrc."""
+        original_nodes = [
+            Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        # Convert to generic input
+        _prepare_generic_input(original_nodes)
+        self.assertEqual(original_nodes[0].type, "input")
+        self.assertEqual(original_nodes[0].data["kind"], "file")
+
+        # Convert back to source
+        _generic_input_to_source(original_nodes, edges)
+        self.assertEqual(original_nodes[0].type, "filesrc")
+        self.assertEqual(original_nodes[0].data["location"], "video.mp4")
+
+    def test_round_trip_conversion_v4l2src(self):
+        """Test full round-trip conversion for v4l2src."""
+        original_nodes = [
+            Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        # Convert to generic input
+        _prepare_generic_input(original_nodes)
+        self.assertEqual(original_nodes[0].type, "input")
+        self.assertEqual(original_nodes[0].data["kind"], "camera")
+        self.assertEqual(original_nodes[0].data["source"], "/dev/video0")
+
+        # Convert back to source
+        _generic_input_to_source(original_nodes, edges)
+        self.assertEqual(original_nodes[0].type, "v4l2src")
+        self.assertEqual(original_nodes[0].data["device"], "/dev/video0")
+
+    def test_round_trip_conversion_rtspsrc(self):
+        """Test full round-trip conversion for rtspsrc."""
+        rtsp_url = "rtsp://192.168.1.100:554/stream"
+        original_nodes = [
+            Node(id="0", type="rtspsrc", data={"location": rtsp_url}),
+            Node(id="1", type="decodebin3", data={}),
+        ]
+        edges = [Edge(id="0", source="0", target="1")]
+
+        # Convert to generic input
+        _prepare_generic_input(original_nodes)
+        self.assertEqual(original_nodes[0].type, "input")
+        self.assertEqual(original_nodes[0].data["kind"], "camera")
+        self.assertEqual(original_nodes[0].data["source"], rtsp_url)
+
+        # Convert back to source
+        _generic_input_to_source(original_nodes, edges)
+        self.assertEqual(original_nodes[0].type, "rtspsrc")
+        self.assertEqual(original_nodes[0].data["location"], rtsp_url)
+
+
+class TestToSimpleViewWithGenericInput(unittest.TestCase):
+    """
+    Test that to_simple_view() converts source elements to generic 'input' type.
+    """
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
+    def test_filesrc_converted_to_input(self):
+        """Test that filesrc is converted to generic input with kind=file."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Check that filesrc was converted to input
+        self.assertEqual(simple_view.nodes[0].type, "input")
+        self.assertEqual(simple_view.nodes[0].data["kind"], "file")
+        self.assertEqual(simple_view.nodes[0].data["source"], "test.mp4")
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
+    def test_rtspsrc_converted_to_input(self):
+        """Test that rtspsrc is converted to generic input with kind=camera."""
+        rtsp_url = "rtsp://192.168.1.100:554/stream"
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="rtspsrc", data={"location": rtsp_url}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Check that rtspsrc was converted to input
+        self.assertEqual(simple_view.nodes[0].type, "input")
+        self.assertEqual(simple_view.nodes[0].data["kind"], "camera")
+        self.assertEqual(simple_view.nodes[0].data["source"], rtsp_url)
+
+    @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "")
+    @patch("graph._COMPILED_INVISIBLE_PATTERNS", [])
+    def test_v4l2src_converted_to_input(self):
+        """Test that v4l2src is converted to generic input with kind=camera."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        # Check that v4l2src was converted to input
+        self.assertEqual(simple_view.nodes[0].type, "input")
+        self.assertEqual(simple_view.nodes[0].data["kind"], "camera")
+        self.assertEqual(simple_view.nodes[0].data["source"], "/dev/video0")
+
+
+class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
+    """
+    Test that apply_simple_view_changes() converts generic 'input' back to specific sources.
+    """
+
+    def test_input_file_converted_to_filesrc(self):
+        """Test that generic input with kind=file is converted back to filesrc."""
+        original_advanced = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        original_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        # User changes the file source
+        modified_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "file", "source": "new_video.mp4"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple, original_simple, original_advanced
+        )
+
+        # Check that input was converted back to filesrc with new location
+        self.assertEqual(result.nodes[0].type, "filesrc")
+        self.assertEqual(result.nodes[0].data["location"], "new_video.mp4")
+        # Queue should still be there
+        self.assertEqual(result.nodes[1].type, "queue")
+
+    def test_input_rtsp_converted_to_rtspsrc(self):
+        """Test that generic input with kind=camera and rtsp:// source is converted to rtspsrc."""
+        rtsp_url = "rtsp://192.168.1.100:554/stream"
+        original_advanced = Graph(
+            nodes=[
+                Node(id="0", type="rtspsrc", data={"location": rtsp_url}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        original_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "camera", "source": rtsp_url}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        # User changes the RTSP URL
+        new_rtsp_url = "rtsp://192.168.1.200:554/camera1"
+        modified_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "camera", "source": new_rtsp_url}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple, original_simple, original_advanced
+        )
+
+        # Check that input was converted back to rtspsrc with new URL
+        self.assertEqual(result.nodes[0].type, "rtspsrc")
+        self.assertEqual(result.nodes[0].data["location"], new_rtsp_url)
+
+    def test_input_usb_camera_converted_to_v4l2src(self):
+        """Test that generic input with kind=camera and /dev/* source is converted to v4l2src."""
+        original_advanced = Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        original_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "camera", "source": "/dev/video0"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        # User changes to different camera
+        modified_simple = Graph(
+            nodes=[
+                Node(id="0", type="input", data={"kind": "camera", "source": "/dev/video1"}),
+                Node(id="2", type="gvadetect", data={"model": "yolo"}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
+                Edge(id="1", source="2", target="3"),
+            ],
+        )
+
+        result = Graph.apply_simple_view_changes(
+            modified_simple, original_simple, original_advanced
+        )
+
+        # Check that input was converted back to v4l2src with new device
+        self.assertEqual(result.nodes[0].type, "v4l2src")
+        self.assertEqual(result.nodes[0].data["device"], "/dev/video1")
+
+    def test_input_invalid_kind_raises_error(self):
+        """Test that invalid input kind raises ValueError."""
+        original_advanced = Graph(
+            nodes=[Node(id="0", type="filesrc", data={"location": "test.mp4"})],
+            edges=[],
+        )
+
+        original_simple = Graph(
+            nodes=[Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})],
+            edges=[],
+        )
+
+        # User provides invalid kind
+        modified_simple = Graph(
+            nodes=[Node(id="0", type="input", data={"kind": "invalid", "source": "test.mp4"})],
+            edges=[],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            Graph.apply_simple_view_changes(modified_simple, original_simple, original_advanced)
+
+        self.assertIn("Unsupported input kind", str(context.exception))
+
+    def test_input_missing_attributes_raises_error(self):
+        """Test that input node without kind or source raises ValueError."""
+        original_advanced = Graph(
+            nodes=[Node(id="0", type="filesrc", data={"location": "test.mp4"})],
+            edges=[],
+        )
+
+        original_simple = Graph(
+            nodes=[Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})],
+            edges=[],
+        )
+
+        # User removes required attributes
+        modified_simple = Graph(
+            nodes=[Node(id="0", type="input", data={"kind": "file"})],  # Missing source
+            edges=[],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            Graph.apply_simple_view_changes(modified_simple, original_simple, original_advanced)
+
+        self.assertIn("must have both 'kind' and 'source' attributes", str(context.exception))
 
 
 if __name__ == "__main__":

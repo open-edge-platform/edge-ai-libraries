@@ -242,3 +242,31 @@ class CameraManager:
                     break
 
         return authenticated_camera
+
+    def get_encoding_for_rtsp_url(self, rtsp_url: str) -> Optional[str]:
+        """Get encoding for a given RTSP URL from cached ONVIF profiles.
+
+        Network camera profiles (including `encoding` and `rtsp_url`) are only
+        populated after successful authentication via `load_camera_profiles()`.
+        This method does not trigger discovery/authentication; it only searches
+        the in-memory cache.
+
+        Args:
+            rtsp_url: RTSP URL that appears in a profile (e.g. "rtsp://.../stream")
+
+        Returns:
+            Encoding string from the matching profile (e.g. "H264", "H265"),
+            or None if not found.
+        """
+        if not rtsp_url:
+            return None
+
+        normalized = rtsp_url.strip()
+        with self._lock:
+            for camera in self._network_cameras:
+                profiles = getattr(getattr(camera, "details", None), "profiles", None)
+                for profile in profiles or []:
+                    if getattr(profile, "rtsp_url", None) == normalized:
+                        return getattr(profile, "encoding", None)
+
+        return None

@@ -6,6 +6,7 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
+from managers.camera_manager import CameraManager
 from utils import generate_unique_filename
 from videos import VideosManager, OUTPUT_VIDEO_DIR
 
@@ -185,30 +186,86 @@ class VideoEncoder:
         )
         return None
 
-    def _detect_codec_from_input(self, input_video_filenames: list[str]) -> str:
+    def _detect_codec_from_input(self, input_sources: list[str]) -> str:
         """
-        Detect codec from input video files.
+        Detect output codec based on input sources.
+
+        Supports multiple input types:
+        - Video files (filesrc): Detects codec from file metadata via VideosManager
+        - RTSP cameras (rtspsrc): Detects codec from cached ONVIF profile encoding
+        - USB cameras (v4l2src): Always uses DEFAULT_CODEC (H.264)
 
         Args:
-            input_video_filenames: List of input video filenames
+            input_sources: List of input sources (file paths, RTSP URLs, or device paths)
 
         Returns:
-            Detected codec name, defaults to "h264" if it cannot be determined
+            Detected codec name ("h264" or "h265")
         """
-        if not input_video_filenames:
+        if not input_sources:
             self.logger.warning(
-                f"No input video filenames provided, defaulting to {DEFAULT_CODEC}"
+                f"No input sources provided, defaulting to {DEFAULT_CODEC}"
             )
             return DEFAULT_CODEC
 
-        # Detect codec from the first input video
-        video = self.videos_manager.get_video(input_video_filenames[0])
-        detected_codec = video.codec if video and video.codec else DEFAULT_CODEC
+        def _normalize(codec: str) -> str:
+            c = (codec or "").strip().lower()
+            if c in {"h264", "avc", "h.264"}:
+                return "h264"
+            if c in {"h265", "hevc", "h.265"}:
+                return "h265"
+            return c
 
+        # Check for video file sources (filesrc)
+        for source in input_sources:
+            if not source:
+                continue
+            video = self.videos_manager.get_video(source)
+            if video and getattr(video, "codec", None):
+                detected = _normalize(video.codec)
+                self.logger.debug(
+                    f"Detected codec '{detected}' from video file: {source}"
+                )
+                return detected
+
+        # Check for RTSP camera sources (rtspsrc)
+        camera_manager = CameraManager()
+        for source in input_sources:
+            if not source:
+                continue
+            if source.startswith("rtsp://") or source.startswith("rtsps://"):
+                encoding = camera_manager.get_encoding_for_rtsp_url(source)
+                detected = _normalize(encoding) if encoding else ""
+                if detected in self.encoder_configs:
+                    self.logger.debug(
+                        f"Detected codec '{detected}' from RTSP camera profile: {source}"
+                    )
+                    return detected
+                if detected:
+                    self.logger.debug(
+                        "RTSP camera uses '%s' encoding (source: %s), output will be encoded to %s",
+                        detected,
+                        source,
+                        DEFAULT_CODEC,
+                    )
+                    return DEFAULT_CODEC
+
+        # Check for USB camera sources (v4l2src) - use default codec
+        for source in input_sources:
+            if not source:
+                continue
+            if source.startswith("/dev/video"):
+                self.logger.debug(
+                    f"USB camera detected ({source}), using default codec: {DEFAULT_CODEC}"
+                )
+                return DEFAULT_CODEC
+
+        # Unknown source type
         self.logger.debug(
-            f"Detected codec: {detected_codec} from {input_video_filenames[0]}"
+            "Unknown source type (%s), using default codec: %s",
+            ", ".join([s for s in input_sources if s]),
+            DEFAULT_CODEC,
         )
-        return detected_codec
+        return DEFAULT_CODEC
 
     def _validate_codec(self, codec: str) -> None:
         """
@@ -228,7 +285,7 @@ class VideoEncoder:
         self,
         pipeline_id: str,
         encoder_device: str,
-        input_video_filenames: list[str],
+        input_sources: list[str],
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
@@ -244,7 +301,7 @@ class VideoEncoder:
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
-            input_video_filenames: List of input video filenames to detect codec
+            input_sources: List of input sources (file paths, RTSP URLs, or device paths) to detect codec
 
         Returns:
             Tuple of (sub-pipeline string, output file path)
@@ -253,8 +310,8 @@ class VideoEncoder:
             ValueError: If codec is not supported, encoder_device is invalid,
                 or no suitable encoder is found
         """
-        # Detect codec from input video files (h264, h265, etc.)
-        codec = self._detect_codec_from_input(input_video_filenames)
+        # Detect codec from input sources (h264, h265, etc.)
+        codec = self._detect_codec_from_input(input_sources)
         self._validate_codec(codec)
 
         # Get encoder configuration for the detected codec (GPU/CPU variants) for file output (no looping support)
@@ -292,7 +349,7 @@ class VideoEncoder:
         self,
         pipeline_id: str,
         encoder_device: str,
-        input_video_filenames: list[str],
+        input_sources: list[str],
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
@@ -308,7 +365,7 @@ class VideoEncoder:
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
-            input_video_filenames: List of input video filenames to detect codec
+            input_sources: List of input sources (file paths, RTSP URLs, or device paths) to detect codec
 
         Returns:
             Tuple of (sub-pipeline string, live stream URL)
@@ -325,8 +382,8 @@ class VideoEncoder:
             f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/{stream_name}"
         )
 
-        # Detect codec from input video files (h264, h265, etc.)
-        codec = self._detect_codec_from_input(input_video_filenames)
+        # Detect codec from input sources (h264, h265, etc.)
+        codec = self._detect_codec_from_input(input_sources)
         self._validate_codec(codec)
 
         # Select streaming encoder configuration

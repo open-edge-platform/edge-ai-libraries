@@ -461,15 +461,15 @@ class PipelineManager:
 
             # prepare main video output path if output is enabled (file or live stream)
             if output_mode != OutputMode.DISABLED:
-                # Retrieve input video filenames and recommended encoder device
-                input_video_filenames = base_graph.get_input_video_filenames()
+                # Retrieve input sources and recommended encoder device
+                input_sources = base_graph.get_input_sources()
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == OutputMode.FILE:
                     output_subpipeline, output_path = (
                         self.video_encoder.create_video_output_subpipeline(
-                            pipeline.id, encoder_device, input_video_filenames
+                            pipeline.id, encoder_device, input_sources
                         )
                     )
                     video_output_paths[pipeline.id].append(output_path)
@@ -478,7 +478,7 @@ class PipelineManager:
                         self.video_encoder.create_live_stream_output_subpipeline(
                             pipeline.id,
                             encoder_device,
-                            input_video_filenames,
+                            input_sources,
                         )
                     )
                     live_stream_urls[pipeline.id] = stream_url
