@@ -46,6 +46,11 @@ object_detection:
     input_size: [640, 640]
     model_dir: '/app/models/yolox' # Persistent mount path for models
     model_name: 'yolox_s'
+    roi_consolidation:
+        enabled: false # Master switch for ROI consolidation logic
+        iou_threshold: 0.2 # IoU threshold for clustering overlapping boxes
+        class_aware: false # Only merge boxes of the same class when true
+        context_scale: 0.2 # Expand merged ROI by this fraction of its size
     # Uncomment and populate class_names to override the detector's default labels.
     # When left unset, the detector falls back to the bundled YOLOX COCO label list.
     # class_names:

@@ -1,26 +1,46 @@
 import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
-const FileSinkNode = () => (
-  <div className="px-4 py-2 shadow-md bg-background border-2 border-gray-400 min-w-[220px]">
-    <div className="flex flex-col">
-      {/* Node Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-bold text-gray-700 dark:text-gray-300">
-          FileSink
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
-          Sink
-        </div>
+type FileSinkNodeProps = {
+  data: {
+    location?: string;
+  };
+};
+
+const FileSinkNode = ({ data }: FileSinkNodeProps) => (
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[220px]">
+    <div className="flex gap-3">
+      <div className="shrink-0 w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center self-center">
+        <svg
+          className="w-6 h-6 text-gray-600 dark:text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+          />
+        </svg>
       </div>
 
-      {/* Description */}
-      <div className="text-xs text-gray-600 dark:text-gray-300">
-        Write to file
+      <div className="flex-1 flex flex-col">
+        <div className="text-xl font-bold text-gray-700 dark:text-gray-300">
+          FileSink
+        </div>
+
+        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          {data.location && (
+            <span className="max-w-[150px] truncate" title={data.location}>
+              {data.location}
+            </span>
+          )}
+        </div>
       </div>
     </div>
 
-    {/* Input Handle */}
     <Handle
       type="target"
       position={Position.Top}

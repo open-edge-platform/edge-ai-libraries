@@ -1,0 +1,34 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+    vss-collector:
+        image: docker.io/intel/vippet-collector:2025.2.0
+        container_name: vss-collector
+        ports:
+            - '9273:9273'
+        privileged: true
+        devices:
+            - /sys:/sys
+            - /dev:/dev
+            - /run:/run
+            - /proc:/proc
+        pid: host
+        volumes:
+            - ../pipeline-manager/telemetry/collector/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+            - collector_signals:/app/.collector-signals
+        restart: on-failure:5
+        environment:
+            - http_proxy=${http_proxy}
+            - https_proxy=${https_proxy}
+            - no_proxy=localhost,127.0.0.1,${PM_HOST},vss-ui,${no_proxy}
+            - WEBSOCKET_URL=ws://${PM_HOST}:3000/metrics/ws/collector
+        depends_on:
+            pipeline-manager:
+                condition: service_started
+        networks:
+            - vs_network
+
+volumes:
+    collector_signals:
+        driver: local

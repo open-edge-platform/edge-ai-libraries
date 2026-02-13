@@ -133,6 +133,34 @@ def generate_unique_filename(filename: str) -> str:
     return new_filename
 
 
+def normalize_device_name_for_url(device_name: str) -> str:
+    """
+    Normalize a device name to be URL-safe.
+
+    Converts the device name to lowercase, replaces spaces with underscores,
+    and removes all characters that are not alphanumeric or underscores.
+    This ensures the device name can be safely used in URL paths without
+    requiring percent-encoding.
+
+    Args:
+        device_name: The original device name (e.g., "Thronmax StreamGo Webcam: Thron").
+
+    Returns:
+        str: URL-safe device name (e.g., "thronmax_streamgo_webcam__thron").
+
+    Example:
+        >>> normalize_device_name_for_url("Thronmax StreamGo Webcam: Thron")
+        'thronmax_streamgo_webcam__thron'
+        >>> normalize_device_name_for_url("HD Pro Webcam C920")
+        'hd_pro_webcam_c920'
+    """
+    # Convert to lowercase and replace spaces with underscores
+    normalized = device_name.lower().replace(" ", "_")
+    # Remove all characters not allowed in URL paths (keep only alphanumeric and underscores)
+    normalized = "".join(c if c.isalnum() or c == "_" else "_" for c in normalized)
+    return normalized
+
+
 def is_yolov10_model(model_path: str) -> bool:
     """
     Checks if the given model path corresponds to a YOLO v10 model.

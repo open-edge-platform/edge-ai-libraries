@@ -45,6 +45,16 @@ spec:
               value: "/opt/models"
             - name: ENABLED_PLUGINS
               value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
+            - name: GETI_WORKSPACE_ID
+              value: "{{ .Values.modeldownload.env.GETI_WORKSPACE_ID }}"
+            - name: GETI_HOST
+              value: "{{ .Values.modeldownload.env.GETI_HOST }}"
+            - name: GETI_TOKEN
+              value: "{{ .Values.modeldownload.env.GETI_TOKEN }}"
+            - name: GETI_SERVER_API_VERSION
+              value: "{{ .Values.modeldownload.env.GETI_SERVER_API_VERSION }}"
+            - name: GETI_SERVER_SSL_VERIFY
+              value: "{{ .Values.modeldownload.env.GETI_SERVER_SSL_VERIFY }}"
           command: ["/opt/entrypoint.sh"]
           args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:

@@ -6,6 +6,7 @@ import os
 import random
 import uuid
 from io import BytesIO
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -41,6 +42,21 @@ if settings.no_proxy_env:
 logger.debug(f"proxies: {proxies}")
 
 _MODEL_CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def is_base64_image_data(value: str) -> bool:
+    if not value:
+        return False
+    return value.startswith("data:image/") and ";base64," in value
+
+
+def decode_base64_image(value: str) -> Image.Image:
+    header, payload = value.split(",", 1)
+    if not header.startswith("data:image/") or ";base64" not in header:
+        raise ValueError("Invalid base64 image header")
+    cleaned_payload = re.sub(r"\s+", "", payload)
+    decoded_image = base64.b64decode(cleaned_payload)
+    return Image.open(BytesIO(decoded_image)).convert("RGB")
 
 
 def get_best_video_backend() -> str:
@@ -188,7 +204,8 @@ async def load_images(image_urls_or_files: List[str]):
     for image_url_or_file in image_urls_or_files:
         try:
             logger.info(
-                f"Loading image from: {image_url_or_file if not image_url_or_file.startswith('data:image/jpeg;base64') else 'base64 image'}"
+                "Loading image from: %s",
+                "base64 image" if is_base64_image_data(str(image_url_or_file)) else image_url_or_file,
             )
             use_proxy = True
             if proxies.get("no_proxy"):
@@ -217,15 +234,14 @@ async def load_images(image_urls_or_files: List[str]):
                         image = Image.open(BytesIO(await response.read())).convert(
                             "RGB"
                         )
-            elif str(image_url_or_file).startswith("data:image/jpeg;base64,"):
-                decoded_image = base64.b64decode(image_url_or_file.split(",")[1])
-                image = Image.open(BytesIO(decoded_image)).convert("RGB")
+            elif is_base64_image_data(str(image_url_or_file)):
+                image = decode_base64_image(str(image_url_or_file))
             else:
                 image = Image.open(image_url_or_file).convert("RGB")
             image_data = (
                 np.array(image.getdata())
                 .reshape(1, image.size[1], image.size[0], 3)
-                .astype(np.byte)
+                .astype(np.uint8)
             )
             images.append(image)
             image_tensors.append(ov.Tensor(image_data))

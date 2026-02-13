@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     DETECTION_CONFIDENCE: float = 0.85
     DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
+    ROI_CONSOLIDATION_ENABLED: bool | None = None
+    ROI_CONSOLIDATION_IOU_THRESHOLD: float | None = None
+    ROI_CONSOLIDATION_CLASS_AWARE: bool | None = None
+    ROI_CONSOLIDATION_CONTEXT_SCALE: float | None = None
 
     # Telemetry persistence settings
     TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
@@ -85,5 +89,12 @@ class Settings(BaseSettings):
         """Get the effective bucket name, checking environment variables first"""
         import os
         return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
+
+    @field_validator("MAX_PARALLEL_WORKERS", mode="before")
+    @classmethod
+    def normalize_max_parallel_workers(cls, value):
+        if value in (None, ""):
+            return None
+        return value
 
 settings = Settings()

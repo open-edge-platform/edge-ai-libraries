@@ -224,29 +224,30 @@ class VideoEncoder:
             supported = ", ".join(self.encoder_configs.keys())
             raise ValueError(f"Unsupported codec: {codec}. Supported: {supported}")
 
-    def replace_fakesink_with_video_output(
+    def create_video_output_subpipeline(
         self,
         pipeline_id: str,
-        pipeline_str: str,
         encoder_device: str,
         input_video_filenames: list[str],
-    ) -> Tuple[str, List[str]]:
+    ) -> Tuple[str, str]:
         """
-        Replace all fakesink instances in pipeline string with video encoder and file sink.
+        Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
+
+        This method generates a GStreamer sub-pipeline containing all required elements
+        (encoder, parser, muxer, and filesink) to replace one fakesink element.
 
         Note: This method is only used for file output (output_mode=file), which does not
         support looping. Standard encoders are always used.
 
         Args:
-            pipeline_id: Pipeline ID used to generate unique output filenames
-            pipeline_str: GStreamer pipeline string containing fakesink(s)
+            pipeline_id: Pipeline ID used to generate unique output filename
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
 
         Returns:
-            Tuple of (modified pipeline string, list of output paths)
+            Tuple of (sub-pipeline string, output file path)
 
         Raises:
             ValueError: If codec is not supported, encoder_device is invalid,
@@ -274,70 +275,48 @@ class VideoEncoder:
                 f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
-        # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
-        fakesink_count = len(self.re_pattern.findall(pipeline_str))
+        # Generate unique output path
+        output_filename = generate_unique_filename(f"pipeline_output_{pipeline_id}.mp4")
+        output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
 
-        if fakesink_count == 0:
-            self.logger.warning("No fakesink found in pipeline string")
-            return pipeline_str, []
+        # Create sub-pipeline string with all required elements for replacing fakesink
+        video_output_subpipeline = f"{encoder_element} ! {codec}parse ! mp4mux ! filesink location={output_path}"
 
-        output_paths = []
-        result = pipeline_str
-
-        # Replace each fakesink with unique output path
-        for i in range(fakesink_count):
-            # Generate unique output path for each fakesink
-            output_filename = generate_unique_filename(
-                f"pipeline_output_{pipeline_id}.mp4"
-            )
-            output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
-            output_paths.append(output_path)
-
-            # Replace first occurrence of standalone fakesink element
-            video_output_str = f"{encoder_element} ! {codec}parse ! mp4mux ! filesink location={output_path}"
-            result = self.re_pattern.sub(video_output_str, result, count=1)
-
-        self.logger.info(
-            f"Replaced {fakesink_count} fakesink(s) with video file output(s): "
-            f"{output_paths} (codec: {codec})"
+        self.logger.debug(
+            f"Created video output sub-pipeline: {video_output_subpipeline} (codec: {codec})"
         )
-        return result, output_paths
 
-    def replace_fakesink_with_live_stream_output(
+        return video_output_subpipeline, output_path
+
+    def create_live_stream_output_subpipeline(
         self,
         pipeline_id: str,
-        pipeline_str: str,
         encoder_device: str,
         input_video_filenames: list[str],
-        needs_looping: bool = False,
     ) -> Tuple[str, str]:
         """
-        Replace first fakesink instance with live-streaming output.
+        Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
 
-        This method is used when output_mode is LIVE_STREAM. It replaces only
-        the first fakesink with an RTSP client sink that streams to media server.
+        This method generates a GStreamer sub-pipeline containing all required elements
+        (encoder, parser, and RTSP client sink) to replace one fakesink element.
+
+        This method is used when output_mode is LIVE_STREAM. It uses low-latency
+        streaming encoders optimized for RTSP streaming to media server.
 
         Args:
             pipeline_id: Pipeline ID used to generate unique stream name
-            pipeline_str: GStreamer pipeline string containing fakesink(s)
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
-            needs_looping: If True, use low-latency streaming encoder optimized for looping
 
         Returns:
-            Tuple of (modified pipeline string, live stream URL)
+            Tuple of (sub-pipeline string, live stream URL)
 
         Raises:
-            ValueError: If no fakesink is found in pipeline
+            ValueError: If codec is not supported, encoder_device is invalid,
+                or no suitable encoder is found
         """
-        # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
-        fakesink_count = len(self.re_pattern.findall(pipeline_str))
-
-        if fakesink_count == 0:
-            raise ValueError("No fakesink found in pipeline string for live streaming")
-
         # Generate stream name from pipeline ID
         stream_name = f"stream_{pipeline_id}"
 
@@ -370,17 +349,13 @@ class VideoEncoder:
                 f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
-        # Build live stream output element string with low-latency encoder
-        live_stream_output_str = (
+        # Create sub-pipeline string with all required elements for replacing fakesink
+        live_stream_output_subpipeline = (
             f"{encoder_element} ! {codec}parse ! "
             f"rtspclientsink protocols=tcp location={stream_url}"
         )
 
-        # Replace only first fakesink
-        result = self.re_pattern.sub(live_stream_output_str, pipeline_str, count=1)
-
-        encoder_type = "low-latency streaming" if needs_looping else "streaming"
-        self.logger.info(
-            f"Replaced fakesink with live stream output using {encoder_type} encoder: {stream_url}"
+        self.logger.debug(
+            f"Created live stream output sub-pipeline: {live_stream_output_subpipeline} (codec: {codec})"
         )
-        return result, stream_url
+        return live_stream_output_subpipeline, stream_url
