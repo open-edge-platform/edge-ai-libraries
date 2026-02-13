@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { EllipsisVertical, Lock } from "lucide-react";
+import { EllipsisVertical, Lock, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link } from "react-router";
@@ -22,7 +22,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DeletePipelineDialog } from "./DeletePipelineDialog";
-import { CreatePipelineButton } from "./CreatePipelineButton.tsx";
+import { EditPipelineDialog } from "./EditPipelineDialog";
+import { DuplicatePipelineDialog } from "./DuplicatePipelineDialog";
+import { CreatePipelineDialog } from "./CreatePipelineDialog.tsx";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 
@@ -35,14 +37,26 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const { theme } = useTheme();
   const { tagColorMap } = usePipelineTagColors(pipelines);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [pipelineToDelete, setPipelineToDelete] = useState<Pipeline | null>(
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(
     null,
   );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
 
   const handleDeleteClick = (pipeline: Pipeline) => {
-    setPipelineToDelete(pipeline);
+    setSelectedPipeline(pipeline);
     setDeleteDialogOpen(true);
+  };
+
+  const handleEditClick = (pipeline: Pipeline) => {
+    setSelectedPipeline(pipeline);
+    setEditDialogOpen(true);
+  };
+
+  const handleDuplicateClick = (pipeline: Pipeline) => {
+    setSelectedPipeline(pipeline);
+    setDuplicateDialogOpen(true);
   };
 
   const displayedPipelines =
@@ -51,7 +65,12 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   return (
     <>
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
-        <CreatePipelineButton />
+        <CreatePipelineDialog>
+          <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue dark:hover:border-energy-blue hover:bg-blue-50 dark:hover:bg-energy-blue/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue dark:hover:text-energy-blue">
+            <Plus className="w-12 h-12" />
+            <span className="text-lg font-medium">Create Pipeline</span>
+          </button>
+        </CreatePipelineDialog>
 
         {displayedPipelines.map((pipeline) => (
           <Card
@@ -97,8 +116,22 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                     <EllipsisVertical className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Edit Pipeline</DropdownMenuItem>
-                    <DropdownMenuItem>Duplicate Pipeline</DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClick(pipeline);
+                      }}
+                    >
+                      Edit Pipeline
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDuplicateClick(pipeline);
+                      }}
+                    >
+                      Duplicate Pipeline
+                    </DropdownMenuItem>
                     {pipeline.source === "PREDEFINED" ? (
                       <DropdownMenuItem
                         variant="destructive"
@@ -169,12 +202,38 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
         ))}
       </div>
 
-      <DeletePipelineDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        pipeline={pipelineToDelete}
-        onSuccess={() => setPipelineToDelete(null)}
-      />
+      {selectedPipeline && (
+        <>
+          <EditPipelineDialog
+            pipeline={selectedPipeline}
+            open={editDialogOpen}
+            onOpenChange={(isOpen) => {
+              setEditDialogOpen(isOpen);
+              if (!isOpen) {
+                setSelectedPipeline(null);
+              }
+            }}
+            onSuccess={() => setSelectedPipeline(null)}
+          />
+          <DuplicatePipelineDialog
+            pipeline={selectedPipeline}
+            open={duplicateDialogOpen}
+            onOpenChange={(isOpen) => {
+              setDuplicateDialogOpen(isOpen);
+              if (!isOpen) {
+                setSelectedPipeline(null);
+              }
+            }}
+            onSuccess={() => setSelectedPipeline(null)}
+          />
+          <DeletePipelineDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            pipeline={selectedPipeline}
+            onSuccess={() => setSelectedPipeline(null)}
+          />
+        </>
+      )}
     </>
   );
 };

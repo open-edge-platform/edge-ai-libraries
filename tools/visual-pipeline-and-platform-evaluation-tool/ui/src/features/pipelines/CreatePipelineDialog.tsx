@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useTheme } from "next-themes";
-import { Plus, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useAppSelector } from "@/store/hooks";
-import { selectPipelines } from "@/store/reducers/pipelines";
 import {
   Dialog,
   DialogContent,
@@ -25,16 +21,6 @@ import { isApiError, isAsyncJobError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import {
   InputGroup,
@@ -42,30 +28,22 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
-import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
+import {
+  createPipelineSchema,
+  type CreatePipelineFormData,
+} from "./pipelineSchemas";
+import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
+import type { ReactNode } from "react";
 
-const formSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Name must be at least 3 characters")
-    .max(20, "Name must be at most 20 characters"),
-  description: z.string().min(1, "Description is required"),
-  tags: z.array(z.string()).min(1, "At least one tag is required"),
-  variantName: z.union([
-    z.string().min(3, "Variant name must be at least 3 characters"),
-    z.literal(""),
-  ]),
-  pipelineDescription: z.string().min(1, "Pipeline description is required"),
-});
+type CreatePipelineDialogProps = {
+  children: ReactNode;
+};
 
-type FormData = z.infer<typeof formSchema>;
-
-export const CreatePipelineButton = () => {
-  const { theme } = useTheme();
+export const CreatePipelineDialog = ({
+  children,
+}: CreatePipelineDialogProps) => {
   const navigate = useNavigate();
-  const pipelines = useAppSelector(selectPipelines);
-  const { tagColorMap, availableTags } = usePipelineTagColors(pipelines);
   const [open, setOpen] = useState(false);
 
   const {
@@ -76,8 +54,8 @@ export const CreatePipelineButton = () => {
     watch,
     setValue,
     trigger,
-  } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  } = useForm<CreatePipelineFormData>({
+    resolver: zodResolver(createPipelineSchema),
     defaultValues: {
       name: "",
       description: "",
@@ -111,7 +89,7 @@ export const CreatePipelineButton = () => {
     reader.readAsText(file);
   };
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: CreatePipelineFormData) => {
     try {
       // Step 1: Convert description to graph
       const graphResponse = await toGraph({
@@ -190,12 +168,7 @@ export const CreatePipelineButton = () => {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <button className="w-full h-full min-h-[200px] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-classic-blue dark:hover:border-energy-blue hover:bg-blue-50 dark:hover:bg-energy-blue/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-classic-blue  dark:hover:text-energy-blue">
-          <Plus className="w-12 h-12" />
-          <span className="text-lg font-medium">Create Pipeline</span>
-        </button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         className="max-w-6xl!"
         onInteractOutside={(e) => e.preventDefault()}
@@ -230,64 +203,13 @@ export const CreatePipelineButton = () => {
 
           <Field>
             <FieldLabel htmlFor="tags">Tags</FieldLabel>
-            <Combobox
+            <PipelineTagsCombobox
               value={tags}
-              onValueChange={(newTags) => {
+              onChange={(newTags) => {
                 setValue("tags", newTags);
                 trigger("tags");
               }}
-              multiple
-            >
-              <ComboboxChips>
-                {tags.map((tag) => {
-                  const color = tagColorMap.get(tag);
-                  return (
-                    <ComboboxChip
-                      key={tag}
-                      style={
-                        color
-                          ? {
-                              backgroundColor:
-                                theme === "dark"
-                                  ? `var(--${color})`
-                                  : `color-mix(in oklch, var(--${color}) 50%, white)`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {tag}
-                    </ComboboxChip>
-                  );
-                })}
-                <ComboboxChipsInput
-                  placeholder="Add tags..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.currentTarget.value) {
-                      e.preventDefault();
-                      const newTag = e.currentTarget.value.trim();
-                      if (newTag && !tags.includes(newTag)) {
-                        setValue("tags", [...tags, newTag]);
-                        trigger("tags");
-                        e.currentTarget.value = "";
-                      }
-                    }
-                  }}
-                />
-              </ComboboxChips>
-              <ComboboxContent>
-                <ComboboxList>
-                  {availableTags.length > 0 ? (
-                    availableTags.map((tag) => (
-                      <ComboboxItem key={tag} value={tag}>
-                        {tag}
-                      </ComboboxItem>
-                    ))
-                  ) : (
-                    <ComboboxEmpty>No tags available.</ComboboxEmpty>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
+            />
             <FieldError errors={errors.tags ? [errors.tags] : undefined} />
           </Field>
 
