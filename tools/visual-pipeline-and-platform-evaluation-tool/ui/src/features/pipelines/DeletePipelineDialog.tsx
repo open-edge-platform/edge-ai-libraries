@@ -41,7 +41,7 @@ export const DeletePipelineDialog = ({
     } catch (error) {
       const errorMessage = isApiError(error)
         ? error.data.message
-        : "Failed to delete pipeline";
+        : "Unknown error";
       toast.error(`Failed to delete pipeline: ${errorMessage}`);
     }
   };

@@ -77,15 +77,10 @@ export const DuplicatePipelineDialog = ({
       toast.success("Pipeline duplicated successfully");
       onSuccess?.();
     } catch (error) {
-      if (isApiError(error)) {
-        toast.error("Failed to duplicate pipeline", {
-          description: error.data.message,
-        });
-      } else {
-        toast.error("Failed to duplicate pipeline", {
-          description: "Unknown error",
-        });
-      }
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
+      toast.error(`Failed to duplicate pipeline: ${errorMessage}`);
       console.error("Failed to duplicate pipeline:", error);
     }
   };

@@ -41,7 +41,6 @@ const ViewModeSwitcher = ({
   onRefetch,
   onEditorKeyChange,
 }: ViewModeSwitcherProps) => {
-  //const [updatePipeline] = useUpdatePipelineMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
   const handleModeSwitch = async (checked: boolean) => {
@@ -72,13 +71,6 @@ const ViewModeSwitcher = ({
             : { pipeline_graph: graphData },
         }).unwrap();
       }
-
-      // await updatePipeline({
-      //   pipelineId,
-      //   pipelineUpdate: isSimpleMode
-      //     ? { pipeline_graph_simple: graphData }
-      //     : { pipeline_graph: graphData },
-      // }).unwrap();
 
       // Force refetch pipeline data
       await onRefetch();

@@ -72,15 +72,10 @@ export const EditPipelineDialog = ({
       toast.success("Pipeline updated successfully");
       onSuccess?.();
     } catch (error) {
-      if (isApiError(error)) {
-        toast.error("Failed to update pipeline", {
-          description: error.data.message,
-        });
-      } else {
-        toast.error("Failed to update pipeline", {
-          description: "Unknown error",
-        });
-      }
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
+      toast.error(`Failed to update pipeline: ${errorMessage}`);
       console.error("Failed to update pipeline:", error);
     }
   };

@@ -44,11 +44,6 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
 
-  const handleDeleteClick = (pipeline: Pipeline) => {
-    setSelectedPipeline(pipeline);
-    setDeleteDialogOpen(true);
-  };
-
   const handleEditClick = (pipeline: Pipeline) => {
     setSelectedPipeline(pipeline);
     setEditDialogOpen(true);
@@ -57,6 +52,11 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
   const handleDuplicateClick = (pipeline: Pipeline) => {
     setSelectedPipeline(pipeline);
     setDuplicateDialogOpen(true);
+  };
+
+  const handleDeleteClick = (pipeline: Pipeline) => {
+    setSelectedPipeline(pipeline);
+    setDeleteDialogOpen(true);
   };
 
   const displayedPipelines =
