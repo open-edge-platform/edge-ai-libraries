@@ -81,8 +81,8 @@ model = OpenAILike(
     model=model_name,  
     is_chat_model=True,
     is_function_calling_model=False,
-    timeout=300,  # Increased timeout for long responses
-    max_retries=3,  # Allow more retries for transient failures
+    timeout=600,  # Increased timeout for long responses
+    max_retries=10,  # Allow more retries for transient failures
     api_key="not-needed"  # Some implementations require a non-empty API key
 )
 
