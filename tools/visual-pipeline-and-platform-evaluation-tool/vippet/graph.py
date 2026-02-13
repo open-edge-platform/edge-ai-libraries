@@ -13,7 +13,7 @@ from resources import (
     get_public_model_proc_manager,
     get_scripts_manager,
 )
-from utils import generate_unique_filename
+from utils import generate_unique_filename, slugify_text
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
@@ -77,7 +77,6 @@ _COMPILED_VISIBLE_PATTERNS = _compile_visibility_patterns(SIMPLE_VIEW_VISIBLE_EL
 _COMPILED_INVISIBLE_PATTERNS = _compile_visibility_patterns(
     SIMPLE_VIEW_INVISIBLE_ELEMENTS
 )
-
 
 # Internal reserved key used to mark special node kinds inside Node.data.
 # We cannot extend the public Node schema with a new top-level field, so we
@@ -550,13 +549,19 @@ class Graph:
 
         return modified_graph
 
-    def prepare_intermediate_output_sinks(self) -> tuple["Graph", list[str]]:
+    def prepare_intermediate_output_sinks(
+        self, pipeline_id: str, job_id: str
+    ) -> tuple["Graph", list[str]]:
         """
         Prepare intermediate output sink nodes with unique filenames in the output directory.
 
         This method handles intermediate/simulation output sinks (e.g., video recorder simulation)
         that are part of the pipeline definition. These are distinct from main output sinks
         which replace fakesink elements for user viewing (live stream or file output).
+
+        Args:
+            pipeline_id: Pipeline identifier used in output filename generation.
+            job_id: Job identifier used in output filename generation.
 
         Returns:
             tuple: (Graph object with updated sink nodes, list of intermediate output file paths)
@@ -577,8 +582,16 @@ class Graph:
             if not location:
                 continue
 
+            path = Path(location)
+            stem = Path(path.name).stem
+            ext = path.suffix
+
+            filename = slugify_text(
+                f"{stem}-intermediate_output-{pipeline_id}-{job_id}"
+            )
+
             # Create new filename with timestamp and suffix
-            new_filename = generate_unique_filename(location)
+            new_filename = generate_unique_filename(f"{filename}{ext}")
 
             # Construct new full path
             new_path = str(Path(OUTPUT_VIDEO_DIR) / new_filename)

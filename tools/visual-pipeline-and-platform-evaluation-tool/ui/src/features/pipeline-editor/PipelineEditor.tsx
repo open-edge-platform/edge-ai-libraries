@@ -38,6 +38,7 @@ export interface PipelineEditorHandle {
 
 interface PipelineEditorProps {
   pipelineData?: Pipeline;
+  variant?: string;
   onNodesChange?: (nodes: ReactFlowNode[]) => void;
   onEdgesChange?: (edges: ReactFlowEdge[]) => void;
   onViewportChange?: (viewport: Viewport) => void;
@@ -56,6 +57,7 @@ const PipelineEditorContent = forwardRef<
   (
     {
       pipelineData,
+      variant,
       onNodesChange: onNodesChangeCallback,
       onEdgesChange: onEdgesChangeCallback,
       onViewportChange: onViewportChangeCallback,
@@ -125,43 +127,49 @@ const PipelineEditorContent = forwardRef<
             }
           }, 0);
           setHasInitialized(true);
-        } else if (
-          pipelineData?.pipeline_graph ||
-          pipelineData?.pipeline_graph_simple
-        ) {
-          const graphToUse = isSimpleGraph
-            ? pipelineData.pipeline_graph_simple
-            : pipelineData.pipeline_graph;
-          const nodes = graphToUse?.nodes ?? [];
-          const edges = graphToUse?.edges ?? [];
-
-          const transformedNodes = nodes.map(
-            (node) =>
-              ({
-                ...node,
-                type: node.type,
-              }) as ReactFlowNode,
+        } else if (pipelineData && variant) {
+          const variantData = pipelineData.variants.find(
+            (v) => v.id === variant,
           );
 
-          const nodesWithPositions = createGraphLayout(
-            transformedNodes,
-            edges,
-            LayoutDirection.TopToBottom,
-          );
+          if (
+            variantData?.pipeline_graph ||
+            variantData?.pipeline_graph_simple
+          ) {
+            const graphToUse = isSimpleGraph
+              ? variantData.pipeline_graph_simple
+              : variantData.pipeline_graph;
+            const nodes = graphToUse?.nodes ?? [];
+            const edges = graphToUse?.edges ?? [];
 
-          setNodes(nodesWithPositions);
-          setEdges(edges);
+            const transformedNodes = nodes.map(
+              (node) =>
+                ({
+                  ...node,
+                  type: node.type,
+                }) as ReactFlowNode,
+            );
 
-          setTimeout(() => {
-            if (initialViewport) {
-              setViewport(initialViewport);
-            } else {
-              const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
-              setViewport({ x: viewportX, y: 50, zoom: 1 });
-            }
-          }, 0);
+            const nodesWithPositions = createGraphLayout(
+              transformedNodes,
+              edges,
+              LayoutDirection.TopToBottom,
+            );
 
-          setHasInitialized(true);
+            setNodes(nodesWithPositions);
+            setEdges(edges);
+
+            setTimeout(() => {
+              if (initialViewport) {
+                setViewport(initialViewport);
+              } else {
+                const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
+                setViewport({ x: viewportX, y: 50, zoom: 1 });
+              }
+            }, 0);
+
+            setHasInitialized(true);
+          }
         }
       }
     }, [
@@ -176,6 +184,7 @@ const PipelineEditorContent = forwardRef<
       setViewport,
       fitView,
       isSimpleGraph,
+      variant,
     ]);
 
     return (

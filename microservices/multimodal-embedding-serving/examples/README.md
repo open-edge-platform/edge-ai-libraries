@@ -187,7 +187,7 @@ docker run -p 8080:8080 \
 docker run -p 8080:8080 \
   -e EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16 \
   -e EMBEDDING_USE_OV=true \
-  -v $(pwd)/ov-models:/app/ov-models \
+  -v $(pwd)/ov-models:/app/ov_models \
   multimodal-embedding-serving
 ```
 

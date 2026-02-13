@@ -3,6 +3,7 @@ import logging
 import subprocess
 import threading
 from typing import List, Optional
+
 from onvif import ONVIFCamera
 
 from api.api_schemas import (
@@ -12,7 +13,7 @@ from api.api_schemas import (
     NetworkCameraDetails,
     CameraProfileInfo,
 )
-from utils import normalize_device_name_for_url
+from utils import slugify_text
 
 DEFAULT_ONVIF_JSON_PATH = "/onvif/onvif_cameras.json"
 
@@ -232,9 +233,7 @@ class USBCameraDiscovery:
                             device_num = device_path.replace("/dev/video", "")
 
                             # Create normalized device name for ID (URL-safe)
-                            device_name = normalize_device_name_for_url(
-                                current_device_name
-                            )
+                            device_name = slugify_text(current_device_name)
 
                             # Get camera resolution
                             resolution = self._get_camera_resolution(device_path)
