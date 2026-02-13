@@ -425,7 +425,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Pipeline for testing video output",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         added = manager.add_pipeline(new_pipeline)
@@ -467,7 +467,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Pipeline with GPU encoder",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         added = manager.add_pipeline(new_pipeline)
@@ -500,7 +500,7 @@ class TestPipelineManager(unittest.TestCase):
             description="First pipeline",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         pipeline2 = PipelineDefinition(
@@ -509,7 +509,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Second pipeline",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
 
@@ -800,7 +800,7 @@ class TestPipelineManager(unittest.TestCase):
             description="Test pipeline for build command",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
 
@@ -912,7 +912,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             description="Test pipeline for execution config",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         self.added_pipeline = self.manager.add_pipeline(test_pipeline)
@@ -1008,7 +1008,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             description="Another test pipeline",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         added2 = self.manager.add_pipeline(another_pipeline)
@@ -1050,7 +1050,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             description="Test pipeline for looping",
             source=PipelineSource.USER_CREATED,
             type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink",
+            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
             parameters=None,
         )
         self.added_pipeline = self.manager.add_pipeline(test_pipeline)

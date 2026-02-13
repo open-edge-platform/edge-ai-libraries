@@ -5,6 +5,39 @@
 import cv2
 import numpy as np
 
+
+def compute_iou(box, boxes):
+    """Compute IoU between a single box and an array of boxes.
+
+    Args:
+        box: Array-like of shape (4,) in [x1, y1, x2, y2].
+        boxes: Array-like of shape (N, 4) in [x1, y1, x2, y2].
+
+    Returns:
+        IoU values as a numpy array of shape (N,).
+    """
+    boxes = np.asarray(boxes)
+    box = np.asarray(box)
+    if boxes.size == 0:
+        return np.asarray([])
+
+    # Intersection top-left and bottom-right coordinates.
+    xx1 = np.maximum(box[0], boxes[:, 0])
+    yy1 = np.maximum(box[1], boxes[:, 1])
+    xx2 = np.minimum(box[2], boxes[:, 2])
+    yy2 = np.minimum(box[3], boxes[:, 3])
+
+    # Clamp to zero to avoid negative widths/heights for non-overlapping boxes.
+    inter_w = np.maximum(0.0, xx2 - xx1)
+    inter_h = np.maximum(0.0, yy2 - yy1)
+    inter = inter_w * inter_h
+
+    # Compute union area and return IoU for each box.
+    area_box = (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
+    area_boxes = (boxes[:, 2] - boxes[:, 0] + 1) * (boxes[:, 3] - boxes[:, 1] + 1)
+    union = area_box + area_boxes - inter
+    return np.where(union > 0, inter / union, 0.0)
+
 def preproc(img, input_size, swap=(2, 0, 1)):
     """
     Preprocess image for YOLOX inference.
@@ -38,31 +71,19 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 def nms(boxes, scores, nms_thr):
     """Single class NMS implemented in Numpy."""
-    x1 = boxes[:, 0]
-    y1 = boxes[:, 1]
-    x2 = boxes[:, 2]
-    y2 = boxes[:, 3]
-
-    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    # Sort by score descending so we keep the highest-confidence boxes first.
     order = scores.argsort()[::-1]
-
     keep = []
     while order.size > 0:
+        # Pick the next highest-score box and suppress overlaps above threshold.
         i = order[0]
         keep.append(i)
-        xx1 = np.maximum(x1[i], x1[order[1:]])
-        yy1 = np.maximum(y1[i], y1[order[1:]])
-        xx2 = np.minimum(x2[i], x2[order[1:]])
-        yy2 = np.minimum(y2[i], y2[order[1:]])
-
-        w = np.maximum(0.0, xx2 - xx1 + 1)
-        h = np.maximum(0.0, yy2 - yy1 + 1)
-        inter = w * h
-        ovr = inter / (areas[i] + areas[order[1:]] - inter)
-
-        inds = np.where(ovr <= nms_thr)[0]
+        if order.size == 1:
+            break
+        ious = compute_iou(boxes[i], boxes[order[1:]])
+        inds = np.where(ious <= nms_thr)[0]
+        # Shift indices by 1 because we skipped the current top box.
         order = order[inds + 1]
-
     return keep
 
 

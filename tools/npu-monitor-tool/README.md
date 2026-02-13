@@ -13,11 +13,13 @@ to track and analyze NPU performance.
 - **Power Consumption Tracking**: Monitor power usage in watts
 - **Thermal Management**: Track NPU temperature in Celsius
 - **Utilization Metrics**: View processing unit utilization percentage
-- **Memory Monitoring**: Track memory usage in MB/GB
+- **Memory Monitoring**: Track memory usage in MB/GB (PTL and later)
 - **Frequency Information**: Display operating frequency in Hz
 - **Bandwidth Analysis**: Monitor NPU DDR average bandwidth in MB/s or GB/s
 - **Tile Configuration**: View current tile configuration
 - **CSV Export**: Export metrics to CSV format for data analysis and visualization
+
+Disclaimer: The utilization percentage is a calculated metric, based on the difference in NPU busy timestamps when the inference starts and ends on NPU. It does not represent an exact hardware-level measurement. Hence, this metric is an approximation of workload and not a precise hardware utilization figure.
 
 ### Supported Platforms
 
