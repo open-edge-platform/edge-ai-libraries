@@ -36,7 +36,7 @@ RUN groupadd -g ${GID} appuser && \
 
 
 FROM python-base AS builder-base
-RUN apt-get update && apt-get install --no-install-recommends -y curl rsync build-essential
+RUN apt-get update && apt-get install --no-install-recommends -y curl rsync build-essential zstd
 
 # Install poetry. Installs in $POETRY_HOME with version $POETRY_VERSION
 RUN curl -sSL https://install.python-poetry.org | python -
