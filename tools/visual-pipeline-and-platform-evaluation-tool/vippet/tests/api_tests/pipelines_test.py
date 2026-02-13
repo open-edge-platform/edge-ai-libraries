@@ -376,43 +376,48 @@ class TestPipelinesAPI(unittest.TestCase):
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_empty_payload(self, mock_pipeline_manager_cls):
+        """Test that empty payload is rejected by Pydantic validation with 422."""
         response = self.client.patch("/pipelines/pipeline-ghi789", json={})
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.json(),
-            schemas.MessageResponse(
-                message="At least one of 'name', 'description', or 'tags' must be provided."
-            ).model_dump(),
-        )
+        # Pydantic validation returns 422
+        self.assertEqual(response.status_code, 422)
+        # Manager should not be called
+        mock_pipeline_manager_cls.return_value.update_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_empty_name_rejected(self, mock_pipeline_manager_cls):
+        """Test that empty name is rejected by Pydantic validation with 422."""
         payload = {"name": ""}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.json(),
-            schemas.MessageResponse(
-                message="Field 'name' must not be empty."
-            ).model_dump(),
-        )
+        # Pydantic validation returns 422
+        self.assertEqual(response.status_code, 422)
+        # Manager should not be called
+        mock_pipeline_manager_cls.return_value.update_pipeline.assert_not_called()
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_update_pipeline_whitespace_name_rejected(self, mock_pipeline_manager_cls):
+        """Test that whitespace-only name is rejected by Pydantic validation with 422."""
+        payload = {"name": "   "}
+        response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
+
+        # Pydantic validation returns 422
+        self.assertEqual(response.status_code, 422)
+        # Manager should not be called
+        mock_pipeline_manager_cls.return_value.update_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_empty_description_rejected(
         self, mock_pipeline_manager_cls
     ):
+        """Test that whitespace-only description is rejected by Pydantic validation with 422."""
         payload = {"description": "   "}
         response = self.client.patch("/pipelines/pipeline-ghi789", json=payload)
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.json(),
-            schemas.MessageResponse(
-                message="Field 'description' must not be empty."
-            ).model_dump(),
-        )
+        # Pydantic validation returns 422
+        self.assertEqual(response.status_code, 422)
+        # Manager should not be called
+        mock_pipeline_manager_cls.return_value.update_pipeline.assert_not_called()
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_not_found(self, mock_pipeline_manager_cls):

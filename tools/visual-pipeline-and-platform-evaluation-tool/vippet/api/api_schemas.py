@@ -358,9 +358,12 @@ class VariantUpdate(BaseModel):
 
     All fields are optional, but at least one must be provided.
     Only one of pipeline_graph or pipeline_graph_simple can be provided per request.
+    String fields (name) must be non-empty after trimming whitespace.
+
+    Validation is performed in model_validator to fail fast on invalid input.
 
     Attributes:
-        name: Optional new variant name (non-empty if provided).
+        name: Optional new variant name (non-empty after trim if provided).
         pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple).
         pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph).
     """
@@ -380,8 +383,9 @@ class VariantUpdate(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_graph_exclusivity(self):
-        """Ensure that both graphs are not provided together."""
+    def validate_update_fields(self):
+        """Ensure at least one field is provided, graphs are exclusive, and strings are non-empty after trim."""
+        # Ensure that both graphs are not provided together
         if self.pipeline_graph is not None and self.pipeline_graph_simple is not None:
             raise ValueError(
                 "Cannot provide both 'pipeline_graph' and 'pipeline_graph_simple' in the same request."
@@ -396,6 +400,10 @@ class VariantUpdate(BaseModel):
             raise ValueError(
                 "At least one of 'name', 'pipeline_graph', or 'pipeline_graph_simple' must be provided."
             )
+
+        # Check that string fields are non-empty after trim
+        if self.name is not None and self.name.strip() == "":
+            raise ValueError("Field 'name' must not be empty.")
 
         return self
 
@@ -885,12 +893,15 @@ class PipelineUpdate(BaseModel):
     """
     Partial update model for an existing pipeline.
 
-    All fields are optional; at least one must be provided when calling
-    the update endpoint.
+    All fields are optional, but at least one must be provided when calling
+    the update endpoint. String fields (name, description) must be non-empty
+    after trimming whitespace.
+
+    Validation is performed in model_validator to fail fast on invalid input.
 
     Attributes:
-        name: Optional new pipeline name (non-empty if provided).
-        description: Optional new human-readable text describing what the pipeline does (non-empty if provided).
+        name: Optional new pipeline name (non-empty after trim if provided).
+        description: Optional new human-readable text describing what the pipeline does (non-empty after trim if provided).
         tags: Optional list of tags. If provided, can be empty.
 
     Example:
@@ -905,6 +916,24 @@ class PipelineUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     tags: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def validate_update_fields(self):
+        """Ensure at least one field is provided and strings are non-empty after trim."""
+        # Check that at least one field is provided
+        if self.name is None and self.description is None and self.tags is None:
+            raise ValueError(
+                "At least one of 'name', 'description', or 'tags' must be provided."
+            )
+
+        # Check that string fields are non-empty after trim
+        if self.name is not None and self.name.strip() == "":
+            raise ValueError("Field 'name' must not be empty.")
+
+        if self.description is not None and self.description.strip() == "":
+            raise ValueError("Field 'description' must not be empty.")
+
+        return self
 
 
 class PipelineValidation(BaseModel):

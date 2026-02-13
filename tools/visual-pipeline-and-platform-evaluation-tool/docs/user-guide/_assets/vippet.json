@@ -1126,7 +1126,7 @@
           "pipelines"
         ],
         "summary": "Update Pipeline",
-        "description": "Partially update selected fields of an existing pipeline.\n\nOperation:\n    * Validate that at least one field is provided\n    * Validate field values if provided\n    * Delegate to PipelineManager.update_pipeline()\n    * Backend automatically updates modified_at timestamp\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * source (immutable)\n    * thumbnail (only set for PREDEFINED pipelines from config files)\n    * created_at (immutable, set when pipeline is created)\n    * modified_at (automatically updated by backend as UTC datetime)\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string).\n        * description \u2013 new human-readable text (non-empty string).\n        * tags \u2013 list of tags (can be empty).\n\nReturns:\n    200 OK:\n        Updated Pipeline object with all fields including updated modified_at.\n    400 Bad Request:\n        MessageResponse when:\n        * none of the updatable fields is provided,\n        * provided name or description is empty.\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n\nFailure conditions:\n    * No fields provided \u2192 400\n    * Empty name or description \u2192 400\n    * Unknown id \u2192 404\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"source\": \"USER_CREATED\",\n          \"tags\": [\"updated\", \"v2\"],\n          \"variants\": [...],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one of 'name', 'description', or 'tags' must be provided.\"\n        }",
+        "description": "Partially update selected fields of an existing pipeline.\n\nOperation:\n    * Validate request body via PipelineUpdate model (at least one field,\n      non-empty strings after trim)\n    * Delegate to PipelineManager.update_pipeline()\n    * Backend automatically updates modified_at timestamp\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * source (immutable)\n    * thumbnail (only set for PREDEFINED pipelines from config files)\n    * created_at (immutable, set when pipeline is created)\n    * modified_at (automatically updated by backend as UTC datetime)\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate (validated by Pydantic)\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string after trim).\n        * description \u2013 new human-readable text (non-empty string after trim).\n        * tags \u2013 list of tags (can be empty).\n\nReturns:\n    200 OK:\n        Updated Pipeline object with all fields including updated modified_at.\n    400 Bad Request:\n        MessageResponse when manager-level validation fails.\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    422 Unprocessable Entity:\n        Pydantic validation error when:\n        * none of the updatable fields is provided,\n        * provided name or description is empty after trim.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n\nFailure conditions:\n    * No fields provided \u2192 422 (Pydantic validation)\n    * Empty name or description after trim \u2192 422 (Pydantic validation)\n    * Unknown id \u2192 404\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"source\": \"USER_CREATED\",\n          \"tags\": [\"updated\", \"v2\"],\n          \"variants\": [...],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (422):\n    .. code-block:: json\n\n        {\n          \"detail\": [\n            {\n              \"type\": \"value_error\",\n              \"msg\": \"Value error, At least one of 'name', 'description', or 'tags' must be provided.\"\n            }\n          ]\n        }",
         "operationId": "update_pipeline",
         "parameters": [
           {
@@ -1180,8 +1180,8 @@
               }
             }
           },
-          "500": {
-            "description": "Unexpected error",
+          "422": {
+            "description": "Validation error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1190,12 +1190,12 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "500": {
+            "description": "Unexpected error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -1505,7 +1505,7 @@
           "pipelines"
         ],
         "summary": "Update Variant",
-        "description": "Update an existing variant.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Check that variant is not read-only\n    * Validate request body (checked by VariantUpdate model)\n    * Delegate to PipelineManager.update_variant()\n    * Backend automatically updates variant's and pipeline's modified_at timestamps\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * read_only (immutable)\n    * created_at (immutable, set when variant is created)\n    * modified_at (automatically updated by backend)\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to update.\n\nRequest body:\n    body: VariantUpdate (validated by Pydantic)\n        * name: Optional variant name\n        * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)\n        * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)\n\nAllowed fields:\n    * name: Variant name\n    * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)\n    * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)\n\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\nCannot update read-only variants (from PREDEFINED pipelines).\n\nReturns:\n    200 OK:\n        Updated Variant object with updated modified_at timestamp.\n    400 Bad Request:\n        MessageResponse when request is invalid, variant is read-only, or\n        both graphs are provided (validated by VariantUpdate model).\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Variant is not read-only\n    * At least one field provided\n    * At most one graph field provided\n    * Variant is successfully updated\n    * Variant's and pipeline's modified_at are updated\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Variant is read-only \u2192 400\n    * Invalid request (no fields or both graphs) \u2192 400\n    * Any other exception \u2192 500\n\nRequest example (update name):\n    .. code-block:: json\n\n        {\n          \"name\": \"GPU-optimized\"\n        }\n\nRequest example (update advanced graph):\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"variant-1\",\n          \"name\": \"GPU-optimized\",\n          \"read_only\": false,\n          \"pipeline_graph\": {...},\n          \"pipeline_graph_simple\": {...},\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (400, read-only):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot update read-only variant 'variant-1'.\"\n        }",
+        "description": "Update an existing variant.\n\nOperation:\n    * Validate request body via VariantUpdate model (at least one field,\n      non-empty strings after trim, graph exclusivity)\n    * Validate that pipeline and variant exist\n    * Check that variant is not read-only\n    * Delegate to PipelineManager.update_variant()\n    * Backend automatically updates variant's and pipeline's modified_at timestamps\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * read_only (immutable)\n    * created_at (immutable, set when variant is created)\n    * modified_at (automatically updated by backend)\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to update.\n\nRequest body:\n    body: VariantUpdate (validated by Pydantic)\n        * name: Optional variant name (non-empty after trim)\n        * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)\n        * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)\n\nAllowed fields:\n    * name: Variant name (non-empty after trim)\n    * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)\n    * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)\n\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\nCannot update read-only variants (from PREDEFINED pipelines).\n\nReturns:\n    200 OK:\n        Updated Variant object with updated modified_at timestamp.\n    400 Bad Request:\n        MessageResponse when variant is read-only.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    422 Unprocessable Entity:\n        Pydantic validation error when:\n        * no fields provided,\n        * both graphs provided,\n        * name is empty after trim.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Variant is not read-only\n    * At least one field provided\n    * At most one graph field provided\n    * Name is non-empty after trim (if provided)\n    * Variant is successfully updated\n    * Variant's and pipeline's modified_at are updated\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Variant is read-only \u2192 400\n    * Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n    * Any other exception \u2192 500\n\nRequest example (update name):\n    .. code-block:: json\n\n        {\n          \"name\": \"GPU-optimized\"\n        }\n\nRequest example (update advanced graph):\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"variant-1\",\n          \"name\": \"GPU-optimized\",\n          \"read_only\": false,\n          \"pipeline_graph\": {...},\n          \"pipeline_graph_simple\": {...},\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (400, read-only):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot update read-only variant 'variant-1'.\"\n        }\n\nError response example (422, empty name):\n    .. code-block:: json\n\n        {\n          \"detail\": [\n            {\n              \"type\": \"value_error\",\n              \"msg\": \"Value error, Field 'name' must not be empty.\"\n            }\n          ]\n        }",
         "operationId": "update_variant",
         "parameters": [
           {
@@ -1569,11 +1569,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Validation error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -3563,7 +3563,7 @@
         },
         "type": "object",
         "title": "PipelineUpdate",
-        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional; at least one must be provided when calling\nthe update endpoint.\n\nAttributes:\n    name: Optional new pipeline name (non-empty if provided).\n    description: Optional new human-readable text describing what the pipeline does (non-empty if provided).\n    tags: Optional list of tags. If provided, can be empty.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }"
+        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional, but at least one must be provided when calling\nthe update endpoint. String fields (name, description) must be non-empty\nafter trimming whitespace.\n\nValidation is performed in model_validator to fail fast on invalid input.\n\nAttributes:\n    name: Optional new pipeline name (non-empty after trim if provided).\n    description: Optional new human-readable text describing what the pipeline does (non-empty after trim if provided).\n    tags: Optional list of tags. If provided, can be empty.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }"
       },
       "PipelineValidation-Input": {
         "properties": {
@@ -3733,6 +3733,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -4006,7 +4013,7 @@
         },
         "type": "object",
         "title": "VariantUpdate",
-        "description": "Input model for updating an existing variant.\n\nAll fields are optional, but at least one must be provided.\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\n\nAttributes:\n    name: Optional new variant name (non-empty if provided).\n    pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple).\n    pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)."
+        "description": "Input model for updating an existing variant.\n\nAll fields are optional, but at least one must be provided.\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\nString fields (name) must be non-empty after trimming whitespace.\n\nValidation is performed in model_validator to fail fast on invalid input.\n\nAttributes:\n    name: Optional new variant name (non-empty after trim if provided).\n    pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple).\n    pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)."
       },
       "Video": {
         "properties": {
