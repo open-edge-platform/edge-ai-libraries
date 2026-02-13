@@ -605,6 +605,10 @@ const DemoMode = () => {
   );
 
   useEffect(() => {
+    if (!jobStatus || jobStatus.id !== densityJobId) {
+      return;
+    }
+    
     if (jobStatus?.state === "COMPLETED") {
       setTestResult({
         per_stream_fps: jobStatus.per_stream_fps,
@@ -665,6 +669,10 @@ const DemoMode = () => {
   ]);
 
   useEffect(() => {
+    if (!performanceJobStatus || performanceJobStatus.id !== performanceJobId) {
+      return;
+    }
+    
     if (performanceJobStatus?.state === "COMPLETED") {
       setPerformanceResult({
         total_fps: performanceJobStatus.total_fps,
@@ -886,6 +894,7 @@ const DemoMode = () => {
     setMetricHistorySnapshot([]);
     setMetricsFrozenForJobId(null);
     setLastRunTest(activeTest);
+    setPreviewCarouselIndex(0);
 
     try {
       for (const selection of pipelineSelections) {
@@ -2449,7 +2458,7 @@ const DemoMode = () => {
                                     Running throughput test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator />
+                                <TestProgressIndicator key={performanceJobId || testStartTimestamp} />
                               </div>
                             )}
                           </div>
@@ -2482,6 +2491,7 @@ const DemoMode = () => {
                           frozenMetricsSummary && (
                             <div className="space-y-3">
                               <TestProgressIndicator
+                                key={metricsFrozenForJobId || testStartTimestamp}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2536,6 +2546,7 @@ const DemoMode = () => {
 
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
+                                key={metricsFrozenForJobId || testStartTimestamp}
                                 className="mt-2"
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
@@ -2568,7 +2579,7 @@ const DemoMode = () => {
                                     Running density test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator />
+                                <TestProgressIndicator key={densityJobId || testStartTimestamp} />
                               </div>
                             )}
                           </div>
@@ -2601,6 +2612,7 @@ const DemoMode = () => {
                           frozenMetricsSummary && (
                             <div className="space-y-3">
                               <TestProgressIndicator
+                                key={metricsFrozenForJobId || testStartTimestamp}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2666,6 +2678,7 @@ const DemoMode = () => {
                             )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
+                                key={metricsFrozenForJobId || testStartTimestamp}
                                 className="mt-2"
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
