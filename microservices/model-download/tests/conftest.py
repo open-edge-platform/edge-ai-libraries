@@ -375,6 +375,50 @@ def conversion_config():
         "cache": 10
     }
 
+
+@pytest.fixture
+def conversion_config_optimum_cli():
+    """Fixture for Optimum CLI-aligned config (new nested structure)"""
+    return {
+        "openvino_config": {
+            "precision": "int4",
+            "device": "CPU",
+            "cache_size": 20,
+            "kv_cache_precision": "u8",
+            "enable_prefix_caching": True,
+            "max_num_batched_tokens": 256,
+            "ov_cache_dir": "/tmp/ov_cache"
+        }
+    }
+
+
+@pytest.fixture
+def conversion_config_mixed():
+    """Fixture for mixed config (backward compatible with both flat and nested)"""
+    return {
+        "precision": "int8",  # Common level
+        "device": "CPU",      # Common level
+        "openvino_config": {
+            "precision": "int4",  # Override at plugin level
+            "cache_size": 20,
+            "enable_prefix_caching": True
+        }
+    }
+
+
+@pytest.fixture
+def conversion_config_with_unknown_params():
+    """Fixture for config with future unknown parameters (future-proof test)"""
+    return {
+        "openvino_config": {
+            "precision": "int8",
+            "device": "CPU",
+            "cache_size": 10,
+            "new_quantization_method": "gptq",  # Unknown parameter - should be passed through
+            "custom_optimization_flag": True    # Unknown boolean - should be handled
+        }
+    }
+
 @pytest.fixture
 def job_data():
     """Fixture for job data structure"""
