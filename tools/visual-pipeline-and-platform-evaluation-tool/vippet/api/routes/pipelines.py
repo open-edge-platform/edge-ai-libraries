@@ -394,6 +394,7 @@ def get_pipeline(pipeline_id: str):
         200: {"description": "Pipeline updated", "model": schemas.Pipeline},
         404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
         400: {"description": "Invalid request", "model": schemas.MessageResponse},
+        422: {"description": "Validation error", "model": schemas.MessageResponse},
         500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
@@ -402,8 +403,8 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     Partially update selected fields of an existing pipeline.
 
     Operation:
-        * Validate that at least one field is provided
-        * Validate field values if provided
+        * Validate request body via PipelineUpdate model (at least one field,
+          non-empty strings after trim)
         * Delegate to PipelineManager.update_pipeline()
         * Backend automatically updates modified_at timestamp
 
@@ -418,21 +419,23 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         pipeline_id: ID of the pipeline to update.
 
     Request body:
-        body: PipelineUpdate
+        body: PipelineUpdate (validated by Pydantic)
             Any combination of:
-            * name – new pipeline name (non-empty string).
-            * description – new human-readable text (non-empty string).
+            * name – new pipeline name (non-empty string after trim).
+            * description – new human-readable text (non-empty string after trim).
             * tags – list of tags (can be empty).
 
     Returns:
         200 OK:
             Updated Pipeline object with all fields including updated modified_at.
         400 Bad Request:
-            MessageResponse when:
-            * none of the updatable fields is provided,
-            * provided name or description is empty.
+            MessageResponse when manager-level validation fails.
         404 Not Found:
             MessageResponse when pipeline id does not exist.
+        422 Unprocessable Entity:
+            Pydantic validation error when:
+            * none of the updatable fields is provided,
+            * provided name or description is empty after trim.
         500 Internal Server Error:
             MessageResponse for unexpected errors.
 
@@ -441,8 +444,8 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
         * At least one valid field is provided and passes validation.
 
     Failure conditions:
-        * No fields provided → 400
-        * Empty name or description → 400
+        * No fields provided → 422 (Pydantic validation)
+        * Empty name or description after trim → 422 (Pydantic validation)
         * Unknown id → 404
         * Any other exception → 500
 
@@ -470,49 +473,18 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
               "modified_at": "2026-02-05T15:45:00.456000+00:00"
             }
 
-    Error response example (400):
+    Error response example (422):
         .. code-block:: json
 
             {
-              "message": "At least one of 'name', 'description', or 'tags' must be provided."
+              "detail": [
+                {
+                  "type": "value_error",
+                  "msg": "Value error, At least one of 'name', 'description', or 'tags' must be provided."
+                }
+              ]
             }
     """
-    if body.name is None and body.description is None and body.tags is None:
-        message = "At least one of 'name', 'description', or 'tags' must be provided."
-        logger.error(
-            "Invalid update request for pipeline %s: %s",
-            pipeline_id,
-            message,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=message).model_dump(),
-            status_code=400,
-        )
-
-    if body.name is not None and body.name.strip() == "":
-        message = "Field 'name' must not be empty."
-        logger.error(
-            "Invalid update request for pipeline %s: %s",
-            pipeline_id,
-            message,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=message).model_dump(),
-            status_code=400,
-        )
-
-    if body.description is not None and body.description.strip() == "":
-        message = "Field 'description' must not be empty."
-        logger.error(
-            "Invalid update request for pipeline %s: %s",
-            pipeline_id,
-            message,
-        )
-        return JSONResponse(
-            content=schemas.MessageResponse(message=message).model_dump(),
-            status_code=400,
-        )
-
     try:
         updated_pipeline = PipelineManager().update_pipeline(
             pipeline_id=pipeline_id,
@@ -1012,6 +984,7 @@ def delete_variant(pipeline_id: str, variant_id: str):
             "description": "Pipeline or variant not found",
             "model": schemas.MessageResponse,
         },
+        422: {"description": "Validation error", "model": schemas.MessageResponse},
     },
 )
 def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdate):
@@ -1019,9 +992,10 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
     Update an existing variant.
 
     Operation:
+        * Validate request body via VariantUpdate model (at least one field,
+          non-empty strings after trim, graph exclusivity)
         * Validate that pipeline and variant exist
         * Check that variant is not read-only
-        * Validate request body (checked by VariantUpdate model)
         * Delegate to PipelineManager.update_variant()
         * Backend automatically updates variant's and pipeline's modified_at timestamps
 
@@ -1037,12 +1011,12 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
 
     Request body:
         body: VariantUpdate (validated by Pydantic)
-            * name: Optional variant name
+            * name: Optional variant name (non-empty after trim)
             * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)
             * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)
 
     Allowed fields:
-        * name: Variant name
+        * name: Variant name (non-empty after trim)
         * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)
         * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)
 
@@ -1053,23 +1027,30 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
         200 OK:
             Updated Variant object with updated modified_at timestamp.
         400 Bad Request:
-            MessageResponse when request is invalid, variant is read-only, or
-            both graphs are provided (validated by VariantUpdate model).
+            MessageResponse when variant is read-only.
         404 Not Found:
             MessageResponse when pipeline or variant not found.
+        422 Unprocessable Entity:
+            Pydantic validation error when:
+            * no fields provided,
+            * both graphs provided,
+            * name is empty after trim.
+        500 Internal Server Error:
+            MessageResponse for unexpected errors.
 
     Success conditions:
         * Pipeline and variant exist
         * Variant is not read-only
         * At least one field provided
         * At most one graph field provided
+        * Name is non-empty after trim (if provided)
         * Variant is successfully updated
         * Variant's and pipeline's modified_at are updated
 
     Failure conditions:
         * Pipeline or variant not found → 404
         * Variant is read-only → 400
-        * Invalid request (no fields or both graphs) → 400
+        * Invalid request (no fields, both graphs, empty name) → 422 (Pydantic validation)
         * Any other exception → 500
 
     Request example (update name):
@@ -1107,6 +1088,18 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
 
             {
               "message": "Cannot update read-only variant 'variant-1'."
+            }
+
+    Error response example (422, empty name):
+        .. code-block:: json
+
+            {
+              "detail": [
+                {
+                  "type": "value_error",
+                  "msg": "Value error, Field 'name' must not be empty."
+                }
+              ]
             }
     """
     try:

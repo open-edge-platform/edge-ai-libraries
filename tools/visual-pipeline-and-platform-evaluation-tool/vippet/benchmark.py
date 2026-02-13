@@ -105,6 +105,7 @@ class Benchmark:
         pipeline_density_specs: list[InternalPipelineDensitySpec],
         fps_floor: float,
         execution_config: InternalExecutionConfig,
+        job_id: str,
     ) -> BenchmarkResult:
         """
         Run the benchmark and return the best configuration.
@@ -115,6 +116,7 @@ class Benchmark:
             fps_floor: Minimum FPS threshold per stream.
             execution_config: InternalExecutionConfig for output and runtime.
                 Note: output_mode=live_stream is not supported for density tests.
+            job_id: Unique job identifier used for generating output filenames.
 
         Returns:
             BenchmarkResult with optimal stream configuration. The streams_per_pipeline
@@ -175,7 +177,9 @@ class Benchmark:
 
             # Build pipeline command using PipelineManager singleton
             pipeline_command, video_output_paths, _ = (
-                PipelineManager().build_pipeline_command(run_specs, execution_config)
+                PipelineManager().build_pipeline_command(
+                    run_specs, execution_config, job_id
+                )
             )
 
             # Run the pipeline

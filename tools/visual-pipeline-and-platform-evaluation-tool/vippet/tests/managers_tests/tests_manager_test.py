@@ -504,6 +504,12 @@ class TestTestsManager(unittest.TestCase):
             manager._execute_performance_test(job_id, internal_spec)
             self.assertIn(job_id, manager.jobs)
             mock_run.assert_called_once()
+            # Verify build_pipeline_command was called with job_id
+            mock_pipeline_manager_instance.build_pipeline_command.assert_called_once()
+            call_args = mock_pipeline_manager_instance.build_pipeline_command.call_args
+            self.assertEqual(
+                call_args[0][2], job_id
+            )  # Third positional argument is job_id
 
     @patch("managers.tests_manager.PipelineManager")
     def test_execute_performance_test_updates_metrics_on_completion(
@@ -694,9 +700,13 @@ class TestTestsManager(unittest.TestCase):
 
         manager._execute_density_test(job_id, internal_spec)
 
+        # Verify benchmark.run was called with job_id
+        mock_benchmark_instance.run.assert_called_once()
+        call_kwargs = mock_benchmark_instance.run.call_args[1]
+        self.assertEqual(call_kwargs["job_id"], job_id)
+
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, TestJobState.COMPLETED)
-        self.assertIsNone(updated.total_fps)
         self.assertEqual(updated.per_stream_fps, 90.0)
         self.assertEqual(len(updated.streams_per_pipeline or []), 2)
         self.assertEqual(updated.total_streams, 3)

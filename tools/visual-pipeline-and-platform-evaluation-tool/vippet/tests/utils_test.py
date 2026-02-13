@@ -189,14 +189,14 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         filename = "video.mp4"
         result = utils.generate_unique_filename(filename)
 
-        # Should start with "video_"
-        self.assertTrue(result.startswith("video_"))
+        # Should start with "video-"
+        self.assertTrue(result.startswith("video-"))
 
         # Should end with ".mp4"
         self.assertTrue(result.endswith(".mp4"))
 
-        # Should match pattern: stem_YYYYMMDD_HHMMSS_<6hex>.mp4
-        pattern = r"^video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        # Should match pattern: stem-YYYYMMDD_HHMMSS-<6hex>.mp4
+        pattern = r"^video-\d{8}_\d{6}-[0-9a-f]{6}\.mp4$"
         self.assertIsNotNone(re.match(pattern, result))
 
     def test_generate_unique_filename_no_extension(self):
@@ -208,7 +208,7 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         self.assertTrue(result.endswith(".mp4"))
 
         # Should match pattern with default extension
-        pattern = r"^video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        pattern = r"^video-\d{8}_\d{6}-[0-9a-f]{6}\.mp4$"
         self.assertIsNotNone(re.match(pattern, result))
 
     def test_generate_unique_filename_uniqueness(self):
@@ -227,8 +227,8 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         # Should not include path separators
         self.assertNotIn("/", result)
 
-        # Should start with "video_"
-        self.assertTrue(result.startswith("video_"))
+        # Should start with "video-"
+        self.assertTrue(result.startswith("video-"))
 
         # Should end with ".mp4"
         self.assertTrue(result.endswith(".mp4"))
@@ -239,10 +239,10 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         result = utils.generate_unique_filename(filename)
 
         # Should start with the original stem
-        self.assertTrue(result.startswith("test_video_123_"))
+        self.assertTrue(result.startswith("test_video_123-"))
 
         # Should match pattern
-        pattern = r"^test_video_123_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        pattern = r"^test_video_123-\d{8}_\d{6}-[0-9a-f]{6}\.mp4$"
         self.assertIsNotNone(re.match(pattern, result))
 
     def test_generate_unique_filename_special_characters(self):
@@ -251,10 +251,10 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         result = utils.generate_unique_filename(filename)
 
         # Should preserve special characters in stem
-        self.assertTrue(result.startswith("test-video_"))
+        self.assertTrue(result.startswith("test-video-"))
 
         # Should match pattern
-        pattern = r"^test-video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        pattern = r"^test-video-\d{8}_\d{6}-[0-9a-f]{6}\.mp4$"
         self.assertIsNotNone(re.match(pattern, result))
 
     def test_generate_unique_filename_empty_string(self):
@@ -266,7 +266,7 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         self.assertTrue(result.endswith(".mp4"))
 
         # Should match pattern with empty stem
-        pattern = r"^_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        pattern = r"^-\d{8}_\d{6}-[0-9a-f]{6}\.mp4$"
         self.assertIsNotNone(re.match(pattern, result))
 
     def test_generate_unique_filename_hex_suffix_length(self):
@@ -275,7 +275,7 @@ class TestGenerateUniqueFilename(unittest.TestCase):
         result = utils.generate_unique_filename(filename)
 
         # Extract the hex suffix
-        match = re.search(r"_([0-9a-f]{6})\.mp4$", result)
+        match = re.search(r"-([0-9a-f]{6})\.mp4$", result)
         assert match is not None  # Type narrowing for linter
 
         hex_suffix = match.group(1)

@@ -95,6 +95,7 @@ class TestPipelineManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         PipelineManager._instance = None
+        self.job_id = "test-job-123"
 
     def test_add_pipeline_valid(self):
         manager = PipelineManager()
@@ -303,7 +304,7 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command is not empty and contains pipeline elements
@@ -330,7 +331,7 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
@@ -377,7 +378,7 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command contains multiple instances
@@ -432,7 +433,7 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify both pipeline types are present
@@ -579,7 +580,7 @@ class TestPipelineManager(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify video output is configured
@@ -614,7 +615,7 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config()
 
         _, output_paths, _ = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify pipeline ID format for variant reference
@@ -1075,6 +1076,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         PipelineManager._instance = None
         self.manager = PipelineManager()
         self.manager.pipelines = []
+        self.job_id = "test-job-456"
 
         # Create internal specs for all tests
         self.specs = [
@@ -1093,7 +1095,9 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         with self.assertRaises(ValueError) as context:
-            self.manager.build_pipeline_command(self.specs, execution_config)
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
 
         self.assertIn(
             "output_mode='file' cannot be combined with max_runtime > 0",
@@ -1108,7 +1112,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
@@ -1123,7 +1127,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
@@ -1138,7 +1142,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
@@ -1155,7 +1159,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         pipeline_id = "/pipelines/test-execution-config/variants/cpu"
@@ -1183,7 +1187,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            specs, execution_config
+            specs, execution_config, self.job_id
         )
 
         # Should have exactly 2 live stream URLs (one per pipeline)
@@ -1199,6 +1203,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         PipelineManager._instance = None
         self.manager = PipelineManager()
         self.manager.pipelines = []
+        self.job_id = "test-job-789"
 
         # Create internal specs for looping tests
         graph_dict = {
@@ -1229,7 +1234,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIn("videotestsrc", command)
@@ -1243,7 +1248,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIn("videotestsrc", command)
@@ -1257,7 +1262,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         )
 
         command, _, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIn("rtspclientsink", command)
@@ -1272,7 +1277,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIn("videotestsrc", command)
