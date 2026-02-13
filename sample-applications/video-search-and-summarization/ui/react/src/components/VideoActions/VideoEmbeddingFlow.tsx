@@ -541,7 +541,18 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       return res.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        throw new Error(`Embedding creation failed: ${error.response?.data?.message || error.message}`);
+        const responseMessage = error.response?.data?.message;
+        const status = error.response?.status;
+        const timeoutHit =
+          error.code === 'ECONNABORTED' ||
+          status === 504 ||
+          /timeout/i.test(responseMessage || error.message || '');
+
+        if (timeoutHit || responseMessage === 'Internal server error') {
+          throw new Error(t('timeoutError'));
+        }
+
+        throw new Error(responseMessage || error.message);
       }
       throw error;
     }
@@ -610,10 +621,27 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
 
       let errorMessage = t('videoUploadError');
 
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message; 
+      if (axios.isAxiosError(error)) {
+        const responseMessage = error.response?.data?.message;
+        const status = error.response?.status;
+        const timeoutHit =
+          error.code === 'ECONNABORTED' ||
+          status === 504 ||
+          /timeout/i.test(responseMessage || error.message || '');
+
+        if (timeoutHit || responseMessage === 'Internal server error') {
+          errorMessage = t('timeoutError');
+        } else if (responseMessage) {
+          errorMessage = responseMessage;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       } else if (error instanceof Error) {
+        if (/Embedding creation failed: Internal server error/i.test(error.message)) {
+          errorMessage = t('timeoutError');
+        } else {
         errorMessage = error.message;
+        }
       }
 
       setUploadErrorMessage(errorMessage);
@@ -888,11 +916,17 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 </div>
               </div>
               {uploadErrorMessage && (
-                <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
-                  <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
-                  <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
-                  <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
-                </ErrorBox>
+                uploadErrorMessage === t('OnlyStreamableMp4') ? (
+                  <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                    <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
+                    <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('StreamableHelpText')}</div>
+                    <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                  </ErrorBox>
+                ) : (
+                  <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                    <div><strong>{uploadErrorMessage}</strong></div>
+                  </ErrorBox>
+                )
               )}
               {uploading && (
                 <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />

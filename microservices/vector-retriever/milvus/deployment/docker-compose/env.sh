@@ -17,6 +17,7 @@ export https_proxy=${https_proxy}
 
 export MILVUS_HOST=${host_ip}
 export MILVUS_PORT=19530
+export DOCKER_VOLUME_DIRECTORY="/opt"
 
 # huggingface mirror 
 export HF_ENDPOINT=https://hf-mirror.com

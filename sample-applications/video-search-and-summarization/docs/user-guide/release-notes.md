@@ -2,6 +2,35 @@
 
 ## Current Release
 
+**Version**: rc1.4.0 \
+**Release Date**: 16 Jan 2026  
+
+**Features**:
+
+- In VSS search mode, users can now filter results by time range via:
+  - Query parsing to infer time ranges (e.g., "person seen in last 5 minutes").
+  - Direct time range input from the UI.
+- Added live system performance metrics in the search UI (enable with `export ENABLE_VSS_COLLECTOR=true`).
+- Fixed the build script of the `vdms-dataprep` microservice.
+- Added telemetry collection of the application metrics for VDMS-dataprep microservice and VLM microservice.
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+**Known Issues/Limitations**:
+
+- Helm implementation for telemetry feature not implemented yet.
+- EMF and EMT are not supported yet.
+- Video Summarization with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines.
+- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
+- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
+- Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
+
+## Previous releases
+
 **Version**: 1.3.1 \
 **Release Date**: 20 Nov 2025
 
@@ -25,19 +54,6 @@
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
-**Known Issues/Limitations**:
-
-- EMF and EMT are not supported yet.
-- Video Summarization with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines.
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-- Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
-- Directory Watcher service only supported in Search only mode.
-
-## Previous releases
 
 **Version**: rc1.3.2 \
 **Release Date**: 14 Nov 2025

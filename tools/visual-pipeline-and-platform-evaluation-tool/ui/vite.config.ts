@@ -16,6 +16,12 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        "/stream_": {
+          target: env.VITE_MEDIAMTX_URL || "http://localhost:8889",
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+        },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
           changeOrigin: true,

@@ -82,7 +82,12 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
+      DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1}
+      TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}
+    volumes:
+      - collector_signals:/app/.collector-signals
     restart: unless-stopped
+    user: "0:0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -142,6 +147,8 @@ volumes:
   minio_data:
     driver: local
   pg_data:
+    driver: local
+  collector_signals:
     driver: local
 networks:
   vs_network:

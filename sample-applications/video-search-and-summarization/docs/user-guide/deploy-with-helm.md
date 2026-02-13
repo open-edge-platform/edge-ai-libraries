@@ -104,10 +104,15 @@ Update or edit the values in YAML file as follows:
 | `global.gpu.device` | Set to `GPU` if need to deploy the inference workload on GPU device | GPU |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
+| `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
+| `vsscollector.websocketUrl` | Override the telemetry websocket URL (defaults to `ws://pipeline-manager:80/metrics/ws/collector`) | `ws://pipeline-manager:80/metrics/ws/collector` |
+| `vsscollector.signalVolume.subPath` | Subpath under the shared volume for telemetry signal files | `collector-signals` |
 
 > **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.gpu.multimodalembeddingmsEnabled=true` **and** `global.gpu.vdmsdataprepEnabled=true`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the flags don’t match while both services are enabled.
+
+> **Telemetry (vss-collector):** When `vsscollector.enabled=true`, the chart deploys a telegraf-based collector and wires it to the pipeline-manager websocket at `/metrics/ws/collector`. If your cluster uses a non-default Service port or a custom ingress, set `vsscollector.websocketUrl` explicitly. The collector reads optional dataprep signal files from the shared volume; if `vdms-dataprep` is disabled, those files may remain empty.
 
 > **Unified-mode GPU examples:**
 > - VLM search + MME + DataPrep on GPU: set `global.gpu.vlminferenceEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.vectorstores.vdms import VDMS
 
 from src.utils.common import logger, settings
+from src.utils.time_filters import build_vdms_time_filter
 from src.utils.directory_watcher import (
     get_initial_upload_status,
     get_last_updated,
@@ -38,10 +39,54 @@ async def startup_event():
     watcher_thread.start()
 
 
+class TimeRange(BaseModel):
+    start: str
+    end: str
+
+
 class QueryRequest(BaseModel):
     query_id: str
     query: str
     tags: Optional[list[str]] = None
+    time_filter: Optional[TimeRange] = None
+
+
+def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
+    """Convert explicit start/end into VDMS constraint dict."""
+    if not time_filter or not time_filter.start or not time_filter.end:
+        return None
+    return {property_name: [">=", time_filter.start, "<=", time_filter.end]}
+
+
+def _build_tag_filter(tags: Optional[list[str]]) -> Optional[dict]:
+    """Build VDMS tag filter using OR-array syntax for multiple tags."""
+    if not tags:
+        return None
+    cleaned = [t.strip() for t in tags if t and t.strip()]
+    if not cleaned:
+        return None
+    if len(cleaned) == 1:
+        return {"tags": ["==", cleaned[0]]}
+
+    return {"tags": ["==", cleaned]}
+
+
+def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
+    """Return (vdms_filter, effective_time_filter) combining explicit + parsed time and tag filters."""
+    explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
+    parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
+    effective_time_filter = explicit_time_filter or parsed_time_filter
+
+    tag_filter = _build_tag_filter(query_request.tags)
+
+    if not effective_time_filter and not tag_filter:
+        return None, None
+
+    if effective_time_filter and tag_filter:
+        merged_filter = {**effective_time_filter, **tag_filter}
+        return merged_filter, effective_time_filter
+
+    return effective_time_filter or tag_filter, effective_time_filter
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -68,6 +113,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
         video_metadata["fps"] = fps_value
 
         best_frame_info = video_result.get("best_frame_info") or {}
+        created_at_value = video_metadata.get("created_at") or video_metadata.get("upload_timestamp", "")
 
         metadata = {
             "video_id": video_result.get("video_id"),
@@ -83,6 +129,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
             "seek_timestamp": video_result.get("seek_timestamp"),
             "score_breakdown": video_result.get("score_breakdown"),
             "best_frame_info": best_frame_info,
+            "created_at": created_at_value,
             "aggregated": True,
             "video_metadata": video_metadata,
             "rank": rank,
@@ -136,6 +183,15 @@ async def query_endpoint(request: list[QueryRequest]):
             )
             logger.debug(f"Query tags: {query_request.tags}")
 
+            # Build combined VDMS filter from explicit time_filter + tags, with fallback to NLP time parsing
+            vdms_filter, applied_time_filter = build_combined_vdms_filter(query_request)
+            if applied_time_filter:
+                logger.info(f"Applying time filter to VDMS query: {applied_time_filter}")
+            else:
+                logger.debug("No explicit or derived time filter applied")
+            if query_request.tags:
+                logger.info(f"Applying tag filter to VDMS query: {query_request.tags}")
+
             # Get more initial results for aggregation (before filtering)
             initial_k = getattr(
                 settings, "AGGREGATION_INITIAL_K", 1000
@@ -147,6 +203,7 @@ async def query_endpoint(request: list[QueryRequest]):
                 query_request.query,
                 k=initial_k,
                 fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
+                filter=vdms_filter,
                 # normalize_distance=True
             )
             vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000

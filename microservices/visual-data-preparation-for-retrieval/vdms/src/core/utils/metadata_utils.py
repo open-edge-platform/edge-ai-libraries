@@ -82,6 +82,10 @@ def create_frames_manifest(frame_info_list: List[FrameInfo], temp_dir: str, vide
                 frame_dict["crop_bbox"] = list(frame_info.crop_bbox)
             if frame_info.detected_label is not None:
                 frame_dict["detected_label"] = frame_info.detected_label
+            if frame_info.merged_boxes_count is not None:
+                frame_dict["merged_boxes_count"] = frame_info.merged_boxes_count
+            if frame_info.context_expansion_applied is not None:
+                frame_dict["context_expansion_applied"] = frame_info.context_expansion_applied
             
             frames_data.append(frame_dict)
         
@@ -112,6 +116,10 @@ def create_frames_manifest(frame_info_list: List[FrameInfo], temp_dir: str, vide
                     frame_dict["crop_bbox"] = list(frame_info.crop_bbox)
                 if frame_info.detected_label is not None:
                     frame_dict["detected_label"] = frame_info.detected_label
+                if frame_info.merged_boxes_count is not None:
+                    frame_dict["merged_boxes_count"] = frame_info.merged_boxes_count
+                if frame_info.context_expansion_applied is not None:
+                    frame_dict["context_expansion_applied"] = frame_info.context_expansion_applied
                 
                 frames_data.append(frame_dict)
                 
@@ -219,14 +227,18 @@ def create_enhanced_frame_metadata(
             "crop_index": frame_info.crop_index,
             "detection_confidence": frame_info.detection_confidence,
             "crop_bbox": list(frame_info.crop_bbox) if frame_info.crop_bbox else None,
-            "detected_label": frame_info.detected_label
+            "detected_label": frame_info.detected_label,
+            "merged_boxes_count": frame_info.merged_boxes_count,
+            "context_expansion_applied": frame_info.context_expansion_applied,
         })
     else:
         enhanced_metadata.update({
             "crop_index": None,
             "detection_confidence": None,
             "crop_bbox": None,
-            "detected_label": None
+            "detected_label": None,
+            "merged_boxes_count": None,
+            "context_expansion_applied": None,
         })
     
     return enhanced_metadata
@@ -410,6 +422,8 @@ def extract_enhanced_video_metadata(
                     "detection_confidence": frame_info.detection_confidence,
                     "crop_bbox": frame_info.crop_bbox,
                     "detected_label": frame_info.detected_label,
+                    "merged_boxes_count": frame_info.merged_boxes_count,
+                    "context_expansion_applied": frame_info.context_expansion_applied,
                 })
         
         # Add manifest path to the first metadata entry for reference  
@@ -441,7 +455,10 @@ def extract_enhanced_video_metadata(
                 frame_type="full_frame",  # API expects 'full_frame' or 'detected_crop'
                 crop_index=None,
                 detection_confidence=None,
-                crop_bbox=None
+                crop_bbox=None,
+                detected_label=None,
+                merged_boxes_count=None,
+                context_expansion_applied=None
             )
             frame_info_list.append(frame_info)
             

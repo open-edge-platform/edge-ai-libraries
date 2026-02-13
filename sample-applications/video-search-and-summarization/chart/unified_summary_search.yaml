@@ -24,7 +24,7 @@ global:
     EMBEDDING_MODEL_NAME: ""
     TEXT_EMBEDDING_MODEL_NAME: ""
 
-videoSummaryManager:
+pipelinemanager:
   env:
     SUMMARY_FEATURE: "FEATURE_ON"
     SEARCH_FEATURE: "FEATURE_ON"

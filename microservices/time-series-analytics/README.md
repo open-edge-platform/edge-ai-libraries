@@ -6,7 +6,6 @@ The key features include:
 
 - Use your own data sets and Python-based analytics for custom analysis.
 - Automatically save results in InfluxDB for easy management and visualization.
-- Quickly access and deploy scripts and models from the Model Registry.
 - Detect anomalies, send alerts, and advanced analytics in various settings.
 
 ## Get Started
