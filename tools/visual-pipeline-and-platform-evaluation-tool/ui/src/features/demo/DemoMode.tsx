@@ -239,6 +239,7 @@ const DemoMode = () => {
     string | null
   >(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [previewCarouselIndex, setPreviewCarouselIndex] = useState(0);
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
@@ -1318,7 +1319,7 @@ const DemoMode = () => {
 
               const previewSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full max-h-[350px] overflow-hidden ${colors.gridPreviewBorder}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full max-h-[600px] overflow-hidden ${colors.gridPreviewBorder}`}
                 >
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
@@ -1333,33 +1334,100 @@ const DemoMode = () => {
                       ? "Output"
                       : "Preview"}
                   </p>
-                  <div className="flex-1 flex items-center justify-center text-slate-400 overflow-hidden">
+                  <div className="flex-1 overflow-hidden relative">
                     {/* Show live preview during running test */}
-                    {performanceJobId &&
-                    performanceLivePreviewEnabled &&
-                    (selectedConfigPipelineId ||
-                      pipelineSelections[0]?.pipelineId) ? (
-                      <div className="w-full h-full overflow-hidden flex items-center justify-center">
-                        <div
-                          className="origin-center"
-                          style={{
-                            transform: "scale(0.65)",
-                            width: "500%",
-                            height: "500%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <WebRTCVideoPlayer
-                            pipelineId={
-                              selectedConfigPipelineId ??
-                              pipelineSelections[0]?.pipelineId ??
-                              ""
-                            }
-                          />
-                        </div>
-                      </div>
+                    {performanceJobId && performanceLivePreviewEnabled ? (
+                      (() => {
+                        const previewsPerPage = 2;
+                        const totalPreviewPages = Math.ceil(
+                          pipelineSelections.length / previewsPerPage,
+                        );
+                        const startIdx = previewCarouselIndex * previewsPerPage;
+                        const endIdx = startIdx + previewsPerPage;
+                        const visiblePreviews = pipelineSelections.slice(
+                          startIdx,
+                          endIdx,
+                        );
+
+                        return (
+                          <div className="relative h-full">
+                            <div className="grid grid-cols-2 gap-3 h-full">
+                              {visiblePreviews.map((selection) => {
+                                const pipeline = pipelines.find(
+                                  (p) => p.id === selection.pipelineId,
+                                );
+                                return (
+                                  <div
+                                    key={selection.pipelineId}
+                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                  >
+                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                      {pipeline?.name || "Unknown Pipeline"}
+                                    </p>
+                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                      <div className="w-full h-full">
+                                        <WebRTCVideoPlayer
+                                          pipelineId={selection.pipelineId}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Carousel navigation buttons */}
+                            {totalPreviewPages > 1 && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.max(0, prev - 1),
+                                    )
+                                  }
+                                  disabled={previewCarouselIndex === 0}
+                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.min(totalPreviewPages - 1, prev + 1),
+                                    )
+                                  }
+                                  disabled={
+                                    previewCarouselIndex >=
+                                    totalPreviewPages - 1
+                                  }
+                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronRight className="w-5 h-5 text-slate-200" />
+                                </button>
+
+                                {/* Dots indicator */}
+                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                  {Array.from({
+                                    length: totalPreviewPages,
+                                  }).map((_, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() =>
+                                        setPreviewCarouselIndex(idx)
+                                      }
+                                      className={`w-2 h-2 rounded-full transition-all ${
+                                        idx === previewCarouselIndex
+                                          ? "bg-blue-500 w-6"
+                                          : "bg-slate-600 hover:bg-slate-500"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()
                     ) : /* Show saved video output after test completion */
                     lastRunTest === "performance-test" &&
                       performanceResult &&
@@ -1368,56 +1436,114 @@ const DemoMode = () => {
                       Object.keys(performanceResult.video_output_paths).length >
                         0 ? (
                       (() => {
-                        const currentPipelineId =
-                          selectedConfigPipelineId ??
-                          pipelineSelections[0]?.pipelineId;
-                        if (!currentPipelineId)
-                          return (
-                            <p className="text-sm">No pipeline selected</p>
-                          );
+                        const previewsPerPage = 2;
+                        const totalPreviewPages = Math.ceil(
+                          pipelineSelections.length / previewsPerPage,
+                        );
+                        const startIdx = previewCarouselIndex * previewsPerPage;
+                        const endIdx = startIdx + previewsPerPage;
+                        const visiblePreviews = pipelineSelections.slice(
+                          startIdx,
+                          endIdx,
+                        );
 
-                        const paths =
-                          performanceResult.video_output_paths[
-                            currentPipelineId
-                          ];
-                        const videoPath =
-                          paths && paths.length > 0 ? [...paths].pop() : null;
+                        return (
+                          <div className="relative h-full">
+                            <div className="grid grid-cols-2 gap-3 h-full">
+                              {visiblePreviews.map((selection) => {
+                                const pipeline = pipelines.find(
+                                  (p) => p.id === selection.pipelineId,
+                                );
+                                const paths =
+                                  performanceResult.video_output_paths[
+                                    selection.pipelineId
+                                  ];
+                                const videoPath =
+                                  paths && paths.length > 0
+                                    ? [...paths].pop()
+                                    : null;
 
-                        console.log("[DemoMode] Performance video output:", {
-                          currentPipelineId,
-                          videoPath,
-                          fullPath: videoPath ? `${videoPath}` : null,
-                          allPaths: performanceResult.video_output_paths,
-                        });
+                                return (
+                                  <div
+                                    key={selection.pipelineId}
+                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                  >
+                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                      {pipeline?.name || "Unknown Pipeline"}
+                                    </p>
+                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                      {videoPath ? (
+                                        <video
+                                          key={`performance-${selection.pipelineId}-${videoPath}`}
+                                          controls
+                                          preload="metadata"
+                                          className="w-full h-full object-cover"
+                                          src={`/assets${videoPath}`}
+                                        >
+                                          Your browser does not support the
+                                          video tag.
+                                        </video>
+                                      ) : (
+                                        <p className="text-xs text-slate-400">
+                                          No video output
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
 
-                        return videoPath ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <video
-                              key={`performance-${currentPipelineId}-${videoPath}`}
-                              controls
-                              preload="metadata"
-                              className="max-w-full max-h-full"
-                              src={`/assets${videoPath}`}
-                              onError={(e) =>
-                                console.error(
-                                  "[DemoMode] Video load error:",
-                                  e,
-                                  videoPath,
-                                )
-                              }
-                              onLoadedMetadata={() =>
-                                console.log(
-                                  "[DemoMode] Video loaded successfully",
-                                )
-                              }
-                            >
-                              Your browser does not support the video tag.
-                            </video>
+                            {/* Carousel navigation buttons */}
+                            {totalPreviewPages > 1 && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.max(0, prev - 1),
+                                    )
+                                  }
+                                  disabled={previewCarouselIndex === 0}
+                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.min(totalPreviewPages - 1, prev + 1),
+                                    )
+                                  }
+                                  disabled={
+                                    previewCarouselIndex >=
+                                    totalPreviewPages - 1
+                                  }
+                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronRight className="w-5 h-5 text-slate-200" />
+                                </button>
+
+                                {/* Dots indicator */}
+                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                  {Array.from({
+                                    length: totalPreviewPages,
+                                  }).map((_, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() =>
+                                        setPreviewCarouselIndex(idx)
+                                      }
+                                      className={`w-2 h-2 rounded-full transition-all ${
+                                        idx === previewCarouselIndex
+                                          ? "bg-blue-500 w-6"
+                                          : "bg-slate-600 hover:bg-slate-500"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-sm">
-                            No video output for this pipeline
-                          </p>
                         );
                       })()
                     ) : lastRunTest === "density-test" &&
@@ -1426,60 +1552,122 @@ const DemoMode = () => {
                       testResult.video_output_paths &&
                       Object.keys(testResult.video_output_paths).length > 0 ? (
                       (() => {
-                        const currentPipelineId =
-                          selectedConfigPipelineId ??
-                          pipelineSelections[0]?.pipelineId;
-                        if (!currentPipelineId)
-                          return (
-                            <p className="text-sm">No pipeline selected</p>
-                          );
+                        const previewsPerPage = 2;
+                        const totalPreviewPages = Math.ceil(
+                          pipelineSelections.length / previewsPerPage,
+                        );
+                        const startIdx = previewCarouselIndex * previewsPerPage;
+                        const endIdx = startIdx + previewsPerPage;
+                        const visiblePreviews = pipelineSelections.slice(
+                          startIdx,
+                          endIdx,
+                        );
 
-                        const paths =
-                          testResult.video_output_paths[currentPipelineId];
-                        const videoPath =
-                          paths && paths.length > 0 ? [...paths].pop() : null;
+                        return (
+                          <div className="relative h-full">
+                            <div className="grid grid-cols-2 gap-3 h-full">
+                              {visiblePreviews.map((selection) => {
+                                const pipeline = pipelines.find(
+                                  (p) => p.id === selection.pipelineId,
+                                );
+                                const paths =
+                                  testResult.video_output_paths[
+                                    selection.pipelineId
+                                  ];
+                                const videoPath =
+                                  paths && paths.length > 0
+                                    ? [...paths].pop()
+                                    : null;
 
-                        console.log("[DemoMode] Density video output:", {
-                          currentPipelineId,
-                          videoPath,
-                          fullPath: videoPath ? `${videoPath}` : null,
-                          allPaths: testResult.video_output_paths,
-                        });
+                                return (
+                                  <div
+                                    key={selection.pipelineId}
+                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                  >
+                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                      {pipeline?.name || "Unknown Pipeline"}
+                                    </p>
+                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                      {videoPath ? (
+                                        <video
+                                          key={`density-${selection.pipelineId}-${videoPath}`}
+                                          controls
+                                          preload="metadata"
+                                          className="w-full h-full object-cover"
+                                          src={`/assets${videoPath}`}
+                                        >
+                                          Your browser does not support the
+                                          video tag.
+                                        </video>
+                                      ) : (
+                                        <p className="text-xs text-slate-400">
+                                          No video output
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
 
-                        return videoPath ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <video
-                              key={`density-${currentPipelineId}-${videoPath}`}
-                              controls
-                              preload="metadata"
-                              className="max-w-full max-h-full"
-                              src={`/assets${videoPath}`}
-                              onError={(e) =>
-                                console.error(
-                                  "[DemoMode] Video load error:",
-                                  e,
-                                  videoPath,
-                                )
-                              }
-                              onLoadedMetadata={() =>
-                                console.log(
-                                  "[DemoMode] Video loaded successfully",
-                                )
-                              }
-                            >
-                              Your browser does not support the video tag.
-                            </video>
+                            {/* Carousel navigation buttons */}
+                            {totalPreviewPages > 1 && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.max(0, prev - 1),
+                                    )
+                                  }
+                                  disabled={previewCarouselIndex === 0}
+                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setPreviewCarouselIndex((prev) =>
+                                      Math.min(totalPreviewPages - 1, prev + 1),
+                                    )
+                                  }
+                                  disabled={
+                                    previewCarouselIndex >=
+                                    totalPreviewPages - 1
+                                  }
+                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                >
+                                  <ChevronRight className="w-5 h-5 text-slate-200" />
+                                </button>
+
+                                {/* Dots indicator */}
+                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                  {Array.from({
+                                    length: totalPreviewPages,
+                                  }).map((_, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() =>
+                                        setPreviewCarouselIndex(idx)
+                                      }
+                                      className={`w-2 h-2 rounded-full transition-all ${
+                                        idx === previewCarouselIndex
+                                          ? "bg-blue-500 w-6"
+                                          : "bg-slate-600 hover:bg-slate-500"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-sm">
-                            No video output for this pipeline
-                          </p>
                         );
                       })()
                     ) : (
-                      <p className="text-sm">
-                        Preview content will appear here
-                      </p>
+                      <div className="flex items-center justify-center h-full text-slate-400">
+                        <p className="text-sm">
+                          Preview content will appear here
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
