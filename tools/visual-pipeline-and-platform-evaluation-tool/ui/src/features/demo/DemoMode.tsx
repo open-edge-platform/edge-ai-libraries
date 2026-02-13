@@ -196,6 +196,8 @@ const DemoMode = () => {
   const [performanceVideoOutputEnabled, setPerformanceVideoOutputEnabled] =
     useState(false);
   const [performanceLivePreviewEnabled, setPerformanceLivePreviewEnabled] =
+    useState(true);
+  const [performanceLoopingEnabled, setPerformanceLoopingEnabled] =
     useState(false);
   const [performanceStreams, setPerformanceStreams] = useState<
     Record<string, number>
@@ -608,7 +610,7 @@ const DemoMode = () => {
     if (!jobStatus || jobStatus.id !== densityJobId) {
       return;
     }
-    
+
     if (jobStatus?.state === "COMPLETED") {
       setTestResult({
         per_stream_fps: jobStatus.per_stream_fps,
@@ -672,7 +674,7 @@ const DemoMode = () => {
     if (!performanceJobStatus || performanceJobStatus.id !== performanceJobId) {
       return;
     }
-    
+
     if (performanceJobStatus?.state === "COMPLETED") {
       setPerformanceResult({
         total_fps: performanceJobStatus.total_fps,
@@ -999,11 +1001,14 @@ const DemoMode = () => {
             ? "file"
             : "disabled";
 
+        const maxRuntime =
+          performanceLivePreviewEnabled || performanceLoopingEnabled ? 1800 : 0;
+
         const result = await runPerformanceTest({
           performanceTestSpecInput: {
             execution_config: {
               output_mode: outputMode,
-              max_runtime: 0,
+              max_runtime: maxRuntime,
             },
             pipeline_performance_specs: pipelineSelections.map((selection) => ({
               id: selection.pipelineId,
@@ -2243,7 +2248,7 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* Live Preview + Save Output */}
+                                    {/* Live Preview + Save Output + Looping */}
                                     <div className="flex flex-wrap items-start gap-3">
                                       <div className="space-y-1 min-h-[72px]">
                                         <div className="flex items-center gap-2">
@@ -2265,30 +2270,64 @@ const DemoMode = () => {
                                         </div>
                                       </div>
 
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceVideoOutputEnabled
-                                            }
-                                            onCheckedChange={(checked) =>
-                                              setPerformanceVideoOutputEnabled(
-                                                checked === true,
-                                              )
-                                            }
-                                            disabled={isReadOnly}
-                                            className={colors.checkbox}
-                                          />
-                                          <label className="text-xs text-slate-300">
-                                            Save output
-                                          </label>
-                                        </div>
-                                        {performanceVideoOutputEnabled && (
-                                          <div className="mt-2">
-                                            <SaveOutputWarning />
+                                      {!performanceLivePreviewEnabled && (
+                                        <>
+                                          <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                checked={
+                                                  performanceLoopingEnabled
+                                                }
+                                                onCheckedChange={(checked) => {
+                                                  setPerformanceLoopingEnabled(
+                                                    checked === true,
+                                                  );
+                                                  if (checked) {
+                                                    setPerformanceVideoOutputEnabled(
+                                                      false,
+                                                    );
+                                                  }
+                                                }}
+                                                disabled={isReadOnly}
+                                                className={colors.checkbox}
+                                              />
+                                              <label className="text-xs text-slate-300">
+                                                Looping
+                                              </label>
+                                            </div>
                                           </div>
-                                        )}
-                                      </div>
+
+                                          <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                checked={
+                                                  performanceVideoOutputEnabled
+                                                }
+                                                onCheckedChange={(checked) => {
+                                                  setPerformanceVideoOutputEnabled(
+                                                    checked === true,
+                                                  );
+                                                  if (checked) {
+                                                    setPerformanceLoopingEnabled(
+                                                      false,
+                                                    );
+                                                  }
+                                                }}
+                                                disabled={isReadOnly}
+                                                className={colors.checkbox}
+                                              />
+                                              <label className="text-xs text-slate-300">
+                                                Save output
+                                              </label>
+                                            </div>
+                                            {performanceVideoOutputEnabled && (
+                                              <div className="mt-2">
+                                                <SaveOutputWarning />
+                                              </div>
+                                            )}
+                                          </div>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -2458,7 +2497,9 @@ const DemoMode = () => {
                                     Running throughput test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator key={performanceJobId || testStartTimestamp} />
+                                <TestProgressIndicator
+                                  key={performanceJobId || testStartTimestamp}
+                                />
                               </div>
                             )}
                           </div>
@@ -2491,7 +2532,9 @@ const DemoMode = () => {
                           frozenMetricsSummary && (
                             <div className="space-y-3">
                               <TestProgressIndicator
-                                key={metricsFrozenForJobId || testStartTimestamp}
+                                key={
+                                  metricsFrozenForJobId || testStartTimestamp
+                                }
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2546,7 +2589,9 @@ const DemoMode = () => {
 
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
-                                key={metricsFrozenForJobId || testStartTimestamp}
+                                key={
+                                  metricsFrozenForJobId || testStartTimestamp
+                                }
                                 className="mt-2"
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
@@ -2579,7 +2624,9 @@ const DemoMode = () => {
                                     Running density test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator key={densityJobId || testStartTimestamp} />
+                                <TestProgressIndicator
+                                  key={densityJobId || testStartTimestamp}
+                                />
                               </div>
                             )}
                           </div>
@@ -2612,7 +2659,9 @@ const DemoMode = () => {
                           frozenMetricsSummary && (
                             <div className="space-y-3">
                               <TestProgressIndicator
-                                key={metricsFrozenForJobId || testStartTimestamp}
+                                key={
+                                  metricsFrozenForJobId || testStartTimestamp
+                                }
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2678,7 +2727,9 @@ const DemoMode = () => {
                             )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
                               <TestProgressIndicator
-                                key={metricsFrozenForJobId || testStartTimestamp}
+                                key={
+                                  metricsFrozenForJobId || testStartTimestamp
+                                }
                                 className="mt-2"
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
