@@ -547,3 +547,271 @@ class TestOpenVINOConverterIntegration:
         assert "15" in command
         assert "--version" in command
         assert "v2.0" in command
+
+
+class TestOpenVINOPluginFutureProof:
+    """Test suite for future-proof parameter handling in OpenVINOConverter"""
+
+    @pytest.fixture
+    def openvino_plugin(self):
+        """Create an instance of OpenVINOConverter for testing"""
+        return OpenVINOConverter()
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for testing"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_get_param_from_nested_openvino_config(self, openvino_plugin):
+        """Test _get_param extracts from nested openvino_config structure"""
+        config = {
+            "openvino_config": {
+                "precision": "int4",
+                "device": "GPU",
+                "cache_size": 20
+            }
+        }
+        
+        assert openvino_plugin._get_param("precision", config, {}) == "int4"
+        assert openvino_plugin._get_param("device", config, {}) == "GPU"
+        assert openvino_plugin._get_param("cache_size", config, {}) == 20
+
+    def test_get_param_from_flat_config(self, openvino_plugin):
+        """Test _get_param extracts from flat config structure (backward compat)"""
+        config = {
+            "precision": "int8",
+            "device": "CPU",
+            "cache_size": 10
+        }
+        
+        assert openvino_plugin._get_param("precision", config, {}) == "int8"
+        assert openvino_plugin._get_param("device", config, {}) == "CPU"
+        assert openvino_plugin._get_param("cache_size", config, {}) == 10
+
+    def test_get_param_from_kwargs(self, openvino_plugin):
+        """Test _get_param extracts from direct kwargs (legacy)"""
+        kwargs = {
+            "precision": "fp16",
+            "device": "NPU"
+        }
+        
+        assert openvino_plugin._get_param("precision", {}, kwargs) == "fp16"
+        assert openvino_plugin._get_param("device", {}, kwargs) == "NPU"
+
+    def test_get_param_fallback_chain(self, openvino_plugin):
+        """Test _get_param follows fallback chain correctly"""
+        config = {"precision": "int8"}
+        kwargs = {"device": "CPU"}
+        
+        # Openvino_config takes priority
+        config_with_nested = {"openvino_config": {"precision": "int4"}}
+        assert openvino_plugin._get_param("precision", config_with_nested, kwargs) == "int4"
+        
+        # Falls back to config if openvino_config missing
+        assert openvino_plugin._get_param("precision", config, kwargs) == "int8"
+        
+        # Falls back to kwargs if config missing
+        config_empty = {}
+        assert openvino_plugin._get_param("device", config_empty, kwargs) == "CPU"
+        
+        # Falls back to default if all missing
+        assert openvino_plugin._get_param("unknown", {}, {}, "default") == "default"
+
+    def test_build_export_command_with_known_params(self, openvino_plugin, temp_dir):
+        """Test _build_export_command correctly maps known parameters"""
+        config_dict = {
+            "precision": "int8",
+            "device": "CPU",
+            "cache_size": 20,
+            "kv_cache_precision": "u8",
+            "enable_prefix_caching": True,
+            "truncate": False,  # Should not be added (False)
+            "num_streams": 2
+        }
+        
+        command = openvino_plugin._build_export_command(
+            export_type="text_generation",
+            model_name="test-model",
+            output_dir=temp_dir,
+            config_dict=config_dict,
+            target_device="CPU",
+            weight_format="int8"
+        )
+        
+        # Check known parameters are mapped correctly
+        assert "--weight-format" in command
+        assert "int8" in command
+        assert "--target_device" in command
+        assert "--cache_size" in command
+        assert "20" in command
+        assert "--kv_cache_precision" in command
+        assert "u8" in command
+        assert "--enable_prefix_caching" in command
+        assert "--num_streams" in command
+        assert "2" in command
+        # Boolean False should not be added
+        assert "--truncate" not in command
+
+    def test_build_export_command_with_unknown_params(self, openvino_plugin, temp_dir):
+        """Test _build_export_command passes unknown parameters through (future-proof)"""
+        config_dict = {
+            "precision": "int8",
+            "new_quantization_method": "gptq",  # Unknown parameter
+            "custom_optimization_flag": True,    # Unknown boolean
+            "future_param_value": "test_value"   # Unknown parameter
+        }
+        
+        command = openvino_plugin._build_export_command(
+            export_type="text_generation",
+            model_name="test-model",
+            output_dir=temp_dir,
+            config_dict=config_dict,
+            target_device="CPU",
+            weight_format="int8"
+        )
+        
+        # Unknown parameters should be converted to kebab-case and added to command
+        assert "--new-quantization-method" in command
+        assert "gptq" in command
+        assert "--custom-optimization-flag" in command  # Boolean True
+        assert "--future-param-value" in command
+        assert "test_value" in command
+
+    def test_build_export_command_skips_none_values(self, openvino_plugin, temp_dir):
+        """Test _build_export_command skips None values"""
+        config_dict = {
+            "precision": "int8",
+            "cache_size": None,
+            "normalize": None
+        }
+        
+        command = openvino_plugin._build_export_command(
+            export_type="embeddings_ov",
+            model_name="test-model",
+            output_dir=temp_dir,
+            config_dict=config_dict,
+            target_device="CPU",
+            weight_format="int8"
+        )
+        
+        # None values should not be added to command
+        assert "--cache_size" not in command
+        assert "--skip_normalize" not in command
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch('os.getenv')
+    def test_convert_backward_compat_flat_config(self, mock_getenv, mock_convert_to_ovms, 
+                                                 openvino_plugin, temp_dir, conversion_config):
+        """Test convert supports legacy flat config structure"""
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+        mock_getenv.return_value = "/host/models"
+
+        result = openvino_plugin.convert(
+            model_name="test-model",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            config=conversion_config,  # Legacy flat structure
+            type="llm"
+        )
+
+        # Verify call was made with extracted parameters
+        assert mock_convert_to_ovms.called
+        call_kwargs = mock_convert_to_ovms.call_args[1]
+        assert call_kwargs["weight_format"] == "int8"
+        assert call_kwargs["target_device"] == "CPU"
+        
+        # Response should include config that was in request
+        assert result["config"]["precision"] == "int8"
+        assert result["config"]["device"] == "CPU"
+        assert result["config"]["cache"] == 10
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch('os.getenv')
+    def test_convert_new_nested_openvino_config(self, mock_getenv, mock_convert_to_ovms, 
+                                               openvino_plugin, temp_dir, conversion_config_optimum_cli):
+        """Test convert supports new Optimum CLI-aligned nested structure"""
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+        mock_getenv.return_value = "/host/models"
+
+        result = openvino_plugin.convert(
+            model_name="test-model",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            config=conversion_config_optimum_cli,  # New nested structure
+            type="llm"
+        )
+
+        # Verify convert_to_ovms_format called with config_dict
+        assert mock_convert_to_ovms.called
+        call_kwargs = mock_convert_to_ovms.call_args[1]
+        assert call_kwargs["weight_format"] == "int4"
+        assert call_kwargs["target_device"] == "CPU"
+        assert "config_dict" in call_kwargs
+        
+        # Response should only include params from openvino_config
+        response_config = result["config"]
+        assert "precision" in response_config
+        assert "device" in response_config
+        assert "kv_cache_precision" in response_config
+        assert response_config["precision"] == "int4"
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch('os.getenv')
+    def test_convert_response_only_includes_requested_params(self, mock_getenv, mock_convert_to_ovms, 
+                                                              openvino_plugin, temp_dir):
+        """Test that response config only includes parameters present in request"""
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+        mock_getenv.return_value = "/host/models"
+
+        # Request with only precision and device  
+        config = {
+            "openvino_config": {
+                "precision": "int8",
+                "device": "CPU"
+                # Note: no cache_size, no kv_cache_precision, etc.
+            }
+        }
+
+        result = openvino_plugin.convert(
+            model_name="test-model",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            config=config,
+            type="llm"
+        )
+
+        # Response should only have precision and device
+        response_config = result["config"]
+        assert "precision" in response_config
+        assert "device" in response_config
+        assert "cache_size" not in response_config
+        assert "kv_cache_precision" not in response_config
+
+    @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
+    @patch('os.getenv')
+    def test_convert_with_unknown_future_params(self, mock_getenv, mock_convert_to_ovms, 
+                                                openvino_plugin, temp_dir, conversion_config_with_unknown_params):
+        """Test convert passes unknown parameters to convert_to_ovms_format (future-proof)"""
+        mock_convert_to_ovms.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
+        mock_getenv.return_value = "/host/models"
+
+        result = openvino_plugin.convert(
+            model_name="test-model",
+            output_dir=temp_dir,
+            hf_token="test_token",
+            config=conversion_config_with_unknown_params,
+            type="llm"
+        )
+
+        # Verify unknown params are passed to convert_to_ovms_format in config_dict
+        assert mock_convert_to_ovms.called
+        call_kwargs = mock_convert_to_ovms.call_args[1]
+        config_dict = call_kwargs["config_dict"]
+        
+        # Unknown parameters should be in config_dict
+        assert "new_quantization_method" in config_dict
+        assert config_dict["new_quantization_method"] == "gptq"
+        assert "custom_optimization_flag" in config_dict
+        assert config_dict["custom_optimization_flag"] is True
+

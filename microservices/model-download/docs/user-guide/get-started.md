@@ -180,6 +180,36 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     "parallel_downloads": false
   }'
 ```
+**Example: Optimum CLI-aligned nested config**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_model" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "models": [
+    {
+      "name": "Alibaba-NLP/gte-large-en-v1.5",
+      "hub":"openvino",
+      "type": "embeddings",
+      "is_ovms": true,
+      "config": {
+        "precision": "int8",
+        "device": "CPU",
+        "cache_size": 2,
+        "extra_quantization_params":"--library sentence_transformers"
+      }
+    }
+  ],
+  "parallel_downloads": false
+}
+```
+
+**NOTES**
+  - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/main/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
+  - Visual-language models automatically set `pipeline_type` to `VLM` for type 'VLM'.
+  - Unknown parameters keep their original spelling (underscores included) and are forwarded as `--<param_name>`, so options such as `reasoning_parser`, `tool_parser` etc.
+  - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
+  - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
 
 **Download models from GETI software, which are optimized through OpenVINO toolkit's optimization tool:**
 
