@@ -415,8 +415,9 @@ jobs:
               cd microservices/time-series-analytics/docker
               TIME_SERIES_ANALYTICS_IMAGE=$(grep '^TIME_SERIES_ANALYTICS_IMAGE=' .env | cut -d'=' -f2)
               IMAGE_SUFFIX=$(grep '^IMAGE_SUFFIX=' .env | cut -d'=' -f2 | tr -d '"')
-              if [ -n "$IMAGE_SUFFIX" ]; then
-                TIME_SERIES_ANALYTICS_IMAGE="${TIME_SERIES_ANALYTICS_IMAGE}-${IMAGE_SUFFIX}"
+              TIME_SERIES_ANALYTICS_IMAGE="${TIME_SERIES_ANALYTICS_IMAGE}:${IMAGE_SUFFIX}"
+              if [ -n "$WEEKLY_BUILD_DATE" ]; then
+                TIME_SERIES_ANALYTICS_IMAGE="${TIME_SERIES_ANALYTICS_IMAGE}-${WEEKLY_BUILD_DATE}"
               fi
               docker compose build
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl

@@ -38,7 +38,7 @@ The Model Download Service is a microservice that enables downloading models fro
     - Set the following environment variables:
       ```bash
       export REGISTRY="intel/"
-      export TAG=rc3.1_2026.0
+      export TAG=latest
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
     - To use the Geti™ plugin, set these variables:
