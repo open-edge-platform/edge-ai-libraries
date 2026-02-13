@@ -1112,76 +1112,88 @@ const DemoMode = () => {
             <div className="h-full flex flex-col animate-[slideUp_0.35s_ease-out]">
               {/* Pipeline Cards Grid */}
               <div className="flex-1 overflow-auto p-6 pt-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {groupedPipelines.map((group, idx) => {
-                    const isSelected = selectedModels.has(group.baseName);
-                    const availableDevices = Object.keys(group.pipelines);
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-20">
+                  {groupedPipelines
+                    .filter((group) => {
+                      const allowedPipelineNames = [
+                        "Smart NVR Pipeline - Analytics Branch",
+                        "Smart NVR Pipeline - Media Only Branch",
+                        "Simple Video Structurization (D-T-C)",
+                        "Retail - YOLO 11n",
+                      ];
+                      return allowedPipelineNames.includes(group.baseName);
+                    })
+                    .map((group, idx) => {
+                      const isSelected = selectedModels.has(group.baseName);
+                      const availableDevices = Object.keys(group.pipelines);
 
-                    return (
-                      <Card
-                        key={group.id}
-                        onClick={() => {
-                          const newSelected = new Map(selectedModels);
-                          if (isSelected) {
-                            newSelected.delete(group.baseName);
-                          } else {
-                            const firstDevice = availableDevices[0];
-                            if (firstDevice) {
-                              newSelected.set(
-                                group.baseName,
-                                group.pipelines[firstDevice].id,
-                              );
+                      return (
+                        <Card
+                          key={group.id}
+                          onClick={() => {
+                            const newSelected = new Map(selectedModels);
+                            if (isSelected) {
+                              newSelected.delete(group.baseName);
+                            } else {
+                              const firstDevice = availableDevices[0];
+                              if (firstDevice) {
+                                newSelected.set(
+                                  group.baseName,
+                                  group.pipelines[firstDevice].id,
+                                );
+                              }
                             }
-                          }
-                          setSelectedModels(newSelected);
-                        }}
-                        className={`relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9] ${
-                          isSelected
-                            ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[0.95]"
-                            : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]"
-                        }`}
-                      >
-                        <CardHeader className="flex-1">
-                          <div className="absolute right-3 top-3">
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={(checked) => {
-                                const newSelected = new Map(selectedModels);
-                                if (checked) {
-                                  const firstDevice = availableDevices[0];
-                                  if (firstDevice) {
-                                    newSelected.set(
-                                      group.baseName,
-                                      group.pipelines[firstDevice].id,
-                                    );
+                            setSelectedModels(newSelected);
+                          }}
+                          className={`relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9] ${
+                            isSelected
+                              ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[0.95]"
+                              : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]"
+                          }`}
+                        >
+                          <CardHeader className="flex-1">
+                            <div className="absolute right-3 top-3">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => {
+                                  const newSelected = new Map(selectedModels);
+                                  if (checked) {
+                                    const firstDevice = availableDevices[0];
+                                    if (firstDevice) {
+                                      newSelected.set(
+                                        group.baseName,
+                                        group.pipelines[firstDevice].id,
+                                      );
+                                    }
+                                  } else {
+                                    newSelected.delete(group.baseName);
                                   }
-                                } else {
-                                  newSelected.delete(group.baseName);
+                                  setSelectedModels(newSelected);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`w-5 h-5 ${colors.checkbox}`}
+                              />
+                            </div>
+                            <CardTitle className="min-h-8 text-slate-200">
+                              {group.baseName}
+                            </CardTitle>
+                            {pipelineImages[idx % pipelineImages.length] && (
+                              <img
+                                src={
+                                  pipelineImages[idx % pipelineImages.length]
                                 }
-                                setSelectedModels(newSelected);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`w-5 h-5 ${colors.checkbox}`}
-                            />
-                          </div>
-                          <CardTitle className="min-h-8 text-slate-200">
-                            {group.baseName}
-                          </CardTitle>
-                          {pipelineImages[idx % pipelineImages.length] && (
-                            <img
-                              src={pipelineImages[idx % pipelineImages.length]}
-                              alt={group.baseName}
-                              className="w-full h-auto rounded-md"
-                            />
-                          )}
-                          <CardDescription className="line-clamp-4 min-h-18 text-slate-400">
-                            {group.description}
-                          </CardDescription>
-                        </CardHeader>
-                        <div className="px-6 pb-4"></div>
-                      </Card>
-                    );
-                  })}
+                                alt={group.baseName}
+                                className="w-full h-auto rounded-md"
+                              />
+                            )}
+                            <CardDescription className="line-clamp-4 min-h-18 text-slate-400">
+                              {group.description}
+                            </CardDescription>
+                          </CardHeader>
+                          <div className="px-6 pb-4"></div>
+                        </Card>
+                      );
+                    })}
                 </div>
               </div>
 
@@ -1469,7 +1481,7 @@ const DemoMode = () => {
                                   (p) => p.id === selection.pipelineId,
                                 );
                                 const paths =
-                                  performanceResult.video_output_paths[
+                                  performanceResult.video_output_paths?.[
                                     selection.pipelineId
                                   ];
                                 const videoPath =
@@ -1585,7 +1597,7 @@ const DemoMode = () => {
                                   (p) => p.id === selection.pipelineId,
                                 );
                                 const paths =
-                                  testResult.video_output_paths[
+                                  testResult.video_output_paths?.[
                                     selection.pipelineId
                                   ];
                                 const videoPath =
