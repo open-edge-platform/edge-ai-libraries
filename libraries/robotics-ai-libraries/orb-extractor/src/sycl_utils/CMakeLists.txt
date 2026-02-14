@@ -6,7 +6,7 @@ set(CUR_LIB_TARGET SyclUtils)
 string(APPEND CMAKE_CXX_FLAGS " -fsycl")
 
 if(WIN32)
-set(CMAKE_GENERATOR_TOOLSET "Intel(R) oneAPI DPC++ Compiler 2024")
+set(CMAKE_GENERATOR_TOOLSET "Intel(R) oneAPI DPC++ Compiler 2025")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 /EHa")
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 else()

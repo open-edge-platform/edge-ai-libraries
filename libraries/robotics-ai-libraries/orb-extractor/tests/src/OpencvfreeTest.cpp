@@ -1,16 +1,12 @@
 // Copyright (C) 2025 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
-//
+
 #include <unistd.h>
 
 #include <chrono>
 #include <fstream>
 #include <memory>
-#include <opencv2/features2d.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/opencv.hpp>
-#include <thread>
 
 #include "TestUtil.h"
 #include "gtest/gtest.h"
