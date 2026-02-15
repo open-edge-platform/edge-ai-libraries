@@ -19,6 +19,7 @@ import GVAWatermarkNode, {
 } from "./GVAWatermarkNode.tsx";
 import H264ParseNode from "./H264ParseNode.tsx";
 import Mp4MuxNode from "./Mp4MuxNode.tsx";
+import ParsebinNode from "./ParsebinNode.tsx";
 import QtdemuxNode from "./QtdemuxNode.tsx";
 import Queue2Node from "./Queue2Node.tsx";
 import QueueNode from "./QueueNode.tsx";
@@ -60,6 +61,7 @@ export const nodeTypes = {
   filesink: FileSinkNode,
   vah264enc: VAH264EncNode,
   decodebin3: Decodebin3Node,
+  parsebin: ParsebinNode,
   queue: QueueNode,
   gvaclassify: GVAClassifyNode,
   vaapidecodebin: VaapiDecodebinNode,

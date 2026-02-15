@@ -1,12 +1,12 @@
 import logging
-from pathlib import Path
-import re
 import os
+import re
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
-from utils import generate_unique_filename
+from utils import generate_unique_filename, slugify_text
 from videos import VideosManager, OUTPUT_VIDEO_DIR
 
 # Constants for encoder device types
@@ -229,6 +229,7 @@ class VideoEncoder:
         pipeline_id: str,
         encoder_device: str,
         input_video_filenames: list[str],
+        job_id: str,
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
@@ -245,6 +246,7 @@ class VideoEncoder:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
+            job_id: Unique job identifier used to generate unique output filename
 
         Returns:
             Tuple of (sub-pipeline string, output file path)
@@ -275,8 +277,9 @@ class VideoEncoder:
                 f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
             )
 
-        # Generate unique output path
-        output_filename = generate_unique_filename(f"pipeline_output_{pipeline_id}.mp4")
+        filename = slugify_text(f"pipeline_output-{pipeline_id}-{job_id}")
+        # Generate unique output path using pipeline_id and job_id
+        output_filename = generate_unique_filename(f"{filename}.mp4")
         output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
 
         # Create sub-pipeline string with all required elements for replacing fakesink
@@ -293,6 +296,7 @@ class VideoEncoder:
         pipeline_id: str,
         encoder_device: str,
         input_video_filenames: list[str],
+        job_id: str,
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
@@ -309,6 +313,7 @@ class VideoEncoder:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             input_video_filenames: List of input video filenames to detect codec
+            job_id: Unique job identifier used to generate unique stream name
 
         Returns:
             Tuple of (sub-pipeline string, live stream URL)
@@ -317,8 +322,9 @@ class VideoEncoder:
             ValueError: If codec is not supported, encoder_device is invalid,
                 or no suitable encoder is found
         """
-        # Generate stream name from pipeline ID
-        stream_name = f"stream_{pipeline_id}"
+        # Generate stream name from pipeline ID and job_id
+        stream_name = f"stream-{pipeline_id}-{job_id}"
+        stream_name = slugify_text(stream_name)
 
         # Build live stream URL
         stream_url = (

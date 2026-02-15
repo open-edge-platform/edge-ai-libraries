@@ -6,3 +6,4 @@ pydantic==2.12.5
 PyYAML==6.0.3
 uvicorn==0.40.0
 onvif-zeep==0.2.12
+python-slugify==8.0.4
