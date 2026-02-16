@@ -1,6 +1,6 @@
 services:
   minio:
-    image: minio/minio:latest
+    image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -11,7 +11,7 @@ services:
       - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD-SHELL", "echo > /dev/tcp/127.0.0.1/80 && exit 0 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
