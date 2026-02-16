@@ -27,6 +27,8 @@ export interface MetricChartProps {
   showLegend?: boolean;
   labels?: string[];
   maxDataPoints?: number;
+  isSummary?: boolean;
+  hideSummaryBorder?: boolean;
 }
 
 export const MetricChart = ({
@@ -40,6 +42,8 @@ export const MetricChart = ({
   showLegend = true,
   labels,
   maxDataPoints = 60,
+  isSummary = false,
+  hideSummaryBorder = false,
 }: MetricChartProps) => {
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
@@ -109,10 +113,18 @@ export const MetricChart = ({
 
   return (
     <div
-      className={`bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${className}`}
+      className={`bg-neutral-950/50 rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
+        isSummary && !hideSummaryBorder
+          ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+          : "border border-neutral-800/50"
+      } ${className}`}
     >
       <h3
-        className={`text-xs font-semibold text-neutral-400 uppercase tracking-widest ${isCompact ? "mb-4" : "mb-8"}`}
+        className={`text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-4" : "mb-8"} ${
+          isSummary && !hideSummaryBorder
+            ? "text-energy-blue-tint-1"
+            : "text-neutral-400"
+        }`}
       >
         {title}
       </h3>
@@ -173,7 +185,9 @@ export const MetricChart = ({
             />
             {showLegend && (
               <ChartLegend
-                content={<ChartLegendContent className="text-white" />}
+                content={
+                  <ChartLegendContent className="text-white text-[8px]" />
+                }
               />
             )}
             {dataKeys.map((key, index) => (

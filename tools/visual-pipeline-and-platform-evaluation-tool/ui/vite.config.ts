@@ -22,11 +22,11 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: false,
         },
-        "/stream_": {
+        "/stream": {
           target: env.VITE_MEDIAMTX_URL || "http://localhost:8889",
           changeOrigin: true,
           secure: false,
-          ws: false,
+          ws: true,
         },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",

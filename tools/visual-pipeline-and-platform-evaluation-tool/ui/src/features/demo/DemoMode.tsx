@@ -1,13 +1,13 @@
 import { type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  type PipelinePerformanceSpec,
+  type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
   useGetPerformanceJobStatusQuery,
   useRunDensityTestMutation,
   useRunPerformanceTestMutation,
   useStopDensityTestJobMutation,
   useStopPerformanceTestJobMutation,
-  useUpdatePipelineMutation,
+  useUpdateVariantMutation,
 } from "@/api/api.generated.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -30,12 +30,7 @@ import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaCo
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
-import pipeline0 from "@/assets/pipeline_0.png";
-import pipeline1 from "@/assets/pipeline_1.png";
-import pipeline2 from "@/assets/pipeline_2.png";
-import pipeline3 from "@/assets/pipeline_3.png";
-import pipeline4 from "@/assets/pipeline_4.png";
-import pipeline5 from "@/assets/pipeline_5.png";
+import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
@@ -50,15 +45,6 @@ import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
-
-const pipelineImages = [
-  pipeline0,
-  pipeline1,
-  pipeline2,
-  pipeline3,
-  pipeline4,
-  pipeline5,
-];
 
 // Mapowanie typów węzłów na ich kategorie/tagi (z rzeczywistych definicji węzłów)
 const nodeTypeToTag: Record<string, string> = {
@@ -173,7 +159,7 @@ const DemoMode = () => {
     useRunPerformanceTestMutation();
   const [stopDensityTestJob] = useStopDensityTestJobMutation();
   const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
-  const [updatePipeline] = useUpdatePipelineMutation();
+  const [updateVariant] = useUpdateVariantMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
@@ -183,7 +169,7 @@ const DemoMode = () => {
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;
-    streams_per_pipeline: PipelinePerformanceSpec[] | null;
+    streams_per_pipeline: PipelineStreamSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
   const [performanceResult, setPerformanceResult] = useState<{
@@ -217,6 +203,9 @@ const DemoMode = () => {
   const [metricsFrozenForJobId, setMetricsFrozenForJobId] = useState<
     string | null
   >(null);
+  const [frozenPerStreamFps, setFrozenPerStreamFps] = useState<number | null>(
+    null,
+  );
   const [selectedModels, setSelectedModels] = useState<Map<string, string>>(
     new Map(),
   ); // Map<baseName, selectedPipelineId>
@@ -332,9 +321,9 @@ const DemoMode = () => {
       ? !performanceJobId && (!!performanceResult || !!performanceErrorMessage)
       : !densityJobId && (!!testResult || !!errorMessage);
   const isPipelineConfigOpen = openConfigSection === "pipeline-config";
-  const pipelineConfigContainerMaxHeightClass = "max-h-[60vh]";
+  const pipelineConfigContainerMaxHeightClass = "max-h-[58vh]";
   const pipelineConfigMaxHeightClass = isPipelineConfigOpen
-    ? "max-h-[42vh]"
+    ? "max-h-[40vh]"
     : "max-h-[44vh]";
   const runConfigMaxHeightClass = "max-h-[44vh]";
   const showPreviewPanel =
@@ -417,13 +406,13 @@ const DemoMode = () => {
     );
 
     return {
-      fps: fpsAvg,
+      fps: frozenPerStreamFps ?? fpsAvg,
       cpu: cpuAvg,
       memory: memoryAvg,
       availableGpuIds: gpuIds,
       gpuDetailedMetrics,
     };
-  }, [frozenMetrics, hasFrozenMetrics]);
+  }, [frozenMetrics, hasFrozenMetrics, frozenPerStreamFps]);
 
   const smoothScrollRef = useRef<{
     rafId: number;
@@ -544,15 +533,17 @@ const DemoMode = () => {
     gridPreviewBorder: "border-slate-400/30 shadow-lg",
     gridPreviewTitle: "text-slate-300",
     loadingDots: "bg-blue-600",
-    summaryFpsBorder: "border-blue-600/40",
+    summaryFpsBorder:
+      "border-energy-blue/60 shadow-lg shadow-energy-blue/20 ring-2 ring-energy-blue/30",
     summaryFpsGradient:
-      "bg-gradient-to-r from-blue-600/10 via-blue-500/10 to-blue-600/10",
-    summaryFpsText: "text-blue-600",
-    summaryStreamsBorder: "border-slate-500/30",
+      "bg-gradient-to-r from-energy-blue/15 via-energy-blue-tint-1/15 to-energy-blue/15",
+    summaryFpsText: "text-energy-blue-tint-1",
+    summaryStreamsBorder:
+      "border-energy-blue/60 shadow-lg shadow-energy-blue/20 ring-2 ring-energy-blue/30",
     summaryStreamsGradient:
-      "bg-gradient-to-r from-slate-600/10 via-slate-500/10 to-slate-600/10",
-    summaryStreamsText: "text-slate-400",
-    summaryStreamsValueText: "text-slate-300",
+      "bg-gradient-to-r from-energy-blue/15 via-energy-blue-tint-1/15 to-energy-blue/15",
+    summaryStreamsText: "text-energy-blue-tint-1",
+    summaryStreamsValueText: "text-white",
   };
 
   const getBasePipelineName = (name: string) => {
@@ -571,11 +562,14 @@ const DemoMode = () => {
       if (existing) {
         if (tag) {
           existing.pipelines[tag] = pipeline;
+        } else {
+          // If no tag, add as "default" variant
+          existing.pipelines["default"] = pipeline;
         }
       } else {
         acc.push({
           baseName,
-          pipelines: tag ? { [tag]: pipeline } : {},
+          pipelines: tag ? { [tag]: pipeline } : { default: pipeline },
           id: pipeline.id,
           description: pipeline.description,
         });
@@ -627,6 +621,7 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(densityJobId);
+        setFrozenPerStreamFps(jobStatus.per_stream_fps ?? null);
       }
       setErrorMessage(null);
       setDensityJobId(null);
@@ -646,6 +641,7 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(densityJobId);
+        setFrozenPerStreamFps(jobStatus.per_stream_fps ?? null);
       }
 
       // Show results if available
@@ -675,7 +671,15 @@ const DemoMode = () => {
       return;
     }
 
-    if (performanceJobStatus?.state === "COMPLETED") {
+    // Update live stream URLs during RUNNING state for live preview
+    if (performanceJobStatus?.state === "RUNNING") {
+      setPerformanceResult((prev) => ({
+        total_fps: prev?.total_fps ?? null,
+        per_stream_fps: prev?.per_stream_fps ?? null,
+        video_output_paths: prev?.video_output_paths ?? null,
+        live_stream_urls: performanceJobStatus.live_stream_urls,
+      }));
+    } else if (performanceJobStatus?.state === "COMPLETED") {
       setPerformanceResult({
         total_fps: performanceJobStatus.total_fps,
         per_stream_fps: performanceJobStatus.per_stream_fps,
@@ -691,6 +695,7 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(performanceJobId);
+        setFrozenPerStreamFps(performanceJobStatus.per_stream_fps ?? null);
       }
       setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
@@ -715,6 +720,7 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(performanceJobId);
+        setFrozenPerStreamFps(performanceJobStatus.per_stream_fps ?? null);
       }
 
       // Show results if available
@@ -895,13 +901,15 @@ const DemoMode = () => {
     setTestStartTimestamp(Date.now());
     setMetricHistorySnapshot([]);
     setMetricsFrozenForJobId(null);
+    setFrozenPerStreamFps(null);
     setLastRunTest(activeTest);
     setPreviewCarouselIndex(0);
 
     try {
       for (const selection of pipelineSelections) {
         const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
-        if (!pipeline?.pipeline_graph) continue;
+        const variant = pipeline?.variants?.[0];
+        if (!pipeline || !variant?.pipeline_graph) continue;
 
         let hasChanges = false;
         const getDefaultModelForNode = (nodeType: string) => {
@@ -916,7 +924,7 @@ const DemoMode = () => {
           const match = models.find((model) => model.category === category);
           return match ? (match.display_name ?? match.name) : null;
         };
-        const updatedNodes = pipeline.pipeline_graph.nodes.map((node) => {
+        const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
           const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
           const mergedData = {
             ...node.data,
@@ -970,12 +978,13 @@ const DemoMode = () => {
         });
 
         if (hasChanges) {
-          await updatePipeline({
+          await updateVariant({
             pipelineId: pipeline.id,
-            pipelineUpdate: {
+            variantId: variant.id,
+            variantUpdate: {
               pipeline_graph: {
                 nodes: updatedNodes,
-                edges: pipeline.pipeline_graph.edges ?? [],
+                edges: variant.pipeline_graph.edges ?? [],
               },
             },
           }).unwrap();
@@ -1010,10 +1019,20 @@ const DemoMode = () => {
               output_mode: outputMode,
               max_runtime: maxRuntime,
             },
-            pipeline_performance_specs: pipelineSelections.map((selection) => ({
-              id: selection.pipelineId,
-              streams: performanceStreams[selection.pipelineId] ?? 1,
-            })),
+            pipeline_performance_specs: pipelineSelections.map((selection) => {
+              const pipeline = pipelines.find(
+                (p) => p.id === selection.pipelineId,
+              );
+              const variant = pipeline?.variants?.[0];
+              return {
+                pipeline: {
+                  source: "variant" as const,
+                  pipeline_id: selection.pipelineId,
+                  variant_id: variant?.id ?? "",
+                },
+                streams: performanceStreams[selection.pipelineId] ?? 1,
+              };
+            }),
           },
         }).unwrap();
         setPerformanceJobId(result.job_id);
@@ -1033,10 +1052,20 @@ const DemoMode = () => {
             max_runtime: 0,
           },
           fps_floor: fpsFloor,
-          pipeline_density_specs: pipelineSelections.map((selection) => ({
-            id: selection.pipelineId,
-            stream_rate: selection.stream_rate,
-          })),
+          pipeline_density_specs: pipelineSelections.map((selection) => {
+            const pipeline = pipelines.find(
+              (p) => p.id === selection.pipelineId,
+            );
+            const variant = pipeline?.variants?.[0];
+            return {
+              pipeline: {
+                source: "variant" as const,
+                pipeline_id: selection.pipelineId,
+                variant_id: variant?.id ?? "",
+              },
+              stream_rate: selection.stream_rate,
+            };
+          }),
         },
       }).unwrap();
       setDensityJobId(result.job_id);
@@ -1113,17 +1142,56 @@ const DemoMode = () => {
               {/* Pipeline Cards Grid */}
               <div className="flex-1 overflow-auto p-6 pt-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-20">
+                  {/* Debug info */}
+                  {groupedPipelines.length === 0 && (
+                    <div className="col-span-full text-center text-slate-400">
+                      <p>
+                        No pipelines found. Total pipelines: {pipelines.length}
+                      </p>
+                      {pipelines.length > 0 && (
+                        <p>
+                          Pipeline names:{" "}
+                          {pipelines.map((p) => p.name).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {groupedPipelines.length > 0 &&
+                    groupedPipelines.filter((group) => {
+                      const allowedPipelineNames = [
+                        "Goods Detection",
+                        "License Plate Recognition",
+                        "Simple NVR",
+                        "Smart NVR",
+                      ];
+                      return allowedPipelineNames.includes(group.baseName);
+                    }).length === 0 && (
+                      <div className="col-span-full text-center text-slate-400">
+                        <p>
+                          No matching pipelines after filter. Grouped pipelines
+                          ({groupedPipelines.length}):
+                        </p>
+                        <ul className="text-xs">
+                          {groupedPipelines.map((g, i) => (
+                            <li key={i}>
+                              "{g.baseName}" - devices:{" "}
+                              {Object.keys(g.pipelines).join(", ")}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   {groupedPipelines
                     .filter((group) => {
                       const allowedPipelineNames = [
-                        "Smart NVR Pipeline - Analytics Branch",
-                        "Smart NVR Pipeline - Media Only Branch",
-                        "Simple Video Structurization (D-T-C)",
-                        "Retail - YOLO 11n",
+                        "Goods Detection",
+                        "License Plate Recognition",
+                        "Simple NVR",
+                        "Smart NVR",
                       ];
                       return allowedPipelineNames.includes(group.baseName);
                     })
-                    .map((group, idx) => {
+                    .map((group) => {
                       const isSelected = selectedModels.has(group.baseName);
                       const availableDevices = Object.keys(group.pipelines);
 
@@ -1177,15 +1245,14 @@ const DemoMode = () => {
                             <CardTitle className="min-h-8 text-slate-200">
                               {group.baseName}
                             </CardTitle>
-                            {pipelineImages[idx % pipelineImages.length] && (
-                              <img
-                                src={
-                                  pipelineImages[idx % pipelineImages.length]
-                                }
-                                alt={group.baseName}
-                                className="w-full h-auto rounded-md"
-                              />
-                            )}
+                            <img
+                              src={
+                                Object.values(group.pipelines)[0]?.thumbnail ||
+                                thumbnailPlaceholder
+                              }
+                              alt={group.baseName}
+                              className="w-full h-auto rounded-md"
+                            />
                             <CardDescription className="line-clamp-4 min-h-18 text-slate-400">
                               {group.description}
                             </CardDescription>
@@ -1257,9 +1324,6 @@ const DemoMode = () => {
                         (p) => p.id === selection.pipelineId,
                       );
                       if (!pipeline) return null;
-                      const pipelineIndex = pipelines.findIndex(
-                        (p) => p.id === selection.pipelineId,
-                      );
                       const isSelected =
                         selectedConfigPipelineId === selection.pipelineId;
 
@@ -1275,21 +1339,13 @@ const DemoMode = () => {
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
                           } ${isReadOnly ? "opacity-70" : ""}`}
                         >
-                          {pipelineImages[
-                            pipelineIndex % pipelineImages.length
-                          ] && (
-                            <div className="p-0 pb-0">
-                              <img
-                                src={
-                                  pipelineImages[
-                                    pipelineIndex % pipelineImages.length
-                                  ]
-                                }
-                                alt={pipeline.name}
-                                className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
-                              />
-                            </div>
-                          )}
+                          <div className="p-0 pb-0">
+                            <img
+                              src={pipeline.thumbnail || thumbnailPlaceholder}
+                              alt={pipeline.name}
+                              className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
+                            />
+                          </div>
                           <CardHeader className="p-2 pt-0 pb-0">
                             <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold">
                               {getBasePipelineName(pipeline.name)}
@@ -1382,6 +1438,22 @@ const DemoMode = () => {
                                 const pipeline = pipelines.find(
                                   (p) => p.id === selection.pipelineId,
                                 );
+                                const variant = pipeline?.variants?.[0];
+                                // Find the stream spec ID from performanceJobStatus
+                                const streamSpec =
+                                  performanceJobStatus?.streams_per_pipeline?.find(
+                                    (spec) => {
+                                      // Match by checking if the spec ID contains the variant ID
+                                      return (
+                                        variant && spec.id.includes(variant.id)
+                                      );
+                                    },
+                                  );
+                                const streamUrl = streamSpec?.id
+                                  ? performanceResult?.live_stream_urls?.[
+                                      streamSpec.id
+                                    ]
+                                  : null;
                                 return (
                                   <div
                                     key={selection.pipelineId}
@@ -1392,9 +1464,15 @@ const DemoMode = () => {
                                     </p>
                                     <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
                                       <div className="w-full h-full">
-                                        <WebRTCVideoPlayer
-                                          pipelineId={selection.pipelineId}
-                                        />
+                                        {streamUrl ? (
+                                          <WebRTCVideoPlayer
+                                            streamUrl={streamUrl}
+                                          />
+                                        ) : (
+                                          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                                            Waiting for stream...
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -1480,10 +1558,27 @@ const DemoMode = () => {
                                 const pipeline = pipelines.find(
                                   (p) => p.id === selection.pipelineId,
                                 );
-                                const paths =
-                                  performanceResult.video_output_paths?.[
-                                    selection.pipelineId
-                                  ];
+                                const variant = pipeline?.variants?.[0];
+                                // Find paths by matching against pipeline ID and variant ID in the key
+                                const matchingKey =
+                                  performanceResult.video_output_paths
+                                    ? Object.keys(
+                                        performanceResult.video_output_paths,
+                                      ).find((key) => {
+                                        if (variant) {
+                                          return (
+                                            key.includes(pipeline.id) &&
+                                            key.includes(variant.id)
+                                          );
+                                        }
+                                        return key.includes(pipeline?.id || "");
+                                      })
+                                    : undefined;
+                                const paths = matchingKey
+                                  ? performanceResult.video_output_paths?.[
+                                      matchingKey
+                                    ]
+                                  : undefined;
                                 const videoPath =
                                   paths && paths.length > 0
                                     ? [...paths].pop()
@@ -1596,10 +1691,25 @@ const DemoMode = () => {
                                 const pipeline = pipelines.find(
                                   (p) => p.id === selection.pipelineId,
                                 );
-                                const paths =
-                                  testResult.video_output_paths?.[
-                                    selection.pipelineId
-                                  ];
+                                const variant = pipeline?.variants?.[0];
+                                // Find paths by matching against pipeline ID and variant ID in the key
+                                const matchingKey =
+                                  testResult.video_output_paths
+                                    ? Object.keys(
+                                        testResult.video_output_paths,
+                                      ).find((key) => {
+                                        if (variant) {
+                                          return (
+                                            key.includes(pipeline.id) &&
+                                            key.includes(variant.id)
+                                          );
+                                        }
+                                        return key.includes(pipeline?.id || "");
+                                      })
+                                    : undefined;
+                                const paths = matchingKey
+                                  ? testResult.video_output_paths?.[matchingKey]
+                                  : undefined;
                                 const videoPath =
                                   paths && paths.length > 0
                                     ? [...paths].pop()
@@ -1749,7 +1859,7 @@ const DemoMode = () => {
                                         collapsible
                                         className="w-full space-y-2"
                                       >
-                                        {pipeline.pipeline_graph?.nodes
+                                        {pipeline.variants?.[0]?.pipeline_graph?.nodes
                                           ?.filter((node) => {
                                             const nodeTag =
                                               nodeTypeToTag[node.type] || null;
@@ -2332,15 +2442,21 @@ const DemoMode = () => {
                                                 Save output
                                               </label>
                                             </div>
-                                            {performanceVideoOutputEnabled && (
-                                              <div className="mt-2">
-                                                <SaveOutputWarning />
-                                              </div>
-                                            )}
                                           </div>
                                         </>
                                       )}
                                     </div>
+                                    {performanceVideoOutputEnabled &&
+                                      !performanceLivePreviewEnabled && (
+                                        <div
+                                          className="-mt-13"
+                                          style={{
+                                            overflowAnchor: "none",
+                                          }}
+                                        >
+                                          <SaveOutputWarning />
+                                        </div>
+                                      )}
                                   </div>
                                 </div>
                               ) : (
@@ -2422,13 +2538,18 @@ const DemoMode = () => {
                                             Save output
                                           </label>
                                         </div>
-                                        {videoOutputEnabled && (
-                                          <div className="mt-2">
-                                            <SaveOutputWarning />
-                                          </div>
-                                        )}
                                       </div>
                                     </div>
+                                    {videoOutputEnabled && (
+                                      <div
+                                        className="-mt-13"
+                                        style={{
+                                          overflowAnchor: "none",
+                                        }}
+                                      >
+                                        <SaveOutputWarning />
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2553,7 +2674,7 @@ const DemoMode = () => {
                             </div>
                           )}
 
-                        {performanceResult && (
+                        {performanceResult && !performanceJobId && (
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                               <div
@@ -2680,7 +2801,7 @@ const DemoMode = () => {
                             </div>
                           )}
 
-                        {testResult && (
+                        {testResult && !densityJobId && (
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                               <div

@@ -14,20 +14,51 @@ interface MetricCardProps {
   value: number;
   unit: string;
   icon: React.ReactNode;
+  isSummary?: boolean;
 }
 
-const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6 flex items-center space-x-4">
-    <div className="shrink-0 p-3 bg-gradient-to-br from-white/10 to-white/5 rounded-lg backdrop-blur-sm">
+const MetricCard = ({
+  title,
+  value,
+  unit,
+  icon,
+  isSummary = false,
+}: MetricCardProps) => (
+  <div
+    className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 flex items-center space-x-4 transition-all ${
+      isSummary
+        ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
+        : "border border-neutral-800/50"
+    }`}
+  >
+    <div
+      className={`shrink-0 p-3 rounded-lg backdrop-blur-sm ${
+        isSummary
+          ? "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20"
+          : "bg-gradient-to-br from-white/10 to-white/5"
+      }`}
+    >
       {icon}
     </div>
     <div className="flex-1">
-      <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-1">
+      <h3
+        className={`text-[11px] font-semibold uppercase tracking-widest mb-1 ${
+          isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+        }`}
+      >
         {title}
       </h3>
-      <p className="text-3xl font-bold text-white">
+      <p
+        className={`text-3xl font-bold ${
+          isSummary ? "text-white" : "text-white"
+        }`}
+      >
         {value.toFixed(2)}
-        <span className="text-sm text-neutral-500 ml-1.5 font-semibold">
+        <span
+          className={`text-sm ml-1.5 font-semibold ${
+            isSummary ? "text-energy-blue-tint-2" : "text-neutral-500"
+          }`}
+        >
           {unit}
         </span>
       </p>
@@ -177,7 +208,13 @@ export const TestProgressIndicator = ({
   };
 
   return (
-    <div className={`space-y-4 ${className} text-foreground`}>
+    <div
+      className={`space-y-4 ${className} text-foreground ${
+        isSummary
+          ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
+          : ""
+      }`}
+    >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <div className="space-y-4">
           <MetricCard
@@ -185,6 +222,7 @@ export const TestProgressIndicator = ({
             value={metrics.fps}
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+            isSummary={isSummary}
           />
           <MetricChart
             title="Frame Rate Over Time"
@@ -196,6 +234,7 @@ export const TestProgressIndicator = ({
             showLegend={false}
             labels={["Frame Rate"]}
             maxDataPoints={30}
+            isSummary={isSummary}
           />
           <MetricChart
             title="Memory Utilization Over Time"
@@ -207,6 +246,7 @@ export const TestProgressIndicator = ({
             showLegend={false}
             labels={["Memory"]}
             maxDataPoints={30}
+            isSummary={isSummary}
           />
         </div>
 
@@ -216,6 +256,7 @@ export const TestProgressIndicator = ({
             value={metrics.cpu}
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
+            isSummary={isSummary}
           />
           <MetricChart
             title="CPU Usage Over Time"
@@ -227,6 +268,7 @@ export const TestProgressIndicator = ({
             showLegend={false}
             labels={["CPU Usage"]}
             maxDataPoints={30}
+            isSummary={isSummary}
           />
           <MetricChart
             title="CPU Temperature Over Time"
@@ -238,6 +280,7 @@ export const TestProgressIndicator = ({
             showLegend={false}
             labels={["Temperature"]}
             maxDataPoints={30}
+            isSummary={isSummary}
           />
           <MetricChart
             title="CPU Frequency Over Time"
@@ -252,6 +295,7 @@ export const TestProgressIndicator = ({
             showLegend={false}
             labels={["Frequency"]}
             maxDataPoints={30}
+            isSummary={isSummary}
           />
         </div>
 
@@ -272,9 +316,20 @@ export const TestProgressIndicator = ({
             })()}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
+            isSummary={isSummary}
           />
-          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
+          <div
+            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : "border border-neutral-800/50"
+            }`}
+          >
+            <h3
+              className={`text-[10px] font-semibold uppercase tracking-widest mb-3 ${
+                isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+              }`}
+            >
               GPU
               {availableGpus.length > 1 && (
                 <>
@@ -305,12 +360,24 @@ export const TestProgressIndicator = ({
                   className="!shadow-none !p-0 !bg-transparent !border-0"
                   labels={availableEngines.map((e) => engineLabels[e])}
                   maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
                 />
               </div>
             </div>
           </div>
-          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
+          <div
+            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : "border border-neutral-800/50"
+            }`}
+          >
+            <h3
+              className={`text-[10px] font-semibold uppercase tracking-widest mb-3 ${
+                isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+              }`}
+            >
               GPU
               {availableGpus.length > 1 && (
                 <>
@@ -345,12 +412,24 @@ export const TestProgressIndicator = ({
                   labels={["Frequency"]}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
                   maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
                 />
               </div>
             </div>
           </div>
-          <div className="bg-neutral-950/50 border border-neutral-800/50 rounded-xl shadow-2xl p-6">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">
+          <div
+            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : "border border-neutral-800/50"
+            }`}
+          >
+            <h3
+              className={`text-[10px] font-semibold uppercase tracking-widest mb-3 ${
+                isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+              }`}
+            >
               GPU
               {availableGpus.length > 1 && (
                 <>
@@ -393,6 +472,8 @@ export const TestProgressIndicator = ({
                   labels={["GPU Power", "Package Power"]}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
                   maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
                 />
               </div>
             </div>
