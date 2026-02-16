@@ -232,7 +232,7 @@ class VideoEncoder:
         for source in input_sources:
             if not source:
                 continue
-            if source.startswith("rtsp://") or source.startswith("rtsps://"):
+            if source.startswith("rtsp://"):
                 encoding = camera_manager.get_encoding_for_rtsp_url(source)
                 detected = _normalize(encoding) if encoding else ""
                 if detected in self.encoder_configs:

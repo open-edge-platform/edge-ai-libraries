@@ -1019,7 +1019,7 @@ class Graph:
                     )
 
                 elif kind == "camera":
-                    if source.startswith("rtsp://") or source.startswith("rtsps://"):
+                    if source.startswith("rtsp://"):
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
                         logger.debug(
@@ -2026,7 +2026,7 @@ def _generic_input_to_source(nodes: list[Node], edges: list[Edge]) -> None:
                 )
 
             # Detect camera type based on source pattern
-            if source.startswith("rtsp://") or source.startswith("rtsps://"):
+            if source.startswith("rtsp://"):
                 node.data.clear()
                 node.type = "rtspsrc"
                 node.data["location"] = source

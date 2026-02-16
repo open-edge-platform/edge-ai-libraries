@@ -4582,23 +4582,6 @@ class TestGenericInputConversion(unittest.TestCase):
         self.assertEqual(nodes[0].type, "rtspsrc")
         self.assertEqual(nodes[0].data["location"], "rtsp://192.168.1.100:554/stream")
 
-    def test_generic_input_to_source_camera_rtsps(self):
-        """Test conversion of generic camera input to rtspsrc for RTSPS URLs."""
-        nodes = [
-            Node(
-                id="0",
-                type="input",
-                data={"kind": "camera", "source": "rtsps://192.168.1.100:554/stream"},
-            ),
-            Node(id="1", type="decodebin3", data={}),
-        ]
-        edges = [Edge(id="0", source="0", target="1")]
-
-        _generic_input_to_source(nodes, edges)
-
-        self.assertEqual(nodes[0].type, "rtspsrc")
-        self.assertEqual(nodes[0].data["location"], "rtsps://192.168.1.100:554/stream")
-
     def test_generic_input_to_source_camera_requires_decodebin3(self):
         """Test that camera input without decodebin3 raises ValueError."""
         nodes = [
