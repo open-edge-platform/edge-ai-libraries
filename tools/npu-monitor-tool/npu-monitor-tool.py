@@ -321,6 +321,11 @@ def main(): # pylint: disable=too-many-branches
     interval = args.interval if args.interval else DEFAULT_INTERVAL_MS
     prev_bandwidth = pu.get_noc_bandwidth()
 
+    # Memory utilization sysfs isn't exposed on N-1 platforms (e.g., MTL/ARL).
+    # Only PTL and later platforms should attempt to read it.
+    mem_util_supported = (pu.cpu_gen is not None) and (pu.cpu_gen >= CpuGen.PTL)
+    mem_util_path = os.path.join(dev_path, "npu_memory_utilization")
+
     csv_file = None
     csv_file_path = None
     try:
@@ -357,18 +362,28 @@ def main(): # pylint: disable=too-many-branches
                 else:
                     utilization = min(100, int(100 * delta_us / interval_us))
 
-                mem_util = fdump(os.path.join(dev_path, "npu_memory_utilization"))
-            # from bytes to MB
-            try:
-                mem_util = int(mem_util) / KB / KB
-            except (TypeError, ValueError) as err:
-                LOG.warning('Failed to parse memory utilization: %s', err)
-                mem_util = 0
-            if mem_util > MB_TO_GB:
-                mem_util /= MB_TO_GB
-                mem_util_unit = 'GB'
-            else:
-                mem_util_unit = 'MB'
+            mem_util_mb = -1.0
+            mem_util_str = f'{"N/A":>31} [--]'
+            if mem_util_supported:
+                if os.path.exists(mem_util_path):
+                    mem_util_raw = fdump(mem_util_path)
+                    # from bytes to MB
+                    try:
+                        mem_util_mb = float(int(mem_util_raw)) / KB / KB
+                    except (TypeError, ValueError) as err:
+                        LOG.warning('Failed to parse memory utilization: %s', err)
+                        mem_util_mb = -1.0
+
+                    if mem_util_mb >= 0:
+                        if mem_util_mb > MB_TO_GB:
+                            mem_util = mem_util_mb / MB_TO_GB
+                            mem_util_unit = 'GB'
+                        else:
+                            mem_util = mem_util_mb
+                            mem_util_unit = 'MB'
+                        mem_util_str = f'{mem_util:>31.2f} [{mem_util_unit}]'
+                else:
+                    LOG.debug('Memory utilization sysfs node not found at %s', mem_util_path)
 
             pu.update_buffer()
 
@@ -392,7 +407,6 @@ def main(): # pylint: disable=too-many-branches
 
             if csv_file:
                 timestamp = int(time_module.time())
-                mem_util_mb = mem_util if mem_util_unit == 'MB' else mem_util * MB_TO_GB
                 csv_file.write(f'{timestamp},{power:.3f},{freq_hz:.0f},{bandwidth:.3f},{tile_config},{temp},{utilization},{mem_util_mb:.2f}\n')
                 csv_file.flush()
 
@@ -405,7 +419,7 @@ def main(): # pylint: disable=too-many-branches
             print(f'|{round(power, 3):>21} [W] |{round(freq_hz):>16} [Hz] | {round(bandwidth, 3):>18.2f} [{bw_unit}] | {tile_config:>15} |')
             print( '+===============================================================================================+')
             print( '|       NPU Temperature    |       NPU Utilization       |      Memory Usage                    |')
-            print(f'| {temp:>19} [°C] | {utilization:>26}% | {mem_util:>31.2f} [{mem_util_unit}] |')
+            print(f'| {temp:>19} [°C] | {utilization:>26}% | {mem_util_str} |')
             print( '+-----------------------------------------------------------------------------------------------+')
             prev_busy_time = curr_busy_time
             prev_bandwidth = curr_bandwidth

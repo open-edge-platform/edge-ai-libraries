@@ -4,19 +4,17 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from api.api_schemas import (
-    Pipeline,
     PipelineGraph,
-    PipelineParameters,
     PipelineRequestOptimize,
     OptimizationType,
     OptimizationJobState,
-    PipelineType,
-    PipelineSource,
+    Variant,
 )
 from managers.optimization_manager import (
     OptimizationManager,
     OptimizationRunner,
 )
+from utils import get_current_timestamp
 
 
 class TestOptimizationManager(unittest.TestCase):
@@ -244,21 +242,18 @@ class TestOptimizationManager(unittest.TestCase):
         # Should not raise
         manager._update_job_error("unknown-job", "Some error")
 
-    def _build_pipeline(self) -> Pipeline:
-        """Helper that constructs a minimal Pipeline instance."""
+    def _build_variant(self) -> Variant:
+        """Helper that constructs a minimal Variant instance for testing."""
         graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        return Pipeline(
-            id="pipeline-test123",
-            name="user-defined-pipelines",
-            version=1,
-            description="A test pipeline",
-            source=PipelineSource.USER_CREATED,
-            # Use some valid PipelineType; value is irrelevant for these tests.
-            type=PipelineType.GSTREAMER,
-            # we only care about pipeline_graph here
+        timestamp = get_current_timestamp()
+        return Variant(
+            id="variant-test123",
+            name="CPU",
+            read_only=False,
             pipeline_graph=graph,
             pipeline_graph_simple=graph,
-            parameters=PipelineParameters(default=None),
+            created_at=timestamp,
+            modified_at=timestamp,
         )
 
     # ------------------------------------------------------------------
@@ -280,14 +275,14 @@ class TestOptimizationManager(unittest.TestCase):
         mock_graph.to_pipeline_description.return_value = "filesrc ! decodebin3 ! sink"
         mock_graph_cls.from_dict.return_value = mock_graph
 
-        pipeline = self._build_pipeline()
+        variant = self._build_variant()
         request = PipelineRequestOptimize(
             type=OptimizationType.PREPROCESS, parameters=None
         )
 
         # Patch _execute_optimization so we do not actually run optimizer logic.
         with patch.object(manager, "_execute_optimization") as mock_execute:
-            job_id = manager.run_optimization(pipeline, request)
+            job_id = manager.run_optimization(variant, request)
 
             self.assertIsInstance(job_id, str)
             # Job must be registered
@@ -303,6 +298,65 @@ class TestOptimizationManager(unittest.TestCase):
             mock_execute.assert_called_once_with(
                 job_id, "filesrc ! decodebin3 ! sink", request
             )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_run_optimization_uses_variant_graphs(self, mock_graph_cls):
+        """
+        run_optimization should use variant's pipeline_graph and pipeline_graph_simple.
+        """
+        manager = OptimizationManager()
+
+        mock_graph = MagicMock()
+        mock_graph.to_pipeline_description.return_value = "filesrc ! sink"
+        mock_graph_cls.from_dict.return_value = mock_graph
+
+        variant = self._build_variant()
+        request = PipelineRequestOptimize(
+            type=OptimizationType.PREPROCESS, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization"):
+            job_id = manager.run_optimization(variant, request)
+
+            job = manager.jobs[job_id]
+            # Job should have variant's graphs stored
+            self.assertEqual(job.original_pipeline_graph, variant.pipeline_graph)
+            self.assertEqual(
+                job.original_pipeline_graph_simple, variant.pipeline_graph_simple
+            )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_run_optimization_with_readonly_variant(self, mock_graph_cls):
+        """
+        run_optimization should work with read-only variants (from PREDEFINED pipelines).
+        """
+        manager = OptimizationManager()
+
+        mock_graph = MagicMock()
+        mock_graph.to_pipeline_description.return_value = "filesrc ! sink"
+        mock_graph_cls.from_dict.return_value = mock_graph
+
+        graph = PipelineGraph.model_validate_json(self.test_graph_json)
+        timestamp = get_current_timestamp()
+        readonly_variant = Variant(
+            id="variant-readonly",
+            name="GPU",
+            read_only=True,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        request = PipelineRequestOptimize(
+            type=OptimizationType.OPTIMIZE, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization"):
+            job_id = manager.run_optimization(readonly_variant, request)
+
+            self.assertIn(job_id, manager.jobs)
+            job = manager.jobs[job_id]
+            self.assertEqual(job.state, OptimizationJobState.RUNNING)
 
     # ------------------------------------------------------------------
     # Status and summary retrieval
@@ -324,8 +378,6 @@ class TestOptimizationManager(unittest.TestCase):
         job2_id = "job-2"
         now = int(time.time() * 1000)
 
-        # Instead of constructing OptimizationJob directly (it is a dataclass),
-        # use a tiny helper for clarity.
         from managers.optimization_manager import OptimizationJob
 
         manager.jobs[job1_id] = OptimizationJob(
@@ -939,7 +991,6 @@ class TestOptimizationManager(unittest.TestCase):
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, OptimizationJobState.ERROR)
-        # updated.error_message is Optional[str]; guard against None for type-checkers
         self.assertIsNotNone(updated.error_message)
         if updated.error_message is not None:
             self.assertIn("boom", updated.error_message)
@@ -996,6 +1047,127 @@ class TestOptimizationRunner(unittest.TestCase):
         self.assertFalse(runner.is_cancelled())
         runner.cancel()
         self.assertTrue(runner.is_cancelled())
+
+
+class TestOptimizationManagerWithVariant(unittest.TestCase):
+    """
+    Additional tests specifically for variant-based optimization workflow.
+    """
+
+    test_graph_json = """
+    {
+        "nodes": [
+            {"id": "0", "type": "filesrc", "data": {"location": "/tmp/test.mp4"}},
+            {"id": "1", "type": "decodebin3", "data": {}},
+            {"id": "2", "type": "fakesink", "data": {}}
+        ],
+        "edges": [
+            {"id": "0", "source": "0", "target": "1"},
+            {"id": "1", "source": "1", "target": "2"}
+        ]
+    }
+    """
+
+    def _create_variant(self, name: str = "CPU", read_only: bool = False) -> Variant:
+        """Helper to create a variant for testing."""
+        graph = PipelineGraph.model_validate_json(self.test_graph_json)
+        timestamp = get_current_timestamp()
+        return Variant(
+            id=f"variant-{name.lower()}",
+            name=name,
+            read_only=read_only,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_run_optimization_preserves_variant_id_in_job(self, mock_graph_cls):
+        """
+        Variant's graphs should be stored in job for reference.
+        """
+        manager = OptimizationManager()
+
+        mock_graph = MagicMock()
+        mock_graph.to_pipeline_description.return_value = "filesrc ! sink"
+        mock_graph_cls.from_dict.return_value = mock_graph
+
+        variant = self._create_variant("GPU")
+        request = PipelineRequestOptimize(
+            type=OptimizationType.PREPROCESS, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization"):
+            job_id = manager.run_optimization(variant, request)
+
+            job = manager.jobs[job_id]
+            # Verify variant's graphs are stored
+            self.assertEqual(
+                job.original_pipeline_graph.model_dump(),
+                variant.pipeline_graph.model_dump(),
+            )
+            self.assertEqual(
+                job.original_pipeline_graph_simple.model_dump(),
+                variant.pipeline_graph_simple.model_dump(),
+            )
+
+    @patch("managers.optimization_manager.Graph")
+    def test_run_optimization_with_different_variants(self, mock_graph_cls):
+        """
+        Different variants can be optimized independently.
+        """
+        manager = OptimizationManager()
+
+        mock_graph = MagicMock()
+        mock_graph.to_pipeline_description.return_value = "filesrc ! sink"
+        mock_graph_cls.from_dict.return_value = mock_graph
+
+        cpu_variant = self._create_variant("CPU")
+        gpu_variant = self._create_variant("GPU")
+
+        request = PipelineRequestOptimize(
+            type=OptimizationType.OPTIMIZE, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization"):
+            job_id_1 = manager.run_optimization(cpu_variant, request)
+            job_id_2 = manager.run_optimization(gpu_variant, request)
+
+            self.assertNotEqual(job_id_1, job_id_2)
+            self.assertIn(job_id_1, manager.jobs)
+            self.assertIn(job_id_2, manager.jobs)
+
+    @patch("managers.optimization_manager.Graph")
+    def test_run_optimization_converts_variant_graph_to_description(
+        self, mock_graph_cls
+    ):
+        """
+        run_optimization should convert variant's pipeline_graph to description string.
+        """
+        manager = OptimizationManager()
+
+        expected_description = "filesrc location=/tmp/test.mp4 ! decodebin3 ! fakesink"
+        mock_graph = MagicMock()
+        mock_graph.to_pipeline_description.return_value = expected_description
+        mock_graph_cls.from_dict.return_value = mock_graph
+
+        variant = self._create_variant()
+        request = PipelineRequestOptimize(
+            type=OptimizationType.PREPROCESS, parameters=None
+        )
+
+        with patch.object(manager, "_execute_optimization") as mock_execute:
+            manager.run_optimization(variant, request)
+
+            # Verify Graph.from_dict was called with variant's graph
+            mock_graph_cls.from_dict.assert_called_once_with(
+                variant.pipeline_graph.model_dump()
+            )
+
+            # Verify _execute_optimization received correct pipeline description
+            call_args = mock_execute.call_args
+            self.assertEqual(call_args[0][1], expected_description)
 
 
 if __name__ == "__main__":

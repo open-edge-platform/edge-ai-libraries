@@ -1,10 +1,12 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import datetime
 from http import HTTPStatus
 from typing import Annotated, List
 
 from fastapi import APIRouter, Body, HTTPException
+from tzlocal import get_localzone
 
 from src.common import DataPrepException, Strings, logger
 from src.common.schema import DataPrepResponse, VideoSummaryRequest
@@ -114,6 +116,13 @@ async def process_video_summary(
             bucket_name, video_id, video_start_time, video_end_time, video_summary, tags
         )
 
+        local_timezone = get_localzone()
+        created_at = (
+            datetime.datetime.now(datetime.timezone.utc)
+            .astimezone(local_timezone)
+            .isoformat()
+        )
+
         # Create metadata for summary text
         text_metadata = {
             "bucket_name": bucket_name,
@@ -124,6 +133,7 @@ async def process_video_summary(
             "content_type": "text",
             "timestamp": video_start_time,
             "tags": comma_separated_tags,
+            "created_at": created_at,
         }
 
         logger.info(f"Text metadata for summary: {text_metadata}")

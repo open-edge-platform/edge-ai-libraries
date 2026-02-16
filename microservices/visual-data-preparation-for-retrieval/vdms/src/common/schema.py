@@ -157,6 +157,25 @@ class VideoSummaryRequest(BaseModel):
     bucket_name: Annotated[
         str, Field(description="The Minio bucket name where the referenced video is stored")
     ]
+    video_id: Annotated[
+        str, Field(description="The video ID (directory) containing the referenced video")
+    ]
+    video_summary: Annotated[
+        str, Field(description="The text summary for the video to be embedded")
+    ]
+    video_start_time: Annotated[
+        float, Field(description="Start timestamp in seconds for the video or video chunk")
+    ]
+    video_end_time: Annotated[
+        float, Field(description="End timestamp in seconds for the video or video chunk")
+    ]
+    tags: Annotated[
+        Optional[List[str]],
+        Field(
+            default_factory=list,
+            description="List of tags to be associated with the video. Useful for filtering the search.",
+        ),
+    ]
 
 
 class TelemetryStageTiming(BaseModel):

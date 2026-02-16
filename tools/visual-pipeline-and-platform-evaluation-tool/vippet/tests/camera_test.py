@@ -234,12 +234,12 @@ USB Camera (usb-0000:00:14.0-9):
         # Should find 2 cameras with video capture capability (video0 and video2)
         self.assertEqual(len(cameras), 2)
         device_ids = {cam.device_id for cam in cameras}
-        self.assertIn("usb_camera_integrated_camera_0", device_ids)
-        self.assertIn("usb_camera_usb_camera_2", device_ids)
+        self.assertIn("usb_camera_integrated-camera_0", device_ids)
+        self.assertIn("usb_camera_usb-camera_2", device_ids)
 
         # Verify camera details
         video0_cam = next(
-            cam for cam in cameras if cam.device_id == "usb_camera_integrated_camera_0"
+            cam for cam in cameras if cam.device_id == "usb_camera_integrated-camera_0"
         )
         self.assertEqual(video0_cam.device_type, CameraType.USB)
         self.assertEqual(video0_cam.device_name, "Integrated Camera")
@@ -307,7 +307,7 @@ Failed to query device
 
         # Should find only 1 camera, ignoring error lines
         self.assertEqual(len(cameras), 1)
-        self.assertEqual(cameras[0].device_id, "usb_camera_integrated_camera_0")
+        self.assertEqual(cameras[0].device_id, "usb_camera_integrated-camera_0")
 
     @patch("camera.subprocess.run")
     def test_discover_cameras_normalizes_device_names_for_url(self, mock_run):
@@ -359,12 +359,12 @@ USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
         # Verify device IDs are URL-safe (no colons, no special characters)
         device_ids = [cam.device_id for cam in cameras]
 
-        # Thronmax StreamGo Webcam: Thron -> thronmax_streamgo_webcam__thron
-        self.assertIn("usb_camera_thronmax_streamgo_webcam__thron_0", device_ids)
-        # Integrated Camera: Integrated C -> integrated_camera__integrated_c
-        self.assertIn("usb_camera_integrated_camera__integrated_c_1", device_ids)
-        # USB2.0 HD UVC WebCam: USB2.0 HD -> usb2_0_hd_uvc_webcam__usb2_0_hd
-        self.assertIn("usb_camera_usb2_0_hd_uvc_webcam__usb2_0_hd_2", device_ids)
+        # Thronmax StreamGo Webcam: Thron -> thronmax-streamgo-webcam-thron
+        self.assertIn("usb_camera_thronmax-streamgo-webcam-thron_0", device_ids)
+        # Integrated Camera: Integrated C -> integrated-camera-integrated-c_1
+        self.assertIn("usb_camera_integrated-camera-integrated-c_1", device_ids)
+        # USB2.0 HD UVC WebCam: USB2.0 HD -> usb2-0-hd-uvc-webcam-usb2-0-hd_2
+        self.assertIn("usb_camera_usb2-0-hd-uvc-webcam-usb2-0-hd_2", device_ids)
 
         # Verify no colons appear in device IDs
         for device_id in device_ids:
@@ -372,7 +372,7 @@ USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
             # Verify only alphanumeric and underscores
             for char in device_id:
                 self.assertTrue(
-                    char.isalnum() or char == "_",
+                    char.isalnum() or char == "_" or char == "-",
                     f"Character '{char}' in device_id '{device_id}' is not URL-safe",
                 )
 

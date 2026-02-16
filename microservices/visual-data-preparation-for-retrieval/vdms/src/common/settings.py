@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     DETECTION_CONFIDENCE: float = 0.85
     DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
+    ROI_CONSOLIDATION_ENABLED: bool | None = None
+    ROI_CONSOLIDATION_IOU_THRESHOLD: float | None = None
+    ROI_CONSOLIDATION_CLASS_AWARE: bool | None = None
+    ROI_CONSOLIDATION_CONTEXT_SCALE: float | None = None
 
     # Telemetry persistence settings
     TELEMETRY_FILE_PATH: Path = Path("/tmp/dataprep/telemetry/telemetry.jsonl")
