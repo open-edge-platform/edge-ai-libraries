@@ -8,6 +8,7 @@ import {
   SearchQuery,
   SearchQueryStatus,
   SearchResult,
+  TimeFilterSelection,
 } from '../model/search.model';
 
 @Injectable()
@@ -17,12 +18,26 @@ export class SearchDbService {
     private searchRepo: Repository<SearchEntity>,
   ) {}
 
+  private applyTimeFilterFields(
+    target: SearchEntity,
+    timeFilter?: TimeFilterSelection | null,
+  ): void {
+    if (timeFilter === undefined) {
+      return;
+    }
+    target.timeFilterValue = timeFilter?.value ?? null;
+    target.timeFilterUnit = timeFilter?.unit ?? null;
+    target.timeFilterStart = timeFilter?.start ?? null;
+    target.timeFilterEnd = timeFilter?.end ?? null;
+  }
+
   async create(search: SearchQuery): Promise<SearchEntity> {
     const newSearch = this.searchRepo.create({
       ...search,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    this.applyTimeFilterFields(newSearch, search.timeFilter);
     return this.searchRepo.save(newSearch);
   }
 
@@ -111,6 +126,7 @@ export class SearchDbService {
       ...search,
       updatedAt: new Date().toISOString(),
     };
+    this.applyTimeFilterFields(existingSearch, search.timeFilter);
     return this.searchRepo.save(existingSearch);
   }
 

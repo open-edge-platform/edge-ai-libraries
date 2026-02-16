@@ -33,6 +33,10 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
+| `ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
+| `ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
+| `ROI_CONSOLIDATION_CLASS_AWARE` | Optional | `false` | Merge only boxes of the same class when `true`. |
+| `ROI_CONSOLIDATION_CONTEXT_SCALE` | Optional | `0.2` | Expands merged ROIs by this fraction of their width/height. |
 | `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
@@ -55,6 +59,23 @@ source ./setup.sh --nosetup
 ```
 
 > **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings in SDK and API modes without any additional flags.
+
+## ROI consolidation (optional)
+
+ROI consolidation merges overlapping detections into a single crop and optionally expands that crop for more context. This can reduce duplicate crops and improve embedding coverage when multiple detections overlap the same object.
+
+Enable it via environment variable (recommended for quick toggles):
+
+```bash
+export ROI_CONSOLIDATION_ENABLED=true
+```
+
+Or configure it in `src/config.yaml` under `object_detection.roi_consolidation`:
+
+- `enabled`: Master switch for ROI consolidation logic.
+- `iou_threshold`: IoU threshold used to cluster overlapping boxes. IoU is $\frac{\text{intersection area}}{\text{union area}}$ for two boxes; higher values mean only tighter overlaps merge, lower values merge more aggressively.
+- `class_aware`: When `true`, only boxes of the same class can be merged. When `false`, overlapping boxes across classes can merge (useful for mixed-class clusters).
+- `context_scale`: Expand merged ROI by this fraction of its size. Higher values include more surrounding context; lower values keep crops tighter to the merged box.
 
 Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 

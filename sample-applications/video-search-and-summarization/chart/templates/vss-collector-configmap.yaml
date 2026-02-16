@@ -1,0 +1,70 @@
+{{- if .Values.vsscollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vsscollector.fullname" . }}-config
+  labels:
+    app: {{ .Values.vsscollector.name }}
+data:
+  telegraf.conf: |
+    [agent]
+      interval = "1s"
+      round_interval = true
+      metric_batch_size = 2000
+      metric_buffer_limit = 20000
+      collection_jitter = "0s"
+      flush_interval = "1s"
+      flush_jitter = "0s"
+      precision = "1s"
+      debug = false
+      quiet = true
+      logfile = ""
+
+    [[inputs.cpu]]
+      percpu = false
+      totalcpu = true
+      collect_cpu_time = false
+      report_active = false
+      core_tags = false
+      fieldinclude = ["usage_user"]
+
+    [[inputs.mem]]
+      fieldinclude = ["used_percent"]
+
+    [[inputs.exec]]
+      commands = ["/app/read_cpu_freq.sh"]
+      data_format = "influx"
+      interval = "1s"
+
+    [[inputs.execd]]
+      command = ["python3", "/app/qmassa_reader.py"]
+      data_format = "influx"
+
+    [[inputs.temp]]
+
+    [[processors.starlark]]
+      namepass = ["temp"]
+      source = '''
+    def apply(metric):
+        return metric if metric.tags.get("sensor", "").startswith("coretemp_package_id_") else None
+    '''
+
+    [[inputs.file]]
+      files = ["/app/.collector-signals/dataprep_embeddings_per_second.txt"]
+      data_format = "value"
+      data_type = "float"
+      name_override = "dataprep_embeddings_per_second"
+
+    [[outputs.prometheus_client]]
+      listen = ":9273"
+      metric_version = 1
+      path = "/metrics"
+      collectors_exclude = ["gocollector", "process"]
+      string_as_label = true
+      export_timestamp = true
+
+    [[outputs.websocket]]
+      url = "{{- if .Values.vsscollector.websocketUrl -}}{{ .Values.vsscollector.websocketUrl }}{{- else -}}{{ printf "ws://%s:%v%s" (default .Values.pipelinemanager.name .Values.pipelinemanager.aliasServiceName) .Values.pipelinemanager.service.port .Values.vsscollector.websocketPath }}{{- end }}"
+      data_format = "json"
+      read_timeout = "0s"
+{{- end }}

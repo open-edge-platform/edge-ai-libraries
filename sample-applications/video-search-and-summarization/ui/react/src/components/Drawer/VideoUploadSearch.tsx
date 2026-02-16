@@ -163,10 +163,21 @@ export const VideoUploadSearch: FC<VideoUploadProps> = ({ closeDrawer, isOpen })
       const res = await axios.post<{ status: string; message: string }>(api);
       return res.data;
     } catch (error) {
-      // Add context to the error
       if (axios.isAxiosError(error)) {
-        throw new Error(`Embedding creation failed: ${error.response?.data?.message || error.message}`);
+        const responseMessage = error.response?.data?.message;
+        const status = error.response?.status;
+        const timeoutHit =
+          error.code === 'ECONNABORTED' ||
+          status === 504 ||
+          /timeout/i.test(responseMessage || error.message || '');
+
+        if (timeoutHit || responseMessage === 'Internal server error') {
+          throw new Error(t('timeoutError'));
+        }
+
+        throw new Error(responseMessage || error.message);
       }
+
       throw error;
     }
   };
@@ -222,8 +233,21 @@ export const VideoUploadSearch: FC<VideoUploadProps> = ({ closeDrawer, isOpen })
       // Extract error message from backend response
       let errorMessage = t('videoUploadError');
 
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      if (axios.isAxiosError(error)) {
+        const responseMessage = error.response?.data?.message;
+        const status = error.response?.status;
+        const timeoutHit =
+          error.code === 'ECONNABORTED' ||
+          status === 504 ||
+          /timeout/i.test(responseMessage || error.message || '');
+
+        if (timeoutHit || responseMessage === 'Internal server error') {
+          errorMessage = t('timeoutError');
+        } else if (responseMessage) {
+          errorMessage = responseMessage;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }

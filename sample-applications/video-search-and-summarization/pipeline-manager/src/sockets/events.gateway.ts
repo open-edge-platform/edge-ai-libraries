@@ -6,6 +6,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import {
   PipelineEvents,
@@ -31,15 +32,19 @@ export class EventsGateway {
   @WebSocketServer()
   server: Server;
 
+  private logger = new Logger(EventsGateway.name);
+
   constructor(private $ui: UiService) {}
 
   @OnEvent(SocketEvent.SEARCH_NOTIFICATION)
   searchNotification() {
+    this.logger.log('Emitting search:sync notification');
     this.server.emit('search:sync');
   }
 
   @OnEvent(SocketEvent.SEARCH_UPDATE)
   searchUpdate(payload: SearchQuery) {
+    this.logger.log(`Emitting search:update for queryId=${payload.queryId}`);
     this.server.emit('search:update', payload);
   }
 
@@ -114,6 +119,7 @@ export class EventsGateway {
 
   @SubscribeMessage('join')
   async handleJoin(client: Socket, roomName: string) {
+    this.logger.log(`Client ${client.id} joining room ${roomName}`);
     await client.join(roomName);
   }
 }

@@ -10,10 +10,12 @@ import {
 } from "@xyflow/react";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils";
-import { useUpdatePipelineMutation } from "@/api/api.generated";
+import { useUpdateVariantMutation } from "@/api/api.generated";
 
 interface ViewModeSwitcherProps {
   pipelineId: string;
+  variant: string;
+  isPredefined: boolean;
   isSimpleMode: boolean;
   currentNodes: ReactFlowNode[];
   currentEdges: ReactFlowEdge[];
@@ -27,6 +29,8 @@ interface ViewModeSwitcherProps {
 
 const ViewModeSwitcher = ({
   pipelineId,
+  variant,
+  isPredefined,
   isSimpleMode,
   currentNodes,
   currentEdges,
@@ -37,7 +41,7 @@ const ViewModeSwitcher = ({
   onRefetch,
   onEditorKeyChange,
 }: ViewModeSwitcherProps) => {
-  const [updatePipeline] = useUpdatePipelineMutation();
+  const [updateVariant] = useUpdateVariantMutation();
 
   const handleModeSwitch = async (checked: boolean) => {
     onTransitionStart();
@@ -56,12 +60,17 @@ const ViewModeSwitcher = ({
         })),
       };
 
-      await updatePipeline({
-        pipelineId,
-        pipelineUpdate: isSimpleMode
-          ? { pipeline_graph_simple: graphData }
-          : { pipeline_graph: graphData },
-      }).unwrap();
+      // TODO: for predefined we skip save, so user is not able to make any changes for
+      // predefined pipeline or wont be able to switch mode or run pipeline
+      if (!isPredefined) {
+        await updateVariant({
+          pipelineId,
+          variantId: variant,
+          variantUpdate: isSimpleMode
+            ? { pipeline_graph_simple: graphData }
+            : { pipeline_graph: graphData },
+        }).unwrap();
+      }
 
       // Force refetch pipeline data
       await onRefetch();

@@ -62,3 +62,6 @@ videoingestion:
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
   odModelType: ""
+
+vsscollector:
+  enabled: false

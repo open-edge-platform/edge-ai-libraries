@@ -139,6 +139,16 @@
   unsupported_devices: ""
   precision: FP16
   default: false
+- name: yolo11s
+  display_name: YOLO 11s 640x640 (FP16)
+  source: public
+  type: detection
+  model_path: public/yolo11s/FP16/yolo11s.xml
+  model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  precision: FP16
+  default: false
 - name: face-detection-retail-0004
   display_name: Face Detection Retail 0004 (FP16)
   source: omz
