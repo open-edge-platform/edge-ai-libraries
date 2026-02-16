@@ -1088,7 +1088,14 @@ class PerformanceTestSpec(BaseModel):
         description="List of pipelines with number of streams for each.",
         examples=[
             [
-                {"pipeline": {"source": "variant", "pipeline_id": "pipeline-a3f5d9e1", "variant_id": "variant-abc123"}, "streams": 4},    
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a3f5d9e1",
+                        "variant_id": "variant-abc123",
+                    },
+                    "streams": 4,
+                },
             ]
         ],
     )
@@ -1119,8 +1126,22 @@ class DensityTestSpec(BaseModel):
         description="List of pipelines with relative stream_rate percentages that must sum to 100.",
         examples=[
             [
-                {"pipeline": {"source": "variant", "pipeline_id": "pipeline-a3f5d9e1", "variant_id": "variant-abc123"}, "stream_rate": 50},
-                {"pipeline": {"source": "variant", "pipeline_id": "pipeline-b7c2e114", "variant_id": "variant-def456"}, "stream_rate": 50},
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a3f5d9e1",
+                        "variant_id": "variant-abc123",
+                    },
+                    "stream_rate": 50,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-b7c2e114",
+                        "variant_id": "variant-def456",
+                    },
+                    "stream_rate": 50,
+                },
             ]
         ],
     )
