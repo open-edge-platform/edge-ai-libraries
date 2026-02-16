@@ -917,7 +917,7 @@
           "pipelines"
         ],
         "summary": "Get Pipelines",
-        "description": "List all pipelines currently registered in the system.\n\nOperation:\n    Return both predefined pipelines loaded from configuration and\n    user-created pipelines added via this API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects.\n\nSuccess conditions:\n    * PipelineManager is initialized.\n\nFailure conditions:\n    * Unexpected errors will be propagated as 500 by FastAPI.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"pipeline-a3f5d9e1\",\n            \"name\": \"vehicle-detection\",\n            \"version\": 1,\n            \"description\": \"Simple vehicle detection pipeline\",\n            \"source\": \"PREDEFINED\",\n            \"type\": \"GStreamer\",\n            \"pipeline_graph\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"pipeline_graph_simple\": {\n              \"nodes\": [...],\n              \"edges\": [...]\n            },\n            \"parameters\": null\n          }\n        ]",
+        "description": "List all pipelines currently registered in the system.\n\nOperation:\n    Return both predefined pipelines loaded from configuration and\n    user-created pipelines added via this API.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects with all variants.\n        Each pipeline includes:\n        * id, name, description, source, tags\n        * variants (list of Variant objects with graphs and timestamps)\n        * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)\n          Note: thumbnail is redacted in logs but returned in full in API response.\n        * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings)\n\nSuccess conditions:\n    * PipelineManager is initialized and has pipelines loaded.\n\nFailure conditions:\n    * Unexpected errors will be propagated as 500 by FastAPI.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"pipeline-a3f5d9e1\",\n            \"name\": \"vehicle-detection\",\n            \"description\": \"Simple vehicle detection pipeline\",\n            \"source\": \"PREDEFINED\",\n            \"tags\": [\"detection\"],\n            \"variants\": [\n              {\n                \"id\": \"variant-1\",\n                \"name\": \"CPU\",\n                \"read_only\": true,\n                \"pipeline_graph\": {...},\n                \"pipeline_graph_simple\": {...},\n                \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n                \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n              }\n            ],\n            \"thumbnail\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...\",\n            \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n            \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n          }\n        ]",
         "operationId": "get_pipelines",
         "responses": {
           "200": {
@@ -941,7 +941,7 @@
           "pipelines"
         ],
         "summary": "Create Pipeline",
-        "description": "Create a new user-defined pipeline from a GStreamer pipeline string.\n\nRequest body:\n    body: PipelineDefinition\n        * name \u2013 non-empty pipeline name.\n        * version \u2013 positive integer. Must be exactly 1 for a new name,\n          or \"last_version + 1\" for an existing name.\n        * description \u2013 non-empty human-readable text describing what the pipeline does.\n        * source \u2013 ignored and forced to USER_CREATED by this endpoint.\n        * type \u2013 pipeline type (currently GStreamer is used).\n        * pipeline_description \u2013 complete GStreamer pipeline string with elements\n          separated by '!' symbols (e.g., \"filesrc location=input.mp4 ! decodebin ! fakesink\").\n        * parameters \u2013 optional default parameters for this pipeline.\n\nReturns:\n    201 Created:\n        PipelineCreationResponse with generated pipeline id.\n    400 Bad Request:\n        MessageResponse when:\n        * versioning rules are violated (e.g. version not next in sequence),\n        * pipeline name or description is invalid at manager level,\n        * GStreamer pipeline string cannot be parsed.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs while creating\n        the pipeline.\n\nSuccess conditions:\n    * PipelineDefinition is structurally valid.\n    * PipelineManager successfully adds the pipeline and converts the\n      GStreamer pipeline string to a graph.\n\nFailure conditions (high level):\n    * Version conflicts or invalid name \u2192 400.\n    * Invalid GStreamer pipeline string \u2192 400.\n    * Any other unhandled error in PipelineManager / Graph \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! videoconvert ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid version '2' for pipeline 'vehicle-detection'. Expected version '1' for a new pipeline.\"\n        }",
+        "description": "Create a new user-defined pipeline.\n\nOperation:\n    * Enforce USER_CREATED source\n    * Delegate to PipelineManager.add_pipeline()\n    * Return generated pipeline ID\n\nThe backend automatically sets:\n    * Pipeline ID (generated from name)\n    * Pipeline created_at and modified_at timestamps\n    * Variant IDs (generated from variant names)\n    * Variant read_only=False for all variants\n    * Variant created_at and modified_at timestamps\n    * Pipeline thumbnail is always None for user-created pipelines\n\nRequest body:\n    body: PipelineDefinition\n        * name \u2013 non-empty pipeline name.\n        * description \u2013 non-empty human-readable text describing what the pipeline does.\n        * source \u2013 ignored and forced to USER_CREATED by this endpoint.\n        * tags \u2013 list of tags for categorizing the pipeline.\n        * variants \u2013 list of VariantCreate objects with name, pipeline_graph,\n            and pipeline_graph_simple. The backend generates IDs and sets read_only=False.\n\nReturns:\n    201 Created:\n        PipelineCreationResponse with generated pipeline id.\n    400 Bad Request:\n        MessageResponse when pipeline definition is invalid.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs.\n\nSuccess conditions:\n    * PipelineDefinition is structurally valid\n    * PipelineManager successfully creates pipeline\n\nFailure conditions:\n    * Invalid pipeline definition at manager level \u2192 400\n    * Any other unhandled error \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"tags\": [\"detection\", \"vehicle\"],\n          \"variants\": [\n            {\n              \"name\": \"CPU\",\n              \"pipeline_graph\": {...},\n              \"pipeline_graph_simple\": {...}\n            }\n          ]\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\"\n        }",
         "operationId": "create_pipeline",
         "requestBody": {
           "content": {
@@ -965,7 +965,7 @@
             }
           },
           "400": {
-            "description": "Invalid pipeline definition or version conflict",
+            "description": "Invalid pipeline definition",
             "content": {
               "application/json": {
                 "schema": {
@@ -1003,7 +1003,7 @@
           "pipelines"
         ],
         "summary": "Validate Pipeline",
-        "description": "Start an asynchronous validation job for an ad-hoc pipeline graph.\n\nOperation:\n    * Convert the provided PipelineGraph to a GStreamer launch string.\n    * Extract validation parameters (for example ``max-runtime``).\n    * Create a new validation job and run ``gst_runner.py`` in validation\n      mode in a background thread.\n    * Return the generated job id.\n\nRequest body:\n    body: PipelineValidation\n        * type \u2013 pipeline type (currently GStreamer).\n        * pipeline_graph \u2013 nodes and edges representation of the pipeline.\n        * parameters \u2013 optional dict, e.g. ``{\"max-runtime\": 10}``.\n          Note: max-runtime must be greater than 0 for validation mode.\n\nReturns:\n    202 Accepted:\n        ValidationJobResponse with job_id of created validation job.\n    400 Bad Request:\n        MessageResponse when request parameters are invalid, e.g.:\n        * ``max-runtime`` is not an integer,\n        * ``max-runtime`` is < 1.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors (e.g. Graph conversion).\n\nSuccess conditions:\n    * Graph can be converted to a valid launch string.\n    * Parameters pass ValidationManager checks.\n    * Background validation job is successfully started.\n\nFailure conditions:\n    * Parameter validation error (ValueError) \u2192 400.\n    * Any other unexpected exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"val001\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n        }",
+        "description": "Start an asynchronous validation job for an ad-hoc pipeline graph.\n\nOperation:\n    * Convert the provided PipelineGraph to a GStreamer launch string.\n    * Extract validation parameters (for example ``max-runtime``).\n    * Create a new validation job and run ``gst_runner.py`` in validation\n      mode in a background thread.\n    * Return the generated job id.\n\nRequest body:\n    body: PipelineValidation\n        * pipeline_graph \u2013 nodes and edges representation of the pipeline.\n        * parameters \u2013 optional dict, e.g. ``{\"max-runtime\": 10}``.\n          Note: max-runtime must be greater than 0 for validation mode.\n\nReturns:\n    202 Accepted:\n        ValidationJobResponse with job_id of created validation job.\n    400 Bad Request:\n        MessageResponse when request parameters are invalid, e.g.:\n        * ``max-runtime`` is not an integer,\n        * ``max-runtime`` is < 1.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors (e.g. Graph conversion).\n\nSuccess conditions:\n    * Graph can be converted to a valid launch string.\n    * Parameters pass ValidationManager checks.\n    * Background validation job is successfully started.\n\nFailure conditions:\n    * Parameter validation error (ValueError) \u2192 400.\n    * Any other unexpected exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n            ]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"val001\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n        }",
         "operationId": "validate_pipeline",
         "requestBody": {
           "content": {
@@ -1016,14 +1016,6 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
           "202": {
             "description": "Pipeline validation started",
             "content": {
@@ -1073,7 +1065,7 @@
           "pipelines"
         ],
         "summary": "Get Pipeline",
-        "description": "Get details of a single pipeline by its id.\n\nOperation:\n    Retrieve the full pipeline definition including both advanced and simple\n    graph views, metadata, and parameters.\n\nPath parameters:\n    pipeline_id: Unique identifier of the pipeline (for example\n        ``\"pipeline-a3f5d9e1\"``).\n\nReturns:\n    200 OK:\n        Pipeline object with full graph (both views) and metadata:\n        - pipeline_graph: Advanced view\n        - pipeline_graph_simple: Simple view\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors in the manager layer.\n\nSuccess conditions:\n    * Pipeline with the given id is present in PipelineManager.\n    * Both graph views are available.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n    * Any other unhandled exception \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
+        "description": "Get details of a single pipeline by its id.\n\nOperation:\n    Retrieve the full pipeline definition including all variants,\n    metadata, timestamps, and tags.\n\nPath parameters:\n    pipeline_id: Unique identifier of the pipeline (for example\n        ``\"pipeline-a3f5d9e1\"``).\n\nReturns:\n    200 OK:\n        Pipeline object with all fields:\n        * id, name, description, source, tags\n        * variants (each with pipeline_graph, pipeline_graph_simple, and timestamps)\n        * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)\n          Note: thumbnail is redacted in logs but returned in full in API response.\n        * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings, set by backend only)\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors in the manager layer.\n\nSuccess conditions:\n    * Pipeline with the given id is present in PipelineManager.\n    * All variants are available.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n    * Any other unhandled exception \u2192 500.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"tags\": [\"detection\", \"vehicle\"],\n          \"variants\": [\n            {\n              \"id\": \"variant-1\",\n              \"name\": \"CPU\",\n              \"read_only\": false,\n              \"pipeline_graph\": {...},\n              \"pipeline_graph_simple\": {...},\n              \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n              \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n            }\n          ],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
         "operationId": "get_pipeline",
         "parameters": [
           {
@@ -1134,7 +1126,7 @@
           "pipelines"
         ],
         "summary": "Update Pipeline",
-        "description": "Partially update selected fields of an existing pipeline.\n\nImportant: Only ONE of pipeline_graph or pipeline_graph_simple should be provided\nwhen updating graph structure. If both are provided, the request will fail with\n400 error.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string).\n        * description \u2013 new human-readable text describing what the pipeline does (non-empty string).\n        * pipeline_graph \u2013 new advanced graph. When provided, simple view is\n          auto-generated from it. Graph must contain at least one node and one edge.\n        * pipeline_graph_simple \u2013 modified simple graph with property changes only.\n          When provided, changes are merged into advanced view using\n          apply_simple_view_changes(), and both views are regenerated.\n          Structural changes (add/remove nodes or edges) are not allowed and will\n          result in 400 error.\n        * parameters \u2013 new pipeline parameters.\n\nReturns:\n    200 OK:\n        Updated Pipeline object with both graph views.\n    400 Bad Request:\n        MessageResponse when:\n        * none of the updatable fields is provided,\n        * both pipeline_graph and pipeline_graph_simple are provided,\n        * provided name or description is empty,\n        * provided pipeline_graph has no nodes/edges or cannot be\n          converted to a valid GStreamer pipeline string,\n        * provided pipeline_graph_simple contains structural changes\n          (add/remove nodes or edges, modify edge endpoints).\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n    * For pipeline_graph, Graph.to_pipeline_description() succeeds and produces\n      a valid GStreamer pipeline string.\n    * For pipeline_graph_simple, Graph.apply_simple_view_changes() succeeds.\n\nFailure conditions:\n    * Validation failures in this handler or PipelineManager.update_pipeline.\n    * Both graph fields provided \u2192 400.\n    * Structural changes in simple view \u2192 400.\n    * Unknown id \u2192 404.\n    * Any other exception \u2192 500.\n\nRequest example (updating advanced view):\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nRequest example (updating simple view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated inference parameters\",\n          \"pipeline_graph_simple\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\", \"device\": \"CPU\"}},\n              {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [...]\n          }\n        }\n\nError response example (400, both graphs provided):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot update both 'pipeline_graph' and 'pipeline_graph_simple' at the same time. Please provide only one.\"\n        }\n\nError response example (400, structural change in simple view):\n    .. code-block:: json\n\n        {\n          \"message\": \"Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes.\"\n        }",
+        "description": "Partially update selected fields of an existing pipeline.\n\nOperation:\n    * Validate request body via PipelineUpdate model (at least one field,\n      non-empty strings after trim)\n    * Delegate to PipelineManager.update_pipeline()\n    * Backend automatically updates modified_at timestamp\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * source (immutable)\n    * thumbnail (only set for PREDEFINED pipelines from config files)\n    * created_at (immutable, set when pipeline is created)\n    * modified_at (automatically updated by backend as UTC datetime)\n\nPath parameters:\n    pipeline_id: ID of the pipeline to update.\n\nRequest body:\n    body: PipelineUpdate (validated by Pydantic)\n        Any combination of:\n        * name \u2013 new pipeline name (non-empty string after trim).\n        * description \u2013 new human-readable text (non-empty string after trim).\n        * tags \u2013 list of tags (can be empty).\n\nReturns:\n    200 OK:\n        Updated Pipeline object with all fields including updated modified_at.\n    400 Bad Request:\n        MessageResponse when manager-level validation fails.\n    404 Not Found:\n        MessageResponse when pipeline id does not exist.\n    422 Unprocessable Entity:\n        Pydantic validation error when:\n        * none of the updatable fields is provided,\n        * provided name or description is empty after trim.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline with the given id exists.\n    * At least one valid field is provided and passes validation.\n\nFailure conditions:\n    * No fields provided \u2192 422 (Pydantic validation)\n    * Empty name or description after trim \u2192 422 (Pydantic validation)\n    * Unknown id \u2192 404\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection-v2\",\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"source\": \"USER_CREATED\",\n          \"tags\": [\"updated\", \"v2\"],\n          \"variants\": [...],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (422):\n    .. code-block:: json\n\n        {\n          \"detail\": [\n            {\n              \"type\": \"value_error\",\n              \"msg\": \"Value error, At least one of 'name', 'description', or 'tags' must be provided.\"\n            }\n          ]\n        }",
         "operationId": "update_pipeline",
         "parameters": [
           {
@@ -1188,8 +1180,8 @@
               }
             }
           },
-          "500": {
-            "description": "Unexpected error",
+          "422": {
+            "description": "Validation error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1198,12 +1190,12 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "500": {
+            "description": "Unexpected error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -1215,7 +1207,7 @@
           "pipelines"
         ],
         "summary": "Delete Pipeline",
-        "description": "Delete a pipeline by its id.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to delete.\n\nReturns:\n    200 OK:\n        MessageResponse when the pipeline was successfully deleted.\n    404 Not Found:\n        MessageResponse when a pipeline with given id does not exist.\n\nSuccess conditions:\n    * Pipeline with the given id is found and removed from manager.\n\nFailure conditions:\n    * Unknown id \u2192 404.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline deleted\"\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
+        "description": "Delete a pipeline by its id.\n\nOperation:\n    * Validate that pipeline exists\n    * Validate that pipeline is not PREDEFINED\n    * Delegate to PipelineManager.delete_pipeline_by_id()\n\nPath parameters:\n    pipeline_id: ID of the pipeline to delete.\n\nReturns:\n    200 OK:\n        MessageResponse when the pipeline was successfully deleted.\n    400 Bad Request:\n        MessageResponse when trying to delete PREDEFINED pipeline.\n    404 Not Found:\n        MessageResponse when a pipeline with given id does not exist.\n\nSuccess conditions:\n    * Pipeline with the given id is found\n    * Pipeline is USER_CREATED (not PREDEFINED)\n    * Pipeline is removed from manager\n\nFailure conditions:\n    * Pipeline is PREDEFINED \u2192 400\n    * Unknown id \u2192 404\n\nNote: PREDEFINED pipelines cannot be deleted. They are loaded from\nconfiguration files and include thumbnail images.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline deleted\"\n        }\n\nError response example (400):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot delete PREDEFINED pipeline 'pipeline-a3f5d9e1'.\"\n        }\n\nError response example (404):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline with id 'pipeline-unknown' not found.\"\n        }",
         "operationId": "delete_pipeline",
         "parameters": [
           {
@@ -1231,6 +1223,16 @@
         "responses": {
           "200": {
             "description": "Pipeline deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete PREDEFINED pipeline",
             "content": {
               "application/json": {
                 "schema": {
@@ -1262,14 +1264,96 @@
         }
       }
     },
-    "/pipelines/{pipeline_id}/optimize": {
+    "/pipelines/{pipeline_id}/variants/{variant_id}/optimize": {
       "post": {
         "tags": [
           "pipelines"
         ],
-        "summary": "Optimize Pipeline",
-        "description": "Start an asynchronous optimization job for a given pipeline.\n\nPath parameters:\n    pipeline_id: ID of the pipeline to optimize.\n\nRequest body:\n    body: PipelineRequestOptimize\n        * type \u2013 optimization type: ``\"preprocess\"`` or ``\"optimize\"``.\n        * parameters \u2013 optional dict with optimizer-specific options,\n          for example:\n\n          .. code-block:: json\n\n              {\n                \"search_duration\": 300,\n                \"sample_duration\": 10\n              }\n\nReturns:\n    202 Accepted:\n        OptimizationJobResponse with job_id of the created optimization job.\n    404 Not Found:\n        MessageResponse if pipeline with given id does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when starting optimization\n        (e.g. Graph conversion, external optimizer issues thrown early).\n\nSuccess conditions:\n    * Pipeline exists and its graph can be converted to a launch string.\n    * OptimizationManager.run_optimization() starts a background job.\n\nFailure conditions:\n    * Unknown pipeline id \u2192 404.\n    * Any unhandled exception in pipeline lookup or job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"optimize\",\n          \"parameters\": {\n            \"search_duration\": 300,\n            \"sample_duration\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"opt789\"\n        }",
-        "operationId": "optimize_pipeline",
+        "summary": "Optimize Variant",
+        "description": "Start an asynchronous optimization job for a specific pipeline variant.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Delegate to OptimizationManager.run_optimization() with variant\n    * Return generated job ID\n\nNote: Optimization works with both read-only (PREDEFINED) and user-created variants.\nThe optimization job uses the variant's pipeline_graph and pipeline_graph_simple\nas input but does not modify the original variant.\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to optimize.\n\nRequest body:\n    body: PipelineRequestOptimize\n        * type \u2013 optimization type: ``\"preprocess\"`` or ``\"optimize\"``.\n        * parameters \u2013 optional dict with optimizer-specific options,\n          for example:\n\n          .. code-block:: json\n\n              {\n                \"search_duration\": 300,\n                \"sample_duration\": 10\n              }\n\nReturns:\n    202 Accepted:\n        OptimizationJobResponse with job_id of the created optimization job.\n    404 Not Found:\n        MessageResponse if pipeline or variant with given IDs do not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when starting optimization\n        (e.g. Graph conversion, external optimizer issues thrown early).\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Variant's graph can be converted to a launch string\n    * OptimizationManager.run_optimization() starts a background job\n\nFailure conditions:\n    * Unknown pipeline or variant ID \u2192 404\n    * Any unhandled exception in pipeline/variant lookup or job creation \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"type\": \"optimize\",\n          \"parameters\": {\n            \"search_duration\": 300,\n            \"sample_duration\": 10\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"opt789\"\n        }",
+        "operationId": "optimize_variant",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequestOptimize"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Variant optimization started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Create Variant",
+        "description": "Create a new variant for an existing pipeline.\n\nOperation:\n    * Validate that pipeline exists\n    * Delegate to PipelineManager.add_variant()\n    * Return created variant with generated ID and timestamps\n\nThe backend automatically sets:\n    * Variant ID (generated from variant name)\n    * read_only=false (user-created variants are never read-only)\n    * created_at timestamp (current UTC time)\n    * modified_at timestamp (same as created_at initially)\n    * Pipeline's modified_at timestamp is also updated\n\nPath parameters:\n    pipeline_id: ID of the pipeline to add variant to.\n\nRequest body:\n    body: VariantCreate\n        * name \u2013 variant name (required, non-empty).\n        * pipeline_graph \u2013 advanced graph representation (required).\n        * pipeline_graph_simple \u2013 simplified graph representation (required).\n\nReturns:\n    201 Created:\n        Complete Variant object with:\n        * generated id\n        * read_only=false\n        * created_at and modified_at timestamps\n    400 Bad Request:\n        MessageResponse when variant definition is invalid.\n    404 Not Found:\n        MessageResponse when pipeline does not exist.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline exists\n    * Variant definition is valid\n    * Variant is successfully added\n\nFailure conditions:\n    * Pipeline not found \u2192 404\n    * Invalid variant definition \u2192 400\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"name\": \"GPU\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nSuccessful response example (201):\n    .. code-block:: json\n\n        {\n          \"id\": \"gpu\",\n          \"name\": \"GPU\",\n          \"read_only\": false,\n          \"pipeline_graph\": {...},\n          \"pipeline_graph_simple\": {...},\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n        }",
+        "operationId": "create_variant",
         "parameters": [
           {
             "name": "pipeline_id",
@@ -1286,26 +1370,28 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PipelineRequestOptimize"
+                "$ref": "#/components/schemas/VariantCreate"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "202": {
-            "description": "Pipeline optimization started",
+          "201": {
+            "description": "Variant created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OptimizationJobResponse"
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid variant definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -1321,7 +1407,343 @@
             }
           },
           "500": {
-            "description": "Unexpected error",
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants/{variant_id}": {
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Delete Variant",
+        "description": "Delete a variant from a pipeline.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Check that variant is not read-only\n    * Check that variant is not the last one\n    * Delegate to PipelineManager.delete_variant()\n    * Pipeline's modified_at timestamp is updated\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to delete.\n\nCannot delete:\n    * Read-only variants (from PREDEFINED pipelines)\n    * The last remaining variant of a pipeline\n\nReturns:\n    200 OK:\n        MessageResponse confirming deletion.\n    400 Bad Request:\n        MessageResponse when trying to delete read-only variant or last variant.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Variant is not read-only\n    * Variant is not the last one\n    * Variant is successfully deleted\n    * Pipeline's modified_at is updated\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Variant is read-only \u2192 400\n    * Variant is last one \u2192 400\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"message\": \"Variant deleted\"\n        }\n\nError response example (400, read-only):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot delete read-only variant 'variant-1'.\"\n        }\n\nError response example (400, last variant):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot delete variant 'variant-1' as it is the last variant in pipeline 'pipeline-a3f5d9e1'.\"\n        }",
+        "operationId": "delete_variant",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Variant deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete read-only variant or last variant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Update Variant",
+        "description": "Update an existing variant.\n\nOperation:\n    * Validate request body via VariantUpdate model (at least one field,\n      non-empty strings after trim, graph exclusivity)\n    * Validate that pipeline and variant exist\n    * Check that variant is not read-only\n    * Delegate to PipelineManager.update_variant()\n    * Backend automatically updates variant's and pipeline's modified_at timestamps\n\nNote: The following fields cannot be updated via API:\n    * id (immutable)\n    * read_only (immutable)\n    * created_at (immutable, set when variant is created)\n    * modified_at (automatically updated by backend)\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to update.\n\nRequest body:\n    body: VariantUpdate (validated by Pydantic)\n        * name: Optional variant name (non-empty after trim)\n        * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)\n        * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)\n\nAllowed fields:\n    * name: Variant name (non-empty after trim)\n    * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)\n    * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)\n\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\nCannot update read-only variants (from PREDEFINED pipelines).\n\nReturns:\n    200 OK:\n        Updated Variant object with updated modified_at timestamp.\n    400 Bad Request:\n        MessageResponse when variant is read-only.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    422 Unprocessable Entity:\n        Pydantic validation error when:\n        * no fields provided,\n        * both graphs provided,\n        * name is empty after trim.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Variant is not read-only\n    * At least one field provided\n    * At most one graph field provided\n    * Name is non-empty after trim (if provided)\n    * Variant is successfully updated\n    * Variant's and pipeline's modified_at are updated\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Variant is read-only \u2192 400\n    * Invalid request (no fields, both graphs, empty name) \u2192 422 (Pydantic validation)\n    * Any other exception \u2192 500\n\nRequest example (update name):\n    .. code-block:: json\n\n        {\n          \"name\": \"GPU-optimized\"\n        }\n\nRequest example (update advanced graph):\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"variant-1\",\n          \"name\": \"GPU-optimized\",\n          \"read_only\": false,\n          \"pipeline_graph\": {...},\n          \"pipeline_graph_simple\": {...},\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T15:45:00.456000+00:00\"\n        }\n\nError response example (400, read-only):\n    .. code-block:: json\n\n        {\n          \"message\": \"Cannot update read-only variant 'variant-1'.\"\n        }\n\nError response example (422, empty name):\n    .. code-block:: json\n\n        {\n          \"detail\": [\n            {\n              \"type\": \"value_error\",\n              \"msg\": \"Value error, Field 'name' must not be empty.\"\n            }\n          ]\n        }",
+        "operationId": "update_variant",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Variant updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or cannot update read-only variant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-simple": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Convert Advanced To Simple",
+        "description": "Convert an advanced pipeline graph to simplified view without saving.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Convert the provided advanced graph (PipelineGraph) to a Graph object\n    * Validate the advanced graph and generate simplified view\n    * Return the simplified graph without modifying the variant\n\nThis is a read-only conversion operation. The variant is not modified.\nUse PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph to\nsave changes.\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant (used for context/validation).\n\nRequest body:\n    body: PipelineGraph\n        Advanced graph with all pipeline elements to convert.\n\nReturns:\n    200 OK:\n        PipelineGraph representing the simplified view.\n    400 Bad Request:\n        MessageResponse when the graph is invalid or cannot be converted.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Advanced graph is valid and can be converted to GStreamer pipeline\n    * Simplified view is generated successfully\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Invalid graph structure \u2192 400\n    * Conversion error \u2192 400\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"video.mp4\"}},\n            {\"id\": \"1\", \"type\": \"queue\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"detection\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n            {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"video.mp4\"}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"detection\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"2\"},\n            {\"id\": \"1\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }",
+        "operationId": "convert_advanced_to_simple",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineGraph"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Converted simple graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Convert Simple To Advanced",
+        "description": "Convert a simplified pipeline graph to advanced view without saving.\n\nOperation:\n    * Validate that pipeline and variant exist\n    * Convert the provided simple graph (PipelineGraph) to a Graph object\n    * Validate simple graph changes and merge into advanced view\n    * Return the updated advanced graph without modifying the variant\n\nThis is a read-only conversion operation. The variant is not modified.\nThe conversion uses the variant's current advanced graph as base and\napplies property changes from the simple graph.\n\nUse PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph_simple\nto save changes.\n\nNote: Only property modifications are allowed. Structural changes\n(adding/removing nodes or edges) will be rejected.\n\nPath parameters:\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant whose advanced graph is used as base.\n\nRequest body:\n    body: PipelineGraph\n        Simplified graph with property changes to apply.\n\nReturns:\n    200 OK:\n        PipelineGraph representing the updated advanced view.\n    400 Bad Request:\n        MessageResponse when the graph is invalid, contains structural\n        changes, or cannot be merged.\n    404 Not Found:\n        MessageResponse when pipeline or variant not found.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors.\n\nSuccess conditions:\n    * Pipeline and variant exist\n    * Simple graph contains only property changes (no structural changes)\n    * Changes can be merged into advanced graph\n    * Resulting advanced graph is valid\n\nFailure conditions:\n    * Pipeline or variant not found \u2192 404\n    * Structural changes detected (nodes/edges added/removed) \u2192 400\n    * Invalid resulting graph \u2192 400\n    * Any other exception \u2192 500\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"new_video.mp4\"}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"new_model\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"2\"},\n            {\"id\": \"1\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"nodes\": [\n            {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"new_video.mp4\"}},\n            {\"id\": \"1\", \"type\": \"queue\", \"data\": {}},\n            {\"id\": \"2\", \"type\": \"gvadetect\", \"data\": {\"model\": \"new_model\"}},\n            {\"id\": \"3\", \"type\": \"fakesink\", \"data\": {}}\n          ],\n          \"edges\": [\n            {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n            {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n            {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"}\n          ]\n        }\n\nError response example (400, structural change):\n    .. code-block:: json\n\n        {\n          \"message\": \"Invalid pipeline_graph_simple: Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes.\"\n        }",
+        "operationId": "convert_simple_to_advanced",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineGraph"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Converted advanced graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph or conversion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline or variant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -1349,13 +1771,13 @@
           "tests"
         ],
         "summary": "Run Performance Test",
-        "description": "Start an asynchronous performance test job.\n\nOperation:\n    * Validate the performance test request.\n    * Create a PerformanceJob with RUNNING state.\n    * Spawn a background thread that runs the pipelines using\n      a GStreamer-based runner.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: PerformanceTestSpec\n        * pipeline_performance_specs \u2013 list of pipelines and number of\n          streams per pipeline.\n        * execution_config \u2013 configuration for output mode and runtime limits:\n          - output_mode: disabled (default), file, or live_stream\n          - max_runtime: maximum runtime in seconds (0 = run until EOS)\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created performance job.\n    400 Bad Request:\n        MessageResponse if the request is invalid at manager level, for\n        example:\n        * all stream counts are zero,\n        * pipeline ids do not exist (if validated up front in future),\n        * output_mode=file combined with max_runtime > 0.\n    500 Internal Server Error:\n        MessageResponse if an unexpected error occurs when creating the\n        job or starting the background thread.\n\nSuccess conditions:\n    * At least one stream is requested across all pipelines.\n    * TestsManager.test_performance() successfully enqueues the job.\n\nFailure conditions (high level):\n    * Validation or configuration error inside TestsManager \u2192 400.\n    * Any unhandled exception in job creation \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"streams\": 8},\n            {\"id\": \"pipeline-b7c2e114\", \"streams\": 4}\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job123\"\n        }\n\nError response example (400, invalid request):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one stream must be specified to run the pipeline.\"\n        }",
+        "description": "Start an asynchronous performance test job.\n\nOperation:\n    * Validate the performance test request.\n    * Create a PerformanceJob with RUNNING state.\n    * Spawn a background thread that runs the pipelines using\n      a GStreamer-based runner.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: PerformanceTestSpec\n        * pipeline_performance_specs \u2013 list of pipelines and number of\n          streams per pipeline. Each pipeline can be specified as:\n          - variant reference: {\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}\n          - inline graph: {\"source\": \"graph\", \"pipeline_graph\": {...}}\n        * execution_config \u2013 configuration for output mode and runtime limits:\n          - output_mode: disabled (default), file, or live_stream\n          - max_runtime: maximum runtime in seconds (0 = run until EOS)\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created performance job.\n    400 Bad Request:\n        MessageResponse if the request is invalid, for example:\n        * pipeline_performance_specs is empty,\n        * duplicate pipeline_ids in request,\n        * all stream counts are zero,\n        * referenced variant does not exist,\n        * output_mode=file combined with max_runtime > 0.\n    500 Internal Server Error:\n        MessageResponse if an unexpected error occurs when creating the\n        job or starting the background thread.\n\nSuccess conditions:\n    * At least one stream is requested across all pipelines.\n    * All referenced variants exist.\n    * No duplicate pipeline_ids in request.\n    * TestsManager.test_performance() successfully enqueues the job.\n\nFailure conditions (high level):\n    * Validation or configuration error \u2192 400.\n    * Any unhandled exception in job creation \u2192 500.\n\nRequest example (variant reference):\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\n              \"pipeline\": {\n                \"source\": \"variant\",\n                \"pipeline_id\": \"pipeline-a3f5d9e1\",\n                \"variant_id\": \"variant-abc123\"\n              },\n              \"streams\": 8\n            }\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nRequest example (inline graph):\n    .. code-block:: json\n\n        {\n          \"pipeline_performance_specs\": [\n            {\n              \"pipeline\": {\n                \"source\": \"graph\",\n                \"pipeline_graph\": {\n                  \"nodes\": [...],\n                  \"edges\": [...]\n                }\n              },\n              \"streams\": 4\n            }\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job123\"\n        }\n\nError response example (400, invalid request):\n    .. code-block:: json\n\n        {\n          \"message\": \"At least one stream must be specified to run the pipeline.\"\n        }",
         "operationId": "run_performance_test",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PerformanceTestSpec-Input"
+                "$ref": "#/components/schemas/PerformanceTestSpec"
               }
             }
           },
@@ -1411,13 +1833,13 @@
           "tests"
         ],
         "summary": "Run Density Test",
-        "description": "Start an asynchronous density test job.\n\nOperation:\n    * Validate the density test request.\n    * Use requested fps_floor and per\u2011pipeline stream_rate ratios.\n    * Create a DensityJob with RUNNING state.\n    * Spawn a background thread that runs a Benchmark to determine the\n      maximum number of streams that still meets fps_floor.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: DensityTestSpec\n        * fps_floor \u2013 minimum acceptable FPS per stream.\n        * pipeline_density_specs \u2013 list of pipelines with stream_rate\n          percentages that must sum to 100.\n        * execution_config \u2013 configuration for output mode and runtime limits:\n          - output_mode: disabled (default) or file (live_stream not supported)\n          - max_runtime: maximum runtime in seconds (0 = run until EOS)\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created density job.\n    400 Bad Request:\n        MessageResponse when:\n        * pipeline_density_specs.stream_rate values do not sum to 100,\n        * output_mode is live_stream (not supported for density tests),\n        * output_mode=file combined with max_runtime > 0,\n        * other validation errors raised by Benchmark or TestsManager.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when creating or starting\n        the job.\n\nSuccess conditions:\n    * stream_rate ratios sum to 100%.\n    * DensityTestSpec is valid and Benchmark.run() can be started in a\n      background thread.\n\nFailure conditions:\n    * Validation errors in Benchmark._calculate_streams_per_pipeline() or\n      TestsManager.test_density() \u2192 400.\n    * Any other unhandled exception \u2192 500.\n\nRequest example:\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\"id\": \"pipeline-a3f5d9e1\", \"stream_rate\": 50},\n            {\"id\": \"pipeline-b7c2e114\", \"stream_rate\": 50}\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job456\"\n        }\n\nError response example (400, bad ratios):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n        }",
+        "description": "Start an asynchronous density test job.\n\nOperation:\n    * Validate the density test request.\n    * Use requested fps_floor and per\u2011pipeline stream_rate ratios.\n    * Create a DensityJob with RUNNING state.\n    * Spawn a background thread that runs a Benchmark to determine the\n      maximum number of streams that still meets fps_floor.\n    * Return the job identifier so the caller can poll status endpoints.\n\nRequest body:\n    body: DensityTestSpec\n        * fps_floor \u2013 minimum acceptable FPS per stream.\n        * pipeline_density_specs \u2013 list of pipelines with stream_rate\n          percentages that must sum to 100. Each pipeline can be specified as:\n          - variant reference: {\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}\n          - inline graph: {\"source\": \"graph\", \"pipeline_graph\": {...}}\n        * execution_config \u2013 configuration for output mode and runtime limits:\n          - output_mode: disabled (default) or file (live_stream not supported)\n          - max_runtime: maximum runtime in seconds (0 = run until EOS)\n\nReturns:\n    202 Accepted:\n        TestJobResponse with job_id of the created density job.\n    400 Bad Request:\n        MessageResponse when:\n        * pipeline_density_specs is empty,\n        * duplicate pipeline_ids in request,\n        * pipeline_density_specs.stream_rate values do not sum to 100,\n        * referenced variant does not exist,\n        * output_mode is live_stream (not supported for density tests),\n        * output_mode=file combined with max_runtime > 0,\n        * other validation errors raised by Benchmark or TestsManager.\n    500 Internal Server Error:\n        MessageResponse for unexpected errors when creating or starting\n        the job.\n\nSuccess conditions:\n    * pipeline_density_specs is not empty.\n    * All referenced variants exist.\n    * No duplicate pipeline_ids in request.\n    * stream_rate ratios sum to 100%.\n    * DensityTestSpec is valid and Benchmark.run() can be started in a\n      background thread.\n\nFailure conditions:\n    * Validation errors \u2192 400.\n    * Any other unhandled exception \u2192 500.\n\nRequest example (variant reference):\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\n              \"pipeline\": {\n                \"source\": \"variant\",\n                \"pipeline_id\": \"pipeline-a3f5d9e1\",\n                \"variant_id\": \"variant-abc123\"\n              },\n              \"stream_rate\": 50\n            },\n            {\n              \"pipeline\": {\n                \"source\": \"variant\",\n                \"pipeline_id\": \"pipeline-b7c2e114\",\n                \"variant_id\": \"variant-def456\"\n              },\n              \"stream_rate\": 50\n            }\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nRequest example (inline graph):\n    .. code-block:: json\n\n        {\n          \"fps_floor\": 30,\n          \"pipeline_density_specs\": [\n            {\n              \"pipeline\": {\n                \"source\": \"graph\",\n                \"pipeline_graph\": {\n                  \"nodes\": [...],\n                  \"edges\": [...]\n                }\n              },\n              \"stream_rate\": 100\n            }\n          ],\n          \"execution_config\": {\n            \"output_mode\": \"disabled\",\n            \"max_runtime\": 0\n          }\n        }\n\nSuccessful response example (202):\n    .. code-block:: json\n\n        {\n          \"job_id\": \"job456\"\n        }\n\nError response example (400, bad ratios):\n    .. code-block:: json\n\n        {\n          \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n        }",
         "operationId": "run_density_test",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DensityTestSpec-Input"
+                "$ref": "#/components/schemas/DensityTestSpec"
               }
             }
           },
@@ -1492,6 +1914,198 @@
           }
         }
       }
+    },
+    "/cameras": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Get all cameras",
+        "description": "Get all cameras (both USB and network) available to the system.\n\nThis endpoint combines results from both USB and network camera discovery\nto provide a comprehensive list of all available camera devices.\n\nOperation:\n    * Discover all USB cameras using v4l2-ctl or device scanning.\n    * Discover all network cameras using various protocols.\n    * Combine and return the complete list.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Camera objects containing both USB and network cameras.\n        If no cameras are found, an empty list is returned.\n    500 Internal Server Error:\n        MessageResponse with error description if discovery fails unexpectedly.\n\nSuccess conditions:\n    * At least one discovery method succeeds.\n    * Results can be combined and returned.\n\nFailure conditions:\n    * Both USB and network discovery fail.\n    * System error during discovery process.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"device_id\": \"usb_camera_0\",\n            \"device_name\": \"Integrated Camera\",\n            \"device_type\": \"USB\",\n            \"details\": {\n              \"device_path\": \"/dev/video0\",\n              \"resolution\": \"1920x1080\"\n            }\n          },\n          {\n            \"device_id\": \"network_camera_192.168.1.100_80\",\n            \"device_name\": \"ONVIF Camera 192.168.1.100\",\n            \"device_type\": \"NETWORK\",\n            \"details\": {\n              \"ip\": \"192.168.1.100\",\n              \"port\": 80,\n              \"profiles\": []\n            }\n          }\n        ]",
+        "operationId": "get_cameras",
+        "responses": {
+          "200": {
+            "description": "List of all cameras successfully retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Camera"
+                  },
+                  "type": "array",
+                  "title": "Response 200 Get Cameras"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error when discovering cameras.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cameras/{camera_id}": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Get camera by ID",
+        "description": "Get a specific camera by its ID.\n\nThis endpoint retrieves information about a single camera device using its\nunique identifier. The camera must be already discovered and cached.\n\nOperation:\n    * Search for the camera in the cached cameras list.\n    * Return camera details if found.\n\nPath parameters:\n    camera_id: The unique identifier of the camera (e.g., \"usb_camera_0\" or\n               \"network_camera_192.168.1.100_80\").\n\nReturns:\n    200 OK:\n        JSON object containing camera details.\n    404 Not Found:\n        MessageResponse if camera with the given ID is not found.\n    500 Internal Server Error:\n        MessageResponse with error description if retrieval fails unexpectedly.\n\nSuccess conditions:\n    * Camera with the given ID exists in the cache.\n\nFailure conditions:\n    * Camera with the given ID does not exist.\n    * System error during retrieval.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"device_id\": \"usb_camera_0\",\n          \"device_name\": \"Integrated Camera\",\n          \"device_type\": \"USB\",\n          \"details\": {\n            \"device_path\": \"/dev/video0\",\n            \"resolution\": \"1920x1080\"\n          }\n        }",
+        "operationId": "get_camera",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Camera successfully retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Camera"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Camera not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error when retrieving camera.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cameras/{camera_id}/profiles": {
+      "post": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Load camera ONVIF profiles",
+        "description": "Load ONVIF profiles from a network camera.\n\nThis endpoint connects to a specific ONVIF-compatible network camera using\nthe provided credentials and loads all available media profiles from the camera.\n\nOperation:\n    * Parse the camera_id to extract IP address and port\n    * Establish ONVIF connection with provided credentials\n    * Load all available media profiles from the camera\n    * Update the cached camera with profile information\n    * Return updated camera object\n\nPath parameters:\n    camera_id: The unique identifier of the camera (e.g., \"network_camera_192.168.1.100_80\").\n\nRequest body:\n    JSON object with username and password.\n\nReturns:\n    200 OK:\n        CameraAuthResponse with updated camera object containing profiles.\n    400 Bad Request:\n        Invalid camera_id format.\n    401 Unauthorized:\n        Failed to load profiles - credentials rejected by camera.\n    404 Not Found:\n        Camera with specified ID not found or not reachable.\n    500 Internal Server Error:\n        Unexpected error during profile loading.\n\nSuccess conditions:\n    * Camera is reachable on the network.\n    * Credentials are valid.\n    * Camera supports ONVIF protocol.\n\nFailure conditions:\n    * Invalid camera_id format.\n    * Camera is offline or unreachable.\n    * Invalid credentials.\n\nSuccessful response example (200):\n    .. code-block:: json\n\n        {\n          \"camera\": {\n            \"device_id\": \"network_camera_192.168.1.100_80\",\n            \"device_name\": \"ONVIF Camera 192.168.1.100\",\n            \"device_type\": \"NETWORK\",\n            \"details\": {\n              \"ip\": \"192.168.1.100\",\n              \"port\": 80,\n              \"profiles\": [\n                {\n                  \"name\": \"Profile_1\",\n                  \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n                  \"resolution\": \"1920x1080\",\n                  \"encoding\": \"H264\",\n                  \"framerate\": 30,\n                  \"bitrate\": 4096\n                },\n                {\n                  \"name\": \"Profile_2\",\n                  \"rtsp_url\": \"rtsp://192.168.1.100:554/stream2\",\n                  \"resolution\": \"1280x720\",\n                  \"encoding\": \"H264\",\n                  \"framerate\": 15,\n                  \"bitrate\": 2048\n                }\n              ]\n            }\n          }\n        }",
+        "operationId": "load_camera_profiles",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraProfilesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Camera profiles loaded successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraAuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid camera ID format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Failed to load profiles - invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Camera not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error when loading camera profiles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1506,6 +2120,152 @@
         ],
         "title": "AppStatus",
         "description": "Application status enum for tracking initialization progress.\n\nValues:\n    STARTING: Application is starting, no initialization yet.\n    INITIALIZING: Application is initializing resources (e.g., loading videos).\n    READY: Application is fully initialized and ready to serve requests.\n    SHUTDOWN: Application is shutting down."
+      },
+      "Camera": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "device_name": {
+            "type": "string",
+            "title": "Device Name"
+          },
+          "device_type": {
+            "$ref": "#/components/schemas/CameraType"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/USBCameraDetails"
+              },
+              {
+                "$ref": "#/components/schemas/NetworkCameraDetails"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "device_name",
+          "device_type",
+          "details"
+        ],
+        "title": "Camera",
+        "description": "Camera device information supporting both USB and network cameras.\n\nCommon attributes apply to all camera types. Type-specific details are stored\nin the details field which contains either USBCameraDetails or NetworkCameraDetails.\n\nAttributes:\n    device_id: Unique identifier for the camera.\n    device_name: Human-readable camera name.\n    device_type: Type of camera (USB or NETWORK).\n    details: Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK).\n\nExample (USB Camera):\n    .. code-block:: json\n\n        {\n          \"device_id\": \"usb_camera_0\",\n          \"device_name\": \"Integrated Camera\",\n          \"device_type\": \"USB\",\n          \"details\": {\n            \"device_path\": \"/dev/video0\",\n            \"resolution\": \"1920x1080\"\n          }\n        }\n\nExample (Network Camera):\n    .. code-block:: json\n\n        {\n          \"device_id\": \"network_camera_192.168.1.100_80\",\n          \"device_name\": \"ONVIF Camera 192.168.1.100\",\n          \"device_type\": \"NETWORK\",\n          \"details\": {\n            \"ip\": \"192.168.1.100\",\n            \"port\": 80,\n            \"profiles\": [\n              {\n                \"name\": \"Profile_1\",\n                \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n                \"resolution\": \"1920x1080\",\n                \"encoding\": \"H264\",\n                \"framerate\": 30,\n                \"bitrate\": 4096\n              },\n              {\n                \"name\": \"Profile_2\",\n                \"rtsp_url\": \"rtsp://192.168.1.100:554/stream2\",\n                \"resolution\": \"1280x720\",\n                \"encoding\": \"H264\",\n                \"framerate\": 15,\n                \"bitrate\": 2048\n              }\n            ]\n          }\n        }"
+      },
+      "CameraAuthResponse": {
+        "properties": {
+          "camera": {
+            "$ref": "#/components/schemas/Camera",
+            "description": "Camera object with populated ONVIF profiles after successful authentication."
+          }
+        },
+        "type": "object",
+        "required": [
+          "camera"
+        ],
+        "title": "CameraAuthResponse",
+        "description": "Response model for camera authentication attempt.\n\nReturns the authenticated camera with populated ONVIF profiles.\nAfter successful authentication, the camera's profile list is updated\nwith all available ONVIF profiles from the device.\n\nAttributes:\n    camera: Camera object with updated profile information.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"camera\": {\n            \"device_id\": \"network_camera_192.168.1.100_80\",\n            \"device_name\": \"ONVIF Camera 192.168.1.100\",\n            \"device_type\": \"NETWORK\",\n            \"details\": {\n              \"ip\": \"192.168.1.100\",\n              \"port\": 80,\n              \"profiles\": [\n                {\n                  \"name\": \"Profile_1\",\n                  \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n                  \"resolution\": \"1920x1080\",\n                  \"encoding\": \"H264\",\n                  \"framerate\": 30,\n                  \"bitrate\": 4096\n                }\n              ]\n            }\n          }\n        }"
+      },
+      "CameraProfileInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rtsp_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rtsp Url"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "encoding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoding"
+          },
+          "framerate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Framerate"
+          },
+          "bitrate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bitrate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CameraProfileInfo",
+        "description": "Detailed ONVIF camera profile information.\n\nAttributes:\n    name: Profile name.\n    rtsp_url: RTSP stream URL.\n    resolution: Video resolution (e.g., \"1920x1080\").\n    encoding: Video encoding format (e.g., \"H264\", \"MPEG4\").\n    framerate: Frame rate limit.\n    bitrate: Bitrate limit.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"Profile_1\",\n          \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n          \"resolution\": \"1920x1080\",\n          \"encoding\": \"H264\",\n          \"framerate\": 30,\n          \"bitrate\": 4096\n        }"
+      },
+      "CameraProfilesRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "CameraProfilesRequest",
+        "description": "Request model for camera profile retrieval (camera_id provided in path).\n\nAttributes:\n    username: Username for ONVIF authentication.\n    password: Password for ONVIF authentication.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"username\": \"admin\",\n          \"password\": \"password123\"\n        }"
+      },
+      "CameraType": {
+        "type": "string",
+        "enum": [
+          "USB",
+          "NETWORK"
+        ],
+        "title": "CameraType",
+        "description": "Type of camera device.\n\nValues:\n    USB: USB camera connected directly to the system.\n    NETWORK: Network camera accessible via IP protocols."
       },
       "DensityJobStatus": {
         "properties": {
@@ -1561,7 +2321,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/PipelinePerformanceSpec"
+                  "$ref": "#/components/schemas/PipelineStreamSpec"
                 },
                 "type": "array"
               },
@@ -1623,7 +2383,9 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/DensityTestSpec-Output"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
           }
         },
         "type": "object",
@@ -1632,63 +2394,9 @@
           "request"
         ],
         "title": "DensityJobSummary",
-        "description": "Short summary for a density test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original DensityTestSpec used to start the job."
+        "description": "Short summary for a density test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original DensityTestSpec used to start the job.\n        Stored as dict and validated on output."
       },
-      "DensityTestSpec-Input": {
-        "properties": {
-          "fps_floor": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Fps Floor",
-            "description": "Minimum acceptable FPS per stream.",
-            "examples": [
-              30
-            ]
-          },
-          "pipeline_density_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelineDensitySpec"
-            },
-            "type": "array",
-            "title": "Pipeline Density Specs",
-            "description": "List of pipelines with relative stream_rate percentages that must sum to 100.",
-            "examples": [
-              [
-                {
-                  "id": "pipeline-1",
-                  "stream_rate": 50
-                },
-                {
-                  "id": "pipeline-2",
-                  "stream_rate": 50
-                }
-              ]
-            ]
-          },
-          "execution_config": {
-            "$ref": "#/components/schemas/ExecutionConfig",
-            "description": "Execution configuration for output and runtime.",
-            "default": {
-              "output_mode": "disabled",
-              "max_runtime": 0.0
-            },
-            "examples": [
-              {
-                "max_runtime": 0,
-                "output_mode": "disabled"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "fps_floor",
-          "pipeline_density_specs"
-        ],
-        "title": "DensityTestSpec",
-        "description": "Request body for starting a density test.\n\nAttributes:\n    fps_floor: Minimum acceptable FPS per stream.\n    pipeline_density_specs: List of pipelines with relative stream_rate ratios.\n    execution_config: Configuration for output generation and runtime limits."
-      },
-      "DensityTestSpec-Output": {
+      "DensityTestSpec": {
         "properties": {
           "fps_floor": {
             "type": "integer",
@@ -1843,6 +2551,42 @@
         "title": "ExecutionConfig",
         "description": "Configuration for pipeline execution behavior.\n\nThis configuration controls both output generation and runtime limits\nfor test pipelines.\n\nAttributes:\n    output_mode: Mode for pipeline output generation.\n        - disabled: No output (fakesink remains, default)\n        - file: Save video to file (only allowed with max_runtime=0)\n        - live_stream: Stream output live to media server\n    max_runtime: Maximum runtime in seconds for the pipeline.\n        - 0: Run until natural completion (EOS), no time limit (default)\n        - >0: Stop pipeline after this duration, with looping if EOS comes early\n              (only allowed with output_mode=disabled or output_mode=live_stream)\n        - <0: Not allowed (will be rejected)\n\nExample (disabled output, no runtime limit):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"disabled\",\n          \"max_runtime\": 0\n        }\n\nExample (save to file, run until EOS):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"file\",\n          \"max_runtime\": 0\n        }\n\nExample (live streaming with 60 second limit):\n    .. code-block:: json\n\n        {\n          \"output_mode\": \"live_stream\",\n          \"max_runtime\": 60\n        }"
       },
+      "GraphInline": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "graph",
+            "title": "Source",
+            "default": "graph"
+          },
+          "graph_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Id",
+            "description": "Optional custom identifier for inline graph. Must be URL-safe.",
+            "examples": [
+              "my-custom-pipeline",
+              "detection-gpu-v2"
+            ]
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Inline pipeline graph to use for the test."
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_graph"
+        ],
+        "title": "GraphInline",
+        "description": "Inline pipeline graph definition.\n\nUsed when specifying a pipeline for tests by providing the graph\ndirectly instead of referencing an existing variant.\n\nAttributes:\n    source: Discriminator field, always \"graph\" for this type.\n    pipeline_graph: Complete pipeline graph to use.\n    graph_id: Optional custom identifier for this inline graph.\n        If provided, this ID is used instead of generating a hash-based ID.\n        The ID must be URL-safe (only lowercase letters, numbers, and dashes).\n        If not provided, a synthetic ID is generated from graph content hash.\n\nExample (without graph_id - uses generated hash):\n    .. code-block:: json\n\n        {\n          \"source\": \"graph\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nExample (with custom graph_id):\n    .. code-block:: json\n\n        {\n          \"source\": \"graph\",\n          \"graph_id\": \"my-custom-pipeline\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1938,6 +2682,33 @@
           "detection"
         ],
         "title": "ModelCategory"
+      },
+      "NetworkCameraDetails": {
+        "properties": {
+          "ip": {
+            "type": "string",
+            "title": "Ip"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/CameraProfileInfo"
+            },
+            "type": "array",
+            "title": "Profiles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ip",
+          "port",
+          "profiles"
+        ],
+        "title": "NetworkCameraDetails",
+        "description": "Network camera specific details.\n\nAttributes:\n    ip: IP address of the camera.\n    port: Port number for ONVIF communication.\n    profiles: List of ONVIF profiles available on this camera (populated after authentication)."
       },
       "Node": {
         "properties": {
@@ -2195,7 +2966,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/PipelinePerformanceSpec"
+                  "$ref": "#/components/schemas/PipelineStreamSpec"
                 },
                 "type": "array"
               },
@@ -2263,7 +3034,7 @@
           "live_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "Status of a performance test job.\n\nInherits all fields from TestsJobStatus and adds live_stream_urls\nfor live-streaming output mode support.\n\nAttributes:\n    live_stream_urls: Mapping from pipeline id to live stream URL\n        when using live_stream output mode. Only available for\n        performance tests."
+        "description": "Status of a performance test job.\n\nInherits all fields from TestsJobStatus and adds live_stream_urls\nfor live-streaming output mode support.\n\nAttributes:\n    live_stream_urls: Mapping from pipeline id to live stream URL\n        when using live_stream output mode. Keys use the same id format\n        as streams_per_pipeline entries. Only available for performance tests."
       },
       "PerformanceJobSummary": {
         "properties": {
@@ -2272,7 +3043,9 @@
             "title": "Id"
           },
           "request": {
-            "$ref": "#/components/schemas/PerformanceTestSpec-Output"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
           }
         },
         "type": "object",
@@ -2281,53 +3054,9 @@
           "request"
         ],
         "title": "PerformanceJobSummary",
-        "description": "Short summary for a performance test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PerformanceTestSpec used to start the job."
+        "description": "Short summary for a performance test job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PerformanceTestSpec used to start the job.\n        Stored as dict and validated on output."
       },
-      "PerformanceTestSpec-Input": {
-        "properties": {
-          "pipeline_performance_specs": {
-            "items": {
-              "$ref": "#/components/schemas/PipelinePerformanceSpec"
-            },
-            "type": "array",
-            "title": "Pipeline Performance Specs",
-            "description": "List of pipelines with number of streams for each.",
-            "examples": [
-              [
-                {
-                  "id": "pipeline-1",
-                  "streams": 8
-                },
-                {
-                  "id": "pipeline-2",
-                  "streams": 8
-                }
-              ]
-            ]
-          },
-          "execution_config": {
-            "$ref": "#/components/schemas/ExecutionConfig",
-            "description": "Execution configuration for output and runtime.",
-            "default": {
-              "output_mode": "disabled",
-              "max_runtime": 0.0
-            },
-            "examples": [
-              {
-                "max_runtime": 0,
-                "output_mode": "disabled"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "pipeline_performance_specs"
-        ],
-        "title": "PerformanceTestSpec",
-        "description": "Request body for starting a performance test.\n\nAttributes:\n    pipeline_performance_specs: List of pipelines and their stream counts.\n    execution_config: Configuration for output generation and runtime limits."
-      },
-      "PerformanceTestSpec-Output": {
+      "PerformanceTestSpec": {
         "properties": {
           "pipeline_performance_specs": {
             "items": {
@@ -2381,10 +3110,6 @@
             "type": "string",
             "title": "Name"
           },
-          "version": {
-            "type": "integer",
-            "title": "Version"
-          },
           "description": {
             "type": "string",
             "title": "Description"
@@ -2392,40 +3117,61 @@
           "source": {
             "$ref": "#/components/schemas/PipelineSource"
           },
-          "type": {
-            "$ref": "#/components/schemas/PipelineType"
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "List of tags for categorizing the pipeline.",
+            "default": []
           },
-          "pipeline_graph": {
-            "$ref": "#/components/schemas/PipelineGraph"
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Variants",
+            "description": "List of pipeline variants for different hardware targets."
           },
-          "pipeline_graph_simple": {
-            "$ref": "#/components/schemas/PipelineGraph"
-          },
-          "parameters": {
+          "thumbnail": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PipelineParameters"
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Thumbnail",
+            "description": "Base64-encoded thumbnail image. Only for PREDEFINED pipelines. Redacted in logs."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Creation timestamp as UTC datetime. Set by backend only."
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At",
+            "description": "Last modification timestamp as UTC datetime. Set by backend only."
           }
         },
         "type": "object",
         "required": [
           "id",
           "name",
-          "version",
           "description",
           "source",
-          "type",
-          "pipeline_graph",
-          "pipeline_graph_simple",
-          "parameters"
+          "variants",
+          "created_at",
+          "modified_at"
         ],
         "title": "Pipeline",
-        "description": "Full pipeline definition exposed by the pipelines API.\n\nAttributes:\n    id: Unique pipeline identifier generated by the backend.\n    name: Logical pipeline name (may have multiple versions).\n    version: Version number of this pipeline definition.\n    description: Human-readable text describing what the pipeline does.\n    source: Origin of the pipeline (PREDEFINED or USER_CREATED).\n    type: Pipeline type (for example GStreamer).\n    pipeline_graph: Structured graph representation (advanced view) derived from\n        the GStreamer pipeline string. Contains all technical elements including queues,\n        converters, caps nodes, etc.\n    pipeline_graph_simple: Simplified graph representation showing only meaningful\n        elements (sources, inference nodes, sinks) with technical plumbing hidden.\n        This view is auto-generated from pipeline_graph.\n    parameters: Optional default parameter set for this pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+        "description": "Full pipeline definition exposed by the pipelines API.\n\nAttributes:\n    id: Unique pipeline identifier generated by the backend.\n    name: Logical pipeline name.\n    description: Human-readable text describing what the pipeline does.\n    source: Origin of the pipeline (PREDEFINED or USER_CREATED).\n    tags: List of tags for categorizing the pipeline.\n    variants: List of pipeline variants for different hardware targets.\n        Each variant has its own pipeline_graph and pipeline_graph_simple.\n    thumbnail: Base64-encoded image for pipeline preview. Only available for\n        PREDEFINED pipelines with valid thumbnail file. Redacted when printing.\n    created_at: Creation timestamp as UTC datetime.\n        Set by backend only, not modifiable via API.\n    modified_at: Last modification timestamp as UTC datetime.\n        Updated when pipeline or its variants are modified. Set by backend only.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-a3f5d9e1\",\n          \"name\": \"vehicle-detection\",\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"source\": \"USER_CREATED\",\n          \"tags\": [\"detection\", \"vehicle\"],\n          \"variants\": [\n            {\n              \"id\": \"variant-1\",\n              \"name\": \"CPU\",\n              \"read_only\": false,\n              \"pipeline_graph\": {...},\n              \"pipeline_graph_simple\": {...},\n              \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n              \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n            }\n          ],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n        }"
       },
       "PipelineCreationResponse": {
         "properties": {
@@ -2449,13 +3195,6 @@
             "title": "Name",
             "description": "Non-empty pipeline name."
           },
-          "version": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Version",
-            "description": "Pipeline version (must be greater than or equal to 1).",
-            "default": 1
-          },
           "description": {
             "type": "string",
             "minLength": 1,
@@ -2466,46 +3205,58 @@
             "$ref": "#/components/schemas/PipelineSource",
             "default": "USER_CREATED"
           },
-          "type": {
-            "$ref": "#/components/schemas/PipelineType"
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "List of tags for categorizing the pipeline.",
+            "default": []
           },
-          "pipeline_description": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Pipeline Description",
-            "description": "Complete GStreamer pipeline string with elements separated by '!' (e.g., 'filesrc location=input.mp4 ! decodebin ! fakesink')."
-          },
-          "parameters": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PipelineParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/VariantCreate"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Variants",
+            "description": "List of pipeline variants for different hardware targets."
           }
         },
         "type": "object",
         "required": [
           "name",
           "description",
-          "type",
-          "pipeline_description",
-          "parameters"
+          "variants"
         ],
         "title": "PipelineDefinition",
-        "description": "Input model used to create a new pipeline via the API.\n\nAttributes:\n    name: Non-empty pipeline name.\n    version: Pipeline version (must be >= 1). For a new name this\n        must be 1; for an existing name it must be the next version.\n    description: Non-empty human-readable text describing what the pipeline does.\n    source: Pipeline source. For create endpoint this value is\n        overwritten to USER_CREATED.\n    type: Pipeline type (e.g. GStreamer).\n    pipeline_description: Complete GStreamer pipeline string that will be\n        parsed into a PipelineGraph. This is the actual GStreamer launch line\n        with elements separated by '!' symbols.\n    parameters: Optional default parameter set.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"version\": 1,\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"type\": \"GStreamer\",\n          \"pipeline_description\": \"filesrc location=input.mp4 ! decodebin ! fakesink\",\n          \"parameters\": {\n            \"default\": {\n              \"max-runtime\": 60\n            }\n          }\n        }"
+        "description": "Input model used to create a new pipeline via the API.\n\nAttributes:\n    name: Non-empty pipeline name.\n    description: Non-empty human-readable text describing what the pipeline does.\n    source: Pipeline source. For create endpoint this value is\n        overwritten to USER_CREATED.\n    tags: List of tags for categorizing the pipeline.\n    variants: List of pipeline variants for different hardware targets.\n        Each variant requires name, pipeline_graph, and pipeline_graph_simple.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"name\": \"vehicle-detection\",\n          \"description\": \"Simple vehicle detection pipeline\",\n          \"tags\": [\"detection\", \"vehicle\"],\n          \"variants\": [\n            {\n              \"name\": \"CPU\",\n              \"pipeline_graph\": {...},\n              \"pipeline_graph_simple\": {...}\n            }\n          ]\n        }"
       },
       "PipelineDensitySpec": {
         "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "ID of the pipeline used in density test.",
-            "examples": [
-              "pipeline-1"
-            ]
+          "pipeline": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VariantReference"
+              },
+              {
+                "$ref": "#/components/schemas/GraphInline"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineDescriptionSource"
+              }
+            ],
+            "title": "Pipeline",
+            "description": "Graph source - either a reference to existing variant or inline graph.",
+            "discriminator": {
+              "propertyName": "source",
+              "mapping": {
+                "description": "#/components/schemas/PipelineDescriptionSource",
+                "graph": "#/components/schemas/GraphInline",
+                "variant": "#/components/schemas/VariantReference"
+              }
+            }
           },
           "stream_rate": {
             "type": "integer",
@@ -2520,10 +3271,10 @@
         },
         "type": "object",
         "required": [
-          "id"
+          "pipeline"
         ],
         "title": "PipelineDensitySpec",
-        "description": "Per-pipeline configuration for density tests.\n\nUsed in DensityTestSpec to describe how total streams are split between\npipelines based on relative ratios.\n\nAttributes:\n    id: Pipeline identifier.\n    stream_rate: Relative share of total streams for this pipeline\n        expressed as percentage. All stream_rate values in the request\n        must sum to 100.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"id\": \"pipeline-1\",\n          \"stream_rate\": 50\n        }"
+        "description": "Per-pipeline configuration for density tests.\n\nThe pipeline can be specified in two ways:\n* variant: Reference to an existing pipeline variant by pipeline_id and variant_id\n* graph: Inline pipeline graph provided directly\n\nUsed in DensityTestSpec to describe how total streams are split between\npipelines based on relative ratios.\n\nAttributes:\n    pipeline: Graph source - either a reference to existing variant or inline graph.\n        Discriminated by 'source' field: \"variant\" or \"graph\".\n    stream_rate: Relative share of total streams for this pipeline\n        expressed as percentage. All stream_rate values in the request\n        must sum to 100.\n\nExamples:\n    Variant reference:\n        .. code-block:: json\n\n            {\n              \"pipeline\": {\n                \"source\": \"variant\",\n                \"pipeline_id\": \"pipeline-a3f5d9e1\",\n                \"variant_id\": \"variant-abc123\"\n              },\n              \"stream_rate\": 50\n            }\n\n    Inline graph:\n        .. code-block:: json\n\n            {\n              \"pipeline\": {\n                \"source\": \"graph\",\n                \"pipeline_graph\": {\n                  \"nodes\": [...],\n                  \"edges\": [...]\n                }\n              },\n              \"stream_rate\": 50\n            }"
       },
       "PipelineDescription": {
         "properties": {
@@ -2542,6 +3293,47 @@
         ],
         "title": "PipelineDescription",
         "description": "Request or response body containing a GStreamer pipeline string.\n\nThe pipeline_description field contains a complete GStreamer launch line\nwith elements separated by '!' symbols, for example:\n\"filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink\"\n\nAttributes:\n    pipeline_description: Complete GStreamer pipeline string to be converted\n        or executed."
+      },
+      "PipelineDescriptionSource": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "description",
+            "title": "Source",
+            "default": "description"
+          },
+          "pipeline_description": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Pipeline Description",
+            "description": "GStreamer pipeline string with elements separated by '!'.",
+            "examples": [
+              "videotestsrc ! videoconvert ! fakesink"
+            ]
+          },
+          "description_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Id",
+            "description": "Optional custom identifier for pipeline description. Must be URL-safe.",
+            "examples": [
+              "my-test-pipeline",
+              "detection-cpu-v1"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_description"
+        ],
+        "title": "PipelineDescriptionSource",
+        "description": "Pipeline source from GStreamer pipeline description string.\n\nUsed when specifying a pipeline for tests by providing a GStreamer\npipeline description string that will be parsed into a graph.\n\nAttributes:\n    source: Discriminator field, always \"description\" for this type.\n    pipeline_description: GStreamer pipeline string with elements separated by '!'.\n        Must be non-empty.\n    description_id: Optional custom identifier for this pipeline description.\n        If provided, this ID is used instead of generating a hash-based ID.\n        The ID must be URL-safe (only lowercase letters, numbers, and dashes).\n        If not provided, a synthetic ID is generated from description content hash.\n\nExample (without description_id - uses generated hash):\n    .. code-block:: json\n\n        {\n          \"source\": \"description\",\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n        }\n\nExample (with custom description_id):\n    .. code-block:: json\n\n        {\n          \"source\": \"description\",\n          \"description_id\": \"my-test-pipeline\",\n          \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n        }"
       },
       "PipelineGraph": {
         "properties": {
@@ -2622,37 +3414,30 @@
         "title": "PipelineGraphResponse",
         "description": "Response body containing both advanced and simple views of a pipeline graph.\n\nUsed by the /convert/to-graph endpoint to return both representations\nat once.\n\nAttributes:\n    pipeline_graph: Advanced view with all technical elements including\n        queues, converters, caps nodes, and other plumbing elements.\n        This view contains the complete pipeline structure as parsed\n        from the pipeline description.\n    pipeline_graph_simple: Simplified view showing only meaningful elements\n        such as sources, inference nodes (gva*), and sinks. Technical\n        plumbing elements are hidden and edges are reconnected to show\n        direct connections between visible nodes.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n              {\"id\": \"2\", \"type\": \"queue\", \"data\": {}},\n              {\"id\": \"3\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\"}},\n              {\"id\": \"4\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n              {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"},\n              {\"id\": \"2\", \"source\": \"2\", \"target\": \"3\"},\n              {\"id\": \"3\", \"source\": \"3\", \"target\": \"4\"}\n            ]\n          },\n          \"pipeline_graph_simple\": {\n            \"nodes\": [\n              {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"input.mp4\"}},\n              {\"id\": \"3\", \"type\": \"gvadetect\", \"data\": {\"model\": \"yolo\"}},\n              {\"id\": \"4\", \"type\": \"fakesink\", \"data\": {}}\n            ],\n            \"edges\": [\n              {\"id\": \"0\", \"source\": \"0\", \"target\": \"3\"},\n              {\"id\": \"1\", \"source\": \"3\", \"target\": \"4\"}\n            ]\n          }\n        }"
       },
-      "PipelineParameters": {
-        "properties": {
-          "default": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default"
-          }
-        },
-        "type": "object",
-        "required": [
-          "default"
-        ],
-        "title": "PipelineParameters",
-        "description": "Optional parameter set attached to a pipeline.\n\nAttributes:\n    default: Arbitrary key/value dictionary with default parameter\n        values to be used when running the pipeline.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"default\": {\n            \"max-runtime\": 60,\n            \"threshold\": 0.5\n          }\n        }"
-      },
       "PipelinePerformanceSpec": {
         "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "ID of the pipeline to test.",
-            "examples": [
-              "pipeline-1234abcd"
-            ]
+          "pipeline": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VariantReference"
+              },
+              {
+                "$ref": "#/components/schemas/GraphInline"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineDescriptionSource"
+              }
+            ],
+            "title": "Pipeline",
+            "description": "Graph source - either a reference to existing variant or inline graph.",
+            "discriminator": {
+              "propertyName": "source",
+              "mapping": {
+                "description": "#/components/schemas/PipelineDescriptionSource",
+                "graph": "#/components/schemas/GraphInline",
+                "variant": "#/components/schemas/VariantReference"
+              }
+            }
           },
           "streams": {
             "type": "integer",
@@ -2669,10 +3454,10 @@
         },
         "type": "object",
         "required": [
-          "id"
+          "pipeline"
         ],
         "title": "PipelinePerformanceSpec",
-        "description": "Per-pipeline configuration for performance and density tests.\n\nAttributes:\n    id: Pipeline identifier to be executed.\n    streams: Number of parallel streams to run for this pipeline."
+        "description": "Per-pipeline configuration for performance and density tests.\n\nThe pipeline can be specified in two ways:\n* variant: Reference to an existing pipeline variant by pipeline_id and variant_id\n* graph: Inline pipeline graph provided directly\n\nAttributes:\n    pipeline: Graph source - either a reference to existing variant or inline graph.\n        Discriminated by 'source' field: \"variant\" or \"graph\".\n    streams: Number of parallel streams to run for this pipeline.\n\nExamples:\n    Variant reference:\n        .. code-block:: json\n\n            {\n              \"pipeline\": {\n                \"source\": \"variant\",\n                \"pipeline_id\": \"pipeline-a3f5d9e1\",\n                \"variant_id\": \"variant-abc123\"\n              },\n              \"streams\": 4\n            }\n\n    Inline graph:\n        .. code-block:: json\n\n            {\n              \"pipeline\": {\n                \"source\": \"graph\",\n                \"pipeline_graph\": {\n                  \"nodes\": [...],\n                  \"edges\": [...]\n                }\n              },\n              \"streams\": 4\n            }"
       },
       "PipelineRequestOptimize": {
         "properties": {
@@ -2708,13 +3493,34 @@
         ],
         "title": "PipelineSource"
       },
-      "PipelineType": {
-        "type": "string",
-        "enum": [
-          "GStreamer",
-          "FFmpeg"
+      "PipelineStreamSpec": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Pipeline identifier - variant path or synthetic graph ID.",
+            "examples": [
+              "/pipelines/pipeline-a3f5d9e1/variants/variant-abc123",
+              "__graph-1a2b3c4d5e6f7g8h"
+            ]
+          },
+          "streams": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Streams",
+            "description": "Number of streams allocated to this pipeline.",
+            "examples": [
+              4
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "streams"
         ],
-        "title": "PipelineType"
+        "title": "PipelineStreamSpec",
+        "description": "Simple representation of pipeline stream count with pipeline identifier.\n\nUsed in test job results to report which pipelines were executed and how many\nstreams were allocated to each.\n\nThe id field format depends on the pipeline source:\n* For variant reference: \"/pipelines/{pipeline_id}/variants/{variant_id}\"\n* For inline graph: \"__graph-{16-char-hash}\"\n\nAttributes:\n    id: Pipeline identifier - either variant path or synthetic graph ID.\n    streams: Number of streams allocated to this pipeline.\n\nExamples:\n    Variant reference:\n        .. code-block:: json\n\n            {\n              \"id\": \"/pipelines/pipeline-a3f5d9e1/variants/variant-abc123\",\n              \"streams\": 4\n            }\n\n    Inline graph:\n        .. code-block:: json\n\n            {\n              \"id\": \"__graph-1a2b3c4d5e6f7g8h\",\n              \"streams\": 2\n            }"
       },
       "PipelineUpdate": {
         "properties": {
@@ -2740,47 +3546,27 @@
             ],
             "title": "Description"
           },
-          "pipeline_graph": {
+          "tags": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PipelineGraph"
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
-            ]
-          },
-          "pipeline_graph_simple": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PipelineGraph"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "parameters": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PipelineParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            ],
+            "title": "Tags"
           }
         },
         "type": "object",
         "title": "PipelineUpdate",
-        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional; at least one must be provided when calling\nthe update endpoint.\n\nImportant: Only ONE of pipeline_graph or pipeline_graph_simple should be provided.\nIf both are provided, the request will be rejected with 400 error.\n\nAttributes:\n    name: Optional new pipeline name (non-empty if provided).\n    description: Optional new human-readable text describing what the pipeline does (non-empty if provided).\n    pipeline_graph: Optional new advanced graph; must be non-empty and valid.\n        When provided, simple view is auto-generated from it.\n    pipeline_graph_simple: Optional new simple graph with property changes.\n        When provided, changes are merged into the advanced view using\n        apply_simple_view_changes(), and new simple view is regenerated.\n    parameters: Optional new default parameters for the pipeline.\n\nExample (updating advanced view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }\n\nExample (updating simple view):\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated inference parameters\",\n          \"pipeline_graph_simple\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          }\n        }"
+        "description": "Partial update model for an existing pipeline.\n\nAll fields are optional, but at least one must be provided when calling\nthe update endpoint. String fields (name, description) must be non-empty\nafter trimming whitespace.\n\nValidation is performed in model_validator to fail fast on invalid input.\n\nAttributes:\n    name: Optional new pipeline name (non-empty after trim if provided).\n    description: Optional new human-readable text describing what the pipeline does (non-empty after trim if provided).\n    tags: Optional list of tags. If provided, can be empty.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"description\": \"Updated pipeline with better preprocessing\",\n          \"tags\": [\"updated\", \"v2\"]\n        }"
       },
       "PipelineValidation-Input": {
         "properties": {
-          "type": {
-            "$ref": "#/components/schemas/PipelineType",
-            "default": "GStreamer"
-          },
           "pipeline_graph": {
             "$ref": "#/components/schemas/PipelineGraph"
           },
@@ -2807,14 +3593,10 @@
           "pipeline_graph"
         ],
         "title": "PipelineValidation",
-        "description": "Request body for pipeline validation.\n\nAttributes:\n    type: Pipeline type (default is GStreamer).\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
+        "description": "Request body for pipeline validation.\n\nAttributes:\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
       },
       "PipelineValidation-Output": {
         "properties": {
-          "type": {
-            "$ref": "#/components/schemas/PipelineType",
-            "default": "GStreamer"
-          },
           "pipeline_graph": {
             "$ref": "#/components/schemas/PipelineGraph"
           },
@@ -2841,7 +3623,7 @@
           "pipeline_graph"
         ],
         "title": "PipelineValidation",
-        "description": "Request body for pipeline validation.\n\nAttributes:\n    type: Pipeline type (default is GStreamer).\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"type\": \"GStreamer\",\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
+        "description": "Request body for pipeline validation.\n\nAttributes:\n    pipeline_graph: Structured graph representation of the pipeline.\n    parameters: Optional parameter set for validation (for example\n        ``{\"max-runtime\": 10}``).\n\nExample:\n    .. code-block:: json\n\n        {\n          \"pipeline_graph\": {\n            \"nodes\": [...],\n            \"edges\": [...]\n          },\n          \"parameters\": {\n            \"max-runtime\": 10\n          }\n        }"
       },
       "StatusResponse": {
         "properties": {
@@ -2902,6 +3684,32 @@
         "title": "TestJobState",
         "description": "Generic state of a long-running test job (performance or density).\n\nValues:\n    RUNNING: Job is still executing.\n    COMPLETED: Job finished successfully.\n    ERROR: Job failed with an error_message.\n    ABORTED: Job was cancelled by the user."
       },
+      "USBCameraDetails": {
+        "properties": {
+          "device_path": {
+            "type": "string",
+            "title": "Device Path"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_path",
+          "resolution"
+        ],
+        "title": "USBCameraDetails",
+        "description": "USB camera specific details.\n\nAttributes:\n    device_path: System device path (e.g., /dev/video0).\n    resolution: Supported or current resolution (optional, e.g., \"1920x1080\")."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2925,6 +3733,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -3036,6 +3851,169 @@
         ],
         "title": "ValidationJobSummary",
         "description": "Short summary for a validation job.\n\nAttributes:\n    id: Job identifier.\n    request: Original PipelineValidation request."
+      },
+      "Variant": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique variant identifier generated by the backend."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Variant name identifying the hardware target.",
+            "examples": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ]
+          },
+          "read_only": {
+            "type": "boolean",
+            "title": "Read Only",
+            "description": "Whether the variant is read-only. Can only be true for PREDEFINED pipelines.",
+            "default": false
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Advanced graph view with all pipeline elements for this variant."
+          },
+          "pipeline_graph_simple": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Simplified graph view for this variant."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Creation timestamp as UTC datetime. Set by backend only."
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At",
+            "description": "Last modification timestamp as UTC datetime. Set by backend only."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "pipeline_graph",
+          "pipeline_graph_simple",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "Variant",
+        "description": "Single variant of a pipeline for different hardware targets.\n\nAttributes:\n    id: Unique variant identifier generated by the backend.\n        Not used when creating or updating variants.\n    name: Variant name (e.g., \"CPU\", \"GPU\", \"NPU\").\n    read_only: Whether the variant is read-only. Defaults to false.\n        Can only be set to true for PREDEFINED pipeline variants.\n    pipeline_graph: Advanced graph representation for this variant.\n    pipeline_graph_simple: Simplified graph representation for this variant.\n    created_at: Creation timestamp as UTC datetime.\n        Set by backend only, not modifiable via API.\n    modified_at: Last modification timestamp as UTC datetime.\n        Updated when variant is modified. Set by backend only."
+      },
+      "VariantCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name",
+            "description": "Variant name identifying the hardware target.",
+            "examples": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ]
+          },
+          "pipeline_graph": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Advanced graph view with all pipeline elements for this variant."
+          },
+          "pipeline_graph_simple": {
+            "$ref": "#/components/schemas/PipelineGraph",
+            "description": "Simplified graph view for this variant."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "pipeline_graph",
+          "pipeline_graph_simple"
+        ],
+        "title": "VariantCreate",
+        "description": "Input model for creating a new variant.\n\nThe id and read_only fields are not included as they are\ngenerated/set by the backend.\n\nAttributes:\n    name: Variant name (required, non-empty).\n    pipeline_graph: Advanced graph representation (required).\n    pipeline_graph_simple: Simplified graph representation (required)."
+      },
+      "VariantReference": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "variant",
+            "title": "Source",
+            "default": "variant"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id",
+            "description": "ID of the pipeline containing the variant.",
+            "examples": [
+              "pipeline-a3f5d9e1"
+            ]
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id",
+            "description": "ID of the variant within the pipeline.",
+            "examples": [
+              "variant-abc123"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pipeline_id",
+          "variant_id"
+        ],
+        "title": "VariantReference",
+        "description": "Reference to an existing pipeline variant by IDs.\n\nUsed when specifying a pipeline for tests by referencing an existing\nstored variant instead of providing an inline graph.\n\nAttributes:\n    source: Discriminator field, always \"variant\" for this type.\n    pipeline_id: ID of the pipeline containing the variant.\n    variant_id: ID of the variant to use.\n\nExample:\n    .. code-block:: json\n\n        {\n          \"source\": \"variant\",\n          \"pipeline_id\": \"pipeline-a3f5d9e1\",\n          \"variant_id\": \"variant-abc123\"\n        }"
+      },
+      "VariantUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New variant name."
+          },
+          "pipeline_graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New advanced graph (mutually exclusive with pipeline_graph_simple)."
+          },
+          "pipeline_graph_simple": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGraph"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New simplified graph (mutually exclusive with pipeline_graph)."
+          }
+        },
+        "type": "object",
+        "title": "VariantUpdate",
+        "description": "Input model for updating an existing variant.\n\nAll fields are optional, but at least one must be provided.\nOnly one of pipeline_graph or pipeline_graph_simple can be provided per request.\nString fields (name) must be non-empty after trimming whitespace.\n\nValidation is performed in model_validator to fail fast on invalid input.\n\nAttributes:\n    name: Optional new variant name (non-empty after trim if provided).\n    pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple).\n    pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)."
       },
       "Video": {
         "properties": {

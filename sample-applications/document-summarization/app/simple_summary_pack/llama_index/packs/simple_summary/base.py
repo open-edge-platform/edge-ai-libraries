@@ -49,7 +49,7 @@ class SimpleSummaryPack(BaseLlamaPack):
         Settings.embed_model = None
         Settings.llm = llm
         self.verbose = verbose
-        self.splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE or 1024)
+        self.splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE or 4096)
 
         self.response_synthesizer = get_response_synthesizer(
             response_mode="tree_summarize", use_async=True)

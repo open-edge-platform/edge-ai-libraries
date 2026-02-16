@@ -82,7 +82,12 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
+      DATAPREP_TELEMETRY_URL: ${DATAPREP_TELEMETRY_URL:-http://vdms-dataprep:8000/v1/dataprep/telemetry?limit=1}
+      TELEMETRY_SIGNAL_DIR: ${TELEMETRY_SIGNAL_DIR:-/app/.collector-signals}
+    volumes:
+      - collector_signals:/app/.collector-signals
     restart: unless-stopped
+    user: "0:0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -112,7 +117,7 @@ services:
       - vs_network
 
   minio-service:
-    image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
+    image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
     ports:
       - "${MINIO_API_HOST_PORT}:80"
       - "${MINIO_CONSOLE_HOST_PORT}:81"
@@ -127,7 +132,7 @@ services:
       --address ":80"
       --console-address ":81"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/minio/health/live"]
+      test: [ "CMD-SHELL", "echo > /dev/tcp/127.0.0.1/80 && exit 0 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -142,6 +147,8 @@ volumes:
   minio_data:
     driver: local
   pg_data:
+    driver: local
+  collector_signals:
     driver: local
 networks:
   vs_network:

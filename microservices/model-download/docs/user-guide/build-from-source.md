@@ -26,6 +26,13 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
       ```
+    - For using the Geti™ plugin set the below environment variables
+      ```bash
+      export GETI_HOST=<GETI_HOST_ADDRESS>
+      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+      export GETI_SERVER_API_VERSION=v1
+      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
+      ```
 4. **Build the docker image**
     - Build the Docker image for the Model Download Microservice:
       ```bash

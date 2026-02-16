@@ -75,13 +75,14 @@ app.add_middleware(
 )
 
 # Update OpenAILike configuration with proper timeout and retry settings
+
 model = OpenAILike(
     api_base="{}/v3".format(LLM_INFERENCE_URL),
     model=model_name,  
     is_chat_model=True,
     is_function_calling_model=False,
-    timeout=120,  # Increase timeout to 120 seconds
-    max_retries=2,  # Limit number of retries
+    timeout=600,  # Increased timeout for long responses
+    max_retries=10,  # Allow more retries for transient failures
     api_key="not-needed"  # Some implementations require a non-empty API key
 )
 
@@ -198,8 +199,8 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
         try:
             logger.info("Loading documents")
             if file.filename.endswith(".txt"):
-                logger.info("Chunking TXT file before summarization")
-                documents = chunk_text_file(file_location, max_chars=2000)
+                logger.info(f"Chunking TXT file before summarization with chunk size: {config.CHUNK_SIZE}")
+                documents = chunk_text_file(file_location, max_chars=config.CHUNK_SIZE)
             else:
                 documents = SimpleDirectoryReader(input_files=[file_location]).load_data()
 

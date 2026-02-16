@@ -4,7 +4,6 @@ import {
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useGetValidationJobStatusQuery,
-  useOptimizePipelineMutation,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
   useUpdatePipelineMutation,
@@ -44,10 +43,11 @@ import {
 
 type UrlParams = {
   id: string;
+  variant: string;
 };
 
 export const Pipelines = () => {
-  const { id } = useParams<UrlParams>();
+  const { id, variant } = useParams<UrlParams>();
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
@@ -69,10 +69,10 @@ export const Pipelines = () => {
     null,
   );
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [pendingOptimizationNodes, setPendingOptimizationNodes] = useState<
+  const [/*pendingOptimizationNodes, */ setPendingOptimizationNodes] = useState<
     ReactFlowNode[]
   >([]);
-  const [pendingOptimizationEdges, setPendingOptimizationEdges] = useState<
+  const [/*pendingOptimizationEdges, */ setPendingOptimizationEdges] = useState<
     ReactFlowEdge[]
   >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
@@ -97,7 +97,7 @@ export const Pipelines = () => {
     useStopPerformanceTestJobMutation();
   const [updatePipeline] = useUpdatePipelineMutation();
   const [validatePipeline] = useValidatePipelineMutation();
-  const [optimizePipeline] = useOptimizePipelineMutation();
+  // const [optimizePipeline] = useOptimizeVariantMutation();
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: performanceTestJobId! },
@@ -131,8 +131,9 @@ export const Pipelines = () => {
         description: new Date().toISOString(),
       });
 
-      if (videoOutputEnabled && jobStatus.video_output_paths && id) {
-        const paths = jobStatus.video_output_paths[id];
+      if (videoOutputEnabled && jobStatus.video_output_paths) {
+        // const paths = jobStatus.video_output_paths[id]; // TODO: Fix key mismatch - not using pipelineId as key
+        const paths = Object.values(jobStatus.video_output_paths)[0];
         if (paths && paths.length > 0) {
           const videoPath = [...paths].pop();
           if (videoPath) {
@@ -157,8 +158,8 @@ export const Pipelines = () => {
       });
       setIsOptimizing(false);
       setValidationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
+      // setPendingOptimizationNodes([]);
+      //setPendingOptimizationEdges([]);
     }
   }, [validationError, validationJobId]);
 
@@ -169,11 +170,11 @@ export const Pipelines = () => {
       });
       setIsOptimizing(false);
       setOptimizationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
+      //   setPendingOptimizationNodes([]);
+      // setPendingOptimizationEdges([]);
     }
   }, [optimizationError, optimizationJobId]);
-
+  /*
   useEffect(() => {
     if (!validationJobId) return;
 
@@ -262,7 +263,7 @@ export const Pipelines = () => {
     pendingOptimizationEdges,
     updatePipeline,
     optimizePipeline,
-  ]);
+  ]);*/
 
   useEffect(() => {
     const applyOptimizedPipeline = async (optimizedGraph: {
@@ -275,13 +276,13 @@ export const Pipelines = () => {
         toast.dismiss();
 
         // Step 1: Save optimized pipeline to backend
-        await updatePipeline({
+        /* await updatePipeline({
           pipelineId: id,
           pipelineUpdate: {
             pipeline_graph: optimizedGraph,
           },
         }).unwrap();
-
+*/
         // Step 2: Convert optimized graph to ReactFlow format with layout
         const newNodes: ReactFlowNode[] = optimizedGraph.nodes.map(
           (node, index) => ({
@@ -304,8 +305,8 @@ export const Pipelines = () => {
         setShouldFitView(true);
         setEditorKey((prev) => prev + 1); // Force re-render with layout
 
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
+        //  setPendingOptimizationNodes([]);
+        //setPendingOptimizationEdges([]);
 
         toast.success("Optimized pipeline applied");
       } catch (error) {
@@ -336,8 +337,8 @@ export const Pipelines = () => {
             label: "Cancel",
             onClick: () => {
               toast.dismiss();
-              setPendingOptimizationNodes([]);
-              setPendingOptimizationEdges([]);
+              //  setPendingOptimizationNodes([]);
+              //setPendingOptimizationEdges([]);
             },
           },
         });
@@ -416,12 +417,8 @@ export const Pipelines = () => {
         })),
       };
 
-      await updatePipeline({
-        pipelineId: id,
-        pipelineUpdate: isSimpleMode
-          ? { pipeline_graph_simple: graphData }
-          : { pipeline_graph: graphData },
-      }).unwrap();
+      // TODO: for predefined pipelines we cannot pass simple_graph, cannot sync changes
+      // so most likely can just pass advanced graph, no matter what mode is active
 
       const response = await runPerformanceTest({
         performanceTestSpecInput: {
@@ -431,7 +428,12 @@ export const Pipelines = () => {
           },
           pipeline_performance_specs: [
             {
-              id,
+              pipeline: {
+                source: "graph",
+                //pipeline_graph: graphData,
+                pipeline_graph: data!.variants.find((v) => v.id === variant)!
+                  .pipeline_graph,
+              },
               streams: 1,
             },
           ],
@@ -534,8 +536,8 @@ export const Pipelines = () => {
 
     setIsOptimizing(true);
 
-    setPendingOptimizationNodes(currentNodes);
-    setPendingOptimizationEdges(currentEdges);
+    // setPendingOptimizationNodes(currentNodes);
+    // setPendingOptimizationEdges(currentEdges);
 
     try {
       const pipelineGraph = {
@@ -569,8 +571,8 @@ export const Pipelines = () => {
         description: errorMessage,
       });
       setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
+      //   setPendingOptimizationNodes([]);
+      // setPendingOptimizationEdges([]);
       console.error("Failed to start validation:", error);
     }
   };
@@ -586,6 +588,7 @@ export const Pipelines = () => {
             ref={pipelineEditorRef}
             key={editorKey}
             pipelineData={data}
+            variant={variant}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onViewportChange={handleViewportChange}
@@ -637,9 +640,11 @@ export const Pipelines = () => {
           </div>
 
           <div className="flex gap-2">
-            {id && (
+            {id && variant && (
               <ViewModeSwitcher
                 pipelineId={id}
+                variant={variant}
+                isPredefined={data.source === "PREDEFINED"}
                 isSimpleMode={isSimpleMode}
                 currentNodes={currentNodes}
                 currentEdges={currentEdges}

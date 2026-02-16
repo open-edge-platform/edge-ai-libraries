@@ -4,6 +4,7 @@
 import os
 import uuid
 import asyncio
+import inspect
 import concurrent.futures
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -196,10 +197,31 @@ class ModelManager:
                 model_name=model_name,
             )
 
-            result = await asyncio.to_thread(
-                download_plugin.download,
-                model_name, output_dir, **kwargs
-            )
+            # Check if the download method is async
+            if inspect.iscoroutinefunction(download_plugin.download):
+                result = await download_plugin.download(model_name, output_dir, **kwargs)
+            else:
+                result = await asyncio.to_thread(
+                    download_plugin.download,
+                    model_name, output_dir, **kwargs
+                )
+
+            # Check if the download was successful
+            if isinstance(result, dict) and result.get("success") is False:
+                # Download failed, update job status accordingly
+                error_msg = result.get("error", "Unknown error")
+                self._jobs[job_id]["status"] = "failed"
+                self._jobs[job_id]["error"] = error_msg
+                self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+                self._jobs[job_id]["result"] = result
+                
+                logger.error("download_failed", job_id=job_id, model_name=model_name, error=error_msg)
+                return {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "model_name": model_name,
+                    "error": error_msg,
+                }
 
             # Update job status
             self._jobs[job_id]["status"] = "completed"

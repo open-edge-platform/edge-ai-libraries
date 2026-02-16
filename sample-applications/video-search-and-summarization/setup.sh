@@ -17,7 +17,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 # Function to stop Docker containers
 stop_containers() {
     echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -85,7 +85,7 @@ elif [ "$1" = "--clean-data" ]; then
     echo -e "${YELLOW}Removing Docker volumes created by the application... ${NC}"
 
     # Remove volumes 
-    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep  2>/dev/null || true
+    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep docker_collector_signals 2>/dev/null || true
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}All volumes were successfully removed. ${NC}"
@@ -260,6 +260,14 @@ export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
 export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
+# ROI consolidation parameters for grouping overlapping detections
+# ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
+# ROI_CONSOLIDATION_CLASS_AWARE: only merge ROIs with matching class labels when true
+# ROI_CONSOLIDATION_CONTEXT_SCALE: expands merged ROI by a fraction of its size
+export ROI_CONSOLIDATION_ENABLED=${ROI_CONSOLIDATION_ENABLED:-false}
+export ROI_CONSOLIDATION_IOU_THRESHOLD=${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
+export ROI_CONSOLIDATION_CLASS_AWARE=${ROI_CONSOLIDATION_CLASS_AWARE:-false}
+export ROI_CONSOLIDATION_CONTEXT_SCALE=${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
 export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
 
 # Application configuration
@@ -395,6 +403,9 @@ export UI_PM_ENDPOINT=${UI_PM_ENDPOINT:-/manager}
 export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
 
 export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
+
+# Telemetry collector toggle for search (disabled by default)
+export ENABLE_VSS_COLLECTOR=${ENABLE_VSS_COLLECTOR:-false}
 
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
@@ -641,6 +652,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
         export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
+        if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
+            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
+            echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
+        else
+            echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
+        fi && \
     echo -e  "[pipeline-manager] ${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
     
     # Create YOLOX models volume for all modes that include search functionality
@@ -844,7 +861,13 @@ elif [ "$1" = "--search" ]; then
     fi
 
     # If search is enabled, set up video search only
-    APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml" 
+    APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml"
+    if [ "$ENABLE_VSS_COLLECTOR" = true ]; then
+        APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.telemetry.yaml"
+        echo -e  "[telemetry] ${GREEN}vss-collector enabled (set ENABLE_VSS_COLLECTOR=true to keep enabled)${NC}"
+    else
+        echo -e  "[telemetry] ${YELLOW}vss-collector disabled (set ENABLE_VSS_COLLECTOR=true to enable)${NC}"
+    fi
     echo -e  "[video-search] ${GREEN}Setting up Video Search application${NC}"
 
     # if config is passed, set the command to only generate the config

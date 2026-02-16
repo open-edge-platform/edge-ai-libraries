@@ -4,12 +4,15 @@ import { FC } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tag, Tooltip, Button } from '@carbon/react';
+import { Slider, Tag, Tooltip, Button, Accordion, AccordionItem } from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
+import { TimeFilterSelection } from '../../redux/search/search';
+import TimeFilterControl from './TimeFilterControl';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
 import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
+import TelemetryAccordion from './TelemetryAccordion';
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -39,32 +42,93 @@ const QueryContentWrapper = styled.div`
   }
 `;
 
-const QueryHeader = styled.div`
-  display: flex;
-  flex-flow: row nowrap;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 1rem;
-  background-color: var(--color-sidebar);
+const SettingsContainer = styled.div`
   position: sticky;
-  z-index: 1;
-  border-bottom: 1px solid var(--color-border);
-  max-height: 3rem;
   width: 100%;
-  .cds--form-item {
-    flex: none;
+  top: 0;
+  z-index: 2;
+  background-color: var(--color-sidebar);
+  border-bottom: 1px solid var(--color-border);
+  .cds--accordion__item {
+    padding-inline-end: 0rem;
   }
+`;
+
+const SettingsBar = styled.div`
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 1rem 0;
+  width: 100%;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+`;
+
+const SettingsSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1 1 0;
+  /* min-width: 10rem; */
+`;
+
+const ControlCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: .1px solid #a8a8a8;
+  border-radius: 0.5rem;
+  background: #f4f4f4;
+`;
+
+const SliderBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 8rem;
+`;
+
+
+const QueryBar = styled.div`
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: #f4f4f4;
+  border-bottom: 1px solid var(--color-border);
+  width: 100%;
+
+  .query-label {
+    font-weight: 600;
+    color: #525252;
+  }
+
+  .query-text {
+    font-weight: 700;
+    color: #161616;
+  }
+
   .cds--tooltip-trigger__wrapper {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 32rem;
-    flex: 1 1 auto;
+    max-width: 40rem;
   }
 `;
 
 const SliderLabel = styled.div`
   margin-right: 1rem;
+`;
+
+const IntervalNotice = styled.div`
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: #eef4ff;
+  color: #0f62fe;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border);
 `;
 
 export const statusClassName = {
@@ -137,23 +201,91 @@ const ErrorMessageWrapper = styled.div`
   }
 `;
 
-export const QueryHeading: FC = () => {
+export const QuerySettings: FC = () => {
   const { selectedQuery, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
-  const refetchQuery = () => {
-    if (selectedQuery) {
-      dispatch(RerunSearch(selectedQuery.queryId));
-    }
+  const currentTimeFilter: TimeFilterSelection | null | undefined = selectedQuery?.timeFilter;
+
+  const updateTimeFilter = (timeFilter: TimeFilterSelection | null) => {
+    if (!selectedQuery) return;
+    dispatch(SearchActions.updateTimeFilter({ queryId: selectedQuery.queryId, timeFilter }));
+    dispatch(RerunSearch({ queryId: selectedQuery.queryId, timeFilter }));
   };
 
   return (
-    <QueryHeader>
-      <Tooltip align='bottom' label={selectedQuery?.query}>
-        <span className='query-title'>{selectedQuery?.query}</span>
+    <SettingsContainer>
+      <Accordion align='start' size='sm'>
+        <AccordionItem title={t('filters', 'Filters')}>
+          <SettingsBar>
+            <SettingsSection style={{ justifyContent: 'flex-start' }}>
+              {isSelectedInProgress && (
+                <Tag size='sm' type='blue'>
+                  {t('searchInProgress')}
+                </Tag>
+              )}
+              {isSelectedHasError && (
+                <Tag size='sm' type='red'>
+                  {t('searchError')}
+                </Tag>
+              )}
+            </SettingsSection>
+
+            <SettingsSection style={{ justifyContent: 'center' }}>
+              {selectedQuery && (
+                <ControlCard>
+                  <SliderBlock>
+                    <SliderLabel>{t('searchOutputCount', 'Search Output Count')}</SliderLabel>
+                    <Slider
+                      min={1}
+                      max={20}
+                      step={1}
+                      value={selectedQuery.topK}
+                      hideTextInput
+                      onChange={({ value }) => {
+                        dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
+                      }}
+                    />
+                  </SliderBlock>
+                </ControlCard>
+              )}
+            </SettingsSection>
+
+            <SettingsSection style={{ justifyContent: 'flex-end' }}>
+              {selectedQuery && (
+                <ControlCard>
+                  <TimeFilterControl
+                    key={selectedQuery.queryId}
+                    timeFilter={currentTimeFilter}
+                    onChange={updateTimeFilter}
+                    idPrefix='time-filter'
+                    size='sm'
+                  />
+                </ControlCard>
+              )}
+            </SettingsSection>
+          </SettingsBar>
+        </AccordionItem>
+      </Accordion>
+    </SettingsContainer>
+  );
+};
+
+export const QueryInfo: FC = () => {
+  const { selectedQuery } = useAppSelector(SearchSelector);
+  const dispatch = useAppDispatch();
+  const { t } = useTranslation();
+
+  if (!selectedQuery) return null;
+
+  return (
+    <QueryBar>
+      <span className='query-label'>{t('userQueryLabel', 'User Query:')}</span>
+      <Tooltip align='bottom' label={selectedQuery.query}>
+        <strong className='query-text'>{selectedQuery.query}</strong>
       </Tooltip>
-      {selectedQuery && selectedQuery?.tags.length > 0 && (
+      {selectedQuery.tags.length > 0 && (
         <TagsContainer>
           {selectedQuery.tags.map((tag, index) => (
             <Tag key={index} size='sm' type='high-contrast'>
@@ -162,31 +294,7 @@ export const QueryHeading: FC = () => {
           ))}
         </TagsContainer>
       )}
-      <span className='spacer'></span>
-      {isSelectedInProgress && (
-        <Tag size='sm' type='blue'>
-          {t('searchInProgress')}
-        </Tag>
-      )}
-      {isSelectedHasError && (
-        <Tag size='sm' type='red'>
-          {t('searchError')}
-        </Tag>
-      )}
-      {selectedQuery && (
-        <>
-          <SliderLabel>{t('topK')}</SliderLabel>
-          <Slider
-            min={1}
-            max={20}
-            step={1}
-            value={selectedQuery.topK}
-            onChange={({ value }) => {
-              dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
-            }}
-          />
-        </>
-      )}
+      <span style={{ flex: 1 }}></span>
       <Button
         kind='ghost'
         size='sm'
@@ -199,147 +307,94 @@ export const QueryHeading: FC = () => {
       >
         {t('GroupByTag')}
       </Button>
-      <Button kind='ghost' size='sm' onClick={refetchQuery}>
+      <Button
+        kind='ghost'
+        size='sm'
+        onClick={() => {
+          dispatch(RerunSearch({ queryId: selectedQuery.queryId, timeFilter: selectedQuery.timeFilter }));
+        }}
+      >
         Re-run Search
       </Button>
-    </QueryHeader>
+    </QueryBar>
+  );
+};
+
+export const IntervalDisplay: FC = () => {
+  const { selectedQuery } = useAppSelector(SearchSelector);
+  if (!selectedQuery || !selectedQuery.timeFilter || !selectedQuery.timeFilter.value || !selectedQuery.timeFilter.unit) {
+    return null;
+  }
+
+  const { value, unit } = selectedQuery.timeFilter;
+  const unitLabel = unit.charAt(0).toUpperCase() + unit.slice(1);
+
+  return <IntervalNotice>{`Time Range: Last ${value} ${unitLabel}`}</IntervalNotice>;
+};
+
+const NoQuerySelected: FC = () => <NothingSelectedWrapper></NothingSelectedWrapper>;
+
+const VideosContainer: FC = () => {
+  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const { t } = useTranslation();
+
+  if (!selectedQuery) return null;
+
+  if (selectedResults.length === 0 && !isSelectedInProgress && !isSelectedHasError) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: '#525252', fontStyle: 'italic' }}>
+        <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
+        <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+      </div>
+    );
+  }
+
+  if (isSelectedHasError) return null;
+
+  return (
+    <div className='videos-container'>
+      {selectedResults.map((_, index) => (
+        <VideoTile key={`result-${index}`} resultIndex={index} />
+      ))}
+    </div>
+  );
+};
+
+const ErrorMessage: FC = () => {
+  const { selectedQuery } = useAppSelector(SearchSelector);
+  const { t } = useTranslation();
+  if (!selectedQuery?.errorMessage) return null;
+
+  return (
+    <ErrorMessageWrapper>
+      <div className='error-icon'>⚠️</div>
+      <div className='error-content'>
+        <div className='error-title'>{t('searchErrorTitle', 'Search Failed')}</div>
+        <div className='error-text'>{selectedQuery.errorMessage}</div>
+      </div>
+    </ErrorMessageWrapper>
   );
 };
 
 export const SearchContent: FC = () => {
-  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const hasSelectedQuery = useAppSelector((state) => Boolean(SearchSelector(state).selectedQuery));
+  const isSelectedHasError = useAppSelector((state) => SearchSelector(state).isSelectedHasError);
   const { showVideoGroups } = useAppSelector(uiSelector);
-  const { t } = useTranslation();
-  const dispatch = useAppDispatch();
-
-  const NoQuerySelected = () => {
-    return (
-      <NothingSelectedWrapper>
-      </NothingSelectedWrapper>
-    );
-  };
-
-  const refetchQuery = () => {
-    if (selectedQuery) {
-      dispatch(RerunSearch(selectedQuery.queryId));
-    }
-  };
-
-  const QueryHeading = () => {
-    return (
-      <QueryHeader>
-        <Tooltip align='bottom' label={selectedQuery?.query}>
-          <span className='query-title'>{selectedQuery?.query}</span>
-        </Tooltip>
-        {selectedQuery && selectedQuery?.tags.length > 0 && (
-          <TagsContainer>
-            {selectedQuery.tags.map((tag, index) => (
-              <Tag key={index} size='sm' type='high-contrast'>
-                {tag}
-              </Tag>
-            ))}
-          </TagsContainer>
-        )}
-        <span className='spacer'></span>
-        {isSelectedInProgress && (
-          <Tag size='sm' type='blue'>
-            {t('searchInProgress')}
-          </Tag>
-        )}
-        {isSelectedHasError && (
-          <Tag size='sm' type='red'>
-            {t('searchError')}
-          </Tag>
-        )}
-        {selectedQuery && (
-          <>
-            <SliderLabel>{t('topK')}</SliderLabel>
-            <Slider
-              min={1}
-              max={20}
-              step={1}
-              value={selectedQuery.topK}
-              onChange={({ value }) => {
-                dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
-              }}
-            />
-          </>
-        )}
-        <Button
-          kind='ghost'
-          size='sm'
-          onClick={() => {
-            console.log('Group by Tag button clicked (toggle)');
-            dispatch(UIActions.toggleVideoGroups());
-          }}
-        >
-          {t('GroupByTag')}
-        </Button>
-        <Button kind='ghost' size='sm' onClick={refetchQuery}>
-          Re-run Search
-        </Button>
-      </QueryHeader>
-    );
-  };
-
-  const VideosContainer = () => {
-    if (selectedResults.length === 0 && selectedQuery && !isSelectedInProgress && !isSelectedHasError) {
-      return (
-        <div style={{ 
-          padding: '2rem', 
-          textAlign: 'center', 
-          color: '#525252',
-          fontStyle: 'italic'
-        }}>
-          <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
-          <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
-        </div>
-      );
-    }
-
-    return (
-      <>
-        <div className='videos-container'>
-          {selectedResults.map((_, index) => (
-            <VideoTile
-              key={`result-${index}`}
-              resultIndex={index}
-            />
-          ))}
-        </div>
-      </>
-    );
-  };
-
-  const ErrorMessage = () => {
-    if (!selectedQuery?.errorMessage) return null;
-    
-    return (
-      <ErrorMessageWrapper>
-        <div className='error-icon'>⚠️</div>
-        <div className='error-content'>
-          <div className='error-title'>{t('searchErrorTitle', 'Search Failed')}</div>
-          <div className='error-text'>{selectedQuery.errorMessage}</div>
-        </div>
-      </ErrorMessageWrapper>
-    );
-  };
 
   return (
     <>
       <QueryContentWrapper>
-        {!selectedQuery && <NoQuerySelected />}
+        {!hasSelectedQuery && <NoQuerySelected />}
 
-        {selectedQuery && (
+        {hasSelectedQuery && (
           <>
-            <QueryHeading />
-            {showVideoGroups ? (
-              <VideoGroupsView />
-            ) : (
-              isSelectedHasError ? <ErrorMessage /> : <VideosContainer />
-            )}
+            <QuerySettings />
+            <QueryInfo />
+            <IntervalDisplay />
+            {showVideoGroups ? <VideoGroupsView /> : isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
           </>
         )}
+        <TelemetryAccordion />
       </QueryContentWrapper>
     </>
   );

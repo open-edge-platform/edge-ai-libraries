@@ -22,6 +22,19 @@ A: Summaries are not stored by default; they are returned in the response.
 
 A: Edit the `.env` file in the project root and restart the services.
 
+### Q: How do I configure the chunk size for document processing?
+
+A: The chunk size determines how large documents are split for processing. You can configure it by setting the `CHUNK_SIZE` environment variable in the `.env` file located in `app/.env`.
+
+**Default value:** 4096 characters per chunk
+
+**Recommended values based on file size:**
+- **Small documents (<100 KB):** 1024-2048 characters
+- **Medium documents (100-200 KB):** 4096-6144 characters
+- **Large documents (>200 KB):** 8192-16384 characters
+
+**Note:** These values are suggestive guidelines. Smaller chunk sizes create more chunks, which increases processing time and may cause timeouts for large files. Larger chunk sizes reduce the number of chunks but require more memory per chunk. **Experiment with different values** to find the optimal setting for your specific use case, file types, and system resources.
+
 ### Q: What is the ideal time for services or pods to become ready when deployed via Helm?
 
 A: The typical initialization time for services and pods deployed using Helm is approximately 6 to 8 minutes, depending on the system resources and network conditions.

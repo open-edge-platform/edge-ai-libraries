@@ -28,6 +28,7 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.base.yaml      # Base services configuration
 │   ├── compose.summary.yaml   # Compose override file for video summarization services
 │   ├── compose.search.yaml    # Compose override file for video search services
+│   ├── compose.telemetry.yaml # Optional telemetry collector (vss-collector)
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OpenVINO™ model server
 ├── docs                       # Documentation
 │   └── user-guide             # User guides and tutorials
@@ -48,7 +49,7 @@ Before running the application, you need to set several environment variables:
 
    ```bash
    export REGISTRY_URL=intel
-   export TAG=1.3.1
+   export TAG=latest
    ```
 
 2. **Set required credentials for some services**:
@@ -121,7 +122,33 @@ Before running the application, you need to set several environment variables:
 
     In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-6. **Set advanced VLM Configuration Options**:
+6. **Enable ROI consolidation (Video Search Mode)**:
+
+    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
+
+    ```bash
+    # Enable ROI consolidation (default: false)
+    export ROI_CONSOLIDATION_ENABLED=true
+
+    # IoU threshold for grouping ROIs (higher = stricter merging)
+    export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
+
+    # Only merge ROIs with the same class label when true
+    export ROI_CONSOLIDATION_CLASS_AWARE=false
+
+    # Expand merged ROIs by a fraction of width/height
+    export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
+    ```
+
+    The IoU calculation follows the standard formula:
+
+    $$
+    IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
+    $$
+
+    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
+
+7. **Set advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
 
@@ -139,7 +166,19 @@ Before running the application, you need to set several environment variables:
     > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
     > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
 
-## Work with Gated Models
+7. **(Optional) Telemetry collection for Search**:
+
+    The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
+
+    ```bash
+    # Disabled by default for --search and --all
+    export ENABLE_VSS_COLLECTOR=false
+
+    # Enable the collector if you want telemetry
+    export ENABLE_VSS_COLLECTOR=true
+    ```
+
+**🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
 
@@ -239,11 +278,17 @@ Follow these steps to run the application:
 
    - **To run Video Search only:**
 
-       ```bash
-       source setup.sh --search
-       ```
+        ```bash
+        source setup.sh --search
+        ```
 
-       > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to    learn how to set up automatic monitoring and processing of video files from a specified directory.
+    > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
+
+    ```bash
+    ENABLE_VSS_COLLECTOR=true source setup.sh --search
+    ```
+
+    > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
 
    - **To run a unified Video Search and Summarization :**
 
@@ -251,7 +296,13 @@ Follow these steps to run the application:
        source setup.sh --all
        ```
 
-   - **To run Video Summarization with OpenVINO model server microservice for a final summary :**
+    > **Telemetry**: By default, `--all` does not start the telemetry collector. To enable it:
+
+    ```bash
+    ENABLE_VSS_COLLECTOR=true source setup.sh --all
+    ```
+
+- **To run Video Summarization with OpenVINO model server microservice for a final summary :**
 
        ```bash
        ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary

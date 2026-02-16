@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Video } from '../video/video';
 
+export type TimeFilterUnit = 'minutes' | 'hours' | 'days' | 'weeks';
+
+export interface TimeFilterSelection {
+  value?: number;
+  unit?: TimeFilterUnit;
+  start?: string;
+  end?: string;
+  source?: string;
+}
+
 export interface SearchQueryDTO {
   query: string;
   tags?: string;
+  timeFilter?: TimeFilterSelection | null;
 }
 
 export interface SearchShimQuery {
@@ -68,6 +79,7 @@ export interface SearchQuery {
   results: SearchResult[];
   queryStatus: SearchQueryStatus;
   tags: string[];
+  timeFilter?: TimeFilterSelection | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
