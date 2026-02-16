@@ -2417,11 +2417,19 @@
             "examples": [
               [
                 {
-                  "id": "pipeline-1",
+                  "pipeline": {
+                    "pipeline_id": "pipeline-a3f5d9e1",
+                    "source": "variant",
+                    "variant_id": "variant-abc123"
+                  },
                   "stream_rate": 50
                 },
                 {
-                  "id": "pipeline-2",
+                  "pipeline": {
+                    "pipeline_id": "pipeline-b7c2e114",
+                    "source": "variant",
+                    "variant_id": "variant-def456"
+                  },
                   "stream_rate": 50
                 }
               ]
@@ -3068,12 +3076,12 @@
             "examples": [
               [
                 {
-                  "id": "pipeline-1",
-                  "streams": 8
-                },
-                {
-                  "id": "pipeline-2",
-                  "streams": 8
+                  "pipeline": {
+                    "pipeline_id": "pipeline-a3f5d9e1",
+                    "source": "variant",
+                    "variant_id": "variant-abc123"
+                  },
+                  "streams": 4
                 }
               ]
             ]
