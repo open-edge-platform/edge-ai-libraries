@@ -195,6 +195,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, Math.max(...fpsData.map((d) => d.value), 60)]}
             showLegend={false}
             labels={["Frame Rate"]}
+            maxDataPoints={30}
           />
           <MetricChart
             title="Memory Utilization Over Time"
@@ -205,6 +206,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["Memory"]}
+            maxDataPoints={30}
           />
         </div>
 
@@ -224,6 +226,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["CPU Usage"]}
+            maxDataPoints={30}
           />
           <MetricChart
             title="CPU Temperature Over Time"
@@ -234,6 +237,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, Math.max(...cpuTempData.map((d) => d.temp), 100)]}
             showLegend={false}
             labels={["Temperature"]}
+            maxDataPoints={30}
           />
           <MetricChart
             title="CPU Frequency Over Time"
@@ -247,6 +251,7 @@ export const TestProgressIndicator = ({
             ]}
             showLegend={false}
             labels={["Frequency"]}
+            maxDataPoints={30}
           />
         </div>
 
@@ -299,6 +304,7 @@ export const TestProgressIndicator = ({
                   yAxisDomain={[0, 100]}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
                   labels={availableEngines.map((e) => engineLabels[e])}
+                  maxDataPoints={30}
                 />
               </div>
             </div>
@@ -338,6 +344,7 @@ export const TestProgressIndicator = ({
                   showLegend={false}
                   labels={["Frequency"]}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
+                  maxDataPoints={30}
                 />
               </div>
             </div>
@@ -385,6 +392,7 @@ export const TestProgressIndicator = ({
                   showLegend={true}
                   labels={["GPU Power", "Package Power"]}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
+                  maxDataPoints={30}
                 />
               </div>
             </div>
