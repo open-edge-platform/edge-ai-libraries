@@ -16,10 +16,21 @@ The utilities ensure efficient model conversion by checking for existing IR file
 and only converting when necessary, reducing startup time for subsequent runs.
 """
 from pathlib import Path
+from dataclasses import dataclass
 import gc
 import os
+from typing import Optional
 import openvino as ov
 from ...utils import logger
+import numpy as np
+import math
+
+
+@dataclass
+class BatchMetadata:
+    """Metadata for async batch inference."""
+    batch_idx: int
+    samples_in_batch: int
 
 def check_and_convert_openvino_models(
     model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir):
@@ -73,7 +84,7 @@ def check_and_convert_openvino_models(
     return str(image_encoder_path), str(text_encoder_path)
 
 
-def load_openvino_models(image_encoder_path, text_encoder_path, device):
+def load_openvino_models(image_encoder_path, text_encoder_path, device, gpu_batch_size: int = 64):
     """
     Load and compile OpenVINO IR models for inference.
     
@@ -85,6 +96,7 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
         image_encoder_path: Path to the image encoder IR model file (.xml)
         text_encoder_path: Path to the text encoder IR model file (.xml)  
         device: Target device for inference (e.g., "CPU", "GPU", "AUTO")
+        gpu_batch_size: Static batch size for GPU reshape (default: 64)
         
     Returns:
         Tuple of (compiled_image_encoder, compiled_text_encoder) ready for inference
@@ -206,9 +218,16 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
                     logger.info(
                         "Skipping unsupported OpenVINO CPU property '%s'", prop_key
                     )
+            ov_image_encoder = core.compile_model(image_encoder_path, device, config)
+            ov_text_encoder = core.compile_model(text_encoder_path, device, config)
+        else:
+            logger.info(f"iGPU configuration: Reshaping to static batch size {gpu_batch_size}")
+            image_encoder_model = core.read_model(image_encoder_path)
+            image_encoder_model.reshape({image_encoder_model.input().get_any_name(): [gpu_batch_size, 3, 224, 224]})
+            ov_image_encoder = core.compile_model(image_encoder_model, device, config)
+            ov_text_encoder = core.compile_model(text_encoder_path, device, config)
 
-        ov_image_encoder = core.compile_model(image_encoder_path, device, config)
-        ov_text_encoder = core.compile_model(text_encoder_path, device, config)
+        
 
     logger.info(
         "Loaded image encoder: inputs=%s, outputs=%s",
@@ -222,3 +241,72 @@ def load_openvino_models(image_encoder_path, text_encoder_path, device):
     )
 
     return ov_image_encoder, ov_text_encoder
+
+
+class AsyncBatchInference:
+    """
+    Reusable async batch inference for OpenVINO models.
+    
+    Args:
+        compiled_model: Compiled OpenVINO model.
+        batch_size: Number of samples per batch (default: 32).
+        embedding_dim: Output embedding dimension (default: 512).
+    """
+    
+    def __init__(
+        self,
+        compiled_model: ov.CompiledModel,
+        batch_size: int = 32,
+        embedding_dim: int = 512,
+    ):
+        self.compiled_model = compiled_model
+        self.batch_size = batch_size
+        self.embedding_dim = embedding_dim
+        self.async_queue = ov.AsyncInferQueue(compiled_model)
+
+
+    def infer(self, images: np.ndarray) -> np.ndarray:
+        """
+        Run async batch inference on preprocessed images.
+        
+        Args:
+            images: Preprocessed images as numpy array [N, C, H, W].
+            
+        Returns:
+            Embeddings as numpy array [N, embedding_dim].
+        """
+        total_images = images.shape[0]
+        num_batches = math.ceil(total_images / self.batch_size)
+        # TODO: check np.float16 option & accuracy 
+        final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
+                
+        def response_callback(request, userdata):
+            batch_idx = userdata.batch_idx
+            samples_in_batch = userdata.samples_in_batch
+            out = request.output_tensors[0].data
+            start = batch_idx * self.batch_size
+            end = start + samples_in_batch
+            # Disjoint write → thread-safe without locks
+            final_output[start:end] = out[:samples_in_batch]
+            print("Processed batch & Updated : ", batch_idx)
+        
+        self.async_queue.set_callback(response_callback)
+        
+        for i in range(num_batches):
+            batch_np = images[i * self.batch_size : (i + 1) * self.batch_size]
+            if batch_np.shape[0] < self.batch_size:
+                # For uneven batch sizes, Pad with zeros to fill the batch
+                # TODO: handle shape more elegantly. 
+                # Its a standard CLIP image encoder input shape, but can be made more flexible
+                padded = np.zeros((self.batch_size, 3, 224, 224), dtype=np.float32)
+                padded[:batch_np.shape[0]] = batch_np
+                batch_tensor = ov.Tensor(padded, shared_memory=True)
+            else:
+                batch_tensor = ov.Tensor(batch_np, shared_memory=True)
+            
+            metadata = BatchMetadata(batch_idx=i, samples_in_batch=batch_np.shape[0])
+            self.async_queue.start_async({0: batch_tensor}, userdata=metadata)
+        
+        self.async_queue.wait_all()
+        
+        return final_output

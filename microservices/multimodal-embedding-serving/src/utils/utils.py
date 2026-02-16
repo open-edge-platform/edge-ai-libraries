@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -21,16 +21,21 @@ and format conversions required for embedding generation.
 import base64
 import os
 import tempfile
+import time
+from typing import Callable, List, Optional, Union
 import uuid
 from io import BytesIO
 from urllib.parse import urlparse
 
 import decord
+import av
 import httpx
 import numpy as np
 from decord import VideoReader, cpu
 from PIL import Image
 from torchvision.transforms import ToPILImage
+from concurrent.futures import ThreadPoolExecutor
+
 from .common import ErrorMessages, logger, settings
 
 decord.bridge.set_bridge("torch")
@@ -44,6 +49,35 @@ if settings.https_proxy:
     proxies["https://"] = settings.https_proxy
 # if settings.no_proxy_env:
 #     proxies["no_proxy"] = settings.no_proxy_env
+
+_thread_pool: ThreadPoolExecutor = None
+_default_workers: int = min(16, (os.cpu_count() or 4) * 2)
+
+
+def parallel_preprocess_images(
+    preprocess_fn: Callable[[Image.Image], np.ndarray],
+    images: List[Image.Image],
+    max_workers: int = None,
+) -> np.ndarray:
+    """
+    Parallel image preprocessing using thread pool.
+    
+    Args:
+        preprocess_fn: Preprocessing function (e.g., self.preprocess).
+        images: List of PIL Images to preprocess.
+        max_workers: Number of worker threads (default: min(16, cpu_count * 2)).
+        
+    Returns:
+        Preprocessed images as numpy array with shape [N, C, H, W].
+    """
+    global _thread_pool
+    if _thread_pool is None:
+        _thread_pool = ThreadPoolExecutor(max_workers=max_workers or _default_workers)
+    
+    def process(img):
+        return np.asarray(preprocess_fn(img), dtype=np.float32)
+    
+    return np.stack(list(_thread_pool.map(process, images)))
 
 
 def should_bypass_proxy(url: str, no_proxy: str) -> bool:
