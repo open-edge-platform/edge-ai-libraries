@@ -167,7 +167,7 @@ class CameraManager:
         It does not trigger new discovery - use discover_* methods first if needed.
 
         Args:
-            camera_id: Camera identifier (e.g., "usb_camera_0" or "network_camera_192.168.1.100_80").
+            camera_id: Camera identifier (e.g., "usb-camera-0" or "network-camera-192.168.1.100-80").
 
         Returns:
             Camera object if found, None otherwise.
@@ -201,7 +201,7 @@ class CameraManager:
         and updates the cached camera object with the profile information.
 
         Args:
-            camera_id: Camera identifier (e.g., "network_camera_192.168.1.100_80").
+            camera_id: Camera identifier (e.g., "network-camera-192.168.1.100-80").
             username: ONVIF username for authentication.
             password: ONVIF password for authentication.
 
@@ -215,7 +215,7 @@ class CameraManager:
         """
         self.logger.debug(f"Loading profiles for camera {camera_id}")
 
-        if not camera_id.startswith("network_camera_"):
+        if not camera_id.startswith("network-camera-"):
             error_msg = "Invalid camera type - only network cameras supported"
             self.logger.error(error_msg)
             raise ValueError(error_msg)

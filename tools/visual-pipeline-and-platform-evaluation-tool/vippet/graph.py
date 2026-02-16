@@ -998,40 +998,46 @@ class Graph:
         # Step 5: Handle generic "input" node mapping to GStreamer elements
         for node_id in modified_node_ids:
             modified_node = modified_nodes_by_id[node_id]
-            
+
             if modified_node.type == "input":
                 # Generic input node detected - map to appropriate GStreamer element
                 kind = modified_node.data.get("kind", "")
                 source = modified_node.data.get("source", "")
-                
+
                 if not kind or not source:
                     raise ValueError(
                         f"Node {node_id} of type 'input' must have both 'kind' and 'source' attributes. "
                         f"Found: kind='{kind}', source='{source}'"
                     )
-                
+
                 # Determine the target GStreamer element type and properties
                 if kind == "file":
                     target_type = "filesrc"
                     target_properties = {"location": source}
-                    logger.debug(f"Mapping input node {node_id} to filesrc with location={source}")
-                    
+                    logger.debug(
+                        f"Mapping input node {node_id} to filesrc with location={source}"
+                    )
+
                 elif kind == "camera":
                     if source.startswith("rtsp://") or source.startswith("rtsps://"):
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
-                        logger.debug(f"Mapping input node {node_id} to rtspsrc with location={source}")
+                        logger.debug(
+                            f"Mapping input node {node_id} to rtspsrc with location={source}"
+                        )
                     else:
                         # Assume USB camera (v4l2src)
                         target_type = "v4l2src"
                         target_properties = {"device": source}
-                        logger.debug(f"Mapping input node {node_id} to v4l2src with device={source}")
+                        logger.debug(
+                            f"Mapping input node {node_id} to v4l2src with device={source}"
+                        )
                 else:
                     raise ValueError(
                         f"Unsupported input kind '{kind}' for node {node_id}. "
                         f"Supported kinds: 'file', 'camera'"
                     )
-                
+
                 # Update the node in advanced view (overwriting any properties copied earlier)
                 if node_id in advanced_nodes_by_id:
                     advanced_node = advanced_nodes_by_id[node_id]
@@ -1822,7 +1828,7 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
     """
     # Only process node types that read from video files
     file_source_types = {"filesrc", "multifilesrc", "urisourcebin"}
-    
+
     for node in nodes:
         if node.type not in file_source_types:
             continue
@@ -1867,7 +1873,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
     """
     # Only process node types that read from video files
     file_source_types = {"filesrc", "multifilesrc", "urisourcebin"}
-    
+
     for node in nodes:
         if node.type not in file_source_types:
             continue

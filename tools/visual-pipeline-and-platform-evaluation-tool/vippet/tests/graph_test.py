@@ -4820,7 +4820,11 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         # User changes the file source
         modified_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "new_video.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": "file", "source": "new_video.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -4873,7 +4877,11 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         new_rtsp_url = "rtsp://192.168.1.200:554/camera1"
         modified_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "camera", "source": new_rtsp_url}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": "camera", "source": new_rtsp_url},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -4909,7 +4917,11 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
 
         original_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "camera", "source": "/dev/video0"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": "camera", "source": "/dev/video0"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -4922,7 +4934,11 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         # User changes to different camera
         modified_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "camera", "source": "/dev/video1"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": "camera", "source": "/dev/video1"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -4948,18 +4964,26 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         )
 
         original_simple = Graph(
-            nodes=[Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})],
+            nodes=[
+                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})
+            ],
             edges=[],
         )
 
         # User provides invalid kind
         modified_simple = Graph(
-            nodes=[Node(id="0", type="input", data={"kind": "invalid", "source": "test.mp4"})],
+            nodes=[
+                Node(
+                    id="0", type="input", data={"kind": "invalid", "source": "test.mp4"}
+                )
+            ],
             edges=[],
         )
 
         with self.assertRaises(ValueError) as context:
-            Graph.apply_simple_view_changes(modified_simple, original_simple, original_advanced)
+            Graph.apply_simple_view_changes(
+                modified_simple, original_simple, original_advanced
+            )
 
         self.assertIn("Unsupported input kind", str(context.exception))
 
@@ -4971,7 +4995,9 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         )
 
         original_simple = Graph(
-            nodes=[Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})],
+            nodes=[
+                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"})
+            ],
             edges=[],
         )
 
@@ -4982,9 +5008,13 @@ class TestApplySimpleViewChangesWithGenericInput(unittest.TestCase):
         )
 
         with self.assertRaises(ValueError) as context:
-            Graph.apply_simple_view_changes(modified_simple, original_simple, original_advanced)
+            Graph.apply_simple_view_changes(
+                modified_simple, original_simple, original_advanced
+            )
 
-        self.assertIn("must have both 'kind' and 'source' attributes", str(context.exception))
+        self.assertIn(
+            "must have both 'kind' and 'source' attributes", str(context.exception)
+        )
 
 
 if __name__ == "__main__":

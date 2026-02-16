@@ -234,12 +234,12 @@ USB Camera (usb-0000:00:14.0-9):
         # Should find 2 cameras with video capture capability (video0 and video2)
         self.assertEqual(len(cameras), 2)
         device_ids = {cam.device_id for cam in cameras}
-        self.assertIn("usb_camera_integrated-camera_0", device_ids)
-        self.assertIn("usb_camera_usb-camera_2", device_ids)
+        self.assertIn("usb-camera-integrated-camera-0", device_ids)
+        self.assertIn("usb-camera-usb-camera-2", device_ids)
 
         # Verify camera details
         video0_cam = next(
-            cam for cam in cameras if cam.device_id == "usb_camera_integrated-camera_0"
+            cam for cam in cameras if cam.device_id == "usb-camera-integrated-camera-0"
         )
         self.assertEqual(video0_cam.device_type, CameraType.USB)
         self.assertEqual(video0_cam.device_name, "Integrated Camera")
@@ -307,7 +307,7 @@ Failed to query device
 
         # Should find only 1 camera, ignoring error lines
         self.assertEqual(len(cameras), 1)
-        self.assertEqual(cameras[0].device_id, "usb_camera_integrated-camera_0")
+        self.assertEqual(cameras[0].device_id, "usb-camera-integrated-camera-0")
 
     @patch("camera.subprocess.run")
     def test_discover_cameras_normalizes_device_names_for_url(self, mock_run):
@@ -359,12 +359,10 @@ USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
         # Verify device IDs are URL-safe (no colons, no special characters)
         device_ids = [cam.device_id for cam in cameras]
 
-        # Thronmax StreamGo Webcam: Thron -> thronmax-streamgo-webcam-thron
-        self.assertIn("usb_camera_thronmax-streamgo-webcam-thron_0", device_ids)
-        # Integrated Camera: Integrated C -> integrated-camera-integrated-c_1
-        self.assertIn("usb_camera_integrated-camera-integrated-c_1", device_ids)
-        # USB2.0 HD UVC WebCam: USB2.0 HD -> usb2-0-hd-uvc-webcam-usb2-0-hd_2
-        self.assertIn("usb_camera_usb2-0-hd-uvc-webcam-usb2-0-hd_2", device_ids)
+        # Verify expected device IDs are present (normalized)
+        self.assertIn("usb-camera-thronmax-streamgo-webcam-thron-0", device_ids)
+        self.assertIn("usb-camera-integrated-camera-integrated-c-1", device_ids)
+        self.assertIn("usb-camera-usb2-0-hd-uvc-webcam-usb2-0-hd-2", device_ids)
 
         # Verify no colons appear in device IDs
         for device_id in device_ids:
@@ -484,7 +482,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
 
             # Verify first camera
             cam1 = cameras[0]
-            self.assertEqual(cam1.device_id, "network_camera_192.168.1.100_80")
+            self.assertEqual(cam1.device_id, "network-camera-192.168.1.100-80")
             self.assertEqual(cam1.device_name, "ONVIF Camera 192.168.1.100")
             self.assertEqual(cam1.device_type, CameraType.NETWORK)
             net_details1 = cast(NetworkCameraDetails, cam1.details)
@@ -494,7 +492,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
 
             # Verify second camera
             cam2 = cameras[1]
-            self.assertEqual(cam2.device_id, "network_camera_192.168.1.101_8080")
+            self.assertEqual(cam2.device_id, "network-camera-192.168.1.101-8080")
             net_details2 = cast(NetworkCameraDetails, cam2.details)
             self.assertEqual(net_details2.ip, "192.168.1.101")
             self.assertEqual(net_details2.port, 8080)
@@ -537,8 +535,8 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             # Should only load valid entries
             self.assertEqual(len(cameras), 2)
             device_ids = {cam.device_id for cam in cameras}
-            self.assertIn("network_camera_192.168.1.100_80", device_ids)
-            self.assertIn("network_camera_192.168.1.102_80", device_ids)
+            self.assertIn("network-camera-192.168.1.100-80", device_ids)
+            self.assertIn("network-camera-192.168.1.102-80", device_ids)
 
     def test_discover_cameras_handles_empty_cameras_list(self):
         """discover_cameras should handle empty cameras list."""
@@ -574,7 +572,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
 
             with self.assertRaises(ValueError) as ctx:
                 discovery.load_camera_profiles(
-                    "network_camera_192.168.1.100_abc", "admin", "password"
+                    "network-camera-192.168.1.100-abc", "admin", "password"
                 )
 
             self.assertIn("Invalid port in camera_id", str(ctx.exception))
@@ -616,11 +614,11 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             mock_onvif_camera.return_value = mock_camera
 
             camera = discovery.load_camera_profiles(
-                "network_camera_192.168.1.100_80", "admin", "password"
+                "network-camera-192.168.1.100-80", "admin", "password"
             )
 
             # Verify camera details
-            self.assertEqual(camera.device_id, "network_camera_192.168.1.100_80")
+            self.assertEqual(camera.device_id, "network-camera-192.168.1.100-80")
             self.assertEqual(camera.device_name, "ONVIF Camera 192.168.1.100")
             self.assertEqual(camera.device_type, CameraType.NETWORK)
             net_details = cast(NetworkCameraDetails, camera.details)
@@ -655,7 +653,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
 
             with self.assertRaises(ConnectionError):
                 discovery.load_camera_profiles(
-                    "network_camera_192.168.1.100_80", "admin", "password"
+                    "network-camera-192.168.1.100-80", "admin", "password"
                 )
 
     @patch("camera.ONVIFCamera")

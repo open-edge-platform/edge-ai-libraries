@@ -242,7 +242,7 @@ class USBCameraDiscovery:
                                 Camera(
                                     device_name=current_device_name,
                                     device_type=CameraType.USB,
-                                    device_id=f"usb_camera_{device_name}_{device_num}",
+                                    device_id=f"usb-camera-{device_name}-{device_num}",
                                     details=USBCameraDetails(
                                         device_path=device_path, resolution=resolution
                                     ),
@@ -422,7 +422,7 @@ class ONVIFCameraDiscovery:
                     Camera(
                         device_name=f"ONVIF Camera {ip}",
                         device_type=CameraType.NETWORK,
-                        device_id=f"network_camera_{ip}_{port}",
+                        device_id=f"network-camera-{ip}-{port}",
                         details=NetworkCameraDetails(ip=ip, port=port, profiles=[]),
                     )
                 )
@@ -447,7 +447,7 @@ class ONVIFCameraDiscovery:
         Authenticate with a specific ONVIF camera and load its profiles.
 
         Args:
-            camera_id: Camera identifier (e.g., "network_camera_192.168.1.100_80").
+            camera_id: Camera identifier (e.g., "network-camera-192.168.1.100-80").
             username: ONVIF username for authentication.
             password: ONVIF password for authentication.
 
@@ -460,11 +460,11 @@ class ONVIFCameraDiscovery:
             Exception: For authentication or profile loading failures.
         """
         # Parse camera_id to extract IP and port
-        # Expected format: "network_camera_{ip}_{port}"
-        if not camera_id.startswith("network_camera_"):
+        # Expected format: "network-camera-{ip}-{port}"
+        if not camera_id.startswith("network-camera-"):
             raise ValueError(f"Invalid camera_id format: {camera_id}")
 
-        parts = camera_id.replace("network_camera_", "").rsplit("_", 1)
+        parts = camera_id.replace("network-camera-", "").rsplit("-", 1)
         if len(parts) != 2:
             raise ValueError(f"Invalid camera_id format: {camera_id}")
 
