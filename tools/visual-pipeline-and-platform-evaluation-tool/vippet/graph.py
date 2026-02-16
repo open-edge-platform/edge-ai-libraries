@@ -403,12 +403,14 @@ class Graph:
         Changes applied:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
-        - Replace qtdemux with tsdemux
+        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
+        - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
 
         Returns:
             Modified Graph object with looping support
 
         Raises:
+            ValueError: If live sources (v4l2src, rtspsrc) are detected in the pipeline
             ValueError: If TS file cannot be created for any video source
 
         Note:
@@ -419,6 +421,12 @@ class Graph:
         modified_graph = copy.deepcopy(self)
 
         for node in modified_graph.nodes:
+            if node.type in {"v4l2src", "rtspsrc"}:
+                raise ValueError(
+                    f"Looping playback is not supported for live sources like {node.type}. "
+                    f"Please remove or replace the {node.type} element in your pipeline."
+                )
+
             # Replace filesrc with multifilesrc loop=true
             if node.type == "filesrc":
                 node.type = "multifilesrc"
