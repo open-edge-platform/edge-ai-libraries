@@ -1,13 +1,15 @@
 // Copyright (C) 2025 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
-//
+
+#ifndef OPENCV_FREE
+
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <memory>
-#include <opencv2/features2d.hpp>
 #include <opencv2/opencv.hpp>
 
 #include "TestUtil.h"
@@ -64,8 +66,20 @@ void rectmaskTest()
   cv::Mat out(image.at(0).rows, image.at(0).cols, cv::IMREAD_GRAYSCALE);
   cv::drawKeypoints(image.at(0), draw_keypts, out, cv::Scalar(255, 0, 0));
 
-  cv::imshow("rect_mask_output", out);
-  waitKey(0);
+  // Only show GUI elements if we have a display (not in headless CI environment)
+  const char * display_env = std::getenv("DISPLAY");
+  bool has_display = display_env && strlen(display_env) > 0;
+
+  if (has_display) {
+    std::cout << "Display available - showing visualization" << std::endl;
+    cv::imshow("rect_mask_output", out);
+    cv::waitKey(0);
+  } else {
+    std::cout << "Headless environment detected - skipping visualization" << std::endl;
+    std::cout << "Test completed successfully without GUI display" << std::endl;
+  }
 }
 
 TEST(rectmaskTest, Positive) { rectmaskTest(); }
+
+#endif  // OPENCV_FREE
