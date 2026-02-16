@@ -38,6 +38,18 @@ def create_simple_graph() -> Graph:
     return Graph.from_dict(pipeline_graph.model_dump())
 
 
+def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
+    """Helper to create a pipeline Graph object with USB camera source (v4l2src)."""
+    pipeline_graph = PipelineGraph(
+        nodes=[
+            Node(id="0", type="v4l2src", data={"device": device}),
+            Node(id="1", type="fakesink", data={}),
+        ],
+        edges=[Edge(id="0", source="0", target="1")],
+    )
+    return Graph.from_dict(pipeline_graph.model_dump())
+
+
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
@@ -910,6 +922,226 @@ class TestExecutionConfigValidation(unittest.TestCase):
         # Should not raise any exception for both performance and density tests
         manager._validate_execution_config(execution_config, is_density_test=False)
         manager._validate_execution_config(execution_config, is_density_test=True)
+
+
+class TestUSBCameraValidation(unittest.TestCase):
+    """Test cases for USB camera validation in TestsManager."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_single_usb_camera_single_stream_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that one USB camera with one stream passes validation for performance tests."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create spec with USB camera and one stream
+        spec = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test/variants/v1",
+            pipeline_name="USB Camera Pipeline",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=1,
+        )
+
+        # Should not raise any exception
+        manager._validate_usb_camera_for_performance([spec])
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_single_usb_camera_multiple_streams_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that one USB camera with multiple streams raises ValueError for performance tests."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create spec with USB camera and multiple streams
+        spec = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test/variants/v1",
+            pipeline_name="USB Camera Pipeline",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=3,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_usb_camera_for_performance([spec])
+
+        error_msg = str(context.exception)
+        self.assertIn("/dev/video0", error_msg)
+        self.assertIn("can only be used in one pipeline with one stream", error_msg)
+        self.assertIn("total 3 stream(s)", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_same_usb_camera_multiple_pipelines_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that same USB camera in multiple pipelines raises ValueError."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create two specs with same USB camera device
+        spec1 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test1/variants/v1",
+            pipeline_name="USB Camera Pipeline 1",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=1,
+        )
+        spec2 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test2/variants/v2",
+            pipeline_name="USB Camera Pipeline 2",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=1,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_usb_camera_for_performance([spec1, spec2])
+
+        error_msg = str(context.exception)
+        self.assertIn("/dev/video0", error_msg)
+        self.assertIn("can only be used in one pipeline with one stream", error_msg)
+        self.assertIn("2 pipeline(s)", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_different_usb_cameras_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that different USB cameras in different pipelines passes validation."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create specs with different USB camera devices
+        spec1 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test1/variants/v1",
+            pipeline_name="USB Camera Pipeline 1",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=1,
+        )
+        spec2 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test2/variants/v2",
+            pipeline_name="USB Camera Pipeline 2",
+            pipeline_graph=create_usb_camera_graph("/dev/video1"),
+            streams=1,
+        )
+
+        # Should not raise any exception
+        manager._validate_usb_camera_for_performance([spec1, spec2])
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_mixed_sources_with_usb_camera_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that mixing USB camera with non-USB sources passes validation."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create one spec with USB camera and one with regular source
+        spec1 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/usb-test/variants/v1",
+            pipeline_name="USB Camera Pipeline",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            streams=1,
+        )
+        spec2 = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/file-test/variants/v2",
+            pipeline_name="File Source Pipeline",
+            pipeline_graph=create_simple_graph(),
+            streams=5,
+        )
+
+        # Should not raise any exception
+        manager._validate_usb_camera_for_performance([spec1, spec2])
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_with_usb_camera_raises_error(self, mock_pipeline_manager_cls):
+        """Test that USB camera in density test raises ValueError."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create density spec with USB camera
+        spec = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/usb-test/variants/v1",
+            pipeline_name="USB Camera Pipeline",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            stream_rate=100,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_no_usb_camera_for_density([spec])
+
+        error_msg = str(context.exception)
+        self.assertIn(
+            "USB camera input sources are not supported in density tests", error_msg
+        )
+        self.assertIn("/dev/video0", error_msg)
+        self.assertIn("USB Camera Pipeline", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_with_multiple_usb_cameras_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that multiple USB cameras in density test raises ValueError with all devices listed."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create density specs with different USB cameras
+        spec1 = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/usb-test1/variants/v1",
+            pipeline_name="USB Camera Pipeline 1",
+            pipeline_graph=create_usb_camera_graph("/dev/video0"),
+            stream_rate=50,
+        )
+        spec2 = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/usb-test2/variants/v2",
+            pipeline_name="USB Camera Pipeline 2",
+            pipeline_graph=create_usb_camera_graph("/dev/video1"),
+            stream_rate=50,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_no_usb_camera_for_density([spec1, spec2])
+
+        error_msg = str(context.exception)
+        self.assertIn(
+            "USB camera input sources are not supported in density tests", error_msg
+        )
+        self.assertIn("/dev/video0", error_msg)
+        self.assertIn("/dev/video1", error_msg)
+        self.assertIn("USB Camera Pipeline 1", error_msg)
+        self.assertIn("USB Camera Pipeline 2", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_without_usb_camera_succeeds(self, mock_pipeline_manager_cls):
+        """Test that density tests without USB cameras pass validation."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        # Create density spec with regular source (no USB camera)
+        spec = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/file-test/variants/v1",
+            pipeline_name="File Source Pipeline",
+            pipeline_graph=create_simple_graph(),
+            stream_rate=100,
+        )
+
+        # Should not raise any exception
+        manager._validate_no_usb_camera_for_density([spec])
 
 
 class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
