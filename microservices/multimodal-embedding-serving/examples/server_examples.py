@@ -217,7 +217,7 @@ def docker_examples():
     print("     -e EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-16 \\")
     print("     -e EMBEDDING_USE_OV=true \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
-    print("     -v $(pwd)/ov-models:/app/ov-models \\")
+    print("     -v $(pwd)/ov-models:/app/ov_models \\")
     print("     multimodal-embedding-serving")
     print()
 
@@ -234,7 +234,7 @@ def docker_examples():
     print("     -e EMBEDDING_MODEL_NAME=Blip2/blip2_transformers \\")
     print("     -e EMBEDDING_USE_OV=true \\")
     print("     -e EMBEDDING_DEVICE=CPU \\")
-    print("     -v $(pwd)/ov-models:/app/ov-models \\")
+    print("     -v $(pwd)/ov-models:/app/ov_models \\")
     print("     multimodal-embedding-serving")
     print()
 
