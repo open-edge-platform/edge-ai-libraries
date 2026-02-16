@@ -1,4 +1,4 @@
-# How to publish metadata to InfluxDB
+# Publish Metadata to InfluxDB
 
 ## Steps
 
@@ -138,7 +138,7 @@ can go to your desired buckets and check the metadata stored.
     |> sort(columns: ["_time"])
     ```
     Example of metadata stored in InfluxDB:
-    ![Metadata stored in InfluxDB](./_assets/influx_metadata.png)
+    ![Metadata stored in InfluxDB](../_assets/influx_metadata.png)
 
 8. To stop DL Streamer Pipeline Server and other services, run the following. Since the data is stored inside the InfluxDB container for this demonstration, the metadata will not persists after the containers are brought down.
     ```sh

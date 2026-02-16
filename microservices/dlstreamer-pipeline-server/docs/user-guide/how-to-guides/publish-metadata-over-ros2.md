@@ -1,4 +1,4 @@
-# How to publish metadata over ROS2
+# Publish Metadata over ROS2
 
 DL Streamer Pipeline Server offers publishing the metadata (with or without encoded frames) over ROS2.
 
@@ -6,7 +6,7 @@ DL Streamer Pipeline Server offers publishing the metadata (with or without enco
 
 Ensure to build/pull the DL Streamer Pipeline Server extended image.
 
-[Build instructions](./how-to-build-from-source.md)
+[Build instructions](../get-started/build-from-source.md)
 
 Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
 - Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.

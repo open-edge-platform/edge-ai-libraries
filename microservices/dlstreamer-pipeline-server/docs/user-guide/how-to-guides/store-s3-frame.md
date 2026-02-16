@@ -1,4 +1,4 @@
-# How to publish frames to S3
+# Publish Frames to S3 Storage
 
 ## Steps
 
@@ -190,7 +190,7 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
 run an object detection using dlstreamer element `gvadetect`. Although, the MQTT details are
 provided in the `config.json`, the S3 configuration related to the bucket and object path will
 be sent as part of pipeline launch request mentioned few steps below. Learn more about
-[MQTT publishing](./advanced-guide/detailed_usage/publisher/mqtt_publish.md).
+[MQTT publishing](../advanced-guide/detailed_usage/publisher/mqtt_publish.md).
 
 4. Start DL Streamer Pipeline Server and SeaweedFS.
     ```sh
@@ -264,7 +264,7 @@ be sent as part of pipeline launch request mentioned few steps below. Learn more
     }'
     ```
 
-    The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
+    The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](../advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
 
 > **Note:**: DL Streamer Pipeline Server supports only writing of object data to S3 storage.
 > It does not support creating, maintaining or deletion of buckets. It also does not support

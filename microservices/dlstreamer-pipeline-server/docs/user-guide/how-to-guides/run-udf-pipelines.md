@@ -1,10 +1,10 @@
-# How to run User Defined Function (UDF) pipelines
+# Run User Defined Function (UDF) Pipelines
 
 ## Prerequisite
 
 Ensure to build/pull the DL Streamer Pipeline Server extended image.
 
-[Build instructions](./how-to-build-from-source.md)
+[Build instructions](../get-started/build-from-source.md)
 
 Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
 - Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.
@@ -54,7 +54,7 @@ by replacing the following sections in [WORKDIR]/edge-ai-libraries/microservices
     ```
 
 Save the `config.json` and restart DL Streamer Pipeline Server.
-Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as mentioned in this [document](./how-to-change-dlstreamer-pipeline.md)) it.
+Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as mentioned in this [document](./change-dlstreamer-pipeline.md)) it.
 
 ```sh
     cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
@@ -105,4 +105,4 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
 
 We should see the metadata results in `/tmp/results.jsonl`.
 
-For more details on UDF, you can refer to the [UDF writing guide](./advanced-guide/detailed_usage/udf/UDF_writing_guide.md).
+For more details on UDF, you can refer to the [UDF writing guide](../advanced-guide/detailed_usage/udf/UDF_writing_guide.md).

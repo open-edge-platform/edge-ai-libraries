@@ -1,4 +1,4 @@
-# How to change Deep Learning Streamer pipeline
+# Change Deep Learning Streamer Pipeline
 
 ## Steps
 
@@ -10,7 +10,7 @@ In case users want to update the default pipeline, they need to update the same 
 configuration file loaded by DL Streamer Pipeline Server. Users can mount updated config files
 from host systems on to DL Streamer Pipeline Server containers by updating
 `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`.
-To pull the image and start the container, refer to the steps mentioned [here](./get-started.md#pull-the-image-and-start-container).
+To pull the image and start the container, refer to the steps mentioned [here](../get-started.md#pull-the-image-and-start-container).
 
 Refer to the below snippets:
 
@@ -34,7 +34,7 @@ decodes it, and resizes it to 1280x720.
 
 Once updated, the user needs to restart DL Streamer Pipeline Server containers to reflect this
 change. Run these commands from the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/` folder.
-> **Note:** To get you started, instruction to create sample docker compose file is available [here](./get-started.md#pull-the-image-and-start-container)
+> **Note:** To get you started, instruction to create sample docker compose file is available [here](../get-started.md#pull-the-image-and-start-container)
 
 ```sh
 docker compose down

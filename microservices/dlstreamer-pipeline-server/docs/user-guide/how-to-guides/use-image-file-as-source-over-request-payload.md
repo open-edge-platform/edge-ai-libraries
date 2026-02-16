@@ -1,4 +1,4 @@
-# How to use image file as source over REST payload
+# Use Image File as Source over REST Payload
 
 - [Image file as source](#image-file-as-source)
     - [Async mode](#async-mode)
@@ -29,7 +29,7 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
       - "../configs/sample_image_ingestor/config.json:/home/pipeline-server/config.json"
 ```
 
-Follow the [tutorial on changing pipelines](./how-to-change-dlstreamer-pipeline.md) to launch
+Follow the [tutorial on changing pipelines](./change-dlstreamer-pipeline.md) to launch
 DL Streamer Pipeline Server with the above config.
 
 Pipeline can be started by the following request. This would set the pipeline in queued state
@@ -86,7 +86,7 @@ Example:
 ```
 
 Alternatively, you can appropriately volume mount a .jpg image of your choice.
-To get you started, a sample docker compose file is available [here](get-started.md#pull-the-image-and-start-container).
+To get you started, a sample docker compose file is available [here](../get-started.md#pull-the-image-and-start-container).
 
 The output metadata will be available in the destination provided while queuing the pipeline,
 which is `/tmp/results.jsonl`.
@@ -112,7 +112,7 @@ destination should be compatible to support this mode, i.e. the destination shou
       - "../configs/sample_image_ingestor/config.json:/home/pipeline-server/config.json"
 ```
 
-Follow [this tutorial](./how-to-change-dlstreamer-pipeline.md) to launch DL Streamer Pipeline Server with the above config.
+Follow [this tutorial](./change-dlstreamer-pipeline.md) to launch DL Streamer Pipeline Server with the above config.
 
 Pipeline for sync mode can be started by sending the following curl request:
 ```sh
@@ -154,7 +154,7 @@ Example:
       - "../resources:/home/pipeline-server/resources/"
 ```
 Alternatively, you can appropriately volume mount a .jpg image of your choice.
-To get you started, sample docker compose file is available [here](./get-started.md#pull-the-image-and-start-container)
+To get you started, sample docker compose file is available [here](../get-started.md#pull-the-image-and-start-container)
 
 Since the pipeline is queued for sync requests, the inference results will be shown in
 response for post request. Here is a sample response:
@@ -177,4 +177,4 @@ response for post request. Here is a sample response:
 }
 ```
 
-To learn more on different configurations supported by the request, you can consult the [API reference](./api-reference.md).
+To learn more on different configurations supported by the request, you can consult the [API reference](../api-reference.md).

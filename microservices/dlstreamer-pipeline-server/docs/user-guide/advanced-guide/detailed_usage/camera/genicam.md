@@ -120,7 +120,7 @@ dlstreamer-pipeline-server:
 
 > **Known Limitation:**
 >
-> - If one observes `Feature not writable` message while working with the GenICam cameras, then reset the device using the camera software or using the reset property of the Generic Plugin. For more information, refer the [README](src-gst-gencamsrc/README.md).
+> - If you get a `Feature not writable` message while working with the GenICam cameras, then reset the device using the camera software or using the reset property of the Generic Plugin. For more information, refer to the [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/plugins/camera/src-gst-gencamsrc/README.md).
 
 <!--hide_directive
 ```{toctree}

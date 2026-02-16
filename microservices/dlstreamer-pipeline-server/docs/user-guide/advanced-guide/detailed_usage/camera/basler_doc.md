@@ -57,7 +57,7 @@
   - `trigger-activation=RisingEdge` - the appropriate trigger activation parameter need to be selected
   - `hw-trigger-timeout=100` - the H/W trigger timeout value in seconds in multiples of 5
 
-    For more information on the properties related to hardware triggering refer [Generic-Plugin-readme](../src-gst-gencamsrc/README)
+    For more information on the properties related to hardware triggering refer to [Generic-Plugin-readme](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/plugins/camera/src-gst-gencamsrc/README.md)
 
   `Validated test setup for basler camera hardware triggering`
 

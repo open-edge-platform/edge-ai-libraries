@@ -1,4 +1,4 @@
-# How to autostart pipelines
+# Autostart Pipelines
 
 ## Steps
 
@@ -21,7 +21,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 
     Notice that we have inlined model xml path (in `gvadetect` element) and metadata publish file (in `gvametapublish` element) into the pipeline string.
 
-- After making changes to `config.json`, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as mentioned [above](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)) it.
+- After making changes to `config.json`, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as mentioned [above](./change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)) it.
 
     ```sh
     cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
@@ -100,7 +100,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
     }
     ```
 
-- Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as described in [How To Change DL Streamer Pipeline](./how-to-change-dlstreamer-pipeline.md)).
+- Ensure that the changes made to the `config.json` are reflected in the container by volume mounting (as described in [How To Change DL Streamer Pipeline](./change-dlstreamer-pipeline.md)).
 
 - Start DL Streamer Pipeline Server
 

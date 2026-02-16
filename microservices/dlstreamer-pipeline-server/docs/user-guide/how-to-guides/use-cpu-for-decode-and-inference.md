@@ -1,4 +1,4 @@
-# How to use CPU for decode and inference
+# Use CPU for Decoding and Inference
 
 ## Tutorial on how to use CPU specific pipelines
 
@@ -42,4 +42,4 @@
 
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on GPU, please see [this document](./how-to-use-gpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
+- To perform decode and inference on GPU, please see [this document](./use-gpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).

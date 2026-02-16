@@ -1,4 +1,4 @@
-# How to launch and manage pipeline (via script)
+# Launch and Manage Pipeline via Script
 
 Within a running DL Streamer Pipeline Server container, you can start and stop any DL Streamer
 Pipeline on demand either via a Python snippet or shell script. This is useful in scenarios

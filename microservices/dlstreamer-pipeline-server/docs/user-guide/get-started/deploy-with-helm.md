@@ -1,11 +1,11 @@
-# How to Deploy with Helm
+# Deploy with Helm
 
 -   **Time to Complete:** 5 - 15 minutes
 -   **Programming Language:** Python 3
 
 ## Prerequisites
 
-- [System Requirements](./get-started/system-requirements.md)
+- [System Requirements](../get-started/system-requirements.md)
 - K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
   Refer to online tutorials (such as <https://adamtheautomator.com/install-kubernetes-ubuntu>) to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
 - For Helm installation, refer to the [Helm website](https://helm.sh/docs/intro/install/)
@@ -100,7 +100,7 @@ The REST request will return a pipeline instance ID, for example: `a6d67224eacc1
 
 - RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:30025/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc
 
-  ![sample frame RTSP stream](./_assets/sample-pallet-defect-detection.png)
+  ![sample frame RTSP stream](../_assets/sample-pallet-defect-detection.png)
 
 To check the pipeline status and stop the pipeline send the following requests,
 
@@ -122,14 +122,14 @@ To check the pipeline status and stop the pipeline send the following requests,
 Now you have successfully run the DL Streamer Pipeline Server container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
 
 ## Troubleshooting
-- [Troubleshooting](./troubleshooting.md)
+- [Troubleshooting](../troubleshooting.md)
 
 ## Learn More
 
--   [Get Started](./get-started.md) with the deployment using docker
+-   [Get Started](../get-started.md) with the deployment using docker
 -   Understand the components, services, architecture, and data flow, in
-    the [Overview](./index.md).
--   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
+    the [Overview](../index.md).
+-   For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide/Overview.md)
 -   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
 
 ## Legal Information

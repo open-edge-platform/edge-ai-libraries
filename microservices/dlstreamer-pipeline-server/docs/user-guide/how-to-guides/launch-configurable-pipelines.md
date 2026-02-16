@@ -1,4 +1,4 @@
-# How to launch configurable pipelines
+# Run Configurable Pipelines
 
 Pipelines defined in configuration file can support placeholders. The values for these
 placeholders can be dynamically provided via REST request. The configuration sections in a
@@ -31,16 +31,16 @@ For example, consider the below pipeline from default config:
     }
 ```
 
-`{auto_source}` provides source abstraction to specify the source at the time of submitting REST request making pipelines flexible as they the same pipeline can be reused different source types like file, RTSP, webcam etc. To learn more on source abstraction and different supported types, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#source)
+`{auto_source}` provides source abstraction to specify the source at the time of submitting REST request making pipelines flexible as they the same pipeline can be reused different source types like file, RTSP, webcam etc. To learn more on source abstraction and different supported types, refer to this [section](../advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#source)
 
 `gvametapublish` provides options to send metadata to a chosen destination. For example, metadata can be sent to file, MQTT/Kafka messages brokers. Additionally, DL Streamer Pipeline Server send frames that can be sent over RTSP/WebRTC.
-To learn more on setting metadata destination, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#metadata-destination).
-To learn more on setting frame destination, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#frame-destination).
+To learn more on setting metadata destination, refer to this [section](../advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#metadata-destination).
+To learn more on setting frame destination, refer to this [section](../advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#frame-destination).
 
-`parameters` are an optional section (JSON object) within a pipeline definition and are used to specify which pipeline properties are configurable. In the sample pipeline above, we allow parameterization of `gvadetect` element properties (aliased by setting name=detection). To learn more about pipeline parameters, refer to this [section](./advanced-guide/detailed_usage/rest_api/defining_pipelines.md#pipeline-parameters)
+`parameters` are an optional section (JSON object) within a pipeline definition and are used to specify which pipeline properties are configurable. In the sample pipeline above, we allow parameterization of `gvadetect` element properties (aliased by setting name=detection). To learn more about pipeline parameters, refer to this [section](../advanced-guide/detailed_usage/rest_api/defining_pipelines.md#pipeline-parameters)
 
-> **Note:** Refer to this [tutorial](./how-to-change-dlstreamer-pipeline.md) and this [section](./advanced-guide/detailed_usage/configuration/basic.md) for configuration file.
-> Refer to [this](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md) page for detailed instructions on how to define configurable pipelines and launch them using REST command.
+> **Note:** Refer to this [tutorial](./change-dlstreamer-pipeline.md) and this [section](../advanced-guide/detailed_usage/configuration/basic.md) for configuration file.
+> Refer to [this](../advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md) page for detailed instructions on how to define configurable pipelines and launch them using REST command.
 
 Here is a sample REST request for the default pipeline (same as above sample) which has placeholders for `source`, `destination` and `parameters`. A video file within the container is specified as source, file is set as metadata destination, RTSP is specified for frame destination and the gvadetect element parameters such as model and device are provided under the parameters section. The model and video files are already provided as DL Streamer Pipeline Server samples.
 

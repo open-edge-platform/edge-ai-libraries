@@ -1,4 +1,4 @@
-# How to download and run YOLO models
+# Download and Run YOLO Models
 
 ## Steps
 

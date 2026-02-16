@@ -1,4 +1,4 @@
-# How to add system timestamps to metadata
+# Add System Timestamps to Metadata
 
 This tutorial will help you add a timestamp to the metadata of each frame. This tutorial shows
 how to use the GST element `timecodestamper` that adds timestamps to frames.
@@ -21,7 +21,7 @@ how to use the GST element `timecodestamper` that adds timestamps to frames.
 | keep | Keep upstream timecodes and only set if no upstream timecode |
 | always | Always set timecode and remove upstream timecode |
 
-Ensure that the changes made to the `config.json` are reflected in the container by volume mounting it as mentioned in this [tutorial](./how-to-change-dlstreamer-pipeline.md)
+Ensure that the changes made to the `config.json` are reflected in the container by volume mounting it as mentioned in this [tutorial](./change-dlstreamer-pipeline.md)
 
 2. Start the DL Streamer Pipeline Server
 ```sh

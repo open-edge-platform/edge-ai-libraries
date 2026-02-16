@@ -1,6 +1,6 @@
-# How to perform WebRTC frame streaming
+# Stream Frames over WebRTC
 
-DL Streamer Pipeline Server supports streaming the frames on WebRTC protocol using mediamtx media server.
+DL Streamer Pipeline Server supports streaming the frames over WebRTC protocol using a MediaMTX media server.
 There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
 
 Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images through WebRTC protocol to WebRTC browser client. This is done via the MediaMTX server used for signaling.
@@ -12,8 +12,8 @@ Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images
 
 Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
 ```sh
-WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which open mediamtx container is running.
-WHIP_SERVER_PORT=8889 # It is the port which is configured for mediamtx server. Default port is 8889.
+WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which an open MediaMTX container is running.
+WHIP_SERVER_PORT=8889 # It is the port which is configured for the MediaMTX server. Default port is 8889.
 ```
 After setting all the above information, we can start the WebRTC streaming:
 - Start the services
@@ -47,7 +47,7 @@ After setting all the above information, we can start the WebRTC streaming:
     }'
     ```
 - Open `http://<HOST_IP>:8889/<peer-id>` in your browser to view the WebRTC stream:
-    ![Stream output on browser using WebRTC](./_assets/sample_webrtc_mediamtx.png)
+    ![Stream output on browser using WebRTC](../_assets/sample_webrtc_mediamtx.png)
 
 > **Note:** If you are using 4K or high resolution video make sure to increase the bitrate to
 > avoid choppy video streaming. You can set the bitrate by adding `"bitrate" : 5000` with the
@@ -61,6 +61,6 @@ After setting all the above information, we can start the WebRTC streaming:
                 }
     ```
 
-> **Note:** Mediamtx may fail to stream if the pipeline initialization takes longer than 10
+> **Note:** MediaMTX may fail to stream if the pipeline initialization takes longer than 10
 > seconds. To resolve this, you can increase the WHIP_SERVER_TIMEOUT value in the .env file
 > located in the [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/ directory.

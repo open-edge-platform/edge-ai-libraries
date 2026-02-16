@@ -1,4 +1,4 @@
-# How to publish metadata and frame over MQTT
+# Publish Metadata and Frames over MQTT
 
 Pre-requisites:
 - `MQTT_HOST` and `MQTT_PORT` environment variable must be set for DL Streamer Pipeline Server prior to sending this curl request.
@@ -61,4 +61,4 @@ Output can be viewed on MQTT subscriber as shown below.
 docker run --network=docker_app_network -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h mqtt-broker
 ```
 
-For more details on MQTT you can refer to the [MQTT publishing guide](./advanced-guide/detailed_usage/publisher/mqtt_publish.md).
+For more details on MQTT you can refer to the [MQTT publishing guide](../advanced-guide/detailed_usage/publisher/mqtt_publish.md).

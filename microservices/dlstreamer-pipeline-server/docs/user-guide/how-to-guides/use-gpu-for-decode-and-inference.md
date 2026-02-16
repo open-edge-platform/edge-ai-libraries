@@ -1,4 +1,4 @@
-# How to use GPU for decode and inference
+# Use GPU for Decoding and Inference
 
 In order to benefit from hardware acceleration devices, pipelines can be constructed in a
 manner that different stages such as decoding, inference etc., can make use of them.
@@ -86,4 +86,4 @@ DL Streamer inference elements also provides property such as `pre-process-backe
     ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
+- To perform decode and inference on CPU, see [this document](./use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/performance_guide.md).
