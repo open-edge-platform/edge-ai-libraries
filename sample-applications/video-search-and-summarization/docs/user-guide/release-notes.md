@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: rc1.3.2 \
+**Version**: 1.3.2-rc1 \
 **Release Date**: 17 Feb 2026  
 
 **Features**:
@@ -53,7 +53,7 @@
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
-**Version**: rc1.3.1 \
+**Version**: 1.3.1-rc1 \
 **Release Date**: 14 Nov 2025
 
 **Features**:
