@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from graph import (
     Edge,
     Graph,
+    InputKind,
     Node,
     OUTPUT_PLACEHOLDER,
 )
@@ -201,7 +202,10 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "license-plate-detection.mp4"},
+                    data={
+                        "kind": InputKind.FILE,
+                        "source": "license-plate-detection.mp4",
+                    },
                 ),
                 Node(id="4", type="gvafpscounter", data={"starting-frame": "500"}),
                 Node(
@@ -311,7 +315,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "song.ogg"},
+                    data={"kind": InputKind.FILE, "source": "song.ogg"},
                 ),
                 Node(id="6", type="autoaudiosink", data={}),
                 Node(id="11", type="autovideosink", data={}),
@@ -368,7 +372,11 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "song.ogg"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                ),
                 Node(id="8", type="autoaudiosink", data={}),
                 Node(id="11", type="autoaudiosink", data={}),
                 Node(id="16", type="autovideosink", data={}),
@@ -440,7 +448,9 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "XXX"}),
+                Node(
+                    id="0", type="input", data={"kind": InputKind.FILE, "source": "XXX"}
+                ),
                 Node(
                     id="4",
                     type="splitmuxsink",
@@ -596,7 +606,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "${VIDEO}"},
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -714,7 +724,11 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "${VIDEO}"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                ),
                 Node(
                     id="5",
                     type="splitmuxsink",
@@ -831,7 +845,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "${VIDEO}"},
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1014,7 +1028,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "${VIDEO}"},
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1203,7 +1217,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "${VIDEO}"},
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="5",
@@ -1381,7 +1395,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "file", "source": "${VIDEO}"},
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
                 ),
                 Node(
                     id="6",
@@ -1515,7 +1529,11 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "${VIDEO}"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                ),
                 Node(
                     id="5",
                     type="gvafpscounter",
@@ -1595,7 +1613,11 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "${VIDEO}"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                ),
                 Node(
                     id="5",
                     type="gvafpscounter",
@@ -1644,7 +1666,11 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "${VIDEO}"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "${VIDEO}"},
+                ),
                 Node(id="5", type="gvafpscounter", data={"starting-frame": "500"}),
                 Node(id="8", type="fakesink", data={}),
             ],
@@ -1674,7 +1700,7 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": ""}),
+                Node(id="0", type="input", data={"kind": InputKind.FILE, "source": ""}),
                 Node(id="2", type="fakesink", data={}),
             ],
             edges=[
@@ -1708,7 +1734,7 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": ""}),
+                Node(id="0", type="input", data={"kind": InputKind.FILE, "source": ""}),
                 Node(id="2", type="fakesink", data={}),
             ],
             edges=[
@@ -1742,7 +1768,7 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": ""}),
+                Node(id="0", type="input", data={"kind": InputKind.FILE, "source": ""}),
                 Node(id="2", type="fakesink", data={}),
             ],
             edges=[
@@ -1776,7 +1802,7 @@ parse_test_cases = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": ""}),
+                Node(id="0", type="input", data={"kind": InputKind.FILE, "source": ""}),
                 Node(id="2", type="fakesink", data={}),
             ],
             edges=[
@@ -1819,7 +1845,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "/dev/video0"},
+                    data={"kind": InputKind.CAMERA, "source": "/dev/video0"},
                 ),
                 Node(
                     id="6",
@@ -1874,7 +1900,10 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "rtsp://10.91.106.248:8554/cam"},
+                    data={
+                        "kind": InputKind.CAMERA,
+                        "source": "rtsp://10.91.106.248:8554/cam",
+                    },
                 ),
                 Node(
                     id="6",
@@ -1929,7 +1958,11 @@ unsorted_nodes_edges = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "song.ogg"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                ),
                 Node(id="6", type="autoaudiosink", data={}),
                 Node(id="11", type="autovideosink", data={}),
             ],
@@ -1974,7 +2007,11 @@ unsorted_nodes_edges = [
         ),
         Graph(
             nodes=[
-                Node(id="1", type="input", data={"kind": "file", "source": "song.ogg"}),
+                Node(
+                    id="1",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                ),
                 Node(id="7", type="autoaudiosink", data={}),
                 Node(id="12", type="autovideosink", data={}),
             ],
@@ -2030,7 +2067,11 @@ unsorted_nodes_edges = [
         ),
         Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "song.ogg"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "song.ogg"},
+                ),
                 Node(id="8", type="autoaudiosink", data={}),
                 Node(id="11", type="autoaudiosink", data={}),
                 Node(id="16", type="autovideosink", data={}),
@@ -2075,7 +2116,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -2086,7 +2131,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
                 ),  # Changed GPU -> CPU
@@ -2140,7 +2189,9 @@ apply_simple_view_changes_positive_test_cases = [
         original_pipeline_graph_simple=Graph(
             nodes=[
                 Node(
-                    id="0", type="input", data={"kind": "file", "source": "input.mp4"}
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "input.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2163,7 +2214,9 @@ apply_simple_view_changes_positive_test_cases = [
         modified_pipeline_graph_simple=Graph(
             nodes=[
                 Node(
-                    id="0", type="input", data={"kind": "file", "source": "input.mp4"}
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "input.mp4"},
                 ),
                 Node(
                     id="1",
@@ -2221,7 +2274,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2232,7 +2289,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2271,7 +2332,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -2282,7 +2347,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}
                 ),  # Added device property
@@ -2329,7 +2398,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="1",
                     type="gvadetect",
@@ -2344,7 +2417,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="1", type="gvadetect", data={"model": "yolo", "device": "GPU"}
                 ),  # Removed threshold property
@@ -2389,7 +2466,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="1",
                     type="gvadetect",
@@ -2407,7 +2488,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "/dev/video0"},
+                    data={"kind": InputKind.CAMERA, "source": "/dev/video0"},
                 ),  # Changed input source to USB camera
                 Node(
                     id="1",
@@ -2459,7 +2540,11 @@ apply_simple_view_changes_positive_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="1",
                     type="gvadetect",
@@ -2477,7 +2562,10 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "rtsp://10.91.106.248:8554/cam"},
+                    data={
+                        "kind": InputKind.CAMERA,
+                        "source": "rtsp://10.91.106.248:8554/cam",
+                    },
                 ),  # Changed input source to RTSP camera
                 Node(
                     id="1",
@@ -2534,7 +2622,7 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "/dev/video0"},
+                    data={"kind": InputKind.CAMERA, "source": "/dev/video0"},
                 ),
                 Node(
                     id="1",
@@ -2553,7 +2641,10 @@ apply_simple_view_changes_positive_test_cases = [
                 Node(
                     id="0",
                     type="input",
-                    data={"kind": "camera", "source": "rtsp://10.91.106.248:8554/cam"},
+                    data={
+                        "kind": InputKind.CAMERA,
+                        "source": "rtsp://10.91.106.248:8554/cam",
+                    },
                 ),  # Changed input source to RTSP camera
                 Node(
                     id="1",
@@ -2620,7 +2711,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -2631,7 +2726,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -2659,7 +2758,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2670,7 +2773,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2699,7 +2806,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2712,7 +2823,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2743,7 +2858,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2756,7 +2875,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvaclassify", data={"model": "resnet"}),
                 Node(id="3", type="fakesink", data={}),
@@ -2785,7 +2908,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2796,7 +2923,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
                 Node(id="3", type="gvatrack", data={}),  # New node added
@@ -2826,7 +2957,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
                 Node(id="3", type="fakesink", data={}),
@@ -2839,7 +2974,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 # Node id="2" removed
                 Node(id="3", type="fakesink", data={}),
@@ -2867,7 +3006,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -2878,7 +3021,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="1", type="gvaclassify", data={"model": "yolo"}
                 ),  # Changed type from gvadetect to gvaclassify
@@ -2909,7 +3056,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
                 Node(id="3", type="fakesink", data={}),
@@ -2922,7 +3073,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
                 Node(id="3", type="fakesink", data={}),
@@ -2957,7 +3112,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvatrack", data={}),
                 Node(id="3", type="gvaclassify", data={"model": "resnet"}),
@@ -2972,7 +3131,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 # Nodes 2, 3 removed
                 Node(id="4", type="fakesink", data={}),
@@ -3000,7 +3163,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -3040,7 +3207,11 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         original_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -3051,7 +3222,9 @@ apply_simple_view_changes_negative_test_cases = [
         ),
         modified_pipeline_graph_simple=Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "camera", "source": ""}),
+                Node(
+                    id="0", type="input", data={"kind": InputKind.CAMERA, "source": ""}
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="fakesink", data={}),
             ],
@@ -3601,7 +3774,11 @@ class TestToSimpleView(unittest.TestCase):
 
         graph = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="1", type="gvadetect", data={"model": "yolo"}),
                 Node(id="2", type="gvametaconvert", data={}),
                 Node(id="3", type="fakesink", data={}),
@@ -3800,7 +3977,11 @@ class TestApplySimpleViewChanges(unittest.TestCase):
 
         original_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(id="2", type="gvadetect", data={"model": "yolo", "device": "GPU"}),
                 Node(id="3", type="fakesink", data={}),
             ],
@@ -3812,7 +3993,11 @@ class TestApplySimpleViewChanges(unittest.TestCase):
 
         modified_simple = Graph(
             nodes=[
-                Node(id="0", type="input", data={"kind": "file", "source": "test.mp4"}),
+                Node(
+                    id="0",
+                    type="input",
+                    data={"kind": InputKind.FILE, "source": "test.mp4"},
+                ),
                 Node(
                     id="2", type="gvadetect", data={"model": "yolo", "device": "CPU"}
                 ),  # Changed

@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
+from enum import Enum
 from pathlib import Path
 
 from models import SupportedModelsManager
@@ -19,6 +20,8 @@ from videos import OUTPUT_VIDEO_DIR, VideosManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
+RTSP_URL_PREFIX = "rtsp://"
+USB_DEVICE_PREFIX = "/dev/video"
 
 logger = logging.getLogger(__name__)
 labels_manager = get_labels_manager()
@@ -84,6 +87,13 @@ _COMPILED_INVISIBLE_PATTERNS = _compile_visibility_patterns(
 # in a special way.
 NODE_KIND_KEY = "__node_kind"
 NODE_KIND_CAPS = "caps"
+
+
+class InputKind(str, Enum):
+    """Enum for input source types."""
+
+    FILE = "file"
+    CAMERA = "camera"
 
 
 @dataclass
@@ -1019,31 +1029,35 @@ class Graph:
                     )
 
                 # Determine the target GStreamer element type and properties
-                if kind == "file":
+                if kind == InputKind.FILE:
                     target_type = "filesrc"
                     target_properties = {"location": source}
                     logger.debug(
                         f"Mapping input node {node_id} to filesrc with location={source}"
                     )
 
-                elif kind == "camera":
-                    if source.startswith("rtsp://"):
+                elif kind == InputKind.CAMERA:
+                    if source.startswith(RTSP_URL_PREFIX):
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
                         logger.debug(
                             f"Mapping input node {node_id} to rtspsrc with location={source}"
                         )
-                    else:
-                        # Assume USB camera (v4l2src)
+                    elif source.startswith(USB_DEVICE_PREFIX):
                         target_type = "v4l2src"
                         target_properties = {"device": source}
                         logger.debug(
                             f"Mapping input node {node_id} to v4l2src with device={source}"
                         )
+                    else:
+                        raise ValueError(
+                            f"Unsupported camera source '{source}' for node {node_id}. "
+                            f"Camera sources must start with '{RTSP_URL_PREFIX}' for network cameras or '{USB_DEVICE_PREFIX}' for USB cameras."
+                        )
                 else:
                     raise ValueError(
                         f"Unsupported input kind '{kind}' for node {node_id}. "
-                        f"Supported kinds: 'file', 'camera'"
+                        f"Supported kinds: '{InputKind.FILE.value}', '{InputKind.CAMERA.value}'"
                     )
 
                 # Update the node in advanced view (overwriting any properties copied earlier)
@@ -1919,19 +1933,19 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
 
     Side effects:
         - Modifies node.type and node.data for source elements
-        - Converts filesrc/multifilesrc to input with kind="file"
-        - Converts v4l2src to input with kind="camera"
-        - Converts rtspsrc to input with kind="camera"
+        - Converts filesrc/multifilesrc to input with kind=InputKind.FILE
+        - Converts v4l2src to input with kind=InputKind.CAMERA
+        - Converts rtspsrc to input with kind=InputKind.CAMERA
         - Adds "source" attribute with original location/device identifier
         - Logs debug messages for each conversion
 
     The function adds two data attributes:
-        - "kind": Type of input ("file" | "camera")
+        - "kind": Type of input (InputKind.FILE | InputKind.CAMERA)
         - "source": Filename or camera identifier (video.mp4, /dev/video0, or rtsp://...)
 
     Example:
         Input:  node.type = "filesrc", node.data["location"] = "video.mp4"
-        Output: node.type = "input", node.data = {"kind": "file", "source": "video.mp4"}
+        Output: node.type = "input", node.data = {"kind": InputKind.FILE, "source": "video.mp4"}
     """
     for node in nodes:
         # Check for file sources
@@ -1939,7 +1953,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "input"
-            node.data["kind"] = "file"
+            node.data["kind"] = InputKind.FILE
             node.data["source"] = source_name
             logger.debug(f"Converted file source to generic input: {source_name}")
 
@@ -1948,7 +1962,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             source_name = node.data.get("device", "/dev/video0")
             node.data.clear()
             node.type = "input"
-            node.data["kind"] = "camera"
+            node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted v4l2src to generic input (camera): {source_name}")
 
@@ -1957,7 +1971,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             source_name = node.data.get("location", "")
             node.data.clear()
             node.type = "input"
-            node.data["kind"] = "camera"
+            node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted rtspsrc to generic input (camera): {source_name}")
 
