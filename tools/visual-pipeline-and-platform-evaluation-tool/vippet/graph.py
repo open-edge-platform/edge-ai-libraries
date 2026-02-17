@@ -362,7 +362,7 @@ class Graph:
         # Work on a deep copy of nodes to avoid mutating the original graph.
         nodes = copy.deepcopy(self.nodes)
         _validate_models_supported_on_devices(nodes)
-        _validate_camera_source_followed_by_decodebin(nodes, self.edges)
+        _validate_camera_source_followed_by_decodebin3(nodes, self.edges)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
         _labels_name_to_path(nodes)
@@ -434,7 +434,7 @@ class Graph:
             if node.type in {"v4l2src", "rtspsrc"}:
                 raise ValueError(
                     f"Looping playback is not supported for live sources like {node.type}. "
-                    f"Please remove or replace the {node.type} element in your pipeline."
+                    f"Please disable looping, remove, or replace the {node.type} element in your pipeline."
                 )
 
             # Replace filesrc with multifilesrc loop=true
@@ -1972,7 +1972,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             logger.debug(f"Converted rtspsrc to generic input (camera): {source_name}")
 
 
-def _validate_camera_source_followed_by_decodebin(
+def _validate_camera_source_followed_by_decodebin3(
     nodes: list[Node],
     edges: list[Edge],
 ) -> None:

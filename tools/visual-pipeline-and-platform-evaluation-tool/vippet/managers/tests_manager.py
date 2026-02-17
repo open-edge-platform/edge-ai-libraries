@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 import uuid
 from typing import Any, Dict, Optional
+from graph import Graph
 
 from api.api_schemas import (
     DensityJobStatus,
@@ -19,6 +20,8 @@ from internal_types import (
     InternalOutputMode,
     InternalDensityTestSpec,
     InternalPerformanceTestSpec,
+    InternalPipelinePerformanceSpec,
+    InternalPipelineDensitySpec,
 )
 from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
@@ -281,7 +284,7 @@ class TestsManager:
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
-    def _get_usb_camera_devices(self, pipeline_graph) -> list[str]:
+    def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
         """
         Get list of USB camera device paths from a pipeline graph.
 
@@ -300,7 +303,7 @@ class TestsManager:
         return devices
 
     def _validate_usb_camera_for_performance(
-        self, pipeline_performance_specs: list
+        self, pipeline_performance_specs: list[InternalPipelinePerformanceSpec]
     ) -> None:
         """
         Validate USB camera usage in performance tests.
@@ -340,7 +343,9 @@ class TestsManager:
         if errors:
             raise ValueError("\n".join(errors))
 
-    def _validate_no_usb_camera_for_density(self, pipeline_density_specs: list) -> None:
+    def _validate_no_usb_camera_for_density(
+        self, pipeline_density_specs: list[InternalPipelineDensitySpec]
+    ) -> None:
         """
         Validate that no pipeline uses USB camera in density tests.
 

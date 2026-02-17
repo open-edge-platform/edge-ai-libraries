@@ -264,7 +264,7 @@ class VideoEncoder:
                 return DEFAULT_CODEC
 
         # Unknown source type
-        self.logger.debug(
+        self.logger.warning(
             "Unknown source type (%s), using default codec: %s",
             ", ".join([s for s in input_sources if s]),
             DEFAULT_CODEC,
