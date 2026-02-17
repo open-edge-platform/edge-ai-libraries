@@ -128,6 +128,28 @@ class TestVideoEncoderClass(unittest.TestCase):
     @patch("video_encoder.CameraManager")
     @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
+    def test_detect_codec_from_input_rtsp_unsupported_encoding_defaults(
+        self, mock_gst_inspector, mock_videos_manager, mock_camera_manager
+    ):
+        """RTSP inputs with unsupported ONVIF encoding should fall back to default codec."""
+        mock_videos_manager_instance = MagicMock()
+        mock_videos_manager_instance.get_video.return_value = None
+        mock_videos_manager.return_value = mock_videos_manager_instance
+
+        mock_camera_manager_instance = MagicMock()
+        mock_camera_manager_instance.get_encoding_for_rtsp_url.return_value = "MJPEG"
+        mock_camera_manager.return_value = mock_camera_manager_instance
+
+        encoder = VideoEncoder()
+        codec = encoder._detect_codec_from_input(["rtsp://example/cam/stream"])
+        self.assertEqual(codec, "h264")
+        mock_camera_manager_instance.get_encoding_for_rtsp_url.assert_called_once_with(
+            "rtsp://example/cam/stream"
+        )
+
+    @patch("video_encoder.CameraManager")
+    @patch("video_encoder.VideosManager")
+    @patch("video_encoder.GstInspector")
     def test_detect_codec_from_input_rtsp_defaults_when_unknown(
         self, mock_gst_inspector, mock_videos_manager, mock_camera_manager
     ):

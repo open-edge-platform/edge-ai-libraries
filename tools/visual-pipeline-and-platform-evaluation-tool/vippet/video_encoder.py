@@ -195,6 +195,10 @@ class VideoEncoder:
         - RTSP cameras (rtspsrc): Detects codec from cached ONVIF profile encoding
         - USB cameras (v4l2src): Always uses DEFAULT_CODEC (H.264)
 
+        Note: Detection uses three-pass priority (video files → RTSP cameras → USB cameras),
+        returning immediately upon first match, so mixed-type pipelines are decided by the
+        highest-priority source type present regardless of list order.
+
         Args:
             input_sources: List of input sources (file paths, RTSP URLs, or device paths)
 
