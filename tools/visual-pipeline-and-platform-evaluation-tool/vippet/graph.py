@@ -857,9 +857,7 @@ class Graph:
           7. Return new advanced graph with updated properties
 
         Note: Property modifications of existing visible nodes are supported.
-        Generic "input" nodes are automatically converted back to specific source elements
-        (filesrc, v4l2src, rtspsrc) based on their kind and source attributes (step 6).
-        This conversion happens after standard property updates to ensure proper transformation.
+
         All structural changes (adding/removing nodes or edges) are rejected.
         We check node structure first because removing nodes also removes their edges,
         and we want to report the root cause (node removal) rather than the symptom (edge removal).
@@ -1934,10 +1932,8 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.type and node.data for source elements
         - Converts filesrc/multifilesrc to input with kind=InputKind.FILE
-        - Converts v4l2src to input with kind=InputKind.CAMERA
-        - Converts rtspsrc to input with kind=InputKind.CAMERA
+        - Converts v4l2src/rtspsrc to input with kind=InputKind.CAMERA
         - Adds "source" attribute with original location/device identifier
-        - Logs debug messages for each conversion
 
     The function adds two data attributes:
         - "kind": Type of input (InputKind.FILE | InputKind.CAMERA)
