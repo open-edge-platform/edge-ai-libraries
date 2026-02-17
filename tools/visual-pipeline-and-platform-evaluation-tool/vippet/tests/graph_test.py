@@ -3295,6 +3295,34 @@ class TestNegativeCases(unittest.TestCase):
             empty_graph.to_pipeline_description()
         self.assertIn("Empty graph", str(cm.exception))
 
+    def test_camera_source_requires_decodebin3_to_follow(self):
+        """Test that a camera source requires a decodebin3 element to follow it."""
+        test_cases = [
+            ("v4l2src", {"device": "/dev/video0"}),
+            ("rtspsrc", {"location": "rtsp://example.com/stream"}),
+        ]
+
+        for source_type, source_data in test_cases:
+            with self.subTest(source_type=source_type):
+                graph = Graph(
+                    nodes=[
+                        Node(id="0", type=source_type, data=source_data),
+                        Node(id="1", type="videoconvert", data={}),
+                        Node(id="2", type="fakesink", data={}),
+                    ],
+                    edges=[
+                        Edge(id="0", source="0", target="1"),
+                        Edge(id="1", source="1", target="2"),
+                    ],
+                )
+
+                with self.assertRaises(ValueError) as cm:
+                    graph.to_pipeline_description()
+                self.assertIn(
+                    f"Camera source '{source_type}' requires a decodebin3 element to follow it, but found 'videoconvert' instead",
+                    str(cm.exception),
+                )
+
 
 class TestGetRecommendedEncoderDevice(unittest.TestCase):
     """Test cases for Graph.get_recommended_encoder_device method."""

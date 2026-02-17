@@ -352,7 +352,7 @@ class Graph:
         # Work on a deep copy of nodes to avoid mutating the original graph.
         nodes = copy.deepcopy(self.nodes)
         _validate_models_supported_on_devices(nodes)
-        _generic_input_to_source(nodes, self.edges)
+        _validate_camera_source_followed_by_decodebin(nodes, self.edges)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
         _labels_name_to_path(nodes)
@@ -1909,8 +1909,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     in standardized data attributes.
 
     This is called during pipeline parsing (from_pipeline_description) to store
-    a UI-friendly representation. The reverse transformation (_generic_input_to_source)
-    is applied during pipeline generation (to_pipeline_description).
+    a UI-friendly representation.
 
     Args:
         nodes: List of nodes to process (modified in place)
@@ -1963,37 +1962,32 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             logger.debug(f"Converted rtspsrc to generic input (camera): {source_name}")
 
 
-def _generic_input_to_source(nodes: list[Node], edges: list[Edge]) -> None:
+def _validate_camera_source_followed_by_decodebin(
+    nodes: list[Node],
+    edges: list[Edge],
+) -> None:
     """
-    Convert generic 'input' elements back to specific GStreamer source elements.
+    Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
 
-    This is the reverse operation of _prepare_generic_input(). It converts
-    the UI-friendly generic "input" representation back into actual GStreamer
-    source elements (filesrc, v4l2src, rtspsrc) with appropriate properties.
+    This validation ensures that camera pipelines have the required decoder element
+    after the source element to properly handle the incoming stream.
 
-    This is called during pipeline generation (to_pipeline_description) to create
-    a runnable GStreamer pipeline from the stored graph.
+    This function only validates direct camera source nodes (v4l2src, rtspsrc) which
+    appear in advanced view.
 
     Args:
-        nodes: List of nodes to process (modified in place)
-        edges: List of edges connecting the nodes (used for validation)
+        nodes: List of all nodes in the graph
+        edges: List of all edges connecting the nodes
 
     Returns:
         None
 
     Raises:
-        ValueError: If camera input is not followed by decodebin3 element
-
-    Side effects:
-        - Modifies node.type and node.data for generic input elements
-        - Converts input with kind="file" to filesrc with location=
-        - Converts input with kind="camera" to v4l2src (for /dev/*) or rtspsrc (for rtsp://)
-        - Validates that camera inputs are followed by decodebin3
-        - Logs debug messages for each conversion
+        ValueError: If any camera source is not followed by any element
+        ValueError: If any camera source is not followed by decodebin3
 
     Example:
-        Input:  node.type = "input", node.data = {"kind": "file", "source": "video.mp4"}
-        Output: node.type = "filesrc", node.data = {"location": "video.mp4"}
+        Validates that: rtspsrc -> decodebin3 or v4l2src -> decodebin3
     """
     # Build a mapping of node IDs to nodes for quick lookup
     node_by_id = {node.id: node for node in nodes}
@@ -2004,50 +1998,25 @@ def _generic_input_to_source(nodes: list[Node], edges: list[Edge]) -> None:
         edges_from.setdefault(edge.source, []).append(edge.target)
 
     for node in nodes:
-        if node.type != "input":
+        if node.type not in {"v4l2src", "rtspsrc"}:
             continue
 
-        kind = node.data.get("kind", "")
-        source = node.data.get("source", "")
+        next_nodes = edges_from.get(node.id, [])
+        if not next_nodes:
+            raise ValueError(
+                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                "but no element follows the camera source"
+            )
 
-        if kind == "file":
-            node.data.clear()
-            node.type = "filesrc"
-            node.data["location"] = source
-            logger.debug(f"Converted generic input to filesrc: {source}")
+        next_node_id = next_nodes[0]
+        next_node = node_by_id.get(next_node_id)
 
-        elif kind == "camera":
-            # Validate that camera input is followed by decodebin3
-            next_nodes = edges_from.get(node.id, [])
-            if not next_nodes:
-                raise ValueError(
-                    "Camera input requires a decodebin3 element, but no element follows the input"
-                )
-
-            next_node_id = next_nodes[0]
-            next_node = node_by_id.get(next_node_id)
-
-            if not next_node or next_node.type != "decodebin3":
-                next_type = next_node.type if next_node else "unknown"
-                raise ValueError(
-                    f"Camera input requires a decodebin3 element, but found '{next_type}' instead"
-                )
-
-            # Detect camera type based on source pattern
-            if source.startswith("rtsp://"):
-                node.data.clear()
-                node.type = "rtspsrc"
-                node.data["location"] = source
-                logger.debug(f"Converted generic input to rtspsrc: {source}")
-            else:
-                # Default to v4l2src for USB cameras (/dev/video*)
-                node.data.clear()
-                node.type = "v4l2src"
-                node.data["device"] = source
-                logger.debug(f"Converted generic input to v4l2src: {source}")
-
-        else:
-            logger.warning(f"Unknown kind '{kind}' in generic input node {node.id}")
+        if not next_node or next_node.type != "decodebin3":
+            next_type = next_node.type if next_node else "unknown"
+            raise ValueError(
+                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                f"but found '{next_type}' instead"
+            )
 
 
 def _labels_path_to_display_name(nodes: list[Node]) -> None:
