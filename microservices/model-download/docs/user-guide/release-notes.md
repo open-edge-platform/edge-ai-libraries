@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: 1.2.0-rc1
+**Version**: 1.1.0-rc1
 **Release Date**: WW08 2026
 - Updated OpenVINO plugin to support NPU for LLM models
 - Enabled OpenVINO plugin with VLM support.
