@@ -325,7 +325,7 @@ const DemoMode = () => {
   const pipelineConfigMaxHeightClass = isPipelineConfigOpen
     ? "max-h-[40vh]"
     : "max-h-[44vh]";
-  const runConfigMaxHeightClass = "max-h-[44vh]";
+  const runConfigMaxHeightClass = "max-h-[38vh]";
   const showPreviewPanel =
     (testStarted &&
       lastRunTest === "performance-test" &&
@@ -1454,6 +1454,18 @@ const DemoMode = () => {
                                       streamSpec.id
                                     ]
                                   : null;
+
+                                console.log("Live Preview Debug:", {
+                                  pipelineId: selection.pipelineId,
+                                  variantId: variant?.id,
+                                  streamSpec,
+                                  streamUrl,
+                                  live_stream_urls:
+                                    performanceResult?.live_stream_urls,
+                                  streams_per_pipeline:
+                                    performanceJobStatus?.streams_per_pipeline,
+                                });
+
                                 return (
                                   <div
                                     key={selection.pipelineId}
@@ -2371,92 +2383,98 @@ const DemoMode = () => {
                                     </div>
 
                                     {/* Live Preview + Save Output + Looping */}
-                                    <div className="flex flex-wrap items-start gap-3">
-                                      <div className="space-y-1 min-h-[72px]">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceLivePreviewEnabled
-                                            }
-                                            onCheckedChange={(checked) =>
-                                              setPerformanceLivePreviewEnabled(
-                                                checked === true,
-                                              )
-                                            }
-                                            disabled={isReadOnly}
-                                            className={colors.checkbox}
-                                          />
-                                          <label className="text-xs text-slate-300">
-                                            Enable live preview
-                                          </label>
-                                        </div>
-                                      </div>
-
-                                      {!performanceLivePreviewEnabled && (
-                                        <>
-                                          <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox
-                                                checked={
-                                                  performanceLoopingEnabled
-                                                }
-                                                onCheckedChange={(checked) => {
-                                                  setPerformanceLoopingEnabled(
-                                                    checked === true,
-                                                  );
-                                                  if (checked) {
-                                                    setPerformanceVideoOutputEnabled(
-                                                      false,
-                                                    );
-                                                  }
-                                                }}
-                                                disabled={isReadOnly}
-                                                className={colors.checkbox}
-                                              />
-                                              <label className="text-xs text-slate-300">
-                                                Looping
-                                              </label>
-                                            </div>
+                                    <div className="min-h-[80px]">
+                                      <div className="flex flex-wrap items-start gap-3">
+                                        <div className="space-y-1 min-h-[72px]">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={
+                                                performanceLivePreviewEnabled
+                                              }
+                                              onCheckedChange={(checked) =>
+                                                setPerformanceLivePreviewEnabled(
+                                                  checked === true,
+                                                )
+                                              }
+                                              disabled={isReadOnly}
+                                              className={colors.checkbox}
+                                            />
+                                            <label className="text-xs text-slate-300">
+                                              Enable live preview
+                                            </label>
                                           </div>
+                                        </div>
 
-                                          <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox
-                                                checked={
-                                                  performanceVideoOutputEnabled
-                                                }
-                                                onCheckedChange={(checked) => {
-                                                  setPerformanceVideoOutputEnabled(
-                                                    checked === true,
-                                                  );
-                                                  if (checked) {
+                                        {!performanceLivePreviewEnabled && (
+                                          <>
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  checked={
+                                                    performanceLoopingEnabled
+                                                  }
+                                                  onCheckedChange={(
+                                                    checked,
+                                                  ) => {
                                                     setPerformanceLoopingEnabled(
-                                                      false,
+                                                      checked === true,
                                                     );
-                                                  }
-                                                }}
-                                                disabled={isReadOnly}
-                                                className={colors.checkbox}
-                                              />
-                                              <label className="text-xs text-slate-300">
-                                                Save output
-                                              </label>
+                                                    if (checked) {
+                                                      setPerformanceVideoOutputEnabled(
+                                                        false,
+                                                      );
+                                                    }
+                                                  }}
+                                                  disabled={isReadOnly}
+                                                  className={colors.checkbox}
+                                                />
+                                                <label className="text-xs text-slate-300">
+                                                  Looping
+                                                </label>
+                                              </div>
                                             </div>
+
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  checked={
+                                                    performanceVideoOutputEnabled
+                                                  }
+                                                  onCheckedChange={(
+                                                    checked,
+                                                  ) => {
+                                                    setPerformanceVideoOutputEnabled(
+                                                      checked === true,
+                                                    );
+                                                    if (checked) {
+                                                      setPerformanceLoopingEnabled(
+                                                        false,
+                                                      );
+                                                    }
+                                                  }}
+                                                  disabled={isReadOnly}
+                                                  className={colors.checkbox}
+                                                />
+                                                <label className="text-xs text-slate-300">
+                                                  Save output
+                                                </label>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                      {performanceVideoOutputEnabled &&
+                                        !performanceLivePreviewEnabled && (
+                                          <div
+                                            className="-mt-14"
+                                            style={{
+                                              overflowAnchor: "none",
+                                            }}
+                                          >
+                                            <SaveOutputWarning />
                                           </div>
-                                        </>
-                                      )}
+                                        )}
                                     </div>
-                                    {performanceVideoOutputEnabled &&
-                                      !performanceLivePreviewEnabled && (
-                                        <div
-                                          className="-mt-13"
-                                          style={{
-                                            overflowAnchor: "none",
-                                          }}
-                                        >
-                                          <SaveOutputWarning />
-                                        </div>
-                                      )}
                                   </div>
                                 </div>
                               ) : (
@@ -2504,52 +2522,54 @@ const DemoMode = () => {
                                     </div>
 
                                     {/* FPS Floor + Video Output */}
-                                    <div className="flex flex-wrap items-start gap-3">
-                                      <div className="space-y-1 min-h-[72px]">
-                                        <label className="text-xs font-medium text-slate-300 block">
-                                          Target FPS
-                                        </label>
-                                        <input
-                                          type="number"
-                                          value={fpsFloor}
-                                          onChange={(e) =>
-                                            setFpsFloor(
-                                              parseFloat(e.target.value) || 0,
-                                            )
-                                          }
-                                          disabled={isReadOnly}
-                                          className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                          placeholder="Minimum FPS threshold"
-                                          min={0}
-                                        />
-                                      </div>
-
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={videoOutputEnabled}
-                                            onCheckedChange={(checked) =>
-                                              setVideoOutputEnabled(!!checked)
+                                    <div className="min-h-[80px]">
+                                      <div className="flex flex-wrap items-start gap-3">
+                                        <div className="space-y-1 min-h-[72px]">
+                                          <label className="text-xs font-medium text-slate-300 block">
+                                            Target FPS
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={fpsFloor}
+                                            onChange={(e) =>
+                                              setFpsFloor(
+                                                parseFloat(e.target.value) || 0,
+                                              )
                                             }
                                             disabled={isReadOnly}
-                                            className={colors.checkbox}
+                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                            placeholder="Minimum FPS threshold"
+                                            min={0}
                                           />
-                                          <label className="text-xs text-slate-300">
-                                            Save output
-                                          </label>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={videoOutputEnabled}
+                                              onCheckedChange={(checked) =>
+                                                setVideoOutputEnabled(!!checked)
+                                              }
+                                              disabled={isReadOnly}
+                                              className={colors.checkbox}
+                                            />
+                                            <label className="text-xs text-slate-300">
+                                              Save output
+                                            </label>
+                                          </div>
                                         </div>
                                       </div>
+                                      {videoOutputEnabled && (
+                                        <div
+                                          className="-mt-6"
+                                          style={{
+                                            overflowAnchor: "none",
+                                          }}
+                                        >
+                                          <SaveOutputWarning />
+                                        </div>
+                                      )}
                                     </div>
-                                    {videoOutputEnabled && (
-                                      <div
-                                        className="-mt-13"
-                                        style={{
-                                          overflowAnchor: "none",
-                                        }}
-                                      >
-                                        <SaveOutputWarning />
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               )}

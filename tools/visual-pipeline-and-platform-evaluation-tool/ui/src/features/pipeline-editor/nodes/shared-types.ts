@@ -1,4 +1,4 @@
-export const INFERENCE_REGION_TYPES = ["full-frame", "roi-list"] as const;
+export const INFERENCE_REGION_TYPES = ["roi-list", "full-frame"] as const;
 
 export const DEVICE_TYPES = ["CPU", "GPU", "NPU"] as const;
 
