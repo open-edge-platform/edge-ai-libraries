@@ -31,9 +31,14 @@ import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 type PipelineCardsProps = {
   pipelines: Pipeline[];
   maxCards?: number;
+  source: "dashboard" | "pipelines";
 };
 
-export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
+export const PipelineCards = ({
+  pipelines,
+  maxCards,
+  source,
+}: PipelineCardsProps) => {
   const { theme } = useTheme();
   const { tagColorMap } = usePipelineTagColors(pipelines);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -82,7 +87,9 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
             }`}
           >
             {pipeline.variants.length > 0 && (
-              <Link to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}`}>
+              <Link
+                to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}?source=${source}`}
+              >
                 <img
                   src={pipeline.thumbnail ?? thumbnailPlaceholder}
                   alt={pipeline.name}
@@ -98,7 +105,7 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                 >
                   {pipeline.variants.length > 0 ? (
                     <Link
-                      to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}`}
+                      to={`/pipelines/${pipeline.id}/${pipeline.variants[0].id}?source=${source}`}
                       className="hover:underline block truncate"
                     >
                       {pipeline.name}
@@ -183,7 +190,7 @@ export const PipelineCards = ({ pipelines, maxCards }: PipelineCardsProps) => {
                 {pipeline.variants.map((variant) => (
                   <Link
                     key={variant.id}
-                    to={`/pipelines/${pipeline.id}/${variant.id}`}
+                    to={`/pipelines/${pipeline.id}/${variant.id}?source=${source}`}
                   >
                     <Badge
                       variant="secondary"
