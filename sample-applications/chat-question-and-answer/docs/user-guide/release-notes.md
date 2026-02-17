@@ -1,7 +1,7 @@
 # Release Notes
 
 ## Current Release
-**Version**: 2026.0\
+**Version**: 2.0.2-rc1\
 **Release Date**: 17 Feb 2026
 - Integrated model download functionality with the sample application for Docker deployments 
 
