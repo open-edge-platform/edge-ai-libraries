@@ -12,6 +12,12 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
+
+      {{- if .Values.global.gpu.enabled }}
+      securityContext:
+        fsGroup: 0
+      {{- end }}
+
       initContainers:
         - name: init-script
           image: "python:3.10.12"
@@ -25,21 +31,31 @@ spec:
                   if grep '"name": "{{ .Values.global.EMBEDDING_MODEL_NAME }}"' /opt/data/models/config_all.json; then
                     echo "Model already converted, skipping conversion."
                   else
-                    echo "Model not converted, running model prepration. /config/init-embed-script.sh \"{{ .Values.global.EMBEDDING_MODEL_NAME }}\" \"{{ .Values.ovms.env.WEIGHT_FORMAT }}\" \"{{ .Values.global.huggingface.apiToken }}\""
-                    . /config/init-embed-script.sh
+                    echo "Model not converted, running model preparation."
+                    sh /config/init-embed-script.sh "$EMBEDDING_MODEL_NAME" "$WEIGHT_FORMAT" "$HF_TOKEN" "$GPU_ENABLED"
                   fi
                 else
-                  echo "No config_all.json found, running model prepration. /config/init-embed-script.sh \"{{ .Values.global.EMBEDDING_MODEL_NAME }}\" \"{{ .Values.ovms.env.WEIGHT_FORMAT }}\" \"{{ .Values.global.huggingface.apiToken }}\""
-                  . /config/init-embed-script.sh
+                  echo "No config_all.json found, running model preparation."
+                  sh /config/init-embed-script.sh "$EMBEDDING_MODEL_NAME" "$WEIGHT_FORMAT" "$HF_TOKEN" "$GPU_ENABLED"
                 fi
-          args: ["{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.ovmsEmbeddinggpuService.enabled }}"]
+
           env:
+            - name: EMBEDDING_MODEL_NAME
+              value: "{{ .Values.global.EMBEDDING_MODEL_NAME }}"
+            - name: WEIGHT_FORMAT
+              value: "{{ .Values.ovms.env.WEIGHT_FORMAT }}"
+            - name: GPU_ENABLED
+              value: "{{ .Values.global.ovmsEmbeddinggpuService.enabled }}"
+
+            - name: HF_TOKEN
+              value: "{{ .Values.global.huggingface.apiToken }}"
+
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
             - name: https_proxy
               value: {{ .Values.global.proxy.https_proxy }}
             - name: no_proxy
-              value: {{ .Values.global.proxy.no_proxy }}, {{.Values.global.modelDownload.serviceName}}
+              value: {{ .Values.global.proxy.no_proxy }},{{.Values.global.modelDownload.serviceName }}
           volumeMounts:
             - name: scripts-volume
               mountPath: /config
@@ -64,6 +80,11 @@ spec:
               mountPath: /config
             - name: workspace
               mountPath: /opt/data
+{{- if .Values.global.ovmsEmbeddinggpuService.enabled }}
+            - name: dri-device
+              mountPath: /dev/dri
+{{- end }}
+
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
@@ -73,19 +94,29 @@ spec:
               value: {{ .Values.global.proxy.no_proxy }}
             - name: WEIGHT_FORMAT
               value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
-          args: ["--port", "9400", "--rest_port", "8400", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config_all.json"]
-      {{ if .Values.global.ovmsEmbeddinggpuService.enabled }}
+
+          args:
+            - "--port"
+            - "9400"
+            - "--rest_port"
+            - "8400"
+            - "--log_level"
+            - "DEBUG"
+            - "--config_path"
+            - "/opt/data/models/config_all.json"
+
+{{- if .Values.global.ovmsEmbeddinggpuService.enabled }}
           resources:
             requests:
-              {{ .Values.global.gpu.key}}: 1
+              {{ .Values.global.gpu.key }}: 1
             limits:
-              {{ .Values.global.gpu.key}}: 1
+              {{ .Values.global.gpu.key }}: 1
+
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
-      {{ end }}
+{{- end }}
       volumes:
         - name: scripts-volume
           configMap:
@@ -95,16 +126,18 @@ spec:
           configMap:
             name: ovms-model-download-helper
             defaultMode: 0777
-      {{ if .Values.global.ovmsEmbeddinggpuService.enabled }}
+
+{{- if .Values.global.ovmsEmbeddinggpuService.enabled }}
         - name: dri-device
           hostPath:
             path: /dev/dri
             type: Directory
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: ovms-embed-gpu-pvc
-      {{ else }}
+
         - name: workspace
           persistentVolumeClaim:
             claimName: models-pvc
-      {{ end }}
+{{- else }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: models-pvc
+{{- end }}
