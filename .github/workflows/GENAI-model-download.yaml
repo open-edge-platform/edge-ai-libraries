@@ -13,7 +13,7 @@ concurrency:
 on:
   pull_request:
     branches:
-      - model-download-workflow
+      - main
     paths:
       - 'microservices/model-download/**'
 

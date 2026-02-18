@@ -116,8 +116,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
     ```bash
     # Set only if there is an OTLP endpoint available
-    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
-    export OTLP_ENDPOINT=<otlp-endpoint> 
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace>
+    export OTLP_ENDPOINT=<otlp-endpoint>
     ```
 
    _Document Ingestion Microservice configuration_
@@ -168,7 +168,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
 ## Running in Kubernetes
 
-Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
+Refer to [Deploy with Helm](./get-started/deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 
 ## Running Tests
 
@@ -184,7 +184,7 @@ Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the p
 
 For alternative ways to set up the sample application, see:
 
-- [How to Build from Source](./build-from-source.md)
+- [How to Build from Source](./get-started/build-from-source.md)
 
 ## Related Links
 
@@ -198,7 +198,10 @@ For alternative ways to set up the sample application, see:
 :::{toctree}
 :hidden:
 
-get-started/system-requirements
+./get-started/system-requirements
+./get-started/build-from-source
+./get-started/deploy-with-helm
+./get-started/deploy-with-edge-orchestrator
 
 :::
 hide_directive-->

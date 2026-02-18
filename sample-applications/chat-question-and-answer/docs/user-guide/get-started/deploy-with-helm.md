@@ -1,4 +1,4 @@
-# How to deploy with Helm
+# Deploy with Helm
 
 This guide provides step-by-step instructions for deploying the ChatQ&A Sample Application using Helm.
 
@@ -196,5 +196,5 @@ helm uninstall <name> -n <your-namespace>
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
-- [How to Test Performance](./how-to-performance.md)
-- [How to Benchmark](./benchmarks.md)
+- [How to Test Performance](../how-to-performance.md)
+- [How to Benchmark](../benchmarks.md)
