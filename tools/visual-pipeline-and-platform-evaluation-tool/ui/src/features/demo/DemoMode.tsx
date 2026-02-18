@@ -759,7 +759,11 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(performanceJobId);
-        setFrozenPerStreamFps(performanceJobStatus.per_stream_fps ?? null);
+        setFrozenPerStreamFps(
+          performanceJobStatus.total_fps ??
+            performanceJobStatus.per_stream_fps ??
+            null,
+        );
       }
       setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
@@ -784,7 +788,11 @@ const DemoMode = () => {
           history.filter((point) => point.timestamp >= testStartTimestamp),
         );
         setMetricsFrozenForJobId(performanceJobId);
-        setFrozenPerStreamFps(performanceJobStatus.per_stream_fps ?? null);
+        setFrozenPerStreamFps(
+          performanceJobStatus.total_fps ??
+            performanceJobStatus.per_stream_fps ??
+            null,
+        );
       }
 
       // Show results if available
