@@ -44,6 +44,11 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 
 // Mapowanie typów węzłów na ich kategorie/tagi (z rzeczywistych definicji węzłów)
@@ -145,6 +150,35 @@ const getNodeConfig = (nodeType: string): NodeConfig | null => {
       return null;
   }
 };
+
+const CheckboxInfoHint = ({
+  description,
+  muted = false,
+}: {
+  description: string;
+  muted?: boolean;
+}) => (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span
+        className={`inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[10px] font-bold leading-none ${
+          muted
+            ? "border-slate-600 text-slate-500"
+            : "border-slate-400/70 text-slate-300"
+        }`}
+      >
+        i
+      </span>
+    </TooltipTrigger>
+    <TooltipContent
+      side="right"
+      sideOffset={8}
+      className="max-w-[260px] border border-slate-700 bg-slate-900 text-slate-100"
+    >
+      {description}
+    </TooltipContent>
+  </Tooltip>
+);
 
 const DemoMode = () => {
   const navigate = useNavigate();
@@ -1466,9 +1500,8 @@ const DemoMode = () => {
                                   const globalIdx = startIdx + localIdx;
                                   // Get stream spec by index (API returns them in order)
                                   const streamSpec =
-                                    performanceJobStatus?.streams_per_pipeline?.[
-                                      globalIdx
-                                    ];
+                                    performanceJobStatus
+                                      ?.streams_per_pipeline?.[globalIdx];
                                   const streamUrl = streamSpec?.id
                                     ? performanceResult?.live_stream_urls?.[
                                         streamSpec.id
@@ -1576,56 +1609,61 @@ const DemoMode = () => {
                             return (
                               <div className="relative h-full">
                                 <div className="grid grid-cols-2 gap-3 h-full">
-                                  {visiblePreviews.map((selection, localIdx) => {
-                                    const pipeline = pipelines.find(
-                                      (p) => p.id === selection.pipelineId,
-                                    );
-                                    // Calculate global index
-                                    const globalIdx = startIdx + localIdx;
-                                    // Get video paths by index from video_output_paths
-                                    const allKeys = performanceResult.video_output_paths
-                                      ? Object.keys(performanceResult.video_output_paths)
-                                      : [];
-                                    const matchingKey = allKeys[globalIdx];
-                                    const paths = matchingKey
-                                      ? performanceResult.video_output_paths?.[
-                                          matchingKey
-                                        ]
-                                      : undefined;
-                                    const videoPath =
-                                      paths && paths.length > 0
-                                        ? [...paths].pop()
-                                        : null;
+                                  {visiblePreviews.map(
+                                    (selection, localIdx) => {
+                                      const pipeline = pipelines.find(
+                                        (p) => p.id === selection.pipelineId,
+                                      );
+                                      // Calculate global index
+                                      const globalIdx = startIdx + localIdx;
+                                      // Get video paths by index from video_output_paths
+                                      const allKeys =
+                                        performanceResult.video_output_paths
+                                          ? Object.keys(
+                                              performanceResult.video_output_paths,
+                                            )
+                                          : [];
+                                      const matchingKey = allKeys[globalIdx];
+                                      const paths = matchingKey
+                                        ? performanceResult
+                                            .video_output_paths?.[matchingKey]
+                                        : undefined;
+                                      const videoPath =
+                                        paths && paths.length > 0
+                                          ? [...paths].pop()
+                                          : null;
 
-                                    return (
-                                      <div
-                                        key={selection.pipelineId}
-                                        className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                      >
-                                        <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                          {pipeline?.name || "Unknown Pipeline"}
-                                        </p>
-                                        <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                          {videoPath ? (
-                                            <video
-                                              key={`performance-${selection.pipelineId}-${videoPath}`}
-                                              controls
-                                              preload="metadata"
-                                              className="w-full h-full object-cover"
-                                              src={`/assets${videoPath}`}
-                                            >
-                                              Your browser does not support the
-                                              video tag.
-                                            </video>
-                                          ) : (
-                                            <p className="text-xs text-slate-400">
-                                              No video output
-                                            </p>
-                                          )}
+                                      return (
+                                        <div
+                                          key={selection.pipelineId}
+                                          className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                        >
+                                          <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                            {pipeline?.name ||
+                                              "Unknown Pipeline"}
+                                          </p>
+                                          <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                            {videoPath ? (
+                                              <video
+                                                key={`performance-${selection.pipelineId}-${videoPath}`}
+                                                controls
+                                                preload="metadata"
+                                                className="w-full h-full object-cover"
+                                                src={`/assets${videoPath}`}
+                                              >
+                                                Your browser does not support
+                                                the video tag.
+                                              </video>
+                                            ) : (
+                                              <p className="text-xs text-slate-400">
+                                                No video output
+                                              </p>
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    },
+                                  )}
                                 </div>
 
                                 {/* Carousel navigation buttons */}
@@ -1702,57 +1740,62 @@ const DemoMode = () => {
                               return (
                                 <div className="relative h-full">
                                   <div className="grid grid-cols-2 gap-3 h-full">
-                                    {visiblePreviews.map((selection, localIdx) => {
-                                      const pipeline = pipelines.find(
-                                        (p) => p.id === selection.pipelineId,
-                                      );
-                                      // Calculate global index
-                                      const globalIdx = startIdx + localIdx;
-                                      // Get video paths by index from video_output_paths
-                                      const allKeys = testResult.video_output_paths
-                                        ? Object.keys(testResult.video_output_paths)
-                                        : [];
-                                      const matchingKey = allKeys[globalIdx];
-                                      const paths = matchingKey
-                                        ? testResult.video_output_paths?.[
-                                            matchingKey
-                                          ]
-                                        : undefined;
-                                      const videoPath =
-                                        paths && paths.length > 0
-                                          ? [...paths].pop()
-                                          : null;
+                                    {visiblePreviews.map(
+                                      (selection, localIdx) => {
+                                        const pipeline = pipelines.find(
+                                          (p) => p.id === selection.pipelineId,
+                                        );
+                                        // Calculate global index
+                                        const globalIdx = startIdx + localIdx;
+                                        // Get video paths by index from video_output_paths
+                                        const allKeys =
+                                          testResult.video_output_paths
+                                            ? Object.keys(
+                                                testResult.video_output_paths,
+                                              )
+                                            : [];
+                                        const matchingKey = allKeys[globalIdx];
+                                        const paths = matchingKey
+                                          ? testResult.video_output_paths?.[
+                                              matchingKey
+                                            ]
+                                          : undefined;
+                                        const videoPath =
+                                          paths && paths.length > 0
+                                            ? [...paths].pop()
+                                            : null;
 
-                                      return (
-                                        <div
-                                          key={selection.pipelineId}
-                                          className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                        >
-                                          <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                            {pipeline?.name ||
-                                              "Unknown Pipeline"}
-                                          </p>
-                                          <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                            {videoPath ? (
-                                              <video
-                                                key={`density-${selection.pipelineId}-${videoPath}`}
-                                                controls
-                                                preload="metadata"
-                                                className="w-full h-full object-cover"
-                                                src={`/assets${videoPath}`}
-                                              >
-                                                Your browser does not support
-                                                the video tag.
-                                              </video>
-                                            ) : (
-                                              <p className="text-xs text-slate-400">
-                                                No video output
-                                              </p>
-                                            )}
+                                        return (
+                                          <div
+                                            key={selection.pipelineId}
+                                            className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                          >
+                                            <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                              {pipeline?.name ||
+                                                "Unknown Pipeline"}
+                                            </p>
+                                            <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                              {videoPath ? (
+                                                <video
+                                                  key={`density-${selection.pipelineId}-${videoPath}`}
+                                                  controls
+                                                  preload="metadata"
+                                                  className="w-full h-full object-cover"
+                                                  src={`/assets${videoPath}`}
+                                                >
+                                                  Your browser does not support
+                                                  the video tag.
+                                                </video>
+                                              ) : (
+                                                <p className="text-xs text-slate-400">
+                                                  No video output
+                                                </p>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
-                                      );
-                                    })}
+                                        );
+                                      },
+                                    )}
                                   </div>
 
                                   {/* Carousel navigation buttons */}
@@ -2404,11 +2447,20 @@ const DemoMode = () => {
                                             }
                                             className={colors.checkbox}
                                           />
-                                          <label
-                                            className={`text-xs ${performanceLoopingEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                          >
-                                            Enable live preview
-                                          </label>
+                                          <div className="flex items-center gap-1.5">
+                                            <label
+                                              className={`text-xs ${performanceLoopingEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                            >
+                                              Show live preview
+                                            </label>
+                                            <CheckboxInfoHint
+                                              muted={
+                                                performanceLoopingEnabled ||
+                                                performanceVideoOutputEnabled
+                                              }
+                                              description="Shows pipeline output in real time while it is running."
+                                            />
+                                          </div>
                                         </div>
 
                                         <div className="flex items-center gap-2">
@@ -2434,11 +2486,20 @@ const DemoMode = () => {
                                             }
                                             className={colors.checkbox}
                                           />
-                                          <label
-                                            className={`text-xs ${performanceLivePreviewEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                          >
-                                            Looping
-                                          </label>
+                                          <div className="flex items-center gap-1.5">
+                                            <label
+                                              className={`text-xs ${performanceLivePreviewEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                            >
+                                              Continuous run
+                                            </label>
+                                            <CheckboxInfoHint
+                                              muted={
+                                                performanceLivePreviewEnabled ||
+                                                performanceVideoOutputEnabled
+                                              }
+                                              description="Automatically restarts the pipeline after it finishes."
+                                            />
+                                          </div>
                                         </div>
 
                                         <div className="flex items-center gap-2">
@@ -2466,11 +2527,20 @@ const DemoMode = () => {
                                             }
                                             className={colors.checkbox}
                                           />
-                                          <label
-                                            className={`text-xs ${performanceLivePreviewEnabled || performanceLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                          >
-                                            Save output
-                                          </label>
+                                          <div className="flex items-center gap-1.5">
+                                            <label
+                                              className={`text-xs ${performanceLivePreviewEnabled || performanceLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                            >
+                                              Show output after run
+                                            </label>
+                                            <CheckboxInfoHint
+                                              muted={
+                                                performanceLivePreviewEnabled ||
+                                                performanceLoopingEnabled
+                                              }
+                                              description="Retains the final output so you can view it after completion."
+                                            />
+                                          </div>
                                         </div>
 
                                         <div
@@ -2565,11 +2635,17 @@ const DemoMode = () => {
                                               }
                                               className={colors.checkbox}
                                             />
-                                            <label
-                                              className={`text-xs ${videoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                            >
-                                              Looping
-                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                              <label
+                                                className={`text-xs ${videoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                              >
+                                                Continuous run
+                                              </label>
+                                              <CheckboxInfoHint
+                                                muted={videoOutputEnabled}
+                                                description="Automatically restarts the pipeline after it finishes."
+                                              />
+                                            </div>
                                           </div>
 
                                           <div className="flex items-center gap-2">
@@ -2591,11 +2667,17 @@ const DemoMode = () => {
                                               }
                                               className={colors.checkbox}
                                             />
-                                            <label
-                                              className={`text-xs ${densityLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                            >
-                                              Save output
-                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                              <label
+                                                className={`text-xs ${densityLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                              >
+                                                Show output after run
+                                              </label>
+                                              <CheckboxInfoHint
+                                                muted={densityLoopingEnabled}
+                                                description="Retains the final output so you can view it after completion."
+                                              />
+                                            </div>
                                           </div>
 
                                           <div
