@@ -28,14 +28,14 @@ store, and review models collectively. The model registry is an essential tool f
 developers deploying machine learning models, as it streamlines model management,
 fosters collaboration, and ultimately, aids in improving model deployments.
 
-**Key Benefits**
+**Key Benefits**:
 
 - **Benefit 1**: Keeps track of different versions of models, allowing for easy rollback and
   comparison between versions.
 - **Benefit 2**: Ensures that models can be reproduced by storing all necessary metadata
 - **Benefit 3**: Offers integration with other services and platforms to streamline workflows.
 
-**Use Cases**
+**Use Cases**:
 
 A model registry microservice can be applied to various real-world use cases and scenarios
 across different industries. Here are some examples:
@@ -62,22 +62,22 @@ The software fulfills the promise described in the Overview via its various comp
 
    Figure 1: High-level system view demonstrating the microservice.
 
-**Model Registry**
+**Model Registry**:
 
 The Model Registry provides REST API endpoints as the primary interface for
 interacting with the microservice. These endpoints allow users to perform various
 operations such as registering new models, updating, retrieving and deleting existing models.
 
-**Relational Database**
+**Relational Database**:
 
 The Relational Database is responsible for storing structured data related to the models.
 
-**Object Storage**
+**Object Storage**:
 
 The Object Storage solution is used to store unstructured data, such as model binaries
 and other files.
 
-**Intel® Geti™ Software**
+**Intel® Geti™ Software**:
 
 The Intel® Geti™ software is accessible via optional configurations within the model
 registry. Once configured, the model registry is able to access the projects and models
@@ -105,13 +105,11 @@ hosted within a remote Geti platform.
 :::{toctree}
 :hidden:
 
-how-it-works
 get-started
-environment-variables
-how-to-build-from-source
-how-to-deploy-with-helm
+how-it-works
 how-to-interface-with-intel-geti-platform
 api-reference
+troubleshooting
 release-notes
 
 :::

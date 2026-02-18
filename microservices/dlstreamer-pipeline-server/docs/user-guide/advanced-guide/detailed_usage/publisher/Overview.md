@@ -26,7 +26,7 @@ To publish metadata to MQTT message broker via REST Request refer to this [doc](
 To publish frame/metadata to MQTT message broker using `gvapython` element in the DL Streamer pipeline, refer to the steps described in this [doc](gvapython_mqtt_publish.md).
 
 ### Publish Frame and Metadata post pipeline execution
-To publish frame/metadata to MQTT message broker post pipeline execution, refer to this [doc](eis_mqtt_publish_doc.md).
+To publish frame/metadata to MQTT message broker post pipeline execution, refer to this [doc](mqtt_publish.md).
 
 
 ## OPCUA Publishing

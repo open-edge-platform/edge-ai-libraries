@@ -32,7 +32,7 @@ Video analytics involves the conversion of video streams into valuable insights 
 
 ## Prerequisites For Target System
 
-- [System Requirements](./docs/user-guide/system-requirements.md)
+- [System Requirements](./docs/user-guide/get-started/system-requirements.md)
 
 ## Quick try out
 

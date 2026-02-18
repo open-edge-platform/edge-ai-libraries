@@ -5,14 +5,14 @@ Priority: optional
 Build-Depends: debhelper (>= 13),
                pkg-config,
                cmake,
-	           libze-dev, intel-opencl-icd, libopencv-dev (>= 4.2.0), libgtest-dev,intel-oneapi-compiler-dpcpp-cpp-2024.0, intel-oneapi-dpcpp-ct-2024.0
+               libze-dev, intel-opencl-icd, libopencv-dev (>= 4.2.0), libgtest-dev, intel-oneapi-compiler-dpcpp-cpp-2025.3, intel-oneapi-dpcpp-ct-2025.3
 
 Package: liborb-lze-dev
 Architecture: any
 Section: libdevel
-Depends:  libze-dev,
-	      liborb-lze (= ${binary:Version}),
-          ${misc:Depends}
+Depends: libze-dev,
+         liborb-lze (= ${binary:Version}),
+         ${misc:Depends}
 Description: ORB (Oriented FAST and Rotated BRIEF) - development files
  The ORB (Oriented FAST and Rotated BRIEF) feature extractor consists
  of various CV kernels such as resize, gaussian, fast, compute descriptor
@@ -25,7 +25,10 @@ Architecture: amd64
 Multi-Arch: same
 Depends: debconf (>=1.5.71), bash (>=4), ${shlibs:Depends}, ${misc:Depends},
          libze1 | level-zero, intel-opencl-icd (>=24.31.30508.7),
-         intel-oneapi-runtime-dpcpp-cpp-2024, intel-oneapi-runtime-compilers-2024, intel-oneapi-runtime-openmp-2024,
+         intel-oneapi-base-toolkit (>= 2025.3),
+         intel-oneapi-runtime-dpcpp-cpp (>= 2025.0),
+         intel-oneapi-runtime-compilers (>= 2025.0),
+         intel-oneapi-runtime-openmp (>= 2025.0),
 Suggests: ros-jazzy-robotics-sdk-license
 Description: ORB (Oriented FAST and Rotated BRIEF) - development files
  The ORB (Oriented FAST and Rotated BRIEF) feature extractor consists
@@ -39,4 +42,5 @@ Architecture: amd64
 Section: science
 Depends: ${misc:Depends}, ${shlibs:Depends}, liborb-lze (= ${binary:Version})
 Multi-Arch: foreign
-Description: [internal] ORB (Oriented FAST and Rotated BRIEF) - feature extraction testsuite using Intel(R) Level-Zero GPU
+Description: [internal] ORB (Oriented FAST and Rotated BRIEF) - feature extraction testsuite
+ using Intel(R) Level-Zero GPU

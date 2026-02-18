@@ -13,13 +13,13 @@ DeviceImpl::DeviceImpl(DeviceType type)
       q_ = new sycl::queue{sycl::property::queue::in_order{}};
       break;
     case CPU:
-      q_ = new queue{cpu_selector_v};
+      q_ = new sycl::queue{sycl::cpu_selector_v};
       break;
     case INTEGRATED_GPU:
-      q_ = new queue{gpu_selector_v};
+      q_ = new sycl::queue{sycl::gpu_selector_v};
       break;
     case DISCRETE_GPU:
-      q_ = new queue{gpu_selector_v};
+      q_ = new sycl::queue{sycl::gpu_selector_v};
       break;
     default:
       std::cerr << "Unsupported device\n";

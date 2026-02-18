@@ -152,7 +152,11 @@ export const PerformanceTests = () => {
             max_runtime: 0,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
-            id: selection.pipelineId,
+            pipeline: {
+              source: "variant",
+              pipeline_id: selection.pipelineId,
+              variant_id: "cpu",
+            },
             streams: selection.streams,
           })),
         },

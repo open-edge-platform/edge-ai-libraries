@@ -100,7 +100,7 @@ User has following different options to setup/build and use the application.
 
 - [Use pre-built image for standalone setup](#standalone-setup-in-docker-container).
 Standalone setup has no external dependency. Storage backend used: `local`.
-- [Build and run on host using setup script](./how-to-build-from-source.md#build-and-run-on-host-using-setup-script).
+- [Build and run on host using setup script](./get-started/build-from-source.md#build-and-run-on-host-using-setup-script).
 Storage backend used: `local`
 
 ### Advanced Setup
@@ -109,7 +109,7 @@ Storage backend used: `local`
 However, this is not a recommended setup and is only meant for advanced users. This setup
 requires familiarity with using Minio and using non-documented API requests.
 
-- [Build and run in container using Docker script](./how-to-build-from-source.md#build-and-run-in-container-using-docker-script).
+- [Build and run in container using Docker script](./get-started/build-from-source.md#build-and-run-in-container-using-docker-script).
 Docker script helps build images for application and deploy the application with any optional
 dependency. Default storage backend used here is `minio` but can be updated to use `local`
 storage backend. If `minio` storage backend is used, then the script also brings up Minio server
@@ -214,7 +214,7 @@ The service uses **pywhispercpp** with the following optimizations for CPU trans
 ## Build and run on host manually
 
 > **__NOTE :__** This is an advanced setup and is recommended for development/contribution only.
-As an alternative method to setup on host, please see : [setting up on host using setup script](./how-to-build-from-source.md#setup-and-run-on-host-using-setup-script).
+As an alternative method to setup on host, please see : [setting up on host using setup script](./get-started/build-from-source.md#setup-and-run-on-host-using-setup-script).
 When setting up on host, the default storage backend would be local filesystem. Please make
 sure `STORAGE_BACKEND` is not overridden to **minio**, unless you want to explicitly use the
 Minio backend.
@@ -344,7 +344,8 @@ Use **MinIO** backend when (Default for setup using Docker script):
 :::{toctree}
 :hidden:
 
-get-started/system-requirements
+./get-started/system-requirements
+./get-started/build-from-source
 
 :::
 hide_directive-->

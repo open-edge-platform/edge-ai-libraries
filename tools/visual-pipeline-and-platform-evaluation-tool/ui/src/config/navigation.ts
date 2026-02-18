@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { Cpu, Film, Gauge, Grid3x3, Home, ListTodo } from "lucide-react";
+import {
+  Cpu,
+  Film,
+  Gauge,
+  Grid3x3,
+  Home,
+  ListTodo,
+  GitFork,
+} from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
 import { Pipelines } from "@/pages/Pipelines.tsx";
@@ -11,6 +19,7 @@ import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
+import { Pipelines2 } from "@/pages/Pipelines2";
 
 export type NavigationItem = {
   url: string;
@@ -20,7 +29,8 @@ export type NavigationItem = {
 };
 
 export const menuItems: Array<NavigationItem> = [
-  { url: "/", title: "Pipelines", icon: Home },
+  { url: "/", title: "Dashboard", icon: Home },
+  { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
   {
@@ -39,7 +49,8 @@ export const menuItems: Array<NavigationItem> = [
 
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
-  { path: "pipelines/:id", Component: Pipelines },
+  { path: "pipelines", Component: Pipelines2 },
+  { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "tests/performance", Component: PerformanceTests },

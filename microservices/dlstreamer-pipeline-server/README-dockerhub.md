@@ -10,7 +10,7 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 
 ## Deploy using Kubernetes Charts
 ---
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/how-to-deploy-with-helm.html).
+For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started/deploy-with-helm.html).
 
 ## Supported versions
 ---
