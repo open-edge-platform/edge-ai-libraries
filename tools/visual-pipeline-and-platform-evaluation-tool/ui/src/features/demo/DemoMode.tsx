@@ -935,100 +935,70 @@ const DemoMode = () => {
     setLastRunTest(activeTest);
     setPreviewCarouselIndex(0);
 
-    try {
-      for (const selection of pipelineSelections) {
-        const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
-        const variant = pipeline?.variants?.[0];
-        if (!pipeline || !variant?.pipeline_graph) continue;
+    // Prepare pipeline graphs with applied edits
+    const getDefaultModelForNode = (nodeType: string) => {
+      const category =
+        nodeType === "gvadetect"
+          ? "detection"
+          : nodeType === "gvaclassify"
+            ? "classification"
+            : null;
 
-        let hasChanges = false;
-        const getDefaultModelForNode = (nodeType: string) => {
-          const category =
-            nodeType === "gvadetect"
-              ? "detection"
-              : nodeType === "gvaclassify"
-                ? "classification"
-                : null;
+      if (!category) return null;
+      const match = models.find((model) => model.category === category);
+      return match ? (match.display_name ?? match.name) : null;
+    };
 
-          if (!category) return null;
-          const match = models.find((model) => model.category === category);
-          return match ? (match.display_name ?? match.name) : null;
-        };
-        const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
-          const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
-          const mergedData = {
-            ...node.data,
-            ...(edits ?? {}),
-          } as Record<string, unknown>;
+    const preparePipelineGraph = (pipelineId: string) => {
+      const pipeline = pipelines.find((p) => p.id === pipelineId);
+      const variant = pipeline?.variants?.[0];
+      if (!pipeline || !variant?.pipeline_graph) return null;
 
-          const currentModel =
-            mergedData.model === null || mergedData.model === undefined
-              ? ""
-              : String(mergedData.model);
-          if (
-            (node.type === "gvadetect" || node.type === "gvaclassify") &&
-            currentModel.trim() === ""
-          ) {
-            const defaultModel = getDefaultModelForNode(node.type);
-            if (defaultModel) {
-              mergedData.model = defaultModel;
-            }
+      const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
+        const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
+        const mergedData = {
+          ...node.data,
+          ...(edits ?? {}),
+        } as Record<string, unknown>;
+
+        const currentModel =
+          mergedData.model === null || mergedData.model === undefined
+            ? ""
+            : String(mergedData.model);
+        if (
+          (node.type === "gvadetect" || node.type === "gvaclassify") &&
+          currentModel.trim() === ""
+        ) {
+          const defaultModel = getDefaultModelForNode(node.type);
+          if (defaultModel) {
+            mergedData.model = defaultModel;
           }
-
-          const hasInvalidDeviceKey =
-            node.type === "gvametaconvert" &&
-            Object.prototype.hasOwnProperty.call(mergedData, "device");
-
-          const sanitizedData = sanitizeNodeData(node.type, mergedData);
-
-          const shouldUpdate =
-            !!edits ||
-            hasInvalidDeviceKey ||
-            hasNodeDataChanged(node.data, sanitizedData);
-
-          if (!shouldUpdate) return node;
-          hasChanges = true;
-
-          const normalizedData = Object.fromEntries(
-            Object.entries(sanitizedData)
-              .filter(
-                ([key]) =>
-                  !(node.type === "gvametaconvert" && key === "device"),
-              )
-              .map(([key, value]) => [
-                key,
-                value === null || value === undefined ? "" : String(value),
-              ]),
-          ) as { [key: string]: string };
-
-          return {
-            ...node,
-            data: normalizedData,
-          };
-        });
-
-        if (hasChanges) {
-          await updateVariant({
-            pipelineId: pipeline.id,
-            variantId: variant.id,
-            variantUpdate: {
-              pipeline_graph: {
-                nodes: updatedNodes,
-                edges: variant.pipeline_graph.edges ?? [],
-              },
-            },
-          }).unwrap();
         }
-      }
-    } catch (err) {
-      console.error("Failed to update pipeline before test:", err);
-      if (activeTest === "performance-test") {
-        setPerformanceErrorMessage("Failed to update pipeline configuration");
-      } else {
-        setErrorMessage("Failed to update pipeline configuration");
-      }
-      return;
-    }
+
+        const sanitizedData = sanitizeNodeData(node.type, mergedData);
+
+        const normalizedData = Object.fromEntries(
+          Object.entries(sanitizedData)
+            .filter(
+              ([key]) => !(node.type === "gvametaconvert" && key === "device"),
+            )
+            .map(([key, value]) => [
+              key,
+              value === null || value === undefined ? "" : String(value),
+            ]),
+        ) as { [key: string]: string };
+
+        return {
+          ...node,
+          data: normalizedData,
+        };
+      });
+
+      return {
+        nodes: updatedNodes,
+        edges: variant.pipeline_graph.edges ?? [],
+      };
+    };
 
     if (activeTest === "performance-test") {
       setPerformanceResult(null);
@@ -1053,16 +1023,25 @@ const DemoMode = () => {
               max_runtime: maxRuntime,
             },
             pipeline_performance_specs: pipelineSelections.map((selection) => {
+              const pipelineGraph = preparePipelineGraph(selection.pipelineId);
               const pipeline = pipelines.find(
                 (p) => p.id === selection.pipelineId,
               );
               const variant = pipeline?.variants?.[0];
+
               return {
-                pipeline: {
-                  source: "variant" as const,
-                  pipeline_id: selection.pipelineId,
-                  variant_id: variant?.id ?? "",
-                },
+                pipeline: pipelineGraph
+                  ? {
+                      source: "graph" as const,
+                      pipeline_id: selection.pipelineId,
+                      variant_id: variant?.id ?? "",
+                      pipeline_graph: pipelineGraph,
+                    }
+                  : {
+                      source: "variant" as const,
+                      pipeline_id: selection.pipelineId,
+                      variant_id: variant?.id ?? "",
+                    },
                 streams: performanceStreams[selection.pipelineId] ?? 1,
               };
             }),
@@ -1088,16 +1067,25 @@ const DemoMode = () => {
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
+            const pipelineGraph = preparePipelineGraph(selection.pipelineId);
             const pipeline = pipelines.find(
               (p) => p.id === selection.pipelineId,
             );
             const variant = pipeline?.variants?.[0];
+
             return {
-              pipeline: {
-                source: "variant" as const,
-                pipeline_id: selection.pipelineId,
-                variant_id: variant?.id ?? "",
-              },
+              pipeline: pipelineGraph
+                ? {
+                    source: "graph" as const,
+                    pipeline_id: selection.pipelineId,
+                    variant_id: variant?.id ?? "",
+                    pipeline_graph: pipelineGraph,
+                  }
+                : {
+                    source: "variant" as const,
+                    pipeline_id: selection.pipelineId,
+                    variant_id: variant?.id ?? "",
+                  },
               stream_rate: selection.stream_rate,
             };
           }),
@@ -1470,38 +1458,22 @@ const DemoMode = () => {
                           return (
                             <div className="relative h-full">
                               <div className="grid grid-cols-2 gap-3 h-full">
-                                {visiblePreviews.map((selection) => {
+                                {visiblePreviews.map((selection, localIdx) => {
                                   const pipeline = pipelines.find(
                                     (p) => p.id === selection.pipelineId,
                                   );
-                                  const variant = pipeline?.variants?.[0];
-                                  // Find the stream spec ID from performanceJobStatus
+                                  // Calculate global index in pipelineSelections
+                                  const globalIdx = startIdx + localIdx;
+                                  // Get stream spec by index (API returns them in order)
                                   const streamSpec =
-                                    performanceJobStatus?.streams_per_pipeline?.find(
-                                      (spec) => {
-                                        // Match by checking if the spec ID contains the variant ID
-                                        return (
-                                          variant &&
-                                          spec.id.includes(variant.id)
-                                        );
-                                      },
-                                    );
+                                    performanceJobStatus?.streams_per_pipeline?.[
+                                      globalIdx
+                                    ];
                                   const streamUrl = streamSpec?.id
                                     ? performanceResult?.live_stream_urls?.[
                                         streamSpec.id
                                       ]
                                     : null;
-
-                                  console.log("Live Preview Debug:", {
-                                    pipelineId: selection.pipelineId,
-                                    variantId: variant?.id,
-                                    streamSpec,
-                                    streamUrl,
-                                    live_stream_urls:
-                                      performanceResult?.live_stream_urls,
-                                    streams_per_pipeline:
-                                      performanceJobStatus?.streams_per_pipeline,
-                                  });
 
                                   return (
                                     <div
@@ -1604,28 +1576,17 @@ const DemoMode = () => {
                             return (
                               <div className="relative h-full">
                                 <div className="grid grid-cols-2 gap-3 h-full">
-                                  {visiblePreviews.map((selection) => {
+                                  {visiblePreviews.map((selection, localIdx) => {
                                     const pipeline = pipelines.find(
                                       (p) => p.id === selection.pipelineId,
                                     );
-                                    const variant = pipeline?.variants?.[0];
-                                    // Find paths by matching against pipeline ID and variant ID in the key
-                                    const matchingKey =
-                                      performanceResult.video_output_paths
-                                        ? Object.keys(
-                                            performanceResult.video_output_paths,
-                                          ).find((key) => {
-                                            if (variant) {
-                                              return (
-                                                key.includes(pipeline.id) &&
-                                                key.includes(variant.id)
-                                              );
-                                            }
-                                            return key.includes(
-                                              pipeline?.id || "",
-                                            );
-                                          })
-                                        : undefined;
+                                    // Calculate global index
+                                    const globalIdx = startIdx + localIdx;
+                                    // Get video paths by index from video_output_paths
+                                    const allKeys = performanceResult.video_output_paths
+                                      ? Object.keys(performanceResult.video_output_paths)
+                                      : [];
+                                    const matchingKey = allKeys[globalIdx];
                                     const paths = matchingKey
                                       ? performanceResult.video_output_paths?.[
                                           matchingKey
@@ -1741,28 +1702,17 @@ const DemoMode = () => {
                               return (
                                 <div className="relative h-full">
                                   <div className="grid grid-cols-2 gap-3 h-full">
-                                    {visiblePreviews.map((selection) => {
+                                    {visiblePreviews.map((selection, localIdx) => {
                                       const pipeline = pipelines.find(
                                         (p) => p.id === selection.pipelineId,
                                       );
-                                      const variant = pipeline?.variants?.[0];
-                                      // Find paths by matching against pipeline ID and variant ID in the key
-                                      const matchingKey =
-                                        testResult.video_output_paths
-                                          ? Object.keys(
-                                              testResult.video_output_paths,
-                                            ).find((key) => {
-                                              if (variant) {
-                                                return (
-                                                  key.includes(pipeline.id) &&
-                                                  key.includes(variant.id)
-                                                );
-                                              }
-                                              return key.includes(
-                                                pipeline?.id || "",
-                                              );
-                                            })
-                                          : undefined;
+                                      // Calculate global index
+                                      const globalIdx = startIdx + localIdx;
+                                      // Get video paths by index from video_output_paths
+                                      const allKeys = testResult.video_output_paths
+                                        ? Object.keys(testResult.video_output_paths)
+                                        : [];
+                                      const matchingKey = allKeys[globalIdx];
                                       const paths = matchingKey
                                         ? testResult.video_output_paths?.[
                                             matchingKey
