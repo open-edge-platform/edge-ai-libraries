@@ -41,4 +41,4 @@ The software requirements to install the sample application are provided in othe
 
 ## Validation
 
-- Ensure all dependencies are installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all dependencies are installed and configured before proceeding to [Get Started](../get-started.md).

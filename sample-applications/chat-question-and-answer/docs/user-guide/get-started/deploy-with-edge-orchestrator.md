@@ -41,7 +41,7 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 
 1. Once the deployment package has been imported into the Edge Orchestrator, you can see it in the list of Web UI as shown here.
 
-    **![ChatQnA Image](./_assets/chatqna-emf.png)**
+    **![ChatQnA Image](../_assets/chatqna-emf.png)**
 
 See [Deployment Packages](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/deploy_packages.html#view-deployment-packages) for more information on deployment packages.
 

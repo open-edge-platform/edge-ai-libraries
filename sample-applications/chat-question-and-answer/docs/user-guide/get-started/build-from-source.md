@@ -1,4 +1,4 @@
-# How to Build from Source
+# Build from Source
 
 This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
 
@@ -12,7 +12,7 @@ This guide provides step-by-step instructions for building the ChatQ&A Sample Ap
 Before you begin, ensure that you have the following prerequisites:
 
 - Docker installed on your system: [Installation Guide](https://docs.docker.com/get-docker/).
-- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+- Model download microservice is up and running. [Get Started Guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/docs/user-guide/get-started.md).
 - `jq` command-line JSON processor: [Installation Guide](https://jqlang.github.io/jq/download/)
 
 ## Steps to Build from Source
@@ -28,7 +28,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/docs/user-guide/get-started.md).
 
 3. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
@@ -38,7 +38,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```
 
       Adjust the repo link appropriately in case of forked repo.
-   
+
 4. **Set Up Environment Variables**:
     Set up the environment variables based on the inference method you plan to use:
 
@@ -60,8 +60,8 @@ Before you begin, ensure that you have the following prerequisites:
 
     ```bash
     # Set only if there is an OTLP endpoint available
-    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
-    export OTLP_ENDPOINT=<otlp-endpoint> 
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace>
+    export OTLP_ENDPOINT=<otlp-endpoint>
     ```
 
     _Document Ingestion Microservice configuration_
@@ -71,11 +71,11 @@ Before you begin, ensure that you have the following prerequisites:
     export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Ex: example.com,subdomain.example.com
     ```
 
-    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration)
+    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration)
 
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
-    Refer to the supported model list in the [Get Started](./get-started.md) document.
+    Refer to the supported model list in the [Get Started](../get-started.md) document.
 
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
 
@@ -97,9 +97,9 @@ Before you begin, ensure that you have the following prerequisites:
 
     - The following services will be built as shown in the below screenshot.
 
-         ![Chatqna Services build from Source](./_assets/Chatqna-service-build.png)
+         ![Chatqna Services build from Source](../_assets/Chatqna-service-build.png)
 
-    - Refer to [Overview](./index.md#technical-architecture) for details on the built microservices.
+    - Refer to [Overview](../index.md#technical-architecture) for details on the built microservices.
     Note: `chatqna` and `ChatQnA backend` refer to the same microservice.
 
 6. **Run the Docker Container**:
