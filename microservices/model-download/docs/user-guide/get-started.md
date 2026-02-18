@@ -4,11 +4,12 @@ The Model Download Service is a microservice that enables downloading models fro
 
 ## Features
 
-- Download models from Hugging Face, Ollama, Geti™ and Ultralytics model hubs
+- Download models from Hugging Face, Ollama, Geti™, Ultralytics
 - Convert Hugging Face models to OVMS format
 - Support for multiple model precisions (INT8, FP16, FP32)
 - Support for various device targets (CPU, GPU and NPU)
 - OpenVINO plugin supports NPU model conversion exclusively in INT4 precision.
+- Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Parallel download capability
 - Configurable model caching
 - REST API with OpenAPI documentation
@@ -225,6 +226,24 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
 ```
   **Note:** The default precision is FP16.
 
+**Download fixed HLS models (3D pose, rPPG, AI-ECG):**
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hls_assets" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "human-pose-estimation-3d-0001",
+        "hub": "hls",
+        "type": "3d-pose"
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+> **Notes:** Valid HLS types are `3d-pose`, `rppg`, and `ai-ecg`.
+  The service downloads model artifacts only; demo videos must be fetched separately if needed.
+
 **Query Parameter:**
 - `download_path` (string): Specify a local file system path where the downloaded model should be saved. If not provided, the model will be saved to a default location.
 
@@ -286,6 +305,30 @@ The service can be configured through environment variables and Docker volumes:
   ```bash
   docker logs <container-id>
   ```
+
+
+## Run Unit Tests
+
+To validate changes locally before deploying:
+
+1. **Set up virtual environment**:
+  ```bash
+  pip install uv
+  uv venv
+  source .venv/bin/activate
+  ```
+
+2. **Install all optional dependencies**:
+  ```bash
+  uv sync --all-extras
+  ```
+
+3. **Execute unit tests**:
+  ```bash
+  uv run pytest tests/unit -v
+  ```
+
+Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See [docs/user-guide/running-tests.md](docs/user-guide/running-tests.md) for advanced filtering options and troubleshooting tips.
 
 ## Best Practices
 

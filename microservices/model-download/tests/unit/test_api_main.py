@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import pytest
 import tempfile
@@ -307,7 +310,9 @@ class TestAPIMain:
         response = client.post("/models/download?download_path=test", json=request_data)
         
         assert response.status_code == 400
-        assert "Plugin 'huggingface' is not available" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert f"Plugin '{ModelHub.HUGGINGFACE}' is not available" in detail
+        assert "Missing huggingface_hub dependency" in detail
 
     @patch('src.api.main.model_manager')
     @patch('src.api.main.plugin_registry')
