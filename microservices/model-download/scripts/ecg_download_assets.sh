@@ -2,7 +2,7 @@
 set -e
 
 MODEL_DIR="${1:-/models/ai-ecg}"
-BASE_URL="https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
+BASE_URL="${HLS_ECG_BASE_URL}"
 
 MODELS="
 ecg_8960_ir10_fp16.xml

@@ -21,6 +21,11 @@ PLUGINS=""
 MODEL_PATH=""
 ACTION="up"
 
+# Default URLs for HLS assets
+HLS_3D_POSE_CHECKPOINT_URL_DEFAULT="https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
+HLS_ECG_BASE_URL_DEFAULT="https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
+HLS_RPPG_MODEL_URL_DEFAULT="https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
+
 # Function to log messages with color
 log_info() {
     echo -e "${BLUE}INFO:${NC} $1"
@@ -151,6 +156,17 @@ if [[ "$ACTION" != "down" ]]; then
     export MODEL_PATH="$MODEL_PATH"
     export ENABLED_PLUGINS="$PLUGINS"
 
+if [[ $PLUGINS == 'hls' || $PLUGINS == 'all' ]]; then
+        log_info "Configuring HLS asset download URLs..."
+        export HLS_3D_POSE_CHECKPOINT_URL="${HLS_3D_POSE_CHECKPOINT_URL:-$HLS_3D_POSE_CHECKPOINT_URL_DEFAULT}"
+        export HLS_ECG_BASE_URL="${HLS_ECG_BASE_URL:-$HLS_ECG_BASE_URL_DEFAULT}"
+        export HLS_RPPG_MODEL_URL="${HLS_RPPG_MODEL_URL:-$HLS_RPPG_MODEL_URL_DEFAULT}"
+    else
+        unset HLS_3D_POSE_CHECKPOINT_URL
+        unset HLS_ECG_BASE_URL
+        unset HLS_RPPG_MODEL_URL
+    fi
+
     # Generate environment file for docker-compose in current directory
     log_info "Generating environment settings..."
     cat > .env << EOF
@@ -160,6 +176,13 @@ USER_GROUP_ID=$USER_GROUP_ID
 MODEL_PATH=$MODEL_PATH
 ENABLED_PLUGINS=$PLUGINS
 EOF
+    if [[ -n "$HLS_3D_POSE_CHECKPOINT_URL" ]]; then
+        cat >> .env << EOF
+HLS_3D_POSE_CHECKPOINT_URL=$HLS_3D_POSE_CHECKPOINT_URL
+HLS_ECG_BASE_URL=$HLS_ECG_BASE_URL
+HLS_RPPG_MODEL_URL=$HLS_RPPG_MODEL_URL
+EOF
+    fi
     log_success "Environment settings generated successfully."
 fi
 

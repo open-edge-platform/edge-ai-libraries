@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import os
 import sys
 import tarfile
 import urllib.request
@@ -12,11 +13,8 @@ import torch
 import openvino as ov
 
 
-CHECKPOINT_URL = (
-    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/"
-    "human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
-)
 
+CHECKPOINT_URL = os.getenv("HLS_3D_POSE_CHECKPOINT_URL")
 
 def prepare_model(models_dir: Path) -> None:
     models_dir.mkdir(parents=True, exist_ok=True)
