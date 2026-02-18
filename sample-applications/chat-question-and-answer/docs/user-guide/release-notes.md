@@ -1,6 +1,15 @@
 # Release Notes
 
 ## Current Release
+**Version**: 2.1.0-rc1\
+**Release Date**: 17 Feb 2026
+- Integrated model download functionality with the sample application for Docker deployments 
+
+## Known Issues/Behavior (Consolidated):
+- The upload button is temporarily disabled during chat response generation to prevent delays. File or link uploads trigger embedding generation, which runs on the same OVMS server as the LLM, potentially slowing response streaming if both run together.
+- Chat data is stored in localStorage for session continuity. After container restarts, old chats may reappear — clear your browser’s localStorage to start fresh.
+- Limited validation done on EMT-S due to EMT-S issues. Not recommended to use ChatQnA modular on EMT-S until full validation is completed.
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. 
 
 **Version**: 2.0.1\
 **Release Date**: 06 Nov 2025

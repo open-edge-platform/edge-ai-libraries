@@ -13,7 +13,7 @@ This guide is ideal for developers who want to work directly with the source cod
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify your system meets the [minimum requirements](./get-started/system-requirements.md).
+- **System Requirements**: Verify your system meets the [minimum requirements](../get-started/system-requirements.md).
 - **Dependencies Installed**:
     - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
     - **Python 3.8 or higher**: [Python Installation Guide](https://www.python.org/downloads/)
@@ -28,66 +28,74 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 ## Steps to Build
 
 1. **Clone the Repository**:
-    ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 
-    cd edge-ai-libraries/microservices/model-registry
-    ```
+   ```bash
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+
+   cd edge-ai-libraries/microservices/model-registry
+   ```
 
 2. **Install Python 3.10**
-    ```bash
-    sudo apt-get install python3.10
-    ```
+
+   ```bash
+   sudo apt-get install python3.10
+   ```
 
 3. **Rename the `.env.template` file to `.env`**
-    ```bash
-    cd docker
 
-    mv .env.template .env
-    ```
+   ```bash
+   cd docker
+
+   mv .env.template .env
+   ```
 
 4. **Create the directories to be used as persistent storage for the `PostgreSQL` and `MinIO` containers**
-    ```bash
-    cd ../scripts
 
-    sudo ./init_mr_data_dirs.sh
-    ```
+   ```bash
+   cd ../scripts
+
+   sudo ./init_mr_data_dirs.sh
+   ```
 
 5. **Define the desired values for the REQUIRED environment variables in the `.env` file in the `docker` directory:**
-    1. `MR_MINIO_ACCESS_KEY`
-    2. `MR_MINIO_SECRET_KEY`
-    3. `MR_PSQL_PASSWORD`
 
-    ```bash
-    cd ../docker
+   1. `MR_MINIO_ACCESS_KEY`
+   2. `MR_MINIO_SECRET_KEY`
+   3. `MR_PSQL_PASSWORD`
 
-    vi .env
-    ```
+   ```bash
+   cd ../docker
 
-    - For more information about the supported the environment variables, refer to the
-    [Environment Variables](./environment-variables.md) documentation.
+   vi .env
+   ```
+
+   - For more information about the supported the environment variables, refer to the
+   [Environment Variables](./environment-variables.md) documentation.
 
 6. Optional: Enter values for the `http_proxy` and `https_proxy` variables in the `.env` file
 if you are behind a proxy.
-    ```
-    http_proxy= # example: http_proxy=http://proxy.example.com:891
-    https_proxy= # example: https_proxy=http://proxy.example.com:891
-    ```
+
+   ```text
+   http_proxy= # example: http_proxy=http://proxy.example.com:891
+   https_proxy= # example: https_proxy=http://proxy.example.com:891
+   ```
 
 7. **Load the environment variables defined in the `.env` file into the current Terminal session**
-    ```bash
-    source .env
-    ```
+
+   ```bash
+   source .env
+   ```
 
 8. **Build the model registry and start the containers**
-    ```bash
-    docker compose build
 
-    docker compose up -d
-    ```
+   ```bash
+   docker compose build
+
+   docker compose up -d
+   ```
 
 ## Validation
 
@@ -96,30 +104,34 @@ if you are behind a proxy.
 
 2. **Access the Microservice**:
    - Open a browser and go to:
-     ```
+
+     ```text
      http://localhost:{{port}}/docs
      ```
+
    - Expected result: The microservice’s API documentation page loads successfully.
 
-   For more example requests and their responses, refer to the [Get Started Guide](./get-started.md#storing-a-model-in-the-registry).
+   For more example requests and their responses, refer to the [Get Started Guide](../get-started.md#storing-a-model-in-the-registry).
 
 ## Troubleshooting
 
 1. **Dependency Installation Errors**:
    - Reinstall dependencies:
+
      ```bash
      pip install -r requirements.txt
      ```
 
 2. **Environment Configuration Issues**:
    - Verify environment variables:
+
      ```bash
      echo $VARIABLE_NAME
      ```
 
 ## Supporting Resources
 
-- [Overview](./index.md)
-- [System Requirements](./get-started/system-requirements.md)
-- [Environment Variables](environment-variables.md)
-- [API Reference](./api-reference.md)
+- [Overview](../index.md)
+- [System Requirements](./system-requirements.md)
+- [Environment Variables](./environment-variables.md)
+- [API Reference](../api-reference.md)

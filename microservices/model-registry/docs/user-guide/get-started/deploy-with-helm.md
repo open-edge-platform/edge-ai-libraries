@@ -13,10 +13,10 @@ and updates. For more details, see [Helm Documentation](https://helm.sh/docs/).
 
 Before You Begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
 - **Tools Installed**: Install the required tools:
-    - Kubernetes CLI (kubectl)
-    - Helm 3 or later
+  - Kubernetes CLI (kubectl)
+  - Helm 3 or later
 - **Cluster Access**: Confirm that you have access to a running Kubernetes cluster with
 appropriate permissions.
 
@@ -29,54 +29,63 @@ charts. If you are new to these concepts, see:
 ## Steps to Deploy
 
 1. **Create directories to be used for persistent storage by the Postgres* and MinIO* Docker containers**
-    ```sh
-    mkdir -p /opt/intel/mr/data/mr_postgres
 
-    mkdir -p /opt/intel/mr/data/mr_minio
+   ```sh
+   mkdir -p /opt/intel/mr/data/mr_postgres
 
-    useradd -u 2025 mruser
+   mkdir -p /opt/intel/mr/data/mr_minio
 
-    chown -R mruser:mruser /opt/intel/mr/data/mr_postgres /opt/intel/mr/data/mr_minio
-    ```
-    > **Note**: The data in these directories will persist after the containers are removed.
-    If you would like to subsequently start the containers with no pre-existing data, delete
-    the contents in the directories before starting the containers.
+   useradd -u 2025 mruser
+
+   chown -R mruser:mruser /opt/intel/mr/data/mr_postgres /opt/intel/mr/data/mr_minio
+   ```
+
+   > **Note**: The data in these directories will persist after the containers are removed.
+   > If you would like to subsequently start the containers with no pre-existing data, delete
+   > the contents in the directories before starting the containers.
 
 2. **Pull the Helm chart from Docker Hub**
-    ```sh
-    helm pull oci://registry-1.docker.io/intel/model-registry --version 1.0.3-helm
-    ```
+
+   ```sh
+   helm pull oci://registry-1.docker.io/intel/model-registry --version 1.0.3-helm
+   ```
 
 3. **Unzip the file**
-    ```sh
-    tar xvf model-registry-1.0.3-helm.tgz
-    ```
+
+   ```sh
+   tar xvf model-registry-1.0.3-helm.tgz
+   ```
 
 4. **Navigate into the directory**
-    ```sh
-    cd model-registry
-    ```
+
+   ```sh
+   cd model-registry
+   ```
 
 5. **Open the `values.yaml` file and enter values for the following variables:**
-    - `MINIO_SECRET_KEY`
-    - `POSTGRES_PASSWORD`
+   - `MINIO_SECRET_KEY`
+   - `POSTGRES_PASSWORD`
 
-    For more information about the supported environment variables, refer to the [Environment Variables](./environment-variables.md) documentation.
+   For more information about the supported environment variables, refer to the
+   [Environment Variables](./environment-variables.md) documentation.
 
 6. **Install the helm chart**
-    ```sh
-    helm install modelregistry . -n apps --create-namespace
-    ```
+
+   ```sh
+   helm install modelregistry . -n apps --create-namespace
+   ```
 
 7. **Check the status of the pods and verify the microservice is running**
-    ```sh
-    kubectl get pods --namespace apps
-    ```
+
+   ```sh
+   kubectl get pods --namespace apps
+   ```
 
 8. **Monitor the logs for the pod associated to the `model-registry` to identify any issues and verify that it is operating successfully**
-    ```sh
-    kubectl logs -f {{pod_name}} -n apps
-    ```
+
+   ```sh
+   kubectl logs -f {{pod_name}} -n apps
+   ```
 
 ## Troubleshooting
 
@@ -108,4 +117,4 @@ charts. If you are new to these concepts, see:
 
 - [Kubernetes Documentation](https://kubernetes.io/docs/home/)
 - [Helm Documentation](https://helm.sh/docs/)
-- [API Reference](./api-reference.md)
+- [API Reference](../api-reference.md)
