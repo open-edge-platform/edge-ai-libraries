@@ -10,9 +10,10 @@ data:
     #!/bin/bash
     set -e
 
-    model=$0
-    weight_format=$1
-    gpu_enabled=$3
+    model=$1
+    weight_format=$2
+    hf_token=$3
+    gpu_enabled=$4
 
     MODEL_DOWNLOAD_HOST="{{ .Values.global.modelDownload.serviceName }}"
     MODEL_DOWNLOAD_PORT="{{ .Values.global.modelDownload.port }}"
