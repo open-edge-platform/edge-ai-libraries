@@ -4,14 +4,15 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Features
 
-- Downloads models from Hugging Face, Ollama, Geti software, and Ultralytics model hubs
-- Converts Hugging Face models to OpenVINO model server format
-- Supports multiple model precisions (INT4,INT8, FP16, and FP32)
-- Supports various device targets (CPU, GPU, and NPU)
+- Download models from Hugging Face, Ollama, Geti™, Ultralytics
+- Convert Hugging Face models to OVMS format
+- Support for multiple model precisions (INT8, FP16, FP32)
+- Support for various device targets (CPU, GPU and NPU)
 - OpenVINO plugin supports NPU model conversion exclusively in INT4 precision.
-- Supports parallel download
-- Supports configurable model caching
-- Exposes a REST API with OpenAPI documentation
+- Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
+- Parallel download capability
+- Configurable model caching
+- REST API with OpenAPI documentation
 
 ## Prerequisites
 
@@ -232,6 +233,24 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
 ```
   **Note:** The default precision is FP16.
 
+**Download fixed HLS models (3D pose, rPPG, AI-ECG):**
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hls_assets" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "human-pose-estimation-3d-0001",
+        "hub": "hls",
+        "type": "3d-pose"
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+> **Notes:** Valid HLS types are `3d-pose`, `rppg`, and `ai-ecg`.
+  The service downloads model artifacts only; demo videos must be fetched separately if needed.
+
 **Query Parameter:**
 - `download_path` (string): Specify a local filesystem path for saving the downloaded model. If not provided, the model will be saved to the default location.
 
@@ -297,6 +316,30 @@ Volumes:
   ```bash
   docker logs <container-id>
   ```
+
+
+## Run Unit Tests
+
+To validate changes locally before deploying:
+
+1. **Set up virtual environment**:
+  ```bash
+  pip install uv
+  uv venv
+  source .venv/bin/activate
+  ```
+
+2. **Install all optional dependencies**:
+  ```bash
+  uv sync --all-extras
+  ```
+
+3. **Execute unit tests**:
+  ```bash
+  uv run pytest tests/unit -v
+  ```
+
+Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See [docs/user-guide/running-tests.md](docs/user-guide/running-tests.md) for advanced filtering options and troubleshooting tips.
 
 ## Best Practices
 

@@ -106,6 +106,9 @@ install_dependencies() {
             print_info "Geti plugin dependencies will be installed via uv sync"
             print_info "Geti plugin requires: GETI_HOST,GETI_TOKEN, GETI_SERVER_API_VERSION"
             ;;
+        hls)
+            print_info "HLS plugin dependencies will be installed via uv sync"
+            ;;
         *)
             print_error "Unknown plugin: $plugin"
             return 1
@@ -137,7 +140,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti" "hls")
 
 # Install plugin-specific dependencies
 print_header "Installing plugin dependencies"
