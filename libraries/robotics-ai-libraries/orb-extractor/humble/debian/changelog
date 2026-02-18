@@ -1,3 +1,13 @@
+ros-humble-orb-extractor (2.3-2) UNRELEASED; urgency=low
+
+  * Intel SYCL 2025.3 compatibility fixes
+  * Resolved namespace qualification issues for SYCL device code
+  * Fixed oneAPI 2025.3 internal implementation errors
+  * Applied aggressive clean build approach for SYCL compilation
+  * Updated build system to skip problematic test targets
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Wed, 12 Feb 2026 11:00:00 +0000
+
 ros-humble-orb-extractor (2.3-1) UNRELEASED; urgency=low
 
   * Refactoring of the code and general optimizations

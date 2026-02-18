@@ -25,7 +25,7 @@ static inline T1 align(const T1 total, const T2 grain)
   return divUp(total, grain) * grain;
 }
 
-using namespace sycl;
+// using namespace sycl; // Removed to fix SYCL 2025.0 ambiguity with Ubuntu 24.04
 
 struct SYCL_UTILS_API DeviceEvent
 {

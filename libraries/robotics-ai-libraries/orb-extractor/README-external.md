@@ -24,10 +24,10 @@ Non CV functions will run in CPU.
 
 ## System Requirements
 
-1) Ubuntu 20.04 and Ubuntu 22.04
-2) OpenCV 4.2. Currently the library only support OpenCV 4.0-4.2, > 4.2 is not
-   supported due to `cv::Mat` change
-3) [Intel® Graphics Compute Runtime for oneAPI Level Zero and OpenCL™ Driver](https://github.com/intel/compute-runtime).
+1) Ubuntu 22.04 and Ubuntu 24.04
+2) OpenCV 4.2+ with support up to OpenCV 4.6 (ROS Jazzy)
+3) [Intel® Graphics Compute Runtime for oneAPI Level Zero and OpenCL™ Driver](https://github.com/intel/compute-runtime)
+4) Intel oneAPI 2025.3 with SYCL compiler for GPU acceleration
 
 ## Directory structure
 

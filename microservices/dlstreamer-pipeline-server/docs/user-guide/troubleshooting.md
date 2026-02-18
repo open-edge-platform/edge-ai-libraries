@@ -90,7 +90,7 @@ Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in ca
 
 ### RTSP streaming fails if you are using udfloader
 
-If you are using [udfloader pipeline](./how-to-run-udf-pipelines.md), RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
+If you are using [udfloader pipeline](./how-to-guides/run-udf-pipelines.md), RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
 If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add  `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
 ```sh
 # Sample pipeline
