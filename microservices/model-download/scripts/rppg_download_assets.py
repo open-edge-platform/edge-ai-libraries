@@ -13,6 +13,7 @@ Usage:
     python scripts/rppg_download_assets.py --models-dir /custom/path
 """
 
+import os
 import urllib.request
 from pathlib import Path
 from tqdm import tqdm
@@ -22,6 +23,9 @@ import argparse
 import tensorflow as tf
 from tensorflow import keras
 import openvino as ov
+
+
+RPPG_MODEL_URL = os.getenv("HLS_RPPG_MODEL_URL")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,7 +95,6 @@ def download_file(url: str, dest: Path, desc: str = "Downloading") -> None:
 
 def download_model(models_dir: Path) -> None:
     """Download MTTS-CAN model weights."""
-    MODEL_URL = "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
     model_path = models_dir / "mtts_can.hdf5"
 
     if model_path.exists():
@@ -101,11 +104,11 @@ def download_model(models_dir: Path) -> None:
         return
 
     logger.info("Downloading MTTS-CAN model...")
-    logger.info(f"  Source: {MODEL_URL}")
+    logger.info(f"  Source: {RPPG_MODEL_URL}")
     logger.info(f"  Destination: {model_path}")
 
     try:
-        download_file(MODEL_URL, model_path, "Model")
+        download_file(RPPG_MODEL_URL, model_path, "Model")
         logger.info("Model downloaded successfully")
         size_mb = model_path.stat().st_size / (1024 * 1024)
         logger.info(f"  Size: {size_mb:.1f} MB")
