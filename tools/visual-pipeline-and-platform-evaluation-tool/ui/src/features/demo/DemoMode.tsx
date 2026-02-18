@@ -179,6 +179,7 @@ const DemoMode = () => {
     live_stream_urls: { [key: string]: string } | null;
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [densityLoopingEnabled, setDensityLoopingEnabled] = useState(false);
   const [performanceVideoOutputEnabled, setPerformanceVideoOutputEnabled] =
     useState(false);
   const [performanceLivePreviewEnabled, setPerformanceLivePreviewEnabled] =
@@ -188,6 +189,17 @@ const DemoMode = () => {
   const [performanceStreams, setPerformanceStreams] = useState<
     Record<string, number>
   >({});
+  // Track what options were enabled when the test was started
+  const [
+    lastPerformanceTestHadSaveOutput,
+    setLastPerformanceTestHadSaveOutput,
+  ] = useState(false);
+  const [
+    lastPerformanceTestHadLivePreview,
+    setLastPerformanceTestHadLivePreview,
+  ] = useState(false);
+  const [lastDensityTestHadSaveOutput, setLastDensityTestHadSaveOutput] =
+    useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [performanceErrorMessage, setPerformanceErrorMessage] = useState<
     string | null
@@ -326,20 +338,38 @@ const DemoMode = () => {
     ? "max-h-[40vh]"
     : "max-h-[44vh]";
   const runConfigMaxHeightClass = "max-h-[38vh]";
-  const showPreviewPanel =
-    (testStarted &&
-      lastRunTest === "performance-test" &&
-      performanceLivePreviewEnabled) ||
+
+  // Helper function to check if video output paths actually contain files
+  const hasVideoFiles = (
+    paths: { [key: string]: string[] } | null | undefined,
+  ): boolean => {
+    if (!paths) return false;
+    return Object.values(paths).some(
+      (arr) => Array.isArray(arr) && arr.length > 0,
+    );
+  };
+
+  // Show preview panel only when there's actual content to display
+  const hasLiveStreamContent =
+    testStarted &&
+    lastRunTest === "performance-test" &&
+    !!performanceJobId &&
+    lastPerformanceTestHadLivePreview &&
+    performanceResult?.live_stream_urls &&
+    Object.keys(performanceResult.live_stream_urls).length > 0;
+
+  const hasSavedVideoContent =
     (lastRunTest === "performance-test" &&
-      performanceResult &&
-      performanceVideoOutputEnabled &&
-      performanceResult.video_output_paths &&
-      Object.keys(performanceResult.video_output_paths).length > 0) ||
+      !performanceJobId &&
+      lastPerformanceTestHadSaveOutput &&
+      hasVideoFiles(performanceResult?.video_output_paths)) ||
     (lastRunTest === "density-test" &&
-      testResult &&
-      videoOutputEnabled &&
-      testResult.video_output_paths &&
-      Object.keys(testResult.video_output_paths).length > 0);
+      !densityJobId &&
+      lastDensityTestHadSaveOutput &&
+      hasVideoFiles(testResult?.video_output_paths));
+
+  const showPreviewPanel = hasLiveStreamContent || hasSavedVideoContent;
+
   const showPreRunLayout = !testStarted;
   const gridColumnsStyle = {
     gridTemplateColumns: showResultsPanel ? "0.7fr 1.3fr" : "1fr 1fr",
@@ -1003,6 +1033,9 @@ const DemoMode = () => {
     if (activeTest === "performance-test") {
       setPerformanceResult(null);
       setPerformanceErrorMessage(null);
+      // Track what options were enabled for this test
+      setLastPerformanceTestHadSaveOutput(performanceVideoOutputEnabled);
+      setLastPerformanceTestHadLivePreview(performanceLivePreviewEnabled);
       try {
         const outputMode = performanceLivePreviewEnabled
           ? "live_stream"
@@ -1044,12 +1077,14 @@ const DemoMode = () => {
 
     setTestResult(null);
     setErrorMessage(null);
+    // Track what options were enabled for this test
+    setLastDensityTestHadSaveOutput(videoOutputEnabled);
     try {
       const result = await runDensityTest({
         densityTestSpecInput: {
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
+            max_runtime: densityLoopingEnabled ? 1800 : 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
@@ -1408,415 +1443,424 @@ const DemoMode = () => {
                   >
                     {/* Show "Output" if test finished with video output, otherwise "Preview" */}
                     {(lastRunTest === "performance-test" &&
-                      performanceResult &&
-                      performanceVideoOutputEnabled) ||
+                      hasVideoFiles(performanceResult?.video_output_paths)) ||
                     (lastRunTest === "density-test" &&
-                      testResult &&
-                      videoOutputEnabled)
+                      hasVideoFiles(testResult?.video_output_paths))
                       ? "Output"
                       : "Preview"}
                   </p>
                   <div className="flex-1 overflow-hidden relative">
                     {/* Show live preview during running test */}
-                    {performanceJobId && performanceLivePreviewEnabled ? (
-                      (() => {
-                        const previewsPerPage = 2;
-                        const totalPreviewPages = Math.ceil(
-                          pipelineSelections.length / previewsPerPage,
-                        );
-                        const startIdx = previewCarouselIndex * previewsPerPage;
-                        const endIdx = startIdx + previewsPerPage;
-                        const visiblePreviews = pipelineSelections.slice(
-                          startIdx,
-                          endIdx,
-                        );
+                    {performanceJobId &&
+                    performanceResult?.live_stream_urls &&
+                    Object.keys(performanceResult.live_stream_urls).length > 0
+                      ? (() => {
+                          const previewsPerPage = 2;
+                          const totalPreviewPages = Math.ceil(
+                            pipelineSelections.length / previewsPerPage,
+                          );
+                          const startIdx =
+                            previewCarouselIndex * previewsPerPage;
+                          const endIdx = startIdx + previewsPerPage;
+                          const visiblePreviews = pipelineSelections.slice(
+                            startIdx,
+                            endIdx,
+                          );
 
-                        return (
-                          <div className="relative h-full">
-                            <div className="grid grid-cols-2 gap-3 h-full">
-                              {visiblePreviews.map((selection) => {
-                                const pipeline = pipelines.find(
-                                  (p) => p.id === selection.pipelineId,
-                                );
-                                const variant = pipeline?.variants?.[0];
-                                // Find the stream spec ID from performanceJobStatus
-                                const streamSpec =
-                                  performanceJobStatus?.streams_per_pipeline?.find(
-                                    (spec) => {
-                                      // Match by checking if the spec ID contains the variant ID
-                                      return (
-                                        variant && spec.id.includes(variant.id)
-                                      );
-                                    },
+                          return (
+                            <div className="relative h-full">
+                              <div className="grid grid-cols-2 gap-3 h-full">
+                                {visiblePreviews.map((selection) => {
+                                  const pipeline = pipelines.find(
+                                    (p) => p.id === selection.pipelineId,
                                   );
-                                const streamUrl = streamSpec?.id
-                                  ? performanceResult?.live_stream_urls?.[
-                                      streamSpec.id
-                                    ]
-                                  : null;
+                                  const variant = pipeline?.variants?.[0];
+                                  // Find the stream spec ID from performanceJobStatus
+                                  const streamSpec =
+                                    performanceJobStatus?.streams_per_pipeline?.find(
+                                      (spec) => {
+                                        // Match by checking if the spec ID contains the variant ID
+                                        return (
+                                          variant &&
+                                          spec.id.includes(variant.id)
+                                        );
+                                      },
+                                    );
+                                  const streamUrl = streamSpec?.id
+                                    ? performanceResult?.live_stream_urls?.[
+                                        streamSpec.id
+                                      ]
+                                    : null;
 
-                                console.log("Live Preview Debug:", {
-                                  pipelineId: selection.pipelineId,
-                                  variantId: variant?.id,
-                                  streamSpec,
-                                  streamUrl,
-                                  live_stream_urls:
-                                    performanceResult?.live_stream_urls,
-                                  streams_per_pipeline:
-                                    performanceJobStatus?.streams_per_pipeline,
-                                });
+                                  console.log("Live Preview Debug:", {
+                                    pipelineId: selection.pipelineId,
+                                    variantId: variant?.id,
+                                    streamSpec,
+                                    streamUrl,
+                                    live_stream_urls:
+                                      performanceResult?.live_stream_urls,
+                                    streams_per_pipeline:
+                                      performanceJobStatus?.streams_per_pipeline,
+                                  });
 
-                                return (
-                                  <div
-                                    key={selection.pipelineId}
-                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                  >
-                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                      {pipeline?.name || "Unknown Pipeline"}
-                                    </p>
-                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                      <div className="w-full h-full">
-                                        {streamUrl ? (
-                                          <WebRTCVideoPlayer
-                                            streamUrl={streamUrl}
-                                          />
-                                        ) : (
-                                          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                                            Waiting for stream...
-                                          </div>
-                                        )}
+                                  return (
+                                    <div
+                                      key={selection.pipelineId}
+                                      className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                    >
+                                      <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                        {pipeline?.name || "Unknown Pipeline"}
+                                      </p>
+                                      <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                        <div className="w-full h-full">
+                                          {streamUrl ? (
+                                            <WebRTCVideoPlayer
+                                              streamUrl={streamUrl}
+                                            />
+                                          ) : (
+                                            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                                              Waiting for stream...
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                  );
+                                })}
+                              </div>
 
-                            {/* Carousel navigation buttons */}
-                            {totalPreviewPages > 1 && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.max(0, prev - 1),
-                                    )
-                                  }
-                                  disabled={previewCarouselIndex === 0}
-                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.min(totalPreviewPages - 1, prev + 1),
-                                    )
-                                  }
-                                  disabled={
-                                    previewCarouselIndex >=
-                                    totalPreviewPages - 1
-                                  }
-                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronRight className="w-5 h-5 text-slate-200" />
-                                </button>
-
-                                {/* Dots indicator */}
-                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                  {Array.from({
-                                    length: totalPreviewPages,
-                                  }).map((_, idx) => (
-                                    <button
-                                      key={idx}
-                                      onClick={() =>
-                                        setPreviewCarouselIndex(idx)
-                                      }
-                                      className={`w-2 h-2 rounded-full transition-all ${
-                                        idx === previewCarouselIndex
-                                          ? "bg-blue-500 w-6"
-                                          : "bg-slate-600 hover:bg-slate-500"
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()
-                    ) : /* Show saved video output after test completion */
-                    lastRunTest === "performance-test" &&
-                      performanceResult &&
-                      performanceVideoOutputEnabled &&
-                      performanceResult.video_output_paths &&
-                      Object.keys(performanceResult.video_output_paths).length >
-                        0 ? (
-                      (() => {
-                        const previewsPerPage = 2;
-                        const totalPreviewPages = Math.ceil(
-                          pipelineSelections.length / previewsPerPage,
-                        );
-                        const startIdx = previewCarouselIndex * previewsPerPage;
-                        const endIdx = startIdx + previewsPerPage;
-                        const visiblePreviews = pipelineSelections.slice(
-                          startIdx,
-                          endIdx,
-                        );
-
-                        return (
-                          <div className="relative h-full">
-                            <div className="grid grid-cols-2 gap-3 h-full">
-                              {visiblePreviews.map((selection) => {
-                                const pipeline = pipelines.find(
-                                  (p) => p.id === selection.pipelineId,
-                                );
-                                const variant = pipeline?.variants?.[0];
-                                // Find paths by matching against pipeline ID and variant ID in the key
-                                const matchingKey =
-                                  performanceResult.video_output_paths
-                                    ? Object.keys(
-                                        performanceResult.video_output_paths,
-                                      ).find((key) => {
-                                        if (variant) {
-                                          return (
-                                            key.includes(pipeline.id) &&
-                                            key.includes(variant.id)
-                                          );
-                                        }
-                                        return key.includes(pipeline?.id || "");
-                                      })
-                                    : undefined;
-                                const paths = matchingKey
-                                  ? performanceResult.video_output_paths?.[
-                                      matchingKey
-                                    ]
-                                  : undefined;
-                                const videoPath =
-                                  paths && paths.length > 0
-                                    ? [...paths].pop()
-                                    : null;
-
-                                return (
-                                  <div
-                                    key={selection.pipelineId}
-                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                              {/* Carousel navigation buttons */}
+                              {totalPreviewPages > 1 && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      setPreviewCarouselIndex((prev) =>
+                                        Math.max(0, prev - 1),
+                                      )
+                                    }
+                                    disabled={previewCarouselIndex === 0}
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
                                   >
-                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                      {pipeline?.name || "Unknown Pipeline"}
-                                    </p>
-                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                      {videoPath ? (
-                                        <video
-                                          key={`performance-${selection.pipelineId}-${videoPath}`}
-                                          controls
-                                          preload="metadata"
-                                          className="w-full h-full object-cover"
-                                          src={`/assets${videoPath}`}
-                                        >
-                                          Your browser does not support the
-                                          video tag.
-                                        </video>
-                                      ) : (
-                                        <p className="text-xs text-slate-400">
-                                          No video output
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Carousel navigation buttons */}
-                            {totalPreviewPages > 1 && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.max(0, prev - 1),
-                                    )
-                                  }
-                                  disabled={previewCarouselIndex === 0}
-                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.min(totalPreviewPages - 1, prev + 1),
-                                    )
-                                  }
-                                  disabled={
-                                    previewCarouselIndex >=
-                                    totalPreviewPages - 1
-                                  }
-                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronRight className="w-5 h-5 text-slate-200" />
-                                </button>
-
-                                {/* Dots indicator */}
-                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                  {Array.from({
-                                    length: totalPreviewPages,
-                                  }).map((_, idx) => (
-                                    <button
-                                      key={idx}
-                                      onClick={() =>
-                                        setPreviewCarouselIndex(idx)
-                                      }
-                                      className={`w-2 h-2 rounded-full transition-all ${
-                                        idx === previewCarouselIndex
-                                          ? "bg-blue-500 w-6"
-                                          : "bg-slate-600 hover:bg-slate-500"
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()
-                    ) : lastRunTest === "density-test" &&
-                      testResult &&
-                      videoOutputEnabled &&
-                      testResult.video_output_paths &&
-                      Object.keys(testResult.video_output_paths).length > 0 ? (
-                      (() => {
-                        const previewsPerPage = 2;
-                        const totalPreviewPages = Math.ceil(
-                          pipelineSelections.length / previewsPerPage,
-                        );
-                        const startIdx = previewCarouselIndex * previewsPerPage;
-                        const endIdx = startIdx + previewsPerPage;
-                        const visiblePreviews = pipelineSelections.slice(
-                          startIdx,
-                          endIdx,
-                        );
-
-                        return (
-                          <div className="relative h-full">
-                            <div className="grid grid-cols-2 gap-3 h-full">
-                              {visiblePreviews.map((selection) => {
-                                const pipeline = pipelines.find(
-                                  (p) => p.id === selection.pipelineId,
-                                );
-                                const variant = pipeline?.variants?.[0];
-                                // Find paths by matching against pipeline ID and variant ID in the key
-                                const matchingKey =
-                                  testResult.video_output_paths
-                                    ? Object.keys(
-                                        testResult.video_output_paths,
-                                      ).find((key) => {
-                                        if (variant) {
-                                          return (
-                                            key.includes(pipeline.id) &&
-                                            key.includes(variant.id)
-                                          );
-                                        }
-                                        return key.includes(pipeline?.id || "");
-                                      })
-                                    : undefined;
-                                const paths = matchingKey
-                                  ? testResult.video_output_paths?.[matchingKey]
-                                  : undefined;
-                                const videoPath =
-                                  paths && paths.length > 0
-                                    ? [...paths].pop()
-                                    : null;
-
-                                return (
-                                  <div
-                                    key={selection.pipelineId}
-                                    className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                    <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      setPreviewCarouselIndex((prev) =>
+                                        Math.min(
+                                          totalPreviewPages - 1,
+                                          prev + 1,
+                                        ),
+                                      )
+                                    }
+                                    disabled={
+                                      previewCarouselIndex >=
+                                      totalPreviewPages - 1
+                                    }
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
                                   >
-                                    <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                      {pipeline?.name || "Unknown Pipeline"}
-                                    </p>
-                                    <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                      {videoPath ? (
-                                        <video
-                                          key={`density-${selection.pipelineId}-${videoPath}`}
-                                          controls
-                                          preload="metadata"
-                                          className="w-full h-full object-cover"
-                                          src={`/assets${videoPath}`}
-                                        >
-                                          Your browser does not support the
-                                          video tag.
-                                        </video>
-                                      ) : (
-                                        <p className="text-xs text-slate-400">
-                                          No video output
-                                        </p>
-                                      )}
-                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-slate-200" />
+                                  </button>
+
+                                  {/* Dots indicator */}
+                                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                    {Array.from({
+                                      length: totalPreviewPages,
+                                    }).map((_, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() =>
+                                          setPreviewCarouselIndex(idx)
+                                        }
+                                        className={`w-2 h-2 rounded-full transition-all ${
+                                          idx === previewCarouselIndex
+                                            ? "bg-blue-500 w-6"
+                                            : "bg-slate-600 hover:bg-slate-500"
+                                        }`}
+                                      />
+                                    ))}
                                   </div>
-                                );
-                              })}
+                                </>
+                              )}
                             </div>
+                          );
+                        })()
+                      : /* Show saved video output after test completion */
+                        lastRunTest === "performance-test" &&
+                          performanceResult &&
+                          hasVideoFiles(performanceResult.video_output_paths)
+                        ? (() => {
+                            const previewsPerPage = 2;
+                            const totalPreviewPages = Math.ceil(
+                              pipelineSelections.length / previewsPerPage,
+                            );
+                            const startIdx =
+                              previewCarouselIndex * previewsPerPage;
+                            const endIdx = startIdx + previewsPerPage;
+                            const visiblePreviews = pipelineSelections.slice(
+                              startIdx,
+                              endIdx,
+                            );
 
-                            {/* Carousel navigation buttons */}
-                            {totalPreviewPages > 1 && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.max(0, prev - 1),
-                                    )
-                                  }
-                                  disabled={previewCarouselIndex === 0}
-                                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    setPreviewCarouselIndex((prev) =>
-                                      Math.min(totalPreviewPages - 1, prev + 1),
-                                    )
-                                  }
-                                  disabled={
-                                    previewCarouselIndex >=
-                                    totalPreviewPages - 1
-                                  }
-                                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                >
-                                  <ChevronRight className="w-5 h-5 text-slate-200" />
-                                </button>
+                            return (
+                              <div className="relative h-full">
+                                <div className="grid grid-cols-2 gap-3 h-full">
+                                  {visiblePreviews.map((selection) => {
+                                    const pipeline = pipelines.find(
+                                      (p) => p.id === selection.pipelineId,
+                                    );
+                                    const variant = pipeline?.variants?.[0];
+                                    // Find paths by matching against pipeline ID and variant ID in the key
+                                    const matchingKey =
+                                      performanceResult.video_output_paths
+                                        ? Object.keys(
+                                            performanceResult.video_output_paths,
+                                          ).find((key) => {
+                                            if (variant) {
+                                              return (
+                                                key.includes(pipeline.id) &&
+                                                key.includes(variant.id)
+                                              );
+                                            }
+                                            return key.includes(
+                                              pipeline?.id || "",
+                                            );
+                                          })
+                                        : undefined;
+                                    const paths = matchingKey
+                                      ? performanceResult.video_output_paths?.[
+                                          matchingKey
+                                        ]
+                                      : undefined;
+                                    const videoPath =
+                                      paths && paths.length > 0
+                                        ? [...paths].pop()
+                                        : null;
 
-                                {/* Dots indicator */}
-                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                  {Array.from({
-                                    length: totalPreviewPages,
-                                  }).map((_, idx) => (
-                                    <button
-                                      key={idx}
-                                      onClick={() =>
-                                        setPreviewCarouselIndex(idx)
-                                      }
-                                      className={`w-2 h-2 rounded-full transition-all ${
-                                        idx === previewCarouselIndex
-                                          ? "bg-blue-500 w-6"
-                                          : "bg-slate-600 hover:bg-slate-500"
-                                      }`}
-                                    />
-                                  ))}
+                                    return (
+                                      <div
+                                        key={selection.pipelineId}
+                                        className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                      >
+                                        <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                          {pipeline?.name || "Unknown Pipeline"}
+                                        </p>
+                                        <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                          {videoPath ? (
+                                            <video
+                                              key={`performance-${selection.pipelineId}-${videoPath}`}
+                                              controls
+                                              preload="metadata"
+                                              className="w-full h-full object-cover"
+                                              src={`/assets${videoPath}`}
+                                            >
+                                              Your browser does not support the
+                                              video tag.
+                                            </video>
+                                          ) : (
+                                            <p className="text-xs text-slate-400">
+                                              No video output
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-slate-400">
-                        <p className="text-sm">
-                          Preview content will appear here
-                        </p>
-                      </div>
-                    )}
+
+                                {/* Carousel navigation buttons */}
+                                {totalPreviewPages > 1 && (
+                                  <>
+                                    <button
+                                      onClick={() =>
+                                        setPreviewCarouselIndex((prev) =>
+                                          Math.max(0, prev - 1),
+                                        )
+                                      }
+                                      disabled={previewCarouselIndex === 0}
+                                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                    >
+                                      <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        setPreviewCarouselIndex((prev) =>
+                                          Math.min(
+                                            totalPreviewPages - 1,
+                                            prev + 1,
+                                          ),
+                                        )
+                                      }
+                                      disabled={
+                                        previewCarouselIndex >=
+                                        totalPreviewPages - 1
+                                      }
+                                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                    >
+                                      <ChevronRight className="w-5 h-5 text-slate-200" />
+                                    </button>
+
+                                    {/* Dots indicator */}
+                                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                      {Array.from({
+                                        length: totalPreviewPages,
+                                      }).map((_, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={() =>
+                                            setPreviewCarouselIndex(idx)
+                                          }
+                                          className={`w-2 h-2 rounded-full transition-all ${
+                                            idx === previewCarouselIndex
+                                              ? "bg-blue-500 w-6"
+                                              : "bg-slate-600 hover:bg-slate-500"
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()
+                        : lastRunTest === "density-test" &&
+                            testResult &&
+                            hasVideoFiles(testResult.video_output_paths)
+                          ? (() => {
+                              const previewsPerPage = 2;
+                              const totalPreviewPages = Math.ceil(
+                                pipelineSelections.length / previewsPerPage,
+                              );
+                              const startIdx =
+                                previewCarouselIndex * previewsPerPage;
+                              const endIdx = startIdx + previewsPerPage;
+                              const visiblePreviews = pipelineSelections.slice(
+                                startIdx,
+                                endIdx,
+                              );
+
+                              return (
+                                <div className="relative h-full">
+                                  <div className="grid grid-cols-2 gap-3 h-full">
+                                    {visiblePreviews.map((selection) => {
+                                      const pipeline = pipelines.find(
+                                        (p) => p.id === selection.pipelineId,
+                                      );
+                                      const variant = pipeline?.variants?.[0];
+                                      // Find paths by matching against pipeline ID and variant ID in the key
+                                      const matchingKey =
+                                        testResult.video_output_paths
+                                          ? Object.keys(
+                                              testResult.video_output_paths,
+                                            ).find((key) => {
+                                              if (variant) {
+                                                return (
+                                                  key.includes(pipeline.id) &&
+                                                  key.includes(variant.id)
+                                                );
+                                              }
+                                              return key.includes(
+                                                pipeline?.id || "",
+                                              );
+                                            })
+                                          : undefined;
+                                      const paths = matchingKey
+                                        ? testResult.video_output_paths?.[
+                                            matchingKey
+                                          ]
+                                        : undefined;
+                                      const videoPath =
+                                        paths && paths.length > 0
+                                          ? [...paths].pop()
+                                          : null;
+
+                                      return (
+                                        <div
+                                          key={selection.pipelineId}
+                                          className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
+                                        >
+                                          <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                            {pipeline?.name ||
+                                              "Unknown Pipeline"}
+                                          </p>
+                                          <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
+                                            {videoPath ? (
+                                              <video
+                                                key={`density-${selection.pipelineId}-${videoPath}`}
+                                                controls
+                                                preload="metadata"
+                                                className="w-full h-full object-cover"
+                                                src={`/assets${videoPath}`}
+                                              >
+                                                Your browser does not support
+                                                the video tag.
+                                              </video>
+                                            ) : (
+                                              <p className="text-xs text-slate-400">
+                                                No video output
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Carousel navigation buttons */}
+                                  {totalPreviewPages > 1 && (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          setPreviewCarouselIndex((prev) =>
+                                            Math.max(0, prev - 1),
+                                          )
+                                        }
+                                        disabled={previewCarouselIndex === 0}
+                                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                      >
+                                        <ChevronLeft className="w-5 h-5 text-slate-200" />
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          setPreviewCarouselIndex((prev) =>
+                                            Math.min(
+                                              totalPreviewPages - 1,
+                                              prev + 1,
+                                            ),
+                                          )
+                                        }
+                                        disabled={
+                                          previewCarouselIndex >=
+                                          totalPreviewPages - 1
+                                        }
+                                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                      >
+                                        <ChevronRight className="w-5 h-5 text-slate-200" />
+                                      </button>
+
+                                      {/* Dots indicator */}
+                                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                        {Array.from({
+                                          length: totalPreviewPages,
+                                        }).map((_, idx) => (
+                                          <button
+                                            key={idx}
+                                            onClick={() =>
+                                              setPreviewCarouselIndex(idx)
+                                            }
+                                            className={`w-2 h-2 rounded-full transition-all ${
+                                              idx === previewCarouselIndex
+                                                ? "bg-blue-500 w-6"
+                                                : "bg-slate-600 hover:bg-slate-500"
+                                            }`}
+                                          />
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()
+                          : null}
                   </div>
                 </div>
               );
@@ -2383,97 +2427,108 @@ const DemoMode = () => {
                                     </div>
 
                                     {/* Live Preview + Save Output + Looping */}
-                                    <div className="min-h-[80px]">
-                                      <div className="flex flex-wrap items-start gap-3">
-                                        <div className="space-y-1 min-h-[72px]">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={
-                                                performanceLivePreviewEnabled
+                                    <div className="min-h-[120px]">
+                                      <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceLivePreviewEnabled
+                                            }
+                                            onCheckedChange={(checked) => {
+                                              setPerformanceLivePreviewEnabled(
+                                                checked === true,
+                                              );
+                                              if (checked) {
+                                                setPerformanceLoopingEnabled(
+                                                  false,
+                                                );
+                                                setPerformanceVideoOutputEnabled(
+                                                  false,
+                                                );
                                               }
-                                              onCheckedChange={(checked) =>
-                                                setPerformanceLivePreviewEnabled(
-                                                  checked === true,
-                                                )
-                                              }
-                                              disabled={isReadOnly}
-                                              className={colors.checkbox}
-                                            />
-                                            <label className="text-xs text-slate-300">
-                                              Enable live preview
-                                            </label>
-                                          </div>
+                                            }}
+                                            disabled={
+                                              isReadOnly ||
+                                              performanceLoopingEnabled ||
+                                              performanceVideoOutputEnabled
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label
+                                            className={`text-xs ${performanceLoopingEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                          >
+                                            Enable live preview
+                                          </label>
                                         </div>
 
-                                        {!performanceLivePreviewEnabled && (
-                                          <>
-                                            <div className="space-y-1">
-                                              <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                  checked={
-                                                    performanceLoopingEnabled
-                                                  }
-                                                  onCheckedChange={(
-                                                    checked,
-                                                  ) => {
-                                                    setPerformanceLoopingEnabled(
-                                                      checked === true,
-                                                    );
-                                                    if (checked) {
-                                                      setPerformanceVideoOutputEnabled(
-                                                        false,
-                                                      );
-                                                    }
-                                                  }}
-                                                  disabled={isReadOnly}
-                                                  className={colors.checkbox}
-                                                />
-                                                <label className="text-xs text-slate-300">
-                                                  Looping
-                                                </label>
-                                              </div>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                              <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                  checked={
-                                                    performanceVideoOutputEnabled
-                                                  }
-                                                  onCheckedChange={(
-                                                    checked,
-                                                  ) => {
-                                                    setPerformanceVideoOutputEnabled(
-                                                      checked === true,
-                                                    );
-                                                    if (checked) {
-                                                      setPerformanceLoopingEnabled(
-                                                        false,
-                                                      );
-                                                    }
-                                                  }}
-                                                  disabled={isReadOnly}
-                                                  className={colors.checkbox}
-                                                />
-                                                <label className="text-xs text-slate-300">
-                                                  Save output
-                                                </label>
-                                              </div>
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                      {performanceVideoOutputEnabled &&
-                                        !performanceLivePreviewEnabled && (
-                                          <div
-                                            className="-mt-14"
-                                            style={{
-                                              overflowAnchor: "none",
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={performanceLoopingEnabled}
+                                            onCheckedChange={(checked) => {
+                                              setPerformanceLoopingEnabled(
+                                                checked === true,
+                                              );
+                                              if (checked) {
+                                                setPerformanceVideoOutputEnabled(
+                                                  false,
+                                                );
+                                                setPerformanceLivePreviewEnabled(
+                                                  false,
+                                                );
+                                              }
                                             }}
+                                            disabled={
+                                              isReadOnly ||
+                                              performanceLivePreviewEnabled ||
+                                              performanceVideoOutputEnabled
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label
+                                            className={`text-xs ${performanceLivePreviewEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
                                           >
-                                            <SaveOutputWarning />
-                                          </div>
-                                        )}
+                                            Looping
+                                          </label>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              performanceVideoOutputEnabled
+                                            }
+                                            onCheckedChange={(checked) => {
+                                              setPerformanceVideoOutputEnabled(
+                                                checked === true,
+                                              );
+                                              if (checked) {
+                                                setPerformanceLoopingEnabled(
+                                                  false,
+                                                );
+                                                setPerformanceLivePreviewEnabled(
+                                                  false,
+                                                );
+                                              }
+                                            }}
+                                            disabled={
+                                              isReadOnly ||
+                                              performanceLivePreviewEnabled ||
+                                              performanceLoopingEnabled
+                                            }
+                                            className={colors.checkbox}
+                                          />
+                                          <label
+                                            className={`text-xs ${performanceLivePreviewEnabled || performanceLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                          >
+                                            Save output
+                                          </label>
+                                        </div>
+
+                                        <div
+                                          className={`-mt-2 ${performanceVideoOutputEnabled && !performanceLivePreviewEnabled ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-200`}
+                                        >
+                                          <SaveOutputWarning />
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -2521,9 +2576,9 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* FPS Floor + Video Output */}
-                                    <div className="min-h-[80px]">
-                                      <div className="flex flex-wrap items-start gap-3">
+                                    {/* FPS Floor + Looping + Video Output */}
+                                    <div className="min-h-[120px]">
+                                      <div className="flex gap-6">
                                         <div className="space-y-1 min-h-[72px]">
                                           <label className="text-xs font-medium text-slate-300 block">
                                             Target FPS
@@ -2543,32 +2598,63 @@ const DemoMode = () => {
                                           />
                                         </div>
 
-                                        <div className="space-y-1">
+                                        <div className="flex flex-col gap-2">
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              checked={densityLoopingEnabled}
+                                              onCheckedChange={(checked) => {
+                                                setDensityLoopingEnabled(
+                                                  checked === true,
+                                                );
+                                                if (checked) {
+                                                  setVideoOutputEnabled(false);
+                                                }
+                                              }}
+                                              disabled={
+                                                isReadOnly || videoOutputEnabled
+                                              }
+                                              className={colors.checkbox}
+                                            />
+                                            <label
+                                              className={`text-xs ${videoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                            >
+                                              Looping
+                                            </label>
+                                          </div>
+
                                           <div className="flex items-center gap-2">
                                             <Checkbox
                                               checked={videoOutputEnabled}
-                                              onCheckedChange={(checked) =>
-                                                setVideoOutputEnabled(!!checked)
+                                              onCheckedChange={(checked) => {
+                                                setVideoOutputEnabled(
+                                                  checked === true,
+                                                );
+                                                if (checked) {
+                                                  setDensityLoopingEnabled(
+                                                    false,
+                                                  );
+                                                }
+                                              }}
+                                              disabled={
+                                                isReadOnly ||
+                                                densityLoopingEnabled
                                               }
-                                              disabled={isReadOnly}
                                               className={colors.checkbox}
                                             />
-                                            <label className="text-xs text-slate-300">
+                                            <label
+                                              className={`text-xs ${densityLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
+                                            >
                                               Save output
                                             </label>
                                           </div>
+
+                                          <div
+                                            className={`-mt-2 ${videoOutputEnabled ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-200`}
+                                          >
+                                            <SaveOutputWarning />
+                                          </div>
                                         </div>
                                       </div>
-                                      {videoOutputEnabled && (
-                                        <div
-                                          className="-mt-6"
-                                          style={{
-                                            overflowAnchor: "none",
-                                          }}
-                                        >
-                                          <SaveOutputWarning />
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
                                 </div>
