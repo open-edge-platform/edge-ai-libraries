@@ -7,7 +7,6 @@ import {
   useRunPerformanceTestMutation,
   useStopDensityTestJobMutation,
   useStopPerformanceTestJobMutation,
-  useUpdateVariantMutation,
 } from "@/api/api.generated.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -119,6 +118,7 @@ const nodeTypeToTag: Record<string, string> = {
 interface PipelineSelection {
   pipelineId: string;
   stream_rate: number;
+  variantId?: string;
 }
 
 type NodePropertyConfig = {
@@ -193,7 +193,6 @@ const DemoMode = () => {
     useRunPerformanceTestMutation();
   const [stopDensityTestJob] = useStopDensityTestJobMutation();
   const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
-  const [updateVariant] = useUpdateVariantMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
@@ -280,6 +279,9 @@ const DemoMode = () => {
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
+  const [selectedVariantIds, setSelectedVariantIds] = useState<
+    Record<string, string>
+  >({}); // Map pipelineId to variantId for form display
   const getNodeEditKey = (pipelineId: string, nodeId: string) =>
     `${pipelineId}::${nodeId}`;
   const inferenceNodeTypes = new Set([
@@ -304,25 +306,6 @@ const DemoMode = () => {
     "threshold",
     "object-class",
   ]);
-  const sanitizeIeConfig = (value: unknown) => {
-    if (value === null || value === undefined) return undefined;
-
-    const raw = String(value).trim();
-    if (!raw) return undefined;
-
-    const unsupportedParams = new Set(["CPU_THROUGHPUT_STREAMS"]);
-    const segments = raw
-      .split(/[;,]/)
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    const filtered = segments.filter((segment) => {
-      const [key] = segment.split("=", 1);
-      return !unsupportedParams.has(key.trim().toUpperCase());
-    });
-
-    return filtered.length > 0 ? filtered.join(",") : undefined;
-  };
   const sanitizeNodeData = (
     nodeType: string,
     data: Record<string, unknown>,
@@ -358,28 +341,28 @@ const DemoMode = () => {
 
     return sanitized;
   };
-  const hasNodeDataChanged = (
-    original: Record<string, unknown> | undefined,
-    next: Record<string, unknown>,
-  ) => {
-    const originalData = original ?? {};
-    const originalKeys = Object.keys(originalData);
-    const nextKeys = Object.keys(next);
-    if (originalKeys.length !== nextKeys.length) return true;
-    for (const key of nextKeys) {
-      if (!Object.prototype.hasOwnProperty.call(originalData, key)) return true;
-      const originalValue = originalData[key];
-      const nextValue = next[key];
-      const normalizedOriginal =
-        originalValue === null || originalValue === undefined
-          ? ""
-          : String(originalValue);
-      const normalizedNext =
-        nextValue === null || nextValue === undefined ? "" : String(nextValue);
-      if (normalizedOriginal !== normalizedNext) return true;
-    }
-    return false;
-  };
+  // const hasNodeDataChanged = (
+  //   original: Record<string, unknown> | undefined,
+  //   next: Record<string, unknown>,
+  // ) => {
+  //   const originalData = original ?? {};
+  //   const originalKeys = Object.keys(originalData);
+  //   const nextKeys = Object.keys(next);
+  //   if (originalKeys.length !== nextKeys.length) return true;
+  //   for (const key of nextKeys) {
+  //     if (!Object.prototype.hasOwnProperty.call(originalData, key)) return true;
+  //     const originalValue = originalData[key];
+  //     const nextValue = next[key];
+  //     const normalizedOriginal =
+  //       originalValue === null || originalValue === undefined
+  //         ? ""
+  //         : String(originalValue);
+  //     const normalizedNext =
+  //       nextValue === null || nextValue === undefined ? "" : String(nextValue);
+  //     if (normalizedOriginal !== normalizedNext) return true;
+  //   }
+  //   return false;
+  // };
   const showResultsPanel = testStarted;
   const isTestFinished =
     lastRunTest === "performance-test"
@@ -1021,6 +1004,19 @@ const DemoMode = () => {
       const defaultVariant = pipeline?.variants?.[0];
       if (!pipeline || !defaultVariant?.pipeline_graph) return null;
 
+      // Check if there's a stored variantId in pipelineSelections
+      const selection = pipelineSelections.find(
+        (sel) => sel.pipelineId === pipelineId,
+      );
+      if (selection?.variantId && pipeline.variants) {
+        const storedVariant = pipeline.variants.find(
+          (variant) => variant.id === selection.variantId,
+        );
+        if (storedVariant) {
+          return storedVariant;
+        }
+      }
+
       const classifyNode = defaultVariant.pipeline_graph.nodes.find(
         (node) => node.type === "gvaclassify",
       );
@@ -1055,8 +1051,18 @@ const DemoMode = () => {
 
     const preparePipelineGraph = (pipelineId: string) => {
       const pipeline = pipelines.find((p) => p.id === pipelineId);
-      const variant = pipeline?.variants?.[0];
-      if (!pipeline || !variant?.pipeline_graph) return null;
+      if (!pipeline) return null;
+
+      // Use getPipelineVariantForRun to get the correct variant based on device selection
+      const variant = getPipelineVariantForRun(pipelineId);
+      if (!variant?.pipeline_graph) return null;
+
+      console.log(
+        "[preparePipelineGraph] Pipeline:",
+        pipeline.name,
+        "| Using variant:",
+        variant.id,
+      );
 
       const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
         const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
@@ -1964,6 +1970,24 @@ const DemoMode = () => {
                                 );
                                 if (!pipeline) return null;
 
+                                // Get the variant to display - use selectedVariantIds if available, otherwise default to first
+                                const variantIdToDisplay =
+                                  selectedVariantIds[pipeline.id];
+                                const variantToDisplay = variantIdToDisplay
+                                  ? pipeline.variants?.find(
+                                      (v) => v.id === variantIdToDisplay,
+                                    )
+                                  : pipeline.variants?.[0];
+
+                                if (!variantToDisplay) return null;
+
+                                console.log(
+                                  "[Form Display] Pipeline:",
+                                  pipeline.name,
+                                  "| Displaying variant:",
+                                  variantToDisplay.id,
+                                );
+
                                 return (
                                   <>
                                     <div className="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -1972,7 +1996,7 @@ const DemoMode = () => {
                                         collapsible
                                         className="w-full space-y-2"
                                       >
-                                        {pipeline.variants?.[0]?.pipeline_graph?.nodes
+                                        {variantToDisplay.pipeline_graph?.nodes
                                           ?.filter((node) => {
                                             const nodeTag =
                                               nodeTypeToTag[node.type] || null;
@@ -2068,6 +2092,111 @@ const DemoMode = () => {
                                                   [editKey]: nextEntry,
                                                 };
                                               });
+
+                                              // Handle device change for gvaclassify - select appropriate variant
+                                              if (
+                                                key === "device" &&
+                                                node.type === "gvaclassify"
+                                              ) {
+                                                const normalizedDeviceValue =
+                                                  String(value ?? "")
+                                                    .trim()
+                                                    .toUpperCase();
+
+                                                console.log(
+                                                  "[Device Change] Pipeline:",
+                                                  pipeline.name,
+                                                  "| Device selected:",
+                                                  normalizedDeviceValue,
+                                                );
+
+                                                const targetVariantId =
+                                                  normalizedDeviceValue ===
+                                                  "GPU"
+                                                    ? "gpu"
+                                                    : normalizedDeviceValue ===
+                                                        "NPU"
+                                                      ? "gpu-npu"
+                                                      : null;
+
+                                                console.log(
+                                                  "[Device Change] Target variant ID:",
+                                                  targetVariantId,
+                                                );
+
+                                                if (
+                                                  targetVariantId &&
+                                                  pipeline.variants
+                                                ) {
+                                                  console.log(
+                                                    "[Device Change] Available variants:",
+                                                    pipeline.variants.map(
+                                                      (v) => v.id,
+                                                    ),
+                                                  );
+
+                                                  const matchedVariant =
+                                                    pipeline.variants.find(
+                                                      (variant) =>
+                                                        variant.id.toLowerCase() ===
+                                                        targetVariantId,
+                                                    );
+
+                                                  console.log(
+                                                    "[Device Change] Matched variant:",
+                                                    matchedVariant
+                                                      ? matchedVariant.id
+                                                      : "NONE FOUND",
+                                                  );
+
+                                                  if (matchedVariant) {
+                                                    // Update pipeline selection to use the correct variant
+                                                    setPipelineSelections(
+                                                      (prev) => {
+                                                        const updated =
+                                                          prev.map((sel) =>
+                                                            sel.pipelineId ===
+                                                            pipeline.id
+                                                              ? {
+                                                                  ...sel,
+                                                                  variantId:
+                                                                    matchedVariant.id,
+                                                                }
+                                                              : sel,
+                                                          );
+                                                        console.log(
+                                                          "[Device Change] Updated selections:",
+                                                          updated.map((s) => ({
+                                                            pipelineId:
+                                                              s.pipelineId,
+                                                            variantId:
+                                                              s.variantId,
+                                                          })),
+                                                        );
+                                                        return updated;
+                                                      },
+                                                    );
+
+                                                    // Update which variant is displayed in the form
+                                                    setSelectedVariantIds(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [pipeline.id]:
+                                                          matchedVariant.id,
+                                                      }),
+                                                    );
+
+                                                    console.log(
+                                                      "[Device Change] Form will now display variant:",
+                                                      matchedVariant.id,
+                                                    );
+                                                  }
+                                                } else {
+                                                  console.log(
+                                                    "[Device Change] No target variant ID or variants array not found",
+                                                  );
+                                                }
+                                              }
                                             };
 
                                             if (dataEntries.length === 0) {
