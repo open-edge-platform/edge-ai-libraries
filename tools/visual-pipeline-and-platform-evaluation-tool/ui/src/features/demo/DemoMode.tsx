@@ -304,6 +304,25 @@ const DemoMode = () => {
     "threshold",
     "object-class",
   ]);
+  const sanitizeIeConfig = (value: unknown) => {
+    if (value === null || value === undefined) return undefined;
+
+    const raw = String(value).trim();
+    if (!raw) return undefined;
+
+    const unsupportedParams = new Set(["CPU_THROUGHPUT_STREAMS"]);
+    const segments = raw
+      .split(/[;,]/)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    const filtered = segments.filter((segment) => {
+      const [key] = segment.split("=", 1);
+      return !unsupportedParams.has(key.trim().toUpperCase());
+    });
+
+    return filtered.length > 0 ? filtered.join(",") : undefined;
+  };
   const sanitizeNodeData = (
     nodeType: string,
     data: Record<string, unknown>,
@@ -327,6 +346,15 @@ const DemoMode = () => {
     }
 
     if (inferenceNodeTypes.has(nodeType)) {
+      if (Object.prototype.hasOwnProperty.call(sanitized, "ie-config")) {
+        const sanitizedIeConfig = sanitizeIeConfig(sanitized["ie-config"]);
+        if (sanitizedIeConfig === undefined) {
+          delete sanitized["ie-config"];
+        } else {
+          sanitized["ie-config"] = sanitizedIeConfig;
+        }
+      }
+
       const regionValue = sanitized["inference-region"];
       const normalizedRegion =
         regionValue === null || regionValue === undefined
