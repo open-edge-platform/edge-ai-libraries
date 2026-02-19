@@ -100,7 +100,8 @@ variants:
       t0. !
       queue !
       vah264dec !
-      video/x-raw !
+      vapostproc !
+      video/x-raw\(memory:VAMemory\) !
       gvafpscounter starting-frame=100 !
       gvadetect
         model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
@@ -130,7 +131,7 @@ variants:
       gvametaconvert format=json json-indent=4 !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw,width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=320,height=240 !
       fakesink name=default_output_sink
   - name: GPU_NPU
     pipeline_description: >-
