@@ -69,7 +69,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
      # Docker Image Registry Configuration
      export REGISTRY="intel/"
-     export TAG=1.0.3
+     export TAG=latest
      ```
 
      To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.

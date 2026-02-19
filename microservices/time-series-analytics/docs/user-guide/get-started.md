@@ -192,7 +192,7 @@ docker compose down -v
 
 ## Other Deployment options
 
-- [How to Deploy with Helm](./how-to-deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
+- [How to Deploy with Helm](./get-started/deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
 
 ## Supporting Resources
 
@@ -204,6 +204,7 @@ docker compose down -v
 :hidden:
 
 ./get-started/system-requirements
+./get-started/deploy-with-helm
 
 :::
 

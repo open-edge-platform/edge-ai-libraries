@@ -2,9 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-#include <opencv2/core/mat.hpp>
-#include <opencv2/core/ocl.hpp>
-#include <opencv2/core/types.hpp>
+#include <opencv2/opencv.hpp>
 
 #include "TestUtil.h"
 #include "gpu/gpu_kernels.h"
@@ -75,18 +73,12 @@ void resizeTest(gpu::InterpolationType interType, cv::InterpolationFlags cvInter
 
 TEST(ResizeLinearA8Test, Positive)
 {
-  if (cv::ocl::haveOpenCL()) {
-    resizeTest(gpu::kInterpolationLinear, cv::INTER_LINEAR, CV_8UC1);
-  } else {
-    throw("Can't run OpenCV opencl version");
-  }
+  // Using SYCL GPU acceleration, no OpenCL check needed
+  resizeTest(gpu::kInterpolationLinear, cv::INTER_LINEAR, CV_8UC1);
 }
 
 TEST(ResizeNearestA8Test, Positive)
 {
-  if (cv::ocl::haveOpenCL()) {
-    resizeTest(gpu::kInterpolationNearest, cv::INTER_NEAREST, CV_8UC1);
-  } else {
-    throw("Can't run OpenCV opencl version");
-  }
+  // Using SYCL GPU acceleration, no OpenCL check needed
+  resizeTest(gpu::kInterpolationNearest, cv::INTER_NEAREST, CV_8UC1);
 }

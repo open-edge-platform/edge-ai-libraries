@@ -125,7 +125,6 @@ formats):
 
 get-started
 how-it-works
-how-to-build-from-source
 api-reference
 troubleshooting
 release-notes

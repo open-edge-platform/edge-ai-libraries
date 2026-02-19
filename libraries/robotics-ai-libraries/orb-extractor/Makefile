@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 .DEFAULT_GOAL := help
-.PHONY: build tests clean lint-all lint-clang lint-python lint-yaml lint-githubactions lint-bash lint-markdown lint-json source-package help
+.PHONY: build tests clean lint-all lint-clang lint-python lint-yaml lint-githubactions lint-bash lint-markdown lint-json source-package help 
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -19,12 +19,15 @@ else
 endif
 
 build:
-	@# Help: Build code using colcon
+	@# Help: Build code using colcon with complete oneAPI 2025.3 clean build environment
 	docker run --rm -t --platform linux/amd64 \
 		-v $(ROOT_DIR):/src \
 		-e DEBIAN_FRONTEND=noninteractive \
 		-e ROS_DISTRO=$(ROS_DISTRO) \
-		--pull always \
+		-e http_proxy=${http_proxy} \
+		-e https_proxy=${https_proxy} \
+		-e no_proxy=${no_proxy} \
+		--pull never \
 		amd64/ros:${ROS_DISTRO}-ros-base \
 		bash -c "curl https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
 			gpg --yes --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg && \
@@ -35,29 +38,42 @@ build:
                 echo 'deb-src [signed-by=/usr/share/keyrings/eci-archive-keyring.gpg] https://eci.intel.com/repos/${UBUNTU_CODENAME} isar main' | tee -a /etc/apt/sources.list.d/eci.list > /dev/null; \
             fi && \
 			apt-get -qq update --allow-unauthenticated && \
-        	apt-get install -y clang devscripts equivs && cd /src && \
-        	rm -rf ./debian && cp -r ./${ROS_DISTRO}/debian ./debian && \
+        	apt-get install -y clang devscripts equivs && \
+        	echo 'Cleaning all build artifacts for oneAPI 2025.3 compatibility...' && \
+        	cd /src && \
+        	rm -rf ./debian ./build ./build-orbtest ./build-* ./CMakeCache.txt ./CMakeFiles ./cmake_install.cmake ./*.cmake && \
+        	find . -name 'CMakeCache.txt' -delete && \
+        	find . -name 'CMakeFiles' -type d -exec rm -rf {} + 2>/dev/null || true && \
+        	find . -name '*.cmake' \( -path '*/build' -o -path '*/build-*' \) -delete 2>/dev/null || true && \
+        	cp -r ./${ROS_DISTRO}/debian ./debian && \
+        	echo 'Installing build dependencies with clean environment...' && \
         	mk-build-deps -i --host-arch amd64 --build-arch amd64 \
         	  -t \"apt-get -y -q -o Debug::pkgProblemResolver=yes --no-install-recommends --allow-downgrades\" debian/control && \
+        	echo 'Starting clean CMake build for oneAPI 2025.3 SYCL compatibility...' && \
+        	export CMAKE_GENERATOR_PLATFORM='' && \
+        	export CMAKE_BUILD_PARALLEL_LEVEL=1 && \
         	dpkg-buildpackage && \
 			mv ../*.deb . && \
-        	echo 'Finished building packages for orb-extractor'"
+        	echo 'Successfully built packages with oneAPI 2025.3 fixes'"
 
 tests:
-	@# Help: Run tests inside Docker container. Be aware that some of the tests could be executed only on TigerLake and AlderLake CPUs, otherwise it will fail on missing SYCL runtime library.
+	@# Help: Run comprehensive tests (both OpenCV-free and OpenCV modes) in containerized environment  
+	@echo "=== Running Comprehensive Test Suite ==="
+	@echo "Testing both OpenCV-free (packaged) and OpenCV (full) variants..."
 	docker run --rm -t --platform linux/amd64 \
 		-v $(ROOT_DIR):/src \
 		-e DEBIAN_FRONTEND=noninteractive \
 		-e ROS_DISTRO=$(ROS_DISTRO) \
 		--privileged \
+		--device /dev/dri:/dev/dri \
 		-w /src \
 		-e no_proxy=${no_proxy} \
 		amd64/ros:${ROS_DISTRO}-ros-base \
-		bash -c "./scripts/test.sh"
+		./scripts/test.sh
 
 clean:
 	@# Help: Clean build artifacts
-	rm -rf build* debian/ ros-* *.deb
+	rm -rf build* debian/ ros-* *.deb tests/build*
 
 license-check:
 	@# Help: Perform a REUSE license check using docker container https://hub.docker.com/r/fsfe/reuse

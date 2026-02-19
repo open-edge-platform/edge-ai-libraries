@@ -28,7 +28,7 @@ global:
     name: document-summarization
     image:
       repository: "intel/document-summary"
-      tag: "1.0.3"
+      tag: "latest"
       pullPolicy: IfNotPresent
 nginx:
   image:
