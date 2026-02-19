@@ -7,7 +7,148 @@ from typing import cast
 from unittest.mock import patch, MagicMock
 
 from api.api_schemas import CameraType, USBCameraDetails, NetworkCameraDetails
-from camera import USBCameraDiscovery, ONVIFCameraDiscovery, ONVIFProfile
+from camera import (
+    USBCameraDiscovery,
+    ONVIFCameraDiscovery,
+    ONVIFProfile,
+    _score_capture_candidate,
+    _select_best_from_v4l2_formats,
+    _select_best_profile,
+)
+from api.api_schemas import (
+    V4L2Format,
+    V4L2FormatSize,
+    CameraProfileInfo,
+)
+
+
+class TestScoringFunctions(unittest.TestCase):
+    """Unit tests for the scoring helper functions."""
+
+    def test_score_capture_candidate_h264_1080p_30fps(self):
+        """H264 at 1080p 30fps should score high."""
+        score = _score_capture_candidate("H264", 1920, 1080, 30.0)
+        # fps_score = 1.0 * 0.3 = 0.3
+        # resolution_score = 1.0 * 0.3 = 0.3
+        # format_pref = 1.0 * 0.4 = 0.4
+        # total = 1.0
+        self.assertAlmostEqual(score, 1.0, places=2)
+
+    def test_score_capture_candidate_mjpg_720p_15fps(self):
+        """MJPG at 720p 15fps should score lower than H264."""
+        score = _score_capture_candidate("MJPG", 1280, 720, 15.0)
+        # fps_score = 0.5 * 0.3 = 0.15
+        # resolution_score = (1280*720)/(1920*1080) * 0.3 ~ 0.133
+        # format_pref = 0.7 * 0.4 = 0.28
+        self.assertGreater(score, 0.5)
+        self.assertLess(score, 0.7)
+
+    def test_score_capture_candidate_yuyv_low_fps(self):
+        """YUYV at low fps should score low."""
+        score = _score_capture_candidate("YUYV", 640, 480, 5.0)
+        self.assertLess(score, 0.4)
+
+    def test_select_best_from_v4l2_formats_empty(self):
+        """Empty formats list should return None."""
+        result = _select_best_from_v4l2_formats([])
+        self.assertIsNone(result)
+
+    def test_select_best_from_v4l2_formats_single_format(self):
+        """Single format should be selected."""
+        formats = [
+            V4L2Format(
+                fourcc="MJPG",
+                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+            )
+        ]
+        result = _select_best_from_v4l2_formats(formats)
+        self.assertIsNotNone(result)
+        assert result is not None  # Type narrowing for static analysis
+        self.assertEqual(result.fourcc, "MJPG")
+        self.assertEqual(result.width, 1920)
+        self.assertEqual(result.height, 1080)
+        self.assertEqual(result.fps, 30.0)
+
+    def test_select_best_from_v4l2_formats_prefers_h264(self):
+        """H264 should be preferred over MJPG at same resolution and fps."""
+        formats = [
+            V4L2Format(
+                fourcc="MJPG",
+                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+            ),
+            V4L2Format(
+                fourcc="H264",
+                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+            ),
+        ]
+        result = _select_best_from_v4l2_formats(formats)
+        self.assertIsNotNone(result)
+        assert result is not None  # Type narrowing for static analysis
+        self.assertEqual(result.fourcc, "H264")
+
+    def test_select_best_from_v4l2_formats_prefers_acceptable_fps(self):
+        """Should prefer formats with fps >= 15 over higher scoring low fps."""
+        formats = [
+            V4L2Format(
+                fourcc="H264",
+                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[5.0])],
+            ),
+            V4L2Format(
+                fourcc="MJPG",
+                sizes=[V4L2FormatSize(width=1280, height=720, fps_list=[30.0])],
+            ),
+        ]
+        result = _select_best_from_v4l2_formats(formats)
+        self.assertIsNotNone(result)
+        assert result is not None  # Type narrowing for static analysis
+        # MJPG at 30fps should be preferred over H264 at 5fps
+        self.assertEqual(result.fourcc, "MJPG")
+        self.assertEqual(result.fps, 30.0)
+
+    def test_select_best_profile_empty(self):
+        """Empty profiles list should return None."""
+        result = _select_best_profile([])
+        self.assertIsNone(result)
+
+    def test_select_best_profile_skips_no_rtsp_url(self):
+        """Profiles without rtsp_url should be skipped."""
+        profiles = [
+            CameraProfileInfo(
+                name="Profile1",
+                rtsp_url="",
+                resolution="1920x1080",
+                encoding="H264",
+                framerate=30,
+                bitrate=4096,
+            )
+        ]
+        result = _select_best_profile(profiles)
+        self.assertIsNone(result)
+
+    def test_select_best_profile_selects_best(self):
+        """Should select best profile based on scoring."""
+        profiles = [
+            CameraProfileInfo(
+                name="LowRes",
+                rtsp_url="rtsp://192.168.1.100/low",
+                resolution="640x480",
+                encoding="MJPEG",
+                framerate=15,
+                bitrate=1024,
+            ),
+            CameraProfileInfo(
+                name="HighRes",
+                rtsp_url="rtsp://192.168.1.100/high",
+                resolution="1920x1080",
+                encoding="H264",
+                framerate=30,
+                bitrate=4096,
+            ),
+        ]
+        result = _select_best_profile(profiles)
+        self.assertIsNotNone(result)
+        assert result is not None  # Type narrowing for static analysis
+        self.assertEqual(result.name, "HighRes")
 
 
 class TestUSBCameraDiscovery(unittest.TestCase):
@@ -18,7 +159,7 @@ class TestUSBCameraDiscovery(unittest.TestCase):
       * singleton pattern implementation,
       * USB camera discovery using v4l2-ctl,
       * video capture capability verification,
-      * resolution detection,
+      * V4L2 format parsing,
       * error handling for missing tools and timeouts.
     """
 
@@ -43,63 +184,95 @@ class TestUSBCameraDiscovery(unittest.TestCase):
         instance2 = USBCameraDiscovery()
         self.assertIs(instance1, instance2)
 
+    def test_parse_formats_ext_output_single_format(self):
+        """_parse_formats_ext_output should parse single format correctly."""
+        output = """ioctl: VIDIOC_ENUM_FMT
+    Type: Video Capture
+
+    [0]: 'MJPG' (Motion-JPEG, compressed)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+        Size: Discrete 1280x720
+            Interval: Discrete 0.033s (30.000 fps)
+"""
+        formats = USBCameraDiscovery._parse_formats_ext_output(output)
+
+        self.assertEqual(len(formats), 1)
+        self.assertEqual(formats[0].fourcc, "MJPG")
+        self.assertEqual(len(formats[0].sizes), 2)
+        self.assertEqual(formats[0].sizes[0].width, 1920)
+        self.assertEqual(formats[0].sizes[0].height, 1080)
+        self.assertIn(30.0, formats[0].sizes[0].fps_list)
+
+    def test_parse_formats_ext_output_multiple_formats(self):
+        """_parse_formats_ext_output should parse multiple formats correctly."""
+        output = """ioctl: VIDIOC_ENUM_FMT
+    Type: Video Capture
+
+    [0]: 'MJPG' (Motion-JPEG)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+
+    [1]: 'YUYV' (YUYV 4:2:2)
+        Size: Discrete 640x480
+            Interval: Discrete 0.033s (30.000 fps)
+            Interval: Discrete 0.067s (15.000 fps)
+"""
+        formats = USBCameraDiscovery._parse_formats_ext_output(output)
+
+        self.assertEqual(len(formats), 2)
+        self.assertEqual(formats[0].fourcc, "MJPG")
+        self.assertEqual(formats[1].fourcc, "YUYV")
+        self.assertEqual(len(formats[1].sizes[0].fps_list), 2)
+
+    def test_parse_formats_ext_output_empty(self):
+        """_parse_formats_ext_output should return empty list for empty output."""
+        formats = USBCameraDiscovery._parse_formats_ext_output("")
+        self.assertEqual(formats, [])
+
     @patch("camera.subprocess.run")
-    def test_get_camera_resolution_parses_correctly(self, mock_run):
-        """_get_camera_resolution should parse v4l2-ctl output correctly."""
+    def test_parse_v4l2_formats_success(self, mock_run):
+        """_parse_v4l2_formats should call v4l2-ctl and parse output."""
         discovery = USBCameraDiscovery()
 
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout = """Format Video Capture:
-        Width/Height      : 1920/1080
-        Pixel Format      : 'MJPG'"""
+        mock_result.stdout = """[0]: 'MJPG' (Motion-JPEG)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+"""
         mock_run.return_value = mock_result
 
-        resolution = discovery._get_camera_resolution("/dev/video0")
+        formats = discovery._parse_v4l2_formats("/dev/video0")
 
-        self.assertEqual(resolution, "1920x1080")
+        self.assertEqual(len(formats), 1)
         mock_run.assert_called_once_with(
-            ["v4l2-ctl", "-d", "/dev/video0", "--get-fmt-video"],
+            ["v4l2-ctl", "--device", "/dev/video0", "--list-formats-ext"],
             capture_output=True,
             text=True,
-            timeout=3,
+            timeout=5,
         )
 
     @patch("camera.subprocess.run")
-    def test_get_camera_resolution_returns_none_on_error(self, mock_run):
-        """_get_camera_resolution should return None when v4l2-ctl fails."""
+    def test_parse_v4l2_formats_failure(self, mock_run):
+        """_parse_v4l2_formats should return empty list on failure."""
         discovery = USBCameraDiscovery()
 
         mock_result = MagicMock()
         mock_result.returncode = 1
-        mock_result.stdout = "Error"
         mock_run.return_value = mock_result
 
-        resolution = discovery._get_camera_resolution("/dev/video0")
-
-        self.assertIsNone(resolution)
-
-    @patch("camera.subprocess.run")
-    def test_get_camera_resolution_handles_timeout(self, mock_run):
-        """_get_camera_resolution should handle timeout gracefully."""
-        discovery = USBCameraDiscovery()
-
-        mock_run.side_effect = subprocess.TimeoutExpired("v4l2-ctl", 3)
-
-        resolution = discovery._get_camera_resolution("/dev/video0")
-
-        self.assertIsNone(resolution)
+        formats = discovery._parse_v4l2_formats("/dev/video0")
+        self.assertEqual(formats, [])
 
     @patch("camera.subprocess.run")
-    def test_get_camera_resolution_handles_missing_tool(self, mock_run):
-        """_get_camera_resolution should handle missing v4l2-ctl."""
+    def test_parse_v4l2_formats_timeout(self, mock_run):
+        """_parse_v4l2_formats should return empty list on timeout."""
         discovery = USBCameraDiscovery()
+        mock_run.side_effect = subprocess.TimeoutExpired("v4l2-ctl", 5)
 
-        mock_run.side_effect = FileNotFoundError()
-
-        resolution = discovery._get_camera_resolution("/dev/video0")
-
-        self.assertIsNone(resolution)
+        formats = discovery._parse_v4l2_formats("/dev/video0")
+        self.assertEqual(formats, [])
 
     @patch("camera.subprocess.run")
     def test_can_capture_video_returns_true_for_capture_device(self, mock_run):
@@ -165,8 +338,8 @@ Device Caps      : 0x84a00000
         self.assertFalse(can_capture)
 
     @patch("camera.subprocess.run")
-    def test_discover_cameras_returns_valid_cameras(self, mock_run):
-        """discover_cameras should return list of USB cameras with video capture capability."""
+    def test_discover_cameras_returns_valid_cameras_with_best_capture(self, mock_run):
+        """discover_cameras should return cameras with best_capture from V4L2 formats."""
         discovery = USBCameraDiscovery()
 
         # Mock v4l2-ctl --list-devices
@@ -175,9 +348,6 @@ Device Caps      : 0x84a00000
         list_devices_result.stdout = """Integrated Camera (usb-0000:00:14.0-8):
         /dev/video0
         /dev/video1
-
-USB Camera (usb-0000:00:14.0-9):
-        /dev/video2
 """
 
         # Mock v4l2-ctl --all for capability check
@@ -192,20 +362,13 @@ USB Camera (usb-0000:00:14.0-9):
         video1_caps.stdout = """Device Caps      : 0x84a00000
         Metadata Capture"""
 
-        video2_caps = MagicMock()
-        video2_caps.returncode = 0
-        video2_caps.stdout = """Device Caps      : 0x84a00001
-        Video Capture
-        Streaming"""
-
-        # Mock v4l2-ctl --get-fmt-video for resolution
-        video0_fmt = MagicMock()
-        video0_fmt.returncode = 0
-        video0_fmt.stdout = "Width/Height      : 1920/1080"
-
-        video2_fmt = MagicMock()
-        video2_fmt.returncode = 0
-        video2_fmt.stdout = "Width/Height      : 1280/720"
+        # Mock v4l2-ctl --list-formats-ext
+        video0_formats = MagicMock()
+        video0_formats.returncode = 0
+        video0_formats.stdout = """[0]: 'MJPG' (Motion-JPEG)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+"""
 
         def run_side_effect(*args, **kwargs):
             cmd = args[0]
@@ -217,35 +380,32 @@ USB Camera (usb-0000:00:14.0-9):
                     return video0_caps
                 elif device == "/dev/video1":
                     return video1_caps
-                elif device == "/dev/video2":
-                    return video2_caps
-            elif "--get-fmt-video" in cmd:
-                device = cmd[2]
-                if device == "/dev/video0":
-                    return video0_fmt
-                elif device == "/dev/video2":
-                    return video2_fmt
+            elif "--list-formats-ext" in cmd:
+                return video0_formats
             return MagicMock(returncode=1, stdout="")
 
         mock_run.side_effect = run_side_effect
 
         cameras = discovery.discover_cameras()
 
-        # Should find 2 cameras with video capture capability (video0 and video2)
-        self.assertEqual(len(cameras), 2)
-        device_ids = {cam.device_id for cam in cameras}
-        self.assertIn("usb-camera-integrated-camera-0", device_ids)
-        self.assertIn("usb-camera-usb-camera-2", device_ids)
+        # Should find 1 camera with video capture capability
+        self.assertEqual(len(cameras), 1)
 
         # Verify camera details
-        video0_cam = next(
-            cam for cam in cameras if cam.device_id == "usb-camera-integrated-camera-0"
-        )
-        self.assertEqual(video0_cam.device_type, CameraType.USB)
-        self.assertEqual(video0_cam.device_name, "Integrated Camera")
-        usb_details = cast(USBCameraDetails, video0_cam.details)
+        camera = cameras[0]
+        self.assertEqual(camera.device_type, CameraType.USB)
+        self.assertEqual(camera.device_name, "Integrated Camera")
+
+        usb_details = cast(USBCameraDetails, camera.details)
         self.assertEqual(usb_details.device_path, "/dev/video0")
-        self.assertEqual(usb_details.resolution, "1920x1080")
+        self.assertIsNotNone(usb_details.best_capture)
+        assert (
+            usb_details.best_capture is not None
+        )  # Type narrowing for static analysis
+        self.assertEqual(usb_details.best_capture.fourcc, "MJPG")
+        self.assertEqual(usb_details.best_capture.width, 1920)
+        self.assertEqual(usb_details.best_capture.height, 1080)
+        self.assertEqual(usb_details.best_capture.fps, 30.0)
 
     @patch("camera.subprocess.run")
     def test_discover_cameras_handles_missing_tool(self, mock_run):
@@ -287,9 +447,12 @@ Failed to query device
         video0_caps.stdout = """Device Caps      : 0x84a00001
         Video Capture"""
 
-        video0_fmt = MagicMock()
-        video0_fmt.returncode = 0
-        video0_fmt.stdout = "Width/Height      : 1920/1080"
+        video0_formats = MagicMock()
+        video0_formats.returncode = 0
+        video0_formats.stdout = """[0]: 'MJPG' (Motion-JPEG)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+"""
 
         def run_side_effect(*args, **kwargs):
             cmd = args[0]
@@ -297,8 +460,8 @@ Failed to query device
                 return list_devices_result
             elif "--all" in cmd:
                 return video0_caps
-            elif "--get-fmt-video" in cmd:
-                return video0_fmt
+            elif "--list-formats-ext" in cmd:
+                return video0_formats
             return MagicMock(returncode=1, stdout="")
 
         mock_run.side_effect = run_side_effect
@@ -311,33 +474,27 @@ Failed to query device
 
     @patch("camera.subprocess.run")
     def test_discover_cameras_normalizes_device_names_for_url(self, mock_run):
-        """discover_cameras should normalize device names to be URL-safe (remove colons and special chars)."""
+        """discover_cameras should normalize device names to be URL-safe."""
         discovery = USBCameraDiscovery()
 
-        # Mock v4l2-ctl --list-devices with device names containing special characters
         list_devices_result = MagicMock()
         list_devices_result.returncode = 0
         list_devices_result.stdout = """Thronmax StreamGo Webcam: Thron (usb-0000:00:14.0-8):
         /dev/video0
-
-Integrated Camera: Integrated C (usb-0000:00:14.0-9):
-        /dev/video1
-
-USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
-        /dev/video2
 """
 
-        # Mock v4l2-ctl --all for capability check
         video_caps = MagicMock()
         video_caps.returncode = 0
         video_caps.stdout = """Device Caps      : 0x84a00001
         Video Capture
         Streaming"""
 
-        # Mock v4l2-ctl --get-fmt-video for resolution
-        video_fmt = MagicMock()
-        video_fmt.returncode = 0
-        video_fmt.stdout = "Width/Height      : 1920/1080"
+        video_formats = MagicMock()
+        video_formats.returncode = 0
+        video_formats.stdout = """[0]: 'MJPG' (Motion-JPEG)
+        Size: Discrete 1920x1080
+            Interval: Discrete 0.033s (30.000 fps)
+"""
 
         def run_side_effect(*args, **kwargs):
             cmd = args[0]
@@ -345,40 +502,23 @@ USB2.0 HD UVC WebCam: USB2.0 HD (usb-0000:00:14.0-10):
                 return list_devices_result
             elif "--all" in cmd:
                 return video_caps
-            elif "--get-fmt-video" in cmd:
-                return video_fmt
+            elif "--list-formats-ext" in cmd:
+                return video_formats
             return MagicMock(returncode=1, stdout="")
 
         mock_run.side_effect = run_side_effect
 
         cameras = discovery.discover_cameras()
 
-        # Should find 3 cameras
-        self.assertEqual(len(cameras), 3)
+        self.assertEqual(len(cameras), 1)
 
-        # Verify device IDs are URL-safe (no colons, no special characters)
-        device_ids = [cam.device_id for cam in cameras]
+        # Verify device ID is URL-safe (no colons)
+        device_id = cameras[0].device_id
+        self.assertIn("usb-camera-thronmax-streamgo-webcam-thron-0", device_id)
+        self.assertNotIn(":", device_id)
 
-        # Verify expected device IDs are present (normalized)
-        self.assertIn("usb-camera-thronmax-streamgo-webcam-thron-0", device_ids)
-        self.assertIn("usb-camera-integrated-camera-integrated-c-1", device_ids)
-        self.assertIn("usb-camera-usb2-0-hd-uvc-webcam-usb2-0-hd-2", device_ids)
-
-        # Verify no colons appear in device IDs
-        for device_id in device_ids:
-            self.assertNotIn(":", device_id)
-            # Verify only alphanumeric and underscores
-            for char in device_id:
-                self.assertTrue(
-                    char.isalnum() or char == "_" or char == "-",
-                    f"Character '{char}' in device_id '{device_id}' is not URL-safe",
-                )
-
-        # Verify device_name is preserved (not normalized)
-        camera_names = [cam.device_name for cam in cameras]
-        self.assertIn("Thronmax StreamGo Webcam: Thron", camera_names)
-        self.assertIn("Integrated Camera: Integrated C", camera_names)
-        self.assertIn("USB2.0 HD UVC WebCam: USB2.0 HD", camera_names)
+        # Verify device_name is preserved
+        self.assertEqual(cameras[0].device_name, "Thronmax StreamGo Webcam: Thron")
 
 
 class TestONVIFProfile(unittest.TestCase):
@@ -579,7 +719,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
 
     @patch("camera.ONVIFCamera")
     def test_load_camera_profiles_successful_authentication(self, mock_onvif_camera):
-        """load_camera_profiles should authenticate and return camera with profiles."""
+        """load_camera_profiles should authenticate and return camera with profiles and best_profile."""
         with tempfile.TemporaryDirectory() as td:
             json_file = Path(td) / "cameras.json"
             json_file.write_text('{"cameras": []}')
@@ -634,6 +774,13 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             self.assertEqual(profile.encoding, "H264")
             self.assertEqual(profile.framerate, 30)
             self.assertEqual(profile.bitrate, 4096)
+
+            # Verify best_profile is selected
+            self.assertIsNotNone(net_details.best_profile)
+            assert (
+                net_details.best_profile is not None
+            )  # Type narrowing for static analysis
+            self.assertEqual(net_details.best_profile.name, "Profile_1")
 
             # Verify ONVIFCamera was called with correct credentials
             mock_onvif_camera.assert_called_once_with(

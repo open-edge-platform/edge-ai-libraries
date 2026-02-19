@@ -8,6 +8,7 @@ from api.api_schemas import (
     USBCameraDetails,
     NetworkCameraDetails,
     CameraProfileInfo,
+    V4L2BestCapture,
 )
 from managers.camera_manager import CameraManager
 
@@ -41,8 +42,16 @@ class TestCameraManager(unittest.TestCase):
     ) -> Camera:
         """Helper that constructs a Camera instance."""
         if camera_type == CameraType.USB:
+            # Use best_capture instead of resolution
+            best_capture = V4L2BestCapture(
+                fourcc="MJPG",
+                width=1920,
+                height=1080,
+                fps=30.0,
+            )
             details = USBCameraDetails(
-                device_path=f"/dev/video{device_id[-1]}", resolution="1920x1080"
+                device_path=f"/dev/video{device_id[-1]}",
+                best_capture=best_capture,
             )
         else:
             # Convert string profile names to CameraProfileInfo objects
