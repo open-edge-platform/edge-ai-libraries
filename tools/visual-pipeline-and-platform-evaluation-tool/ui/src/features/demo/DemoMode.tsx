@@ -1053,9 +1053,9 @@ const DemoMode = () => {
       return matchedVariant ?? defaultVariant;
     };
 
-    const preparePipelineGraph = (pipelineId: string, variantId: string) => {
+    const preparePipelineGraph = (pipelineId: string) => {
       const pipeline = pipelines.find((p) => p.id === pipelineId);
-      const variant = pipeline?.variants?.find((item) => item.id === variantId);
+      const variant = pipeline?.variants?.[0];
       if (!pipeline || !variant?.pipeline_graph) return null;
 
       const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
@@ -1128,9 +1128,7 @@ const DemoMode = () => {
             },
             pipeline_performance_specs: pipelineSelections.map((selection) => {
               const variant = getPipelineVariantForRun(selection.pipelineId);
-              const pipelineGraph = variant
-                ? preparePipelineGraph(selection.pipelineId, variant.id)
-                : null;
+              const pipelineGraph = preparePipelineGraph(selection.pipelineId);
 
               return {
                 pipeline: pipelineGraph
@@ -1171,9 +1169,7 @@ const DemoMode = () => {
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
             const variant = getPipelineVariantForRun(selection.pipelineId);
-            const pipelineGraph = variant
-              ? preparePipelineGraph(selection.pipelineId, variant.id)
-              : null;
+            const pipelineGraph = preparePipelineGraph(selection.pipelineId);
 
             return {
               pipeline: pipelineGraph
