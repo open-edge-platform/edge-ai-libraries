@@ -81,9 +81,7 @@ export const Pipelines = () => {
     undo: undoHistory,
     redo: redoHistory,
     resetHistory,
-  } = useUndoRedo({
-    onEditorKeyChange: () => setEditorKey((prev) => prev + 1),
-  });
+  } = useUndoRedo();
 
   const { data, isSuccess, refetch } = useGetPipelineQuery(
     {
@@ -380,6 +378,7 @@ export const Pipelines = () => {
                 isSimpleMode={isSimpleMode}
                 currentNodes={currentNodes}
                 currentEdges={currentEdges}
+                hasUnsavedChanges={canUndo}
                 onModeChange={setIsSimpleMode}
                 onTransitionStart={() => setIsTransitioning(true)}
                 onTransitionEnd={() => setIsTransitioning(false)}
@@ -389,6 +388,7 @@ export const Pipelines = () => {
                 }}
                 onRefetch={refetch}
                 onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+                onResetHistory={resetHistory}
               />
             )}
           </div>

@@ -7,7 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.tsx";
-import { useCreateVariantMutation } from "@/api/api.generated.ts";
+import {
+  useCreateVariantMutation,
+  useConvertSimpleToAdvancedMutation,
+  useConvertAdvancedToSimpleMutation,
+} from "@/api/api.generated.ts";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -21,8 +25,10 @@ import { newVariantSchema, type NewVariantFormData } from "./pipelineSchemas";
 
 type NewVariantDialogProps = {
   pipelineId: string;
+  variantId: string;
   currentNodes: ReactFlowNode[];
   currentEdges: ReactFlowEdge[];
+  isSimpleMode: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -30,8 +36,10 @@ type NewVariantDialogProps = {
 
 export const NewVariantDialog = ({
   pipelineId,
+  variantId,
   currentNodes,
   currentEdges,
+  isSimpleMode,
   open,
   onOpenChange,
   onSuccess,
@@ -50,6 +58,8 @@ export const NewVariantDialog = ({
   });
 
   const [createVariant, { isLoading: isCreating }] = useCreateVariantMutation();
+  const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
+  const [convertAdvancedToSimple] = useConvertAdvancedToSimpleMutation();
 
   const onSubmit = async (data: NewVariantFormData) => {
     try {
@@ -66,12 +76,36 @@ export const NewVariantDialog = ({
         })),
       };
 
+      // Convert based on current mode
+      let advancedGraph = pipelineGraph;
+      let simpleGraph = pipelineGraph;
+
+      if (isSimpleMode) {
+        // Current graph is simple, need to convert to advanced
+        const convertedAdvanced = await convertSimpleToAdvanced({
+          pipelineId,
+          variantId,
+          pipelineGraph,
+        }).unwrap();
+        advancedGraph = convertedAdvanced;
+        simpleGraph = pipelineGraph;
+      } else {
+        // Current graph is advanced, need to convert to simple
+        const convertedSimple = await convertAdvancedToSimple({
+          pipelineId,
+          variantId,
+          pipelineGraph,
+        }).unwrap();
+        advancedGraph = pipelineGraph;
+        simpleGraph = convertedSimple;
+      }
+
       const newVariant = await createVariant({
         pipelineId,
         variantCreate: {
           name: data.name.trim(),
-          pipeline_graph: pipelineGraph,
-          pipeline_graph_simple: pipelineGraph,
+          pipeline_graph: advancedGraph,
+          pipeline_graph_simple: simpleGraph,
         },
       }).unwrap();
 

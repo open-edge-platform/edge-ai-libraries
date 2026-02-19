@@ -653,8 +653,10 @@ export const PipelineActionsMenu = ({
 
       <NewVariantDialog
         pipelineId={pipelineId}
+        variantId={variant}
         currentNodes={currentNodes}
         currentEdges={currentEdges}
+        isSimpleMode={isSimpleMode}
         open={saveVariantDialogOpen}
         onOpenChange={setSaveVariantDialogOpen}
       />
