@@ -11,15 +11,13 @@ variants:
     pipeline_description: >-
       filesrc location=/videos/input/metro_smart_parking.mp4 !
       decodebin3 !
-      videoconvert !
-      video/x-raw !
       gvadetect
         model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=opencv
         device=CPU
         threshold=0.7
         inference-interval=1
-        inference-region=0
+        inference-region=full-frame
         model-instance-id=inst0-cpu !
       queue !
       gvaclassify
@@ -28,7 +26,7 @@ variants:
         device=CPU
         inference-interval=1
         model-instance-id=inst1-cpu
-        inference-region=1 !
+        inference-region=roi-list !
       queue !
       gvawatermark !
       gvametaconvert add-empty-results=true !
@@ -38,16 +36,13 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/metro_smart_parking.mp4 !
-      parsebin !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
+      decodebin3 !
       gvadetect
         model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=va-surface-sharing
         device=GPU
         batch_size=8
-        inference-region=0
+        inference-region=full-frame
         inference-interval=1
         nireq=2
         threshold=0.7
@@ -59,7 +54,7 @@ variants:
         pre-process-backend=va-surface-sharing
         device=GPU
         inference-interval=1
-        inference-region=1
+        inference-region=roi-list
         nireq=2
         model-instance-id=instgpu1 !
       queue !
@@ -71,17 +66,14 @@ variants:
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/metro_smart_parking.mp4 !
-      parsebin !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
+      decodebin3 !
       gvadetect
         model=/models/output/public/yolo11s/FP16/yolo11s.xml
         pre-process-backend=va
         device=NPU
         batch_size=1
         inference-interval=1
-        inference-region=0
+        inference-region=full-frame
         nireq=2
         threshold=0.7
         model-instance-id=instnpu0 !
@@ -91,10 +83,40 @@ variants:
         pre-process-backend=va
         device=NPU
         inference-interval=1
-        inference-region=1
+        inference-region=roi-list
         batch-size=1
         nireq=2
         model-instance-id=instnpu1 !
+      queue !
+      gvawatermark !
+      gvametaconvert add-empty-results=true !
+      queue !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+  - name: GPU_NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/metro_smart_parking.mp4 !
+      decodebin3 !
+      gvadetect
+        model=/models/output/public/yolo11s/FP16/yolo11s.xml
+        pre-process-backend=va-surface-sharing
+        device=GPU
+        batch_size=8
+        inference-region=full-frame
+        inference-interval=1
+        nireq=2
+        threshold=0.7
+        model-instance-id=instgpu-npu0 !
+      queue !
+      gvaclassify
+        model=/models/output/public/colorcls2/colorcls2.xml
+        pre-process-backend=va
+        device=NPU
+        inference-interval=1
+        inference-region=roi-list
+        batch-size=1
+        nireq=2
+        model-instance-id=instgpu-npu1 !
       queue !
       gvawatermark !
       gvametaconvert add-empty-results=true !

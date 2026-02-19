@@ -479,15 +479,28 @@ class _PipelineRunner:
     def _max_runtime_enforcement_thread(self, loop: GLib.MainLoop):
         """Thread that enforces the maximum pipeline runtime.
 
-        After `max_run_time_sec` seconds, this thread stops the pipeline and
-        quits the main loop, regardless of whether EOS was reached.
+        After `max_run_time_sec` seconds, this thread initiates a graceful
+        shutdown by:
 
-        Note:
-            If an ERROR or EOS has already terminated the run, this thread
-            does nothing. Otherwise, it performs a controlled stop of the
-            pipeline, which is treated as success (provided no ERRORs are
-            found on the bus).
+        1. Pausing the pipeline to stop source elements from producing
+           new data.
+        2. Flushing the entire pipeline (FLUSH_START + FLUSH_STOP) to
+           discard all internally buffered data in every element — not
+           just queue elements, but also decoders, inference elements,
+           and trackers.
+        3. Resuming the pipeline (PLAYING) and sending an EOS event.
+           Since all internal buffers have been flushed, the EOS
+           propagates through the pipeline almost instantly.
+
+        This ensures that elements like gvafpscounter still receive
+        the EOS event and can emit their final summary, while avoiding
+        the delay caused by processing hundreds of buffered frames.
+
+        If the pipeline does not reach EOS within the grace period,
+        it is forcefully stopped.
         """
+        eos_grace_period_sec = 2.0
+
         time.sleep(self._max_run_time_sec)
 
         # If an ERROR or EOS already terminated the run, do nothing.
@@ -495,22 +508,65 @@ class _PipelineRunner:
             return
 
         self._logger.info(
-            "Max runtime (%.1f s) elapsed; stopping pipeline.",
+            "Max runtime (%.1f s) elapsed; initiating graceful shutdown.",
             self._max_run_time_sec,
         )
         self._state.max_runtime_triggered = True
         self._state.shutdown_in_progress = True
         self._state.reason = self._state.reason or "max_runtime"
 
-        try:
-            self._pipeline.set_state(Gst.State.NULL)
-        except Exception as exc:  # noqa: BLE001
-            self._logger.warning(
-                "Error while stopping pipeline at max runtime: %r", exc
-            )
+        # Step 1: Pause the pipeline to stop sources from producing
+        # new buffers.
+        self._logger.debug("Pausing pipeline to stop data production.")
+        self._pipeline.set_state(Gst.State.PAUSED)
+        self._pipeline.get_state(2 * Gst.SECOND)
 
-        # Quit the loop so that run() can proceed to final evaluation.
-        loop.quit()
+        # Step 2: Flush the entire pipeline. FLUSH_START discards all
+        # data buffered internally in every element (decoders, inference
+        # elements, queues, trackers, etc.). FLUSH_STOP resets the
+        # pipeline's streaming state so it can accept the subsequent
+        # EOS event normally.
+        self._logger.debug("Flushing pipeline to discard all internally buffered data.")
+        self._pipeline.send_event(Gst.Event.new_flush_start())
+        self._pipeline.send_event(Gst.Event.new_flush_stop(True))
+
+        # Step 3: Resume the pipeline and send EOS. The pipeline is now
+        # empty — no queued frames to process — so EOS will propagate
+        # through to the sink almost immediately, triggering summary
+        # output from elements like gvafpscounter along the way.
+        self._logger.debug("Resuming pipeline and sending EOS.")
+        self._pipeline.set_state(Gst.State.PLAYING)
+
+        eos_sent = self._pipeline.send_event(Gst.Event.new_eos())
+        if not eos_sent:
+            self._logger.warning(
+                "Failed to send EOS event to pipeline; forcing shutdown."
+            )
+            try:
+                self._pipeline.set_state(Gst.State.NULL)
+            except Exception as exc:  # noqa: BLE001
+                self._logger.warning("Error while force-stopping pipeline: %r", exc)
+            loop.quit()
+            return
+
+        # Step 4: Wait briefly for EOS to arrive on the bus. With a
+        # fully flushed pipeline this should take well under a second.
+        time.sleep(eos_grace_period_sec)
+
+        if not self._state.eos_seen and not self._state.error_seen:
+            self._logger.warning(
+                "Pipeline did not reach EOS within %.1f s grace period; "
+                "forcing shutdown.",
+                eos_grace_period_sec,
+            )
+            try:
+                self._pipeline.set_state(Gst.State.NULL)
+            except Exception as exc:  # noqa: BLE001
+                self._logger.warning(
+                    "Error while force-stopping pipeline after grace period: %r",
+                    exc,
+                )
+            loop.quit()
 
     def run(self) -> Tuple[bool, Optional[str]]:
         """Run the pipeline and return (ok, reason).
