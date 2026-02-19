@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- [System Requirements](./get-started/system-requirements.md)
+- [System Requirements](../get-started/system-requirements.md)
 - K8s installation on single or multi node must be done as pre-requisite to continue
   the following deployment. Note: The kubernetes cluster is set up with `kubeadm`,
   `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.

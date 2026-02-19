@@ -129,7 +129,7 @@ Now you have successfully run the DL Streamer Pipeline Server container, sent a 
 -   [Get Started](../get-started.md) with the deployment using docker
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](../index.md).
--   For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide/Overview.md)
+-   For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide.md)
 -   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
 
 ## Legal Information

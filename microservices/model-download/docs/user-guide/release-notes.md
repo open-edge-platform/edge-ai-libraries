@@ -2,6 +2,16 @@
 
 ## Current Release
 
+**Version**: 1.1.0-rc1
+**Release Date**: WW08 2026
+- Updated OpenVINO plugin to support NPU for LLM models
+- Enabled OpenVINO plugin with VLM support.
+- Implemented component-based model conversion for models not supported by Optimum
+- Added new GETI plugin for downloading models from GETI
+
+## Known Issues/Behavior:
+- EMF deployment is not supported right now
+
 **Version**: 1.0.1  
 **Release Date**: WW49 2025
 - Enhanced response structure consistency across all plugins

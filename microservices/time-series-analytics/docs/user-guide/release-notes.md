@@ -1,7 +1,7 @@
 # Release Notes
 
-- [December 2025](./dec-2025.md)
-- [August 2025](./aug-2025.md)
+- [December 2025](./release-notes/dec-2025.md)
+- [August 2025](./release-notes/aug-2025.md)
 
 <!--hide_directive
 ```{toctree}

@@ -81,7 +81,7 @@ def test_ingest_invalid_links(test_client):
         indicating that the URL is invalid.
     """
 
-    urls = ["http://invalid-url.com"]
+    urls = ["http://invalid-url.invalid"]
 
     with patch("app.main.ingest_url_to_pgvector") as mock_ingest:
         mock_ingest.side_effect = Exception("Invalid URL")

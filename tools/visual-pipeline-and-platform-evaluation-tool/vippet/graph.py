@@ -36,7 +36,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All elements matching these patterns will be shown in Simple View.
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
-    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink"
+    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink,source"
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.
@@ -639,7 +639,7 @@ class Graph:
         """
         Retrieve a list of input sources from source nodes in the graph.
 
-        Supports multiple input types:
+        Supports multiple source types:
         - Video files (filesrc): file paths or filenames
         - RTSP cameras (rtspsrc): rtsp:// URLs
         - USB cameras (v4l2src): /dev/videoX device paths
@@ -759,13 +759,13 @@ class Graph:
         This function creates a new graph that shows only "meaningful" elements (sources,
         inference, outputs) while hiding technical plumbing elements (queues, converters, etc.).
         Additionally, specific source elements (filesrc, v4l2src, rtspsrc) are converted to
-        a generic "input" type for better UI presentation.
+        a generic "source" type for better UI presentation.
 
         Algorithm:
           1. Identify which nodes should be visible based on SIMPLE_VIEW_VISIBLE_ELEMENTS patterns
           2. Build a mapping of edges to traverse through hidden nodes
           3. Create new graph with only visible nodes (deep copied)
-          4. Convert source elements (*src) to generic "input" nodes with kind/source attributes
+          4. Convert source elements (*src) to generic "source" nodes with kind/source attributes
           5. Reconnect edges: if A→hidden→hidden→B, create direct edge A→B
           6. Handle tee branches: preserve branching structure even when tee itself is hidden
 
@@ -773,7 +773,7 @@ class Graph:
           * Visible node IDs are preserved from the original graph
           * Edge IDs are regenerated sequentially in the new graph
           * Caps nodes (marked with __node_kind="caps") are always hidden
-          * Source elements are converted to generic "input" type with standardized attributes
+          * Source elements are converted to generic "source" type with standardized attributes
           * If all nodes in a path are hidden, the edge is dropped
           * Tee branch structure is maintained when tee has visible downstream nodes
         """
@@ -801,8 +801,8 @@ class Graph:
         ]
         simple_nodes.sort(key=lambda node: int(node.id))
 
-        # Convert specific source elements (*src) to generic "input" type
-        # This simplifies the UI by showing a unified input node
+        # Convert specific source elements (*src) to generic "source" type
+        # This simplifies the UI by showing a unified source node
         _prepare_generic_input(simple_nodes)
 
         # Generate new edges by traversing through hidden nodes
@@ -863,7 +863,7 @@ class Graph:
           3. Detect changes in edges between original_simple and modified_simple
           4. If any edge changes detected, raise ValueError (edge changes not supported)
           5. For modified node properties, update corresponding nodes in original_advanced
-          6. Handle generic "input" nodes by converting them to specific GStreamer elements
+          6. Handle generic "source" nodes by converting them to specific GStreamer elements
           7. Return new advanced graph with updated properties
 
         Note: Property modifications of existing visible nodes are supported.
@@ -1021,18 +1021,18 @@ class Graph:
                 f"Applied property changes to advanced node {node_id}: {advanced_node.data}"
             )
 
-        # Step 5: Handle generic "input" node mapping to GStreamer elements
+        # Step 5: Handle generic "source" node mapping to GStreamer elements
         for node_id in modified_node_ids:
             modified_node = modified_nodes_by_id[node_id]
 
-            if modified_node.type == "input":
-                # Generic input node detected - map to appropriate GStreamer element
+            if modified_node.type == "source":
+                # Generic source node detected - map to appropriate GStreamer element
                 kind = modified_node.data.get("kind", "")
                 source = modified_node.data.get("source", "")
 
                 if not kind or not source:
                     raise ValueError(
-                        f"Node {node_id} of type 'input' must have both 'kind' and 'source' attributes. "
+                        f"Node {node_id} of type 'source' must have both 'kind' and 'source' attributes. "
                         f"Found: kind='{kind}', source='{source}'"
                     )
 
@@ -1041,7 +1041,7 @@ class Graph:
                     target_type = "filesrc"
                     target_properties = {"location": source}
                     logger.debug(
-                        f"Mapping input node {node_id} to filesrc with location={source}"
+                        f"Mapping source node {node_id} to filesrc with location={source}"
                     )
 
                 elif kind == InputKind.CAMERA:
@@ -1049,13 +1049,13 @@ class Graph:
                         target_type = "rtspsrc"
                         target_properties = {"location": source}
                         logger.debug(
-                            f"Mapping input node {node_id} to rtspsrc with location={source}"
+                            f"Mapping source node {node_id} to rtspsrc with location={source}"
                         )
                     elif source.startswith(USB_DEVICE_PREFIX):
                         target_type = "v4l2src"
                         target_properties = {"device": source}
                         logger.debug(
-                            f"Mapping input node {node_id} to v4l2src with device={source}"
+                            f"Mapping source node {node_id} to v4l2src with device={source}"
                         )
                     else:
                         raise ValueError(
@@ -1064,7 +1064,7 @@ class Graph:
                         )
                 else:
                     raise ValueError(
-                        f"Unsupported input kind '{kind}' for node {node_id}. "
+                        f"Unsupported source kind '{kind}' for node {node_id}. "
                         f"Supported kinds: '{InputKind.FILE.value}', '{InputKind.CAMERA.value}'"
                     )
 
@@ -1075,7 +1075,7 @@ class Graph:
                     advanced_node.data.clear()
                     advanced_node.data.update(target_properties)
                     logger.debug(
-                        f"Transformed input node {node_id} to {target_type} with properties {target_properties}"
+                        f"Transformed source node {node_id} to {target_type} with properties {target_properties}"
                     )
 
         logger.debug(
@@ -2389,10 +2389,10 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
 
 def _prepare_generic_input(nodes: list[Node]) -> None:
     """
-    Replace source elements with a generic 'input' element.
+    Replace source elements with a generic 'source' element.
 
     This function finds source elements (filesrc, multifilesrc, v4l2src, rtspsrc)
-    and replaces them with a generic "input" type, preserving source information
+    and replaces them with a generic "source" type, preserving source information
     in standardized data attributes.
 
     This is called during pipeline parsing (from_pipeline_description) to store
@@ -2406,45 +2406,45 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
 
     Side effects:
         - Modifies node.type and node.data for source elements
-        - Converts filesrc/multifilesrc to input with kind=InputKind.FILE
-        - Converts v4l2src/rtspsrc to input with kind=InputKind.CAMERA
+        - Converts filesrc/multifilesrc to source with kind=InputKind.FILE
+        - Converts v4l2src/rtspsrc to source with kind=InputKind.CAMERA
         - Adds "source" attribute with original location/device identifier
 
     The function adds two data attributes:
-        - "kind": Type of input (InputKind.FILE | InputKind.CAMERA)
+        - "kind": Type of source (InputKind.FILE | InputKind.CAMERA)
         - "source": Filename or camera identifier (video.mp4, /dev/video0, or rtsp://...)
 
     Example:
         Input:  node.type = "filesrc", node.data["location"] = "video.mp4"
-        Output: node.type = "input", node.data = {"kind": InputKind.FILE, "source": "video.mp4"}
+        Output: node.type = "source", node.data = {"kind": InputKind.FILE, "source": "video.mp4"}
     """
     for node in nodes:
         # Check for file sources
         if node.type in {"filesrc", "multifilesrc"}:
             source_name = node.data.get("location", "")
             node.data.clear()
-            node.type = "input"
+            node.type = "source"
             node.data["kind"] = InputKind.FILE
             node.data["source"] = source_name
-            logger.debug(f"Converted file source to generic input: {source_name}")
+            logger.debug(f"Converted file source to generic source: {source_name}")
 
         # Check for USB camera sources
         elif node.type == "v4l2src":
             source_name = node.data.get("device", "/dev/video0")
             node.data.clear()
-            node.type = "input"
+            node.type = "source"
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
-            logger.debug(f"Converted v4l2src to generic input (camera): {source_name}")
+            logger.debug(f"Converted v4l2src to generic source (camera): {source_name}")
 
         # Check for RTSP camera sources
         elif node.type == "rtspsrc":
             source_name = node.data.get("location", "")
             node.data.clear()
-            node.type = "input"
+            node.type = "source"
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
-            logger.debug(f"Converted rtspsrc to generic input (camera): {source_name}")
+            logger.debug(f"Converted rtspsrc to generic source (camera): {source_name}")
 
 
 def _validate_camera_source_followed_by_decodebin3(
