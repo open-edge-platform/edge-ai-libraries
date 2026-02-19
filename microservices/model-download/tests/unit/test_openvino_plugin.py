@@ -301,6 +301,12 @@ class TestOpenVINOConverter:
 
         assert result["returncode"] == 0
         assert all("curl" not in call_args[0][0] for call_args in mock_run.call_args_list)
+        assert result == 0
+        # Verify curl was called to download the script
+        curl_call = call(["curl", 
+                         "https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/releases/2026/0/demos/common/export_models/export_model.py",
+                         "-o", "export_model.py"], check=True)
+        assert curl_call in mock_run.call_args_list
 
     @pytest.mark.parametrize("model_type,expected_export_type", [
         ("llm", "text_generation"),

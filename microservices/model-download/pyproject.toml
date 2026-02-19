@@ -1,7 +1,7 @@
 [project]
 name = "model-download"
 version = "1.0.1"
-description = "A FastAPI application for downloading and converting HuggingFace/Ollama models."
+description = "A FastAPI application for downloading and converting HuggingFace/Ollama/ultralytics/geti models."
 authors = [
 ]
 readme = "README.md"
