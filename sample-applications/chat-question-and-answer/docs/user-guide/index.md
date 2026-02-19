@@ -87,7 +87,7 @@ is also reused from their prebuilt versions and used for LLM, Embedding, and Rer
 Intel microservices can be built from source. Documentation is provided to help users build
 these microservices from source.
 
-Further details on the system architecture and customizable options are available [here](./overview-architecture).
+Further details on the system architecture and customizable options are available [here](./how-it-works.md).
 
 ![system architecture diagram](./_assets/TEAI_ChatQnA.png)
 
@@ -115,7 +115,7 @@ models supported overall.
 Refer to the [detailed hardware and software requirements](./get-started/system-requirements).
 
 This sample application is ready for deployment with Edge Orchestrator. Download the
-[deployment package](./deploy-with-edge-orchestrator) and follow the instructions.
+[deployment package](./get-started/deploy-with-edge-orchestrator) and follow the instructions.
 
 ## Benchmark Results
 
@@ -127,9 +127,6 @@ Detailed metrics and analysis can be found in [the benchmark report](./benchmark
 
 get-started
 how-it-works
-build-from-source
-deploy-with-helm
-deploy-with-edge-orchestrator
 how-to-performance
 benchmarks
 api-reference

@@ -44,7 +44,6 @@ get-started
 how-it-works
 how-to-access-api
 how-to-configure
-how-to-deploy-with-helm
 api-reference
 release-notes
 

@@ -44,7 +44,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
     }'
     ```
 
-6. You can check the vector output by subscribing to mqtt. You can check this [document](./../../detailed_usage/publisher/eis_mqtt_publish_doc.md#start-mqtt-subscriber) on how to configure and start mqtt subscriber.
+6. You can check the vector output by subscribing to mqtt. You can check this [document](../../detailed_usage/publisher/mqtt_publish.md#start-mqtt-subscriber) on how to configure and start mqtt subscriber.
 
     Here's what a sample metadata for a frame looks like (some data deleted to keep size small).
     ```sh

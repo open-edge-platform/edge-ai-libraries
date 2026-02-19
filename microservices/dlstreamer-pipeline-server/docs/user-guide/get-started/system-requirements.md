@@ -31,7 +31,7 @@ and run the application efficiently.
 
 ## Validation
 
-- Ensure all required software is installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all required software is installed and configured before proceeding to [Get Started](../get-started.md).
 
 ## Supporting Resources
 

@@ -45,66 +45,49 @@ override_dh_auto_configure:
 		-O--builddir=$(BUILD_LIBORB_DIR) 	\
 		--sourcedirectory=$(CURDIR)/ --   	\
 		-DCMAKE_BUILD_TYPE=Release              \
-		-DCMAKE_INSTALL_INCLUDEDIR=include/ && 	\
-	dh_auto_configure -O--buildsystem=cmake 	\
-		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
-		--sourcedirectory=$(CURDIR)/tests/ --   \
+		-DCMAKE_INSTALL_INCLUDEDIR=include/
+
+	# Configure tests
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cd $(CURDIR)/tests && mkdir -p "$(CURDIR)/build-orbtest" && cd "$(CURDIR)/build-orbtest" && cmake $(CURDIR)/tests \
+		-DCMAKE_BUILD_TYPE=Release
 
 override_dh_auto_build:
 	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
 	dh_auto_build -O--buildsystem=cmake 		\
 		-O--builddir=$(BUILD_LIBORB_DIR) 	\
-		--sourcedirectory=$(CURDIR)/ -- && 	\
-	dh_auto_build -O--buildsystem=cmake 		\
-		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
-		--sourcedirectory=$(CURDIR)/tests/ --
+		--sourcedirectory=$(CURDIR)/ --
+
+	# Build tests
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cd $(CURDIR)/build-orbtest && $(MAKE)
 
 override_dh_shlibdeps:
 	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
 	dh_shlibdeps
 
 override_dh_auto_clean:
-	$(RM) -r $(CURDIR)/build && 			\
-	$(RM) -r $(CURDIR)/build-orbtest &&		\
+	$(RM) -r $(CURDIR)/build $(CURDIR)/build-orbtest && 			\
 	dh_clean
 
 override_dh_auto_install:
 	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
 	dh_auto_install -O--buildsystem=cmake 		\
 		-O--builddir=$(BUILD_LIBORB_DIR) 	\
-		--sourcedirectory=$(CURDIR)/ -- && 	\
-	dh_auto_install -O--buildsystem=cmake 		\
-		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
-		--sourcedirectory=$(CURDIR)/tests/ --
+		--sourcedirectory=$(CURDIR)/ --
 	install -d $(CURDIR)/debian/tmp/$(optdir)/samples
 	install -m 0644 $(CURDIR)/samples/* \
 		$(CURDIR)/debian/tmp/$(optdir)/samples
 	install -m 0644 $(CURDIR)/images/* \
 		$(CURDIR)/debian/tmp/$(optdir)/samples
 	install -d $(CURDIR)/debian/tmp/$(optdir)/tests
+	cd $(CURDIR)/build-orbtest && find . -maxdepth 1 -type f -executable -exec install -m 0755 {} $(CURDIR)/debian/tmp/$(optdir)/tests/ \;
+	# Copy fuzzer sources for container-aware builds
+	if [ -d $(CURDIR)/tests/fuzzer ]; then \
+		install -m 0644 $(CURDIR)/tests/fuzzer/simple_fuzzer_*.cpp $(CURDIR)/debian/tmp/$(optdir)/tests/ 2>/dev/null || true; \
+	fi
+	# Copy test images to tests directory
 	install -m 0644 $(CURDIR)/images/* \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/gaussTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/resizeTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/orbdescTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/fastTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/stereoTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/multicameraTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/multithreadTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/opencvfreeTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/imagemaskTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/rectmaskTest \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
-	install -m 0755 $(BUILD_ORBTEST_DIR)/fuzzer/fuzzer_stereo \
-		$(CURDIR)/debian/tmp/$(optdir)/tests
+		$(CURDIR)/debian/tmp/$(optdir)/tests/
 %:
 	dh $@ -v $(PARALLEL)

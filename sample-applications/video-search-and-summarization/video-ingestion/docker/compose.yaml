@@ -92,7 +92,7 @@ services:
       - app_network
 
   minio:
-    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
     environment:
       - no_proxy=$no_proxy
       - http_proxy=$http_proxy
@@ -105,7 +105,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD-SHELL", "echo > /dev/tcp/127.0.0.1/80 && exit 0 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3

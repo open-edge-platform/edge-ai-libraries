@@ -125,7 +125,7 @@ struct computeDescriptor
 
   __device_inline__ float cos(float v)
   {
-    v = sycl::fabs(v - sycl::floor<float>(v * _INV_TWO_PI) * _TWO_PI);
+    v = sycl::fabs(v - sycl::floor(v * _INV_TWO_PI) * _TWO_PI);
 
     unsigned char lpi2 = v < _PI_2;
     unsigned char lpi = (v < _PI) ^ lpi2;

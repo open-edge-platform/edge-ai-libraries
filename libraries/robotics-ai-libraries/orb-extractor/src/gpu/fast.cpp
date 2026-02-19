@@ -1,6 +1,8 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <algorithm>
+#include <cmath>
 #include <type_traits>
 
 #include "device_impl.h"
@@ -53,7 +55,7 @@ struct fastExtKernelImpl
     auto group_y = it.get_group(1);
 
     local_count[0] = 0;
-    it.barrier(access::fence_space::local_space);
+    it.barrier(sycl::access::fence_space::local_space);
 
     auto min_x = params.group_pos_x_ptr[group_x].x();
     auto max_x = params.group_pos_x_ptr[group_x].y();
@@ -169,30 +171,30 @@ struct nmsExt
 
 #pragma unroll
     for (k = 0; k < 16; k += 2) {
-      int a = min((int)d[(k + 1) & 15], (int)d[(k + 2) & 15]);
-      a = min(a, (int)d[(k + 3) & 15]);
-      a = min(a, (int)d[(k + 4) & 15]);
-      a = min(a, (int)d[(k + 5) & 15]);
-      a = min(a, (int)d[(k + 6) & 15]);
-      a = min(a, (int)d[(k + 7) & 15]);
-      a = min(a, (int)d[(k + 8) & 15]);
-      a0 = max(a0, min(a, (int)d[k & 15]));
-      a0 = max(a0, min(a, (int)d[(k + 9) & 15]));
+      int a = sycl::min((int)d[(k + 1) & 15], (int)d[(k + 2) & 15]);
+      a = sycl::min(a, (int)d[(k + 3) & 15]);
+      a = sycl::min(a, (int)d[(k + 4) & 15]);
+      a = sycl::min(a, (int)d[(k + 5) & 15]);
+      a = sycl::min(a, (int)d[(k + 6) & 15]);
+      a = sycl::min(a, (int)d[(k + 7) & 15]);
+      a = sycl::min(a, (int)d[(k + 8) & 15]);
+      a0 = sycl::max(a0, sycl::min(a, (int)d[k & 15]));
+      a0 = sycl::max(a0, sycl::min(a, (int)d[(k + 9) & 15]));
     }
 
     b0 = -a0;
 #pragma unroll
     for (k = 0; k < 16; k += 2) {
-      int b = max((int)d[(k + 1) & 15], (int)d[(k + 2) & 15]);
-      b = max(b, (int)d[(k + 3) & 15]);
-      b = max(b, (int)d[(k + 4) & 15]);
-      b = max(b, (int)d[(k + 5) & 15]);
-      b = max(b, (int)d[(k + 6) & 15]);
-      b = max(b, (int)d[(k + 7) & 15]);
-      b = max(b, (int)d[(k + 8) & 15]);
+      int b = sycl::max((int)d[(k + 1) & 15], (int)d[(k + 2) & 15]);
+      b = sycl::max(b, (int)d[(k + 3) & 15]);
+      b = sycl::max(b, (int)d[(k + 4) & 15]);
+      b = sycl::max(b, (int)d[(k + 5) & 15]);
+      b = sycl::max(b, (int)d[(k + 6) & 15]);
+      b = sycl::max(b, (int)d[(k + 7) & 15]);
+      b = sycl::max(b, (int)d[(k + 8) & 15]);
 
-      b0 = min(b0, max(b, (int)d[k]));
-      b0 = min(b0, max(b, (int)d[(k + 9) & 15]));
+      b0 = sycl::min(b0, sycl::max(b, (int)d[k]));
+      b0 = sycl::min(b0, sycl::max(b, (int)d[(k + 9) & 15]));
     }
 
     return -b0 - 1;
@@ -213,7 +215,7 @@ struct nmsExt
     auto l_y = it.get_local_id(1);
 
     count_nms[0] = 0;
-    it.barrier(access::fence_space::local_space);
+    it.barrier(sycl::access::fence_space::local_space);
 
     if (idx < local_count[0]) {
       int ax = local_key[idx].x();
@@ -445,22 +447,22 @@ void ORBKernel::fastExtImpl(
       sycl::nd_range<2>(global, local), [=](sycl::nd_item<2> it) [[sycl::reqd_sub_group_size(16)]] {
         fastExtKernelImpl fastOps(params);
         fastOps(it, keys_mem, counts_fast, params.ini_threshold);
-        it.barrier(access::fence_space::local_space);
+        it.barrier(sycl::access::fence_space::local_space);
 
         if (params.nms_required) {
           nmsExt nmsOps(params);
           nmsOps(it, keys_mem, counts_fast, counts_nms);
-          it.barrier(access::fence_space::local_space);
+          it.barrier(sycl::access::fence_space::local_space);
 
           if (counts_nms[0] == 0) {
             fastOps(it, keys_mem, counts_fast, params.min_threshold);
-            it.barrier(access::fence_space::local_space);
+            it.barrier(sycl::access::fence_space::local_space);
             nmsOps(it, keys_mem, counts_fast, counts_nms);
           }
         } else {
           if (counts_fast[0] == 0) fastOps(it, keys_mem, counts_fast, params.min_threshold);
 
-          it.barrier(access::fence_space::local_space);
+          it.barrier(sycl::access::fence_space::local_space);
 
           sycl::atomic_ref<
             uint32_t, sycl::memory_order::relaxed, sycl::memory_scope::system,
