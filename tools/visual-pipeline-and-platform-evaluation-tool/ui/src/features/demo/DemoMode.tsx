@@ -1039,7 +1039,7 @@ const DemoMode = () => {
         normalizedDeviceValue === "GPU"
           ? "gpu"
           : normalizedDeviceValue === "NPU"
-            ? "zzz"
+            ? "gpu-npu"
             : null;
 
       if (!targetVariantId) {
