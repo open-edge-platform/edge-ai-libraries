@@ -2,7 +2,7 @@ import logging
 import threading
 from typing import List, Optional
 
-from api.api_schemas import Camera
+from api.api_schemas import Camera, NetworkCameraDetails, USBCameraDetails
 from camera import USBCameraDiscovery, ONVIFCameraDiscovery
 
 logger = logging.getLogger("camera_manager")
@@ -191,6 +191,66 @@ class CameraManager:
         self.logger.debug(f"Camera {camera_id} not found in cache")
         return None
 
+    def get_camera_by_device_path(self, device_path: str) -> Optional[Camera]:
+        """Get a USB camera by its device path from the cache.
+
+        Searches cached USB cameras for one matching the given device path.
+        Does not trigger new discovery.
+
+        Args:
+            device_path: Device path (e.g., "/dev/video0").
+
+        Returns:
+            Camera object if found, None otherwise.
+        """
+        if not device_path:
+            return None
+
+        with self._lock:
+            for camera in self._usb_cameras:
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, USBCameraDetails):
+                    continue
+                if camera.details.device_path == device_path:
+                    self.logger.debug(f"Found USB camera for device path {device_path}")
+                    return camera
+
+        self.logger.debug(f"No USB camera found for device path {device_path}")
+        return None
+
+    def get_camera_by_rtsp_url(self, rtsp_url: str) -> Optional[Camera]:
+        """Get a network camera that has a profile matching the given RTSP URL.
+
+        Searches cached network cameras for one with a profile whose rtsp_url
+        matches. Does not trigger new discovery or authentication.
+
+        Args:
+            rtsp_url: RTSP URL to search for (e.g., "rtsp://192.168.1.100:554/stream1").
+
+        Returns:
+            Camera object if found, None otherwise.
+        """
+        if not rtsp_url:
+            return None
+
+        normalized = rtsp_url.strip()
+        with self._lock:
+            for camera in self._network_cameras:
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, NetworkCameraDetails):
+                    continue
+                for profile in camera.details.profiles:
+                    if profile.rtsp_url == normalized:
+                        self.logger.debug(
+                            f"Found network camera for RTSP URL {rtsp_url}"
+                        )
+                        return camera
+
+        self.logger.debug(f"No network camera found for RTSP URL {rtsp_url}")
+        return None
+
     def load_camera_profiles(
         self, camera_id: str, username: str, password: str
     ) -> Camera:
@@ -264,9 +324,12 @@ class CameraManager:
         normalized = rtsp_url.strip()
         with self._lock:
             for camera in self._network_cameras:
-                profiles = getattr(getattr(camera, "details", None), "profiles", None)
-                for profile in profiles or []:
-                    if getattr(profile, "rtsp_url", None) == normalized:
-                        return getattr(profile, "encoding", None)
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, NetworkCameraDetails):
+                    continue
+                for profile in camera.details.profiles:
+                    if profile.rtsp_url == normalized:
+                        return profile.encoding
 
         return None

@@ -224,7 +224,7 @@ class VideoEncoder:
             if not source:
                 continue
             video = self.videos_manager.get_video(source)
-            if video and getattr(video, "codec", None):
+            if video is not None and video.codec:
                 detected = _normalize(video.codec)
                 self.logger.debug(
                     f"Detected codec '{detected}' from video file: {source}"

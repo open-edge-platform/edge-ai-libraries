@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import subprocess
 import threading
 from typing import List, Optional
@@ -12,12 +13,190 @@ from api.api_schemas import (
     USBCameraDetails,
     NetworkCameraDetails,
     CameraProfileInfo,
+    V4L2Format,
+    V4L2FormatSize,
+    V4L2BestCapture,
 )
 from utils import slugify_text
 
 DEFAULT_ONVIF_JSON_PATH = "/onvif/onvif_cameras.json"
 
 logger = logging.getLogger("camera")
+
+# --- Scoring constants for best capture / best profile selection ---
+
+_MIN_ACCEPTABLE_FPS = 15.0
+_TARGET_FPS = 30.0
+_TARGET_PIXELS = 1920 * 1080
+
+# Format preference scores (higher = better)
+_FORMAT_PREFERENCE = {
+    "H264": 1.0,
+    "H.264": 1.0,
+    "H265": 0.95,
+    "H.265": 0.95,
+    "HEVC": 0.95,
+    "MJPG": 0.7,
+    "MJPEG": 0.7,
+    "JPEG": 0.7,
+    "YUYV": 0.3,
+    "YUY2": 0.3,
+    "NV12": 0.3,
+    "UYVY": 0.3,
+    "I420": 0.3,
+    "YV12": 0.3,
+    "RGB3": 0.3,
+    "BGR3": 0.3,
+    "GREY": 0.3,
+    "GRAY": 0.3,
+}
+_DEFAULT_FORMAT_PREFERENCE = 0.1
+
+
+def _score_capture_candidate(fourcc: str, width: int, height: int, fps: float) -> float:
+    """Score a capture candidate for best-capture selection.
+
+    Formula:
+        fps_score = min(fps, _TARGET_FPS) / _TARGET_FPS          (weight 0.3)
+        resolution_score = min((w*h) / _TARGET_PIXELS, 1.0)      (weight 0.3)
+        format_pref = lookup fourcc preference                    (weight 0.4)
+        return fps_score * 0.3 + resolution_score * 0.3 + format_pref * 0.4
+
+    Args:
+        fourcc: Pixel format string (e.g., "MJPG", "H264", "YUYV").
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        fps: Frame rate.
+
+    Returns:
+        Score between 0.0 and 1.0.
+    """
+    fps_score = min(fps, _TARGET_FPS) / _TARGET_FPS if _TARGET_FPS > 0 else 0.0
+    pixels = width * height
+    resolution_score = min(pixels / _TARGET_PIXELS, 1.0) if _TARGET_PIXELS > 0 else 0.0
+    format_pref = _FORMAT_PREFERENCE.get(fourcc.upper(), _DEFAULT_FORMAT_PREFERENCE)
+    return fps_score * 0.3 + resolution_score * 0.3 + format_pref * 0.4
+
+
+def _select_best_from_v4l2_formats(
+    formats: List[V4L2Format],
+) -> Optional[V4L2BestCapture]:
+    """Select the best capture configuration from V4L2 formats.
+
+    Algorithm:
+    1. Iterate ALL (fourcc, width, height, fps) combinations from all formats.
+    2. Score each with _score_capture_candidate().
+    3. Among candidates with fps >= _MIN_ACCEPTABLE_FPS, pick highest score.
+    4. Fallback: if no candidate meets FPS threshold, pick overall best.
+    5. Return V4L2BestCapture or None if formats is empty.
+
+    Args:
+        formats: List of V4L2Format objects from v4l2-ctl parsing.
+
+    Returns:
+        V4L2BestCapture with the best configuration, or None if no candidates.
+    """
+    best_acceptable = None
+    best_acceptable_score = -1.0
+    best_overall = None
+    best_overall_score = -1.0
+
+    for fmt in formats:
+        for size in fmt.sizes:
+            for fps in size.fps_list:
+                score = _score_capture_candidate(
+                    fmt.fourcc, size.width, size.height, fps
+                )
+
+                if score > best_overall_score:
+                    best_overall_score = score
+                    best_overall = (fmt.fourcc, size.width, size.height, fps)
+
+                if fps >= _MIN_ACCEPTABLE_FPS and score > best_acceptable_score:
+                    best_acceptable_score = score
+                    best_acceptable = (fmt.fourcc, size.width, size.height, fps)
+
+    chosen = best_acceptable if best_acceptable is not None else best_overall
+    if chosen is None:
+        return None
+
+    fourcc, width, height, fps = chosen
+    logger.debug(
+        f"Selected best capture: {fourcc} {width}x{height} @{fps}fps "
+        f"(score={_score_capture_candidate(fourcc, width, height, fps):.3f})"
+    )
+    return V4L2BestCapture(fourcc=fourcc, width=width, height=height, fps=fps)
+
+
+def _select_best_profile(
+    profiles: List[CameraProfileInfo],
+) -> Optional[CameraProfileInfo]:
+    """Select the best ONVIF profile using the same scoring algorithm.
+
+    - Map encoding strings: "H264"/"H.264" -> "H264", "H265"/"H.265" -> "H265", "JPEG" -> "MJPG"
+    - Parse resolution from profile.resolution string ("WIDTHxHEIGHT")
+    - Use profile.framerate as fps
+    - Skip profiles without rtsp_url
+    - Same two-pass selection: prefer fps >= _MIN_ACCEPTABLE_FPS, fall back to overall best
+
+    Args:
+        profiles: List of CameraProfileInfo objects from ONVIF discovery.
+
+    Returns:
+        Best CameraProfileInfo, or None if no valid profiles.
+    """
+    encoding_map = {
+        "H264": "H264",
+        "H.264": "H264",
+        "H265": "H265",
+        "H.265": "H265",
+        "HEVC": "H265",
+        "JPEG": "MJPG",
+        "MJPEG": "MJPG",
+    }
+
+    best_acceptable = None
+    best_acceptable_score = -1.0
+    best_overall = None
+    best_overall_score = -1.0
+
+    for profile in profiles:
+        if not profile.rtsp_url:
+            continue
+
+        # Parse resolution
+        width, height = 0, 0
+        if profile.resolution:
+            parts = profile.resolution.lower().split("x")
+            if len(parts) == 2:
+                try:
+                    width = int(parts[0])
+                    height = int(parts[1])
+                except ValueError:
+                    pass
+
+        # Map encoding to scoring fourcc
+        enc = profile.encoding or ""
+        scoring_fourcc = encoding_map.get(enc, enc.upper())
+
+        fps = float(profile.framerate) if profile.framerate else 0.0
+
+        score = _score_capture_candidate(scoring_fourcc, width, height, fps)
+
+        if score > best_overall_score:
+            best_overall_score = score
+            best_overall = profile
+
+        if fps >= _MIN_ACCEPTABLE_FPS and score > best_acceptable_score:
+            best_acceptable_score = score
+            best_acceptable = profile
+
+    chosen = best_acceptable if best_acceptable is not None else best_overall
+    if chosen is not None:
+        logger.debug(
+            f"Selected best ONVIF profile: {chosen.name} ({chosen.encoding} {chosen.resolution})"
+        )
+    return chosen
 
 
 class USBCameraDiscovery:
@@ -45,53 +224,91 @@ class USBCameraDiscovery:
             self.initialized = True
             logger.debug("USBCameraDiscovery initialized")
 
-    def _get_camera_resolution(self, device_path: str) -> Optional[str]:
-        """
-        Get the current resolution of a USB camera.
+    def _parse_v4l2_formats(self, device_path: str) -> List[V4L2Format]:
+        """Parse supported V4L2 formats from a USB camera device.
+
+        Runs v4l2-ctl --device <path> --list-formats-ext and parses output.
 
         Args:
             device_path: Path to the video device (e.g., /dev/video0).
 
         Returns:
-            Optional[str]: Resolution as a string (e.g., "1920x1080"), or None if unable to determine.
+            List of V4L2Format objects with supported formats and resolutions.
         """
         try:
             result = subprocess.run(
-                ["v4l2-ctl", "-d", device_path, "--get-fmt-video"],
+                ["v4l2-ctl", "--device", device_path, "--list-formats-ext"],
                 capture_output=True,
                 text=True,
-                timeout=3,
+                timeout=5,
             )
 
-            if result.returncode == 0:
-                output = result.stdout
-                width = None
-                height = None
+            if result.returncode != 0:
+                logger.debug(f"v4l2-ctl --list-formats-ext failed for {device_path}")
+                return []
 
-                # Parse output for Width and Height
-                for line in output.split("\n"):
-                    line = line.strip()
-                    if "Width/Height" in line:
-                        # Format: "Width/Height      : 1920/1080"
-                        parts = line.split(":")
-                        if len(parts) == 2:
-                            dimensions = parts[1].strip().split("/")
-                            if len(dimensions) == 2:
-                                try:
-                                    width = int(dimensions[0])
-                                    height = int(dimensions[1])
-                                except ValueError:
-                                    pass
-
-                if width and height:
-                    return f"{width}x{height}"
-
-            logger.debug(f"Could not determine resolution for {device_path}")
-            return None
+            return self._parse_formats_ext_output(result.stdout)
 
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
-            logger.debug(f"Error getting resolution for {device_path}: {e}")
-            return None
+            logger.debug(f"Error parsing V4L2 formats for {device_path}: {e}")
+            return []
+
+    @staticmethod
+    def _parse_formats_ext_output(output: str) -> List[V4L2Format]:
+        """Parse the raw text output of v4l2-ctl --list-formats-ext.
+
+        Handles any fourcc code (MJPG, YUYV, H264, H265, NV12, etc.).
+
+        Patterns:
+            [N]: 'FOURCC' (description)  -> new format
+            Size: Discrete WIDTHxHEIGHT  -> new size entry
+            Interval: Discrete X.XXXs (XX.XXX fps) -> fps value
+
+        Args:
+            output: Raw text output from v4l2-ctl.
+
+        Returns:
+            List of V4L2Format objects.
+        """
+        formats: List[V4L2Format] = []
+        current_format: Optional[V4L2Format] = None
+        current_size: Optional[V4L2FormatSize] = None
+
+        # Pattern: [N]: 'FOURCC' (description)
+        format_re = re.compile(r"\[\d+\]\s*:\s*'(\w+)'")
+        # Pattern: Size: Discrete WIDTHxHEIGHT
+        size_re = re.compile(r"Size:\s*Discrete\s+(\d+)x(\d+)")
+        # Pattern: Interval: Discrete X.XXXs (XX.XXX fps)
+        fps_re = re.compile(r"\((\d+(?:\.\d+)?)\s*fps\)")
+
+        for line in output.split("\n"):
+            stripped = line.strip()
+
+            # Check for new format
+            m = format_re.search(stripped)
+            if m:
+                fourcc = m.group(1)
+                current_format = V4L2Format(fourcc=fourcc, sizes=[])
+                formats.append(current_format)
+                current_size = None
+                continue
+
+            # Check for new size
+            m = size_re.search(stripped)
+            if m and current_format is not None:
+                width = int(m.group(1))
+                height = int(m.group(2))
+                current_size = V4L2FormatSize(width=width, height=height, fps_list=[])
+                current_format.sizes.append(current_size)
+                continue
+
+            # Check for fps interval
+            m = fps_re.search(stripped)
+            if m and current_size is not None:
+                fps = float(m.group(1))
+                current_size.fps_list.append(fps)
+
+        return formats
 
     def _can_capture_video(self, device_path: str) -> bool:
         """
@@ -178,6 +395,7 @@ class USBCameraDiscovery:
         Discover USB cameras connected to the system.
 
         Uses v4l2-ctl to enumerate video devices on Linux systems.
+        Parses V4L2 formats and selects the best capture configuration.
 
         Returns:
             List[Camera]: List of discovered USB cameras.
@@ -235,8 +453,9 @@ class USBCameraDiscovery:
                             # Create normalized device name for ID (URL-safe)
                             device_name = slugify_text(current_device_name)
 
-                            # Get camera resolution
-                            resolution = self._get_camera_resolution(device_path)
+                            # Parse V4L2 formats and select best capture
+                            formats = self._parse_v4l2_formats(device_path)
+                            best_capture = _select_best_from_v4l2_formats(formats)
 
                             cameras.append(
                                 Camera(
@@ -244,7 +463,8 @@ class USBCameraDiscovery:
                                     device_type=CameraType.USB,
                                     device_id=f"usb-camera-{device_name}-{device_num}",
                                     details=USBCameraDetails(
-                                        device_path=device_path, resolution=resolution
+                                        device_path=device_path,
+                                        best_capture=best_capture,
                                     ),
                                 )
                             )
@@ -446,13 +666,15 @@ class ONVIFCameraDiscovery:
         """
         Authenticate with a specific ONVIF camera and load its profiles.
 
+        Selects the best profile using the scoring algorithm after loading.
+
         Args:
             camera_id: Camera identifier (e.g., "network-camera-192.168.1.100-80").
             username: ONVIF username for authentication.
             password: ONVIF password for authentication.
 
         Returns:
-            Camera: Updated Camera object with populated profiles in details.profiles.
+            Camera: Updated Camera object with populated profiles and best_profile.
 
         Raises:
             ValueError: If camera_id is invalid or camera not found.
@@ -504,12 +726,20 @@ class ONVIFCameraDiscovery:
                     )
                 )
 
-            # Create Camera object with populated profiles
+            # Select best profile using scoring algorithm
+            best_profile = _select_best_profile(profile_infos)
+
+            # Create Camera object with populated profiles and best_profile
             camera = Camera(
                 device_name=f"ONVIF Camera {ip}",
                 device_type=CameraType.NETWORK,
                 device_id=camera_id,
-                details=NetworkCameraDetails(ip=ip, port=port, profiles=profile_infos),
+                details=NetworkCameraDetails(
+                    ip=ip,
+                    port=port,
+                    profiles=profile_infos,
+                    best_profile=best_profile,
+                ),
             )
 
             logger.debug(

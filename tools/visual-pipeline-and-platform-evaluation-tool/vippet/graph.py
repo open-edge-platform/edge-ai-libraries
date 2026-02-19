@@ -7,7 +7,10 @@ from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
+from api.api_schemas import USBCameraDetails, NetworkCameraDetails
+from managers.camera_manager import CameraManager
 from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
@@ -15,6 +18,7 @@ from resources import (
     get_scripts_manager,
 )
 from utils import generate_unique_filename, slugify_text
+from video_decoder import VideoDecoder
 from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
@@ -413,7 +417,7 @@ class Graph:
         Changes applied:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
-        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
+        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux, parsebin) with tsdemux
         - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
 
         Returns:
@@ -479,7 +483,13 @@ class Graph:
                     )
 
             # Replace demuxers with tsdemux for looping support
-            elif node.type in {"qtdemux", "matroskademux", "avidemux", "flvdemux"}:
+            elif node.type in {
+                "qtdemux",
+                "matroskademux",
+                "avidemux",
+                "flvdemux",
+                "parsebin",
+            }:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
 
@@ -1075,6 +1085,470 @@ class Graph:
 
         return result_advanced
 
+    def get_target_device(self) -> str:
+        """Determine the target inference device from the nearest gva* node after decodebin3.
+
+        Searches forward from each decodebin3 node along edges to find the
+        closest gva* element (gvadetect, gvaclassify, gvainference, etc.)
+        that has a device attribute.
+
+        If no decodebin3 node exists, falls back to scanning all gva* nodes
+        in order.
+
+        Returns:
+            Device name ("CPU", "GPU", "NPU"), or "CPU" as default
+            if no gva* node with device attribute is found.
+        """
+        # Build adjacency map for forward traversal
+        edges_from: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_from.setdefault(edge.source, []).append(edge.target)
+
+        nodes_by_id = {node.id: node for node in self.nodes}
+
+        # Find all decodebin3 nodes
+        decodebin3_ids = [node.id for node in self.nodes if node.type == "decodebin3"]
+
+        if decodebin3_ids:
+            # BFS forward from each decodebin3 to find nearest gva* with device
+            for db_id in decodebin3_ids:
+                visited: set[str] = set()
+                queue: list[str] = list(edges_from.get(db_id, []))
+
+                while queue:
+                    current_id = queue.pop(0)
+                    if current_id in visited:
+                        continue
+                    visited.add(current_id)
+
+                    current_node = nodes_by_id.get(current_id)
+                    if current_node is None:
+                        continue
+
+                    if (
+                        current_node.type.startswith("gva")
+                        and "device" in current_node.data
+                    ):
+                        return current_node.data["device"].upper()
+
+                    queue.extend(edges_from.get(current_id, []))
+
+        # Fallback: scan all nodes in order for any gva* with device
+        for node in self.nodes:
+            if node.type.startswith("gva") and "device" in node.data:
+                return node.data["device"].upper()
+
+        return "CPU"
+
+    def has_decodebin3(self) -> bool:
+        """Check whether the graph contains a decodebin3 element."""
+        return any(node.type == "decodebin3" for node in self.nodes)
+
+    def determine_input_codec(self) -> Optional[str]:
+        """Determine the input codec for this pipeline graph.
+
+        Inspects the first source node in the graph to determine what kind
+        of input is used, then retrieves the codec accordingly:
+        - filesrc: reads Video.codec from VideosManager based on the location property.
+        - v4l2src: reads best_capture.fourcc from CameraManager for the device path.
+        - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL.
+
+        Returns:
+            Codec string (e.g., "h264", "MJPG"), or None if codec cannot be determined.
+        """
+        for node in self.nodes:
+            if node.type == "filesrc":
+                location = node.data.get("location")
+                if not location:
+                    continue
+
+                filename = os.path.basename(location)
+                video = VideosManager().get_video(filename)
+                if video is not None and video.codec:
+                    logger.debug(
+                        f"Determined codec '{video.codec}' from filesrc location '{location}'"
+                    )
+                    return video.codec
+                return None
+
+            elif node.type == "v4l2src":
+                device_path = node.data.get("device")
+                if not device_path:
+                    continue
+                camera = CameraManager().get_camera_by_device_path(device_path)
+                if camera is None:
+                    logger.debug(f"No camera found for device path '{device_path}'")
+                    return None
+                if camera.details is None or not isinstance(
+                    camera.details, USBCameraDetails
+                ):
+                    return None
+                best_capture = camera.details.best_capture
+                if best_capture is not None and best_capture.fourcc:
+                    logger.debug(
+                        f"Determined codec '{best_capture.fourcc}' from v4l2src device '{device_path}'"
+                    )
+                    return best_capture.fourcc
+                return None
+
+            elif node.type == "rtspsrc":
+                location = node.data.get("location")
+                if not location:
+                    continue
+                camera = CameraManager().get_camera_by_rtsp_url(location)
+                if camera is None:
+                    # Fall back to encoding lookup
+                    encoding = CameraManager().get_encoding_for_rtsp_url(location)
+                    if encoding:
+                        logger.debug(
+                            f"Determined codec '{encoding}' from rtspsrc URL '{location}' (encoding lookup)"
+                        )
+                        return encoding
+                    logger.debug(f"No camera found for RTSP URL '{location}'")
+                    return None
+                if camera.details is None or not isinstance(
+                    camera.details, NetworkCameraDetails
+                ):
+                    return None
+                best_profile = camera.details.best_profile
+                if best_profile is not None and best_profile.encoding:
+                    logger.debug(
+                        f"Determined codec '{best_profile.encoding}' from rtspsrc URL '{location}'"
+                    )
+                    return best_profile.encoding
+                # Fall back to encoding from any matching profile
+                encoding = CameraManager().get_encoding_for_rtsp_url(location)
+                if encoding:
+                    return encoding
+                return None
+
+        logger.debug("No source node found in graph, cannot determine codec")
+        return None
+
+    def apply_decodebin3_replacement(
+        self,
+        codec: Optional[str],
+        target_device: str,
+    ) -> "Graph":
+        """Replace all decodebin3 nodes with parsebin + specific decoder + output caps.
+
+        This ensures decoding happens on the device we want (matching the
+        inference device), instead of letting decodebin3 choose arbitrarily.
+
+        The replacement pattern for compressed codecs is:
+            decodebin3 → parsebin ! <decoder> ! <output_caps>
+        where output_caps is:
+            - video/x-raw                    for CPU decoders
+            - video/x-raw(memory:VAMemory)   for GPU/NPU (VA-API) decoders
+
+        For raw formats: decodebin3 → videoconvert
+
+        The method works in two phases:
+        1. Determine replacements: for each decodebin3, build the list of
+           replacement nodes (parsebin + decoder + caps, videoconvert, or keep).
+           Also determine if a v4l2src capsfilter is needed.
+        2. Apply replacements: mutate a deep copy of the graph with the
+           determined replacements, updating nodes and edges.
+
+        Args:
+            codec: Input stream codec (e.g., "h264", "h265", "MJPG", "YUYV"),
+                or None if codec cannot be determined (keeps decodebin3 as fallback).
+            target_device: Target device from gvadetect ("CPU", "GPU", "NPU").
+
+        Returns:
+            Modified Graph with decodebin3 replaced.
+            If no suitable decoder is found, decodebin3 is kept as-is (fallback).
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        video_decoder = VideoDecoder()
+        modified_graph = copy.deepcopy(self)
+
+        if codec is None:
+            logger.warning("Codec is None, keeping decodebin3 as-is (fallback)")
+            return modified_graph
+
+        # --- Phase 1: Determine replacements ---
+
+        decoder_element = video_decoder.select_decoder(codec, target_device)
+        is_raw = video_decoder.is_raw_format(codec)
+
+        if decoder_element is not None:
+            replacement_kind = "parsebin_decoder"
+        elif is_raw:
+            replacement_kind = "videoconvert"
+        else:
+            replacement_kind = "keep"
+            logger.warning(
+                f"Cannot find decoder for codec '{codec}' on device '{target_device}', "
+                f"keeping decodebin3 as fallback"
+            )
+
+        if replacement_kind == "keep":
+            return modified_graph
+
+        # Determine output caps type based on target device.
+        # VA-API decoders (GPU/NPU) output to VAMemory, CPU decoders output raw.
+        device_upper = target_device.upper()
+        if device_upper in {"GPU", "NPU"}:
+            output_caps_type = "video/x-raw(memory:VAMemory)"
+        else:
+            output_caps_type = "video/x-raw"
+
+        # Determine if a v4l2src capsfilter node is needed
+        caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
+
+        # Find max existing ID across all nodes and edges for generating new IDs
+        max_id = 0
+        for node in modified_graph.nodes:
+            try:
+                max_id = max(max_id, int(node.id))
+            except ValueError:
+                pass
+        for edge in modified_graph.edges:
+            try:
+                max_id = max(max_id, int(edge.id))
+            except ValueError:
+                pass
+
+        next_id = max_id + 1
+
+        # --- Phase 1b: Build replacement descriptors for each decodebin3 node ---
+        # Each descriptor is a tuple: (db_node_id, new_nodes_to_insert)
+        # where new_nodes_to_insert is a list of Node objects to place in
+        # the graph after the (renamed) decodebin3 node.
+
+        decodebin3_node_ids = [
+            n.id for n in modified_graph.nodes if n.type == "decodebin3"
+        ]
+
+        # Pre-build all new nodes and record their IDs before mutating the graph.
+        # Structure per decodebin3:
+        #   replacement_kind == "videoconvert": rename node, no inserts
+        #   replacement_kind == "parsebin_decoder":
+        #       rename to parsebin, insert [decoder_node, output_caps_node]
+        replacements: list[
+            tuple[str, str, list[Node], list[Edge]]
+        ] = []  # (db_node_id, kind, nodes_to_insert, edges_to_add)
+
+        for db_node_id in decodebin3_node_ids:
+            if replacement_kind == "videoconvert":
+                replacements.append((db_node_id, "videoconvert", [], []))
+
+            elif replacement_kind == "parsebin_decoder":
+                assert decoder_element is not None
+
+                # Decoder node
+                decoder_node_id = str(next_id)
+                next_id += 1
+                decoder_node = Node(id=decoder_node_id, type=decoder_element, data={})
+
+                # Output caps node after decoder
+                caps_node_id = str(next_id)
+                next_id += 1
+                caps_node = Node(
+                    id=caps_node_id,
+                    type=output_caps_type,
+                    data={NODE_KIND_KEY: NODE_KIND_CAPS},
+                )
+
+                # Edges: parsebin → decoder → caps → (original target)
+                # We need to know the original outgoing edge from decodebin3
+                # to rewire it. We'll handle that during phase 2, but we can
+                # pre-build the internal edges now.
+                edge_parsebin_to_decoder_id = str(next_id)
+                next_id += 1
+                edge_parsebin_to_decoder = Edge(
+                    id=edge_parsebin_to_decoder_id,
+                    source=db_node_id,  # parsebin (renamed decodebin3)
+                    target=decoder_node_id,
+                )
+
+                edge_decoder_to_caps_id = str(next_id)
+                next_id += 1
+                edge_decoder_to_caps = Edge(
+                    id=edge_decoder_to_caps_id,
+                    source=decoder_node_id,
+                    target=caps_node_id,
+                )
+
+                replacements.append(
+                    (
+                        db_node_id,
+                        "parsebin_decoder",
+                        [decoder_node, caps_node],
+                        [edge_parsebin_to_decoder, edge_decoder_to_caps],
+                    )
+                )
+
+        # Also reserve IDs for v4l2src capsfilter if needed
+        v4l2_caps_node_id: Optional[str] = None
+        v4l2_caps_node: Optional[Node] = None
+        v4l2_edge: Optional[Edge] = None
+        v4l2_node_id: Optional[str] = None
+
+        if caps_node_info is not None:
+            v4l2_node_id, caps_base_type, caps_data = caps_node_info
+
+            v4l2_caps_node_id = str(next_id)
+            next_id += 1
+            v4l2_caps_node = Node(
+                id=v4l2_caps_node_id, type=caps_base_type, data=caps_data
+            )
+
+            v4l2_edge_id = str(next_id)
+            next_id += 1
+            v4l2_edge = Edge(
+                id=v4l2_edge_id,
+                source=v4l2_node_id,
+                target=v4l2_caps_node_id,
+            )
+
+        # --- Phase 2: Apply all mutations to the graph ---
+
+        # 2a. Insert v4l2src capsfilter
+        if (
+            v4l2_node_id is not None
+            and v4l2_caps_node is not None
+            and v4l2_caps_node_id is not None
+            and v4l2_edge is not None
+        ):
+            # Insert caps node after v4l2src in the nodes list
+            for i, node in enumerate(modified_graph.nodes):
+                if node.id == v4l2_node_id:
+                    modified_graph.nodes.insert(i + 1, v4l2_caps_node)
+                    break
+
+            # Rewire: old edge from v4l2src→X becomes caps→X, add v4l2src→caps
+            for edge in modified_graph.edges:
+                if edge.source == v4l2_node_id:
+                    edge.source = v4l2_caps_node_id
+                    modified_graph.edges.append(v4l2_edge)
+                    break
+
+            logger.debug(f"Inserted capsfilter after v4l2src (node {v4l2_node_id})")
+
+        # 2b. Apply decodebin3 replacements
+        for db_node_id, kind, nodes_to_insert, edges_to_add in replacements:
+            # Find the decodebin3 node in the (possibly shifted) nodes list
+            db_node = None
+            db_index = -1
+            for i, node in enumerate(modified_graph.nodes):
+                if node.id == db_node_id:
+                    db_node = node
+                    db_index = i
+                    break
+
+            if db_node is None:
+                continue
+
+            if kind == "videoconvert":
+                db_node.type = "videoconvert"
+                logger.debug(
+                    f"Replaced decodebin3 (node {db_node_id}) with videoconvert "
+                    f"for raw format '{codec}'"
+                )
+
+            elif kind == "parsebin_decoder":
+                # Rename decodebin3 → parsebin
+                db_node.type = "parsebin"
+
+                # Insert new nodes (decoder, caps) right after parsebin
+                for offset, new_node in enumerate(nodes_to_insert):
+                    modified_graph.nodes.insert(db_index + 1 + offset, new_node)
+
+                # The last inserted node is the output caps node.
+                # Rewire the original outgoing edge: parsebin→X becomes caps→X
+                last_inserted_id = nodes_to_insert[-1].id
+
+                for edge in modified_graph.edges:
+                    if edge.source == db_node_id:
+                        edge.source = last_inserted_id
+                        break
+
+                # Add internal edges (parsebin→decoder, decoder→caps)
+                modified_graph.edges.extend(edges_to_add)
+
+                logger.debug(
+                    f"Replaced decodebin3 (node {db_node_id}) with "
+                    f"parsebin + {nodes_to_insert[0].type} + {nodes_to_insert[1].type}"
+                )
+
+        return modified_graph
+
+    @staticmethod
+    def _build_v4l2_caps_node(
+        nodes: list[Node],
+    ) -> Optional[tuple[str, str, dict[str, str]]]:
+        """Build a caps node description for the first valid v4l2src in the graph.
+
+        Looks up the USB camera's best_capture configuration via CameraManager
+        and builds the caps string using VideoDecoder. Only processes the first
+        v4l2src node that has a valid device path, camera, best_capture, and
+        caps string. All other v4l2src nodes are ignored.
+
+        This method does NOT modify the graph. It returns the information
+        needed for the caller to insert the caps node.
+
+        Args:
+            nodes: List of nodes to search for v4l2src elements.
+
+        Returns:
+            Tuple of (v4l2_node_id, caps_base_type, caps_data_dict) if a caps
+            node should be inserted, or None if no valid v4l2src is found.
+            The caps_data_dict includes the NODE_KIND_KEY marker and all
+            caps properties.
+        """
+        video_decoder = VideoDecoder()
+
+        for node in nodes:
+            if node.type != "v4l2src":
+                continue
+
+            device_path = node.data.get("device", "")
+            if not device_path:
+                continue
+
+            camera = CameraManager().get_camera_by_device_path(device_path)
+            if camera is None:
+                continue
+
+            details = camera.details
+            if details is None:
+                continue
+
+            if not isinstance(details, USBCameraDetails):
+                continue
+
+            best_capture = details.best_capture
+            if best_capture is None:
+                continue
+
+            caps_string = video_decoder.build_caps_string(
+                best_capture.fourcc,
+                best_capture.width,
+                best_capture.height,
+                best_capture.fps,
+            )
+            if caps_string is None:
+                continue
+
+            # Parse caps string into base type and properties
+            # e.g., "image/jpeg,width=1920,height=1080,framerate=30/1"
+            caps_parts = caps_string.split(",")
+            caps_base = caps_parts[0]
+            caps_data: dict[str, str] = {NODE_KIND_KEY: NODE_KIND_CAPS}
+            for part in caps_parts[1:]:
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    caps_data[k.strip()] = v.strip()
+
+            logger.debug(f"Built caps node for v4l2src (node {node.id}): {caps_string}")
+            return node.id, caps_base, caps_data
+
+        return None
+
 
 def _is_node_visible(node: Node, visible_patterns: list[re.Pattern]) -> bool:
     """
@@ -1206,6 +1680,7 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
         "video/x-raw(memory:VAMemory),width=320,height=240"
         "video/x-raw,width=320,height=240"
         "video/x-raw(memory:NVMM),format=UYVY,width=2592,height=1944,framerate=28/1"
+        "video/x-raw,format=(string)UYVY,width=(int)2592,height=(int)1944,framerate=(fraction)28/1"
 
     Examples of non-caps (returns None):
         "video/x-raw(memory:NVMM)"  - no comma

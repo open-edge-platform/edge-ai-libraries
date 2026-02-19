@@ -1486,32 +1486,58 @@ class CameraDetails(BaseModel):
     pass
 
 
+class V4L2FormatSize(BaseModel):
+    """Single supported resolution with available frame rates for a V4L2 format."""
+
+    width: int
+    height: int
+    fps_list: List[float]
+
+
+class V4L2Format(BaseModel):
+    """Single V4L2 pixel format with all supported resolutions and frame rates."""
+
+    fourcc: str
+    sizes: List[V4L2FormatSize]
+
+
+class V4L2BestCapture(BaseModel):
+    """Best capture configuration selected from available V4L2 formats."""
+
+    fourcc: str
+    width: int
+    height: int
+    fps: float
+
+
 class USBCameraDetails(CameraDetails):
-    """
-    USB camera specific details.
+    """USB camera details including the best capture configuration
+    selected by the scoring algorithm.
 
     Attributes:
         device_path: System device path (e.g., /dev/video0).
-        resolution: Supported or current resolution (optional, e.g., "1920x1080").
+        best_capture: Best capture configuration selected by scoring algorithm.
     """
 
     device_path: str
-    resolution: Optional[str]
+    best_capture: Optional[V4L2BestCapture] = None
 
 
 class NetworkCameraDetails(CameraDetails):
-    """
-    Network camera specific details.
+    """Network camera details including ONVIF profiles and the best
+    profile selected by the scoring algorithm.
 
     Attributes:
         ip: IP address of the camera.
         port: Port number for ONVIF communication.
         profiles: List of ONVIF profiles available on this camera (populated after authentication).
+        best_profile: Best profile selected by scoring algorithm.
     """
 
     ip: str
     port: int
     profiles: list["CameraProfileInfo"]
+    best_profile: Optional["CameraProfileInfo"] = None
 
 
 class Camera(BaseModel):
