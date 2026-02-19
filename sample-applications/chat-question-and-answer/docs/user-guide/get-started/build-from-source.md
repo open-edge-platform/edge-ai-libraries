@@ -81,7 +81,7 @@ Before you begin, ensure that you have the following prerequisites:
 
     ```bash
     export REGISTRY="intel/"
-    export TAG=2.0.1
+    export TAG=latest
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
