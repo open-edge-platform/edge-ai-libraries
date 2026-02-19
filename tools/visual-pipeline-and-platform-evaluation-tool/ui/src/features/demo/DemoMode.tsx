@@ -436,7 +436,13 @@ const DemoMode = () => {
         ? values.reduce((sum, value) => sum + value, 0) / values.length
         : 0;
 
-    const fpsAvg = avg(frozenMetrics.map((point) => point.fps ?? 0));
+    const fpsSeries = frozenMetrics.map((point) => point.fps ?? 0);
+    const firstPositiveFpsIndex = fpsSeries.findIndex((value) => value > 0);
+    const fpsValuesForAverage =
+      firstPositiveFpsIndex >= 0
+        ? fpsSeries.slice(firstPositiveFpsIndex)
+        : fpsSeries;
+    const fpsAvg = avg(fpsValuesForAverage);
     const cpuAvg = avg(frozenMetrics.map((point) => point.cpu ?? 0));
     const memoryAvg = avg(frozenMetrics.map((point) => point.memory ?? 0));
 
