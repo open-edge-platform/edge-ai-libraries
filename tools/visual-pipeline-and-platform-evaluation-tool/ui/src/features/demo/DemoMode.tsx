@@ -346,15 +346,6 @@ const DemoMode = () => {
     }
 
     if (inferenceNodeTypes.has(nodeType)) {
-      if (Object.prototype.hasOwnProperty.call(sanitized, "ie-config")) {
-        const sanitizedIeConfig = sanitizeIeConfig(sanitized["ie-config"]);
-        if (sanitizedIeConfig === undefined) {
-          delete sanitized["ie-config"];
-        } else {
-          sanitized["ie-config"] = sanitizedIeConfig;
-        }
-      }
-
       const regionValue = sanitized["inference-region"];
       const normalizedRegion =
         regionValue === null || regionValue === undefined
@@ -1025,9 +1016,46 @@ const DemoMode = () => {
       return match ? (match.display_name ?? match.name) : null;
     };
 
-    const preparePipelineGraph = (pipelineId: string) => {
+    const getPipelineVariantForRun = (pipelineId: string) => {
       const pipeline = pipelines.find((p) => p.id === pipelineId);
-      const variant = pipeline?.variants?.[0];
+      const defaultVariant = pipeline?.variants?.[0];
+      if (!pipeline || !defaultVariant?.pipeline_graph) return null;
+
+      const classifyNode = defaultVariant.pipeline_graph.nodes.find(
+        (node) => node.type === "gvaclassify",
+      );
+
+      const editedDeviceValue = classifyNode
+        ? nodeDataEdits[getNodeEditKey(pipeline.id, classifyNode.id)]?.device
+        : undefined;
+
+      const deviceValueRaw =
+        editedDeviceValue ?? classifyNode?.data?.device ?? defaultVariant.id;
+      const normalizedDeviceValue = String(deviceValueRaw ?? "")
+        .trim()
+        .toUpperCase();
+
+      const targetVariantId =
+        normalizedDeviceValue === "GPU"
+          ? "gpu"
+          : normalizedDeviceValue === "NPU"
+            ? "zzz"
+            : null;
+
+      if (!targetVariantId) {
+        return defaultVariant;
+      }
+
+      const matchedVariant = pipeline.variants?.find(
+        (variant) => variant.id.toLowerCase() === targetVariantId,
+      );
+
+      return matchedVariant ?? defaultVariant;
+    };
+
+    const preparePipelineGraph = (pipelineId: string, variantId: string) => {
+      const pipeline = pipelines.find((p) => p.id === pipelineId);
+      const variant = pipeline?.variants?.find((item) => item.id === variantId);
       if (!pipeline || !variant?.pipeline_graph) return null;
 
       const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
@@ -1099,11 +1127,10 @@ const DemoMode = () => {
               max_runtime: maxRuntime,
             },
             pipeline_performance_specs: pipelineSelections.map((selection) => {
-              const pipelineGraph = preparePipelineGraph(selection.pipelineId);
-              const pipeline = pipelines.find(
-                (p) => p.id === selection.pipelineId,
-              );
-              const variant = pipeline?.variants?.[0];
+              const variant = getPipelineVariantForRun(selection.pipelineId);
+              const pipelineGraph = variant
+                ? preparePipelineGraph(selection.pipelineId, variant.id)
+                : null;
 
               return {
                 pipeline: pipelineGraph
@@ -1143,11 +1170,10 @@ const DemoMode = () => {
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
-            const pipelineGraph = preparePipelineGraph(selection.pipelineId);
-            const pipeline = pipelines.find(
-              (p) => p.id === selection.pipelineId,
-            );
-            const variant = pipeline?.variants?.[0];
+            const variant = getPipelineVariantForRun(selection.pipelineId);
+            const pipelineGraph = variant
+              ? preparePipelineGraph(selection.pipelineId, variant.id)
+              : null;
 
             return {
               pipeline: pipelineGraph
