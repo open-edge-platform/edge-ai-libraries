@@ -84,8 +84,8 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_cameras = [
-            self._make_usb_camera("usb_camera_0", "Integrated Camera", "/dev/video0"),
-            self._make_usb_camera("usb_camera_1", "External Webcam", "/dev/video1"),
+            self._make_usb_camera("usb-camera-0", "Integrated Camera", "/dev/video0"),
+            self._make_usb_camera("usb-camera-1", "External Webcam", "/dev/video1"),
         ]
         mock_manager = MagicMock()
         mock_manager.discover_all_cameras.return_value = mock_cameras
@@ -99,9 +99,9 @@ class TestCamerasAPI(unittest.TestCase):
         data = response.json()
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 2)
-        self.assertEqual(data[0]["device_id"], "usb_camera_0")
+        self.assertEqual(data[0]["device_id"], "usb-camera-0")
         self.assertEqual(data[0]["device_type"], "USB")
-        self.assertEqual(data[1]["device_id"], "usb_camera_1")
+        self.assertEqual(data[1]["device_id"], "usb-camera-1")
         mock_manager.discover_all_cameras.assert_called_once()
 
     @patch("api.routes.cameras.CameraManager")
@@ -112,7 +112,7 @@ class TestCamerasAPI(unittest.TestCase):
         # Arrange
         mock_cameras = [
             self._make_network_camera(
-                "network_camera_192.168.1.100_80",
+                "network-camera-192.168.1.100-80",
                 "ONVIF Camera 192.168.1.100",
                 "192.168.1.100",
                 80,
@@ -130,7 +130,7 @@ class TestCamerasAPI(unittest.TestCase):
         data = response.json()
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["device_id"], "network_camera_192.168.1.100_80")
+        self.assertEqual(data[0]["device_id"], "network-camera-192.168.1.100-80")
         self.assertEqual(data[0]["device_type"], "NETWORK")
         self.assertEqual(data[0]["details"]["ip"], "192.168.1.100")
         self.assertEqual(data[0]["details"]["port"], 80)
@@ -142,9 +142,9 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_cameras = [
-            self._make_usb_camera("usb_camera_0", "Integrated Camera", "/dev/video0"),
+            self._make_usb_camera("usb-camera-0", "Integrated Camera", "/dev/video0"),
             self._make_network_camera(
-                "network_camera_192.168.1.100_80",
+                "network-camera-192.168.1.100-80",
                 "ONVIF Camera 192.168.1.100",
                 "192.168.1.100",
                 80,
@@ -195,23 +195,23 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_camera = self._make_usb_camera(
-            "usb_camera_0", "Integrated Camera", "/dev/video0"
+            "usb-camera-0", "Integrated Camera", "/dev/video0"
         )
         mock_manager = MagicMock()
         mock_manager.get_camera_by_id.return_value = mock_camera
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
-        response = self.client.get("/cameras/usb_camera_0")
+        response = self.client.get("/cameras/usb-camera-0")
 
         # Assert
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["device_id"], "usb_camera_0")
+        self.assertEqual(data["device_id"], "usb-camera-0")
         self.assertEqual(data["device_name"], "Integrated Camera")
         self.assertEqual(data["device_type"], "USB")
         self.assertEqual(data["details"]["device_path"], "/dev/video0")
-        mock_manager.get_camera_by_id.assert_called_once_with("usb_camera_0")
+        mock_manager.get_camera_by_id.assert_called_once_with("usb-camera-0")
 
     @patch("api.routes.cameras.CameraManager")
     def test_get_camera_returns_network_camera(self, mock_camera_manager_cls):
@@ -220,7 +220,7 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_camera = self._make_network_camera(
-            "network_camera_192.168.1.100_80",
+            "network-camera-192.168.1.100-80",
             "ONVIF Camera 192.168.1.100",
             "192.168.1.100",
             80,
@@ -240,18 +240,18 @@ class TestCamerasAPI(unittest.TestCase):
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
-        response = self.client.get("/cameras/network_camera_192.168.1.100_80")
+        response = self.client.get("/cameras/network-camera-192.168.1.100-80")
 
         # Assert
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["device_id"], "network_camera_192.168.1.100_80")
+        self.assertEqual(data["device_id"], "network-camera-192.168.1.100-80")
         self.assertEqual(data["device_type"], "NETWORK")
         self.assertEqual(data["details"]["ip"], "192.168.1.100")
         self.assertEqual(data["details"]["port"], 80)
         self.assertEqual(len(data["details"]["profiles"]), 1)
         mock_manager.get_camera_by_id.assert_called_once_with(
-            "network_camera_192.168.1.100_80"
+            "network-camera-192.168.1.100-80"
         )
 
     @patch("api.routes.cameras.CameraManager")
@@ -285,7 +285,7 @@ class TestCamerasAPI(unittest.TestCase):
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
-        response = self.client.get("/cameras/usb_camera_0")
+        response = self.client.get("/cameras/usb-camera-0")
 
         # Assert
         self.assertEqual(response.status_code, 500)
@@ -304,7 +304,7 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         camera_with_profiles = self._make_network_camera(
-            "network_camera_192.168.1.100_80",
+            "network-camera-192.168.1.100-80",
             "ONVIF Camera 192.168.1.100",
             "192.168.1.100",
             80,
@@ -329,7 +329,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "admin123",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -337,14 +337,14 @@ class TestCamerasAPI(unittest.TestCase):
         data = response.json()
         self.assertIn("camera", data)
         camera = data["camera"]
-        self.assertEqual(camera["device_id"], "network_camera_192.168.1.100_80")
+        self.assertEqual(camera["device_id"], "network-camera-192.168.1.100-80")
         self.assertIn("profiles", camera["details"])
         self.assertEqual(len(camera["details"]["profiles"]), 1)
         self.assertEqual(camera["details"]["profiles"][0]["name"], "Profile_1")
 
         # Verify manager was called with correct parameters
         mock_manager.load_camera_profiles.assert_called_once_with(
-            "network_camera_192.168.1.100_80", "admin", "admin123"
+            "network-camera-192.168.1.100-80", "admin", "admin123"
         )
 
     @patch("api.routes.cameras.CameraManager")
@@ -354,7 +354,7 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         camera_with_profiles = self._make_network_camera(
-            "network_camera_192.168.1.100_80",
+            "network-camera-192.168.1.100-80",
             "ONVIF Camera 192.168.1.100",
             "192.168.1.100",
             80,
@@ -387,7 +387,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "admin123",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -442,7 +442,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "admin123",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.200_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.200-80/profiles", json=request_body
         )
 
         # Assert
@@ -467,7 +467,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "wrongpassword",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -494,7 +494,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "wrongpassword",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -520,7 +520,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "wrongpassword",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -546,7 +546,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "admin123",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
@@ -569,7 +569,7 @@ class TestCamerasAPI(unittest.TestCase):
             "password": "admin123",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert: FastAPI validation should reject the request
@@ -590,7 +590,7 @@ class TestCamerasAPI(unittest.TestCase):
             "username": "admin",
         }
         response = self.client.post(
-            "/cameras/network_camera_192.168.1.100_80/profiles", json=request_body
+            "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert: FastAPI validation should reject the request

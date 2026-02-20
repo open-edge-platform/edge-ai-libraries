@@ -9,11 +9,7 @@ variants:
   - name: CPU
     pipeline_description: >-
       filesrc location=/videos/input/age_prediction.mp4 !
-      qtdemux !
-      h264parse !
-      avdec_h264 !
-      video/x-raw !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=facemodel-cpu
@@ -36,6 +32,7 @@ variants:
         model=/models/output/omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
         model-proc=/models/output/omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
         device=CPU
+        pre-process-backend=opencv
         inference-region=roi-list
         object-class=face
         reclassify-interval=1 !
@@ -49,12 +46,7 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/age_prediction.mp4 !
-      qtdemux !
-      h264parse !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=facemodel-gpu
@@ -77,6 +69,7 @@ variants:
         model=/models/output/omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
         model-proc=/models/output/omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
         device=GPU
+        pre-process-backend=va-surface-sharing
         inference-region=roi-list
         object-class=face
         reclassify-interval=1 !
@@ -90,12 +83,7 @@ variants:
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/age_prediction.mp4 !
-      qtdemux !
-      h264parse !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=facemodel-npu
@@ -106,7 +94,7 @@ variants:
         inference-region=full-frame
         threshold=0.5
         device=NPU
-        pre-process-backend=va-surface-sharing
+        pre-process-backend=va
         nireq=4 !
       queue !
       gvatrack tracking-type=zero-term-imageless !
@@ -117,6 +105,44 @@ variants:
         model=/models/output/omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
         model-proc=/models/output/omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
         device=NPU
+        pre-process-backend=va
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU_NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      decodebin3 !
+      gvadetect
+        batch-size=1
+        model-instance-id=facemodel-gpu-npu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        scale-method=fast
+        inference-region=full-frame
+        threshold=0.5
+        device=GPU
+        pre-process-backend=va-surface-sharing
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=zero-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=age_classifier-gpu-npu
+        model=/models/output/omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
+        model-proc=/models/output/omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
+        device=NPU
+        pre-process-backend=va
         inference-region=roi-list
         object-class=face
         reclassify-interval=1 !

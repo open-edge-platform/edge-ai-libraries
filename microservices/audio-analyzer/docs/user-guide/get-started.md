@@ -20,6 +20,8 @@ to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduct
 
 ## Configurations
 
+Note: The Audio Analyzer microservice currently supports only CPU as the device. Though documentation refers to other devices from a future feature extension perspective, these other devices should not be used.
+
 ### Environment Variables
 
 The following environment variables can be configured:
@@ -34,7 +36,7 @@ not available)
 - `OPENVINO_MODEL_DIR`: Directory for storing OpenVINO optimized models (for GPU inference)
 - `LANGUAGE`: Language code for transcription (default: None, auto-detect)
 - `MAX_FILE_SIZE`: Maximum allowed file size in bytes (default: 100MB)
-- `DEFAULT_DEVICE`: Device to use for transcription - 'cpu', 'gpu', or 'auto' (default: cpu)
+- `DEFAULT_DEVICE`: Device to use for transcription - 'cpu', 'gpu', or 'auto' (default: cpu). 
 - `USE_FP16`: Use half-precision (FP16) for GPU inference (default: True)
 - `STORAGE_BACKEND`: Storage backend to use - 'minio' or 'filesystem'.
 
