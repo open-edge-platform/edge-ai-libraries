@@ -66,11 +66,11 @@ install_dependencies() {
                 echo -e "${BLUE}INFO:${NC} Dependencies from pyproject.toml will be used (pre-pinned for OVMS 2025.4.1)"
                 echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
                 echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
-            # Only process non-default versions if tag is in vYYYY.M.P format
-            elif [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+\.[0-9]+$ ]]; then
+            # Only process non-default versions if tag is in vYYYY.M or vYYYY.M.P format
+            elif [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+(\.[0-9]+)?$ ]]; then
                 echo -e "${BLUE}INFO:${NC} Custom OVMS version detected. Downloading version-specific files for: ${OVMS_RELEASE_TAG}"
 
-                # Use tag directly in URL (v2025.4.1 -> releases/2025/4)
+                # Use tag directly in URL (v2025.4 -> releases/2025/4)
                 OVMS_URL_TAG="releases/${OVMS_RELEASE_TAG:1:4}/${OVMS_RELEASE_TAG:6:1}"
 
                 # Download export_model.py
@@ -262,7 +262,7 @@ if [ "$PLUGINS" = "all" ]; then
     run_plugins_parallel "${AVAILABLE_PLUGINS[@]}"
     for plugin in "${AVAILABLE_PLUGINS[@]}"; do
         if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
-            print_info "Skipping openvino uv extra — dependencies will be installed from OVMS requirements.txt"
+            print_info "Skipping openvino uv extra — dependencies will be installed from openvino model server requirements.txt"
         else
             EXTRA_ARGS+=("--extra" "$plugin")
         fi
@@ -282,7 +282,7 @@ else
 
     for plugin in "${TRIMMED_PLUGINS[@]}"; do
         if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
-            print_info "Skipping openvino uv extra — dependencies will be installed from OVMS requirements.txt"
+            print_info "Skipping openvino uv extra — dependencies will be installed from OpenVINO model server requirements.txt"
         else
             EXTRA_ARGS+=("--extra" "$plugin")
         fi
@@ -303,14 +303,14 @@ export PATH="/opt/bin/:$PATH"
 if uv sync "${EXTRA_ARGS[@]}"; then
     print_success "Dependencies synced successfully"
     
-    # If OpenVINO was installed and we have a requirements file, install OVMS-specific pins
+    # If OpenVINO was installed and we have a requirements file, install OpenVINO-specific pins
     if [ -n "${OVMS_REQUIREMENTS_FILE}" ] && [ -f "${OVMS_REQUIREMENTS_FILE}" ]; then
-        print_header "Installing OVMS-specific dependencies"
+        print_header "Installing OpenVINO dependencies"
         print_info "Installing from: ${OVMS_REQUIREMENTS_FILE}"
         if uv pip install -r "${OVMS_REQUIREMENTS_FILE}"; then
-            print_success "OVMS dependencies installed successfully"
+            print_success "OpenVINO dependencies installed successfully"
         else
-            print_warning "Failed to install OVMS dependencies, continuing with base versions"
+            print_warning "Failed to install OpenVINO dependencies, continuing with base versions"
         fi
     fi
     
