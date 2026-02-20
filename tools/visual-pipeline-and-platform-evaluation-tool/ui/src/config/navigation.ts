@@ -30,6 +30,11 @@ export type NavigationItem = {
 
 export const menuItems: Array<NavigationItem> = [
   { url: "/", title: "Dashboard", icon: Home },
+  {
+    url: "/pipelines/",
+    title: "Pipeline Editor",
+    hidden: true,
+  },
   { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
@@ -40,11 +45,6 @@ export const menuItems: Array<NavigationItem> = [
   },
   { url: "/tests/density", title: "Density", icon: Grid3x3 },
   { url: "/jobs", title: "Jobs", icon: ListTodo },
-  {
-    url: "/pipelines/",
-    title: "Pipeline Editor",
-    hidden: true,
-  },
 ];
 
 export const routeConfig: Array<RouteObject> = [

@@ -1,6 +1,5 @@
-import { useLocation, useParams } from "react-router";
+import { useLocation } from "react-router";
 import { menuItems } from "@/config/navigation.ts";
-import { PipelineNameEdit } from "@/features/pipelines/PipelineNameEdit.tsx";
 
 const getPageTitle = (pathname: string): string => {
   const exactMatch = menuItems.find((item) => item.url === pathname);
@@ -17,11 +16,6 @@ const getPageTitle = (pathname: string): string => {
 
 export const PageTitle = () => {
   const location = useLocation();
-  const params = useParams();
-
-  if (location.pathname.startsWith("/pipelines/") && params.id) {
-    return <PipelineNameEdit pipelineId={params.id} />;
-  }
 
   const pageTitle = getPageTitle(location.pathname);
   return <>{pageTitle}</>;
