@@ -146,9 +146,6 @@ class PipelineTemplateManager:
         """
         Build a Pipeline template object from a parsed YAML config.
 
-        The method mirrors the logic used in PipelineManager.load_predefined_pipelines()
-        but sets source=TEMPLATE and read_only=True for all variants.
-
         Args:
             config: Parsed YAML configuration dictionary.
             config_path: Path to the config file (used in error messages).
