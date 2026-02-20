@@ -31,8 +31,8 @@ def get_pipeline_templates():
     List all available pipeline templates.
 
     Operation:
-        Return all read-only pipeline templates loaded from configuration. 
-        Properties that require user-supplied values (e.g. input source URI, model paths) 
+        Return all read-only pipeline templates loaded from configuration.
+        Properties that require user-supplied values (e.g. input source URI, model paths)
         are stored as empty strings. Use templates as a starting point – copy the desired variant's graph,
         fill in the empty properties with real values, and submit it as a new
         pipeline via ``POST /pipelines``.
@@ -99,6 +99,7 @@ def get_pipeline_templates():
 @router.get(
     "/{template_id}",
     operation_id="get_pipeline_template",
+    response_model=schemas.Pipeline,
     responses={
         200: {
             "description": "Successful Response",

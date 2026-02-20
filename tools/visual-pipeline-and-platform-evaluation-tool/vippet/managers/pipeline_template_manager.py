@@ -122,7 +122,7 @@ class PipelineTemplateManager:
 
         for config_path in sorted(templates_dir.glob("*.yaml")):
             try:
-                config = PipelineLoader.config(str(config_path))
+                config = PipelineLoader.config(config_path)
                 template = self._build_template_from_config(
                     config, str(config_path), existing_templates=templates
                 )
@@ -131,9 +131,7 @@ class PipelineTemplateManager:
                     f"Loaded pipeline template '{template.name}' from {config_path}"
                 )
             except Exception as exc:
-                self.logger.error(
-                    f"Failed to load template from {config_path}: {exc}"
-                )
+                self.logger.error(f"Failed to load template from {config_path}: {exc}")
                 raise
 
         self.logger.debug(f"Loaded {len(templates)} pipeline template(s).")

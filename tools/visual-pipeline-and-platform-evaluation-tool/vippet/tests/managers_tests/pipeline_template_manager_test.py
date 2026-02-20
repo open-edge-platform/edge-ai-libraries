@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from api.api_schemas import Pipeline, PipelineSource
+from api.api_schemas import PipelineSource
 from managers.pipeline_template_manager import (
     PipelineTemplateManager,
     TEMPLATES_DIR_NAME,
@@ -143,7 +143,9 @@ class TestPipelineTemplateManagerGetTemplates(unittest.TestCase):
         # Inject two dummy templates directly
         for config in MOCK_TEMPLATE_CONFIGS:
             manager.templates.append(
-                manager._build_template_from_config(config, "dummy.yaml", manager.templates)
+                manager._build_template_from_config(
+                    config, "dummy.yaml", manager.templates
+                )
             )
 
         result = manager.get_templates()
@@ -233,14 +235,18 @@ class TestPipelineTemplateManagerGetTemplateById(unittest.TestCase):
         """Reset singleton state after each test."""
         PipelineTemplateManager._instance = None
 
-    def _create_manager_with_templates(self, mock_loader_cls) -> PipelineTemplateManager:
+    def _create_manager_with_templates(
+        self, mock_loader_cls
+    ) -> PipelineTemplateManager:
         """Helper that creates a manager pre-loaded with MOCK_TEMPLATE_CONFIGS."""
         mock_loader_cls.get_pipelines_directory.return_value = "/nonexistent/path"
         manager = PipelineTemplateManager()
         manager.templates = []
         for config in MOCK_TEMPLATE_CONFIGS:
             manager.templates.append(
-                manager._build_template_from_config(config, "dummy.yaml", manager.templates)
+                manager._build_template_from_config(
+                    config, "dummy.yaml", manager.templates
+                )
             )
         return manager
 
@@ -717,7 +723,9 @@ class TestBuildTemplateFromConfig(unittest.TestCase):
             ],
         }
 
-        template = manager._build_template_from_config(config_bad_tags, "dummy.yaml", [])
+        template = manager._build_template_from_config(
+            config_bad_tags, "dummy.yaml", []
+        )
 
         self.assertEqual(template.tags, [])
 

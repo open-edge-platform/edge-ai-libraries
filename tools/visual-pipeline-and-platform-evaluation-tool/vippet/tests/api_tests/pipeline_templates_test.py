@@ -317,9 +317,7 @@ class TestPipelineTemplatesAPI(unittest.TestCase):
     def test_get_pipeline_templates_thumbnail_is_null(self, mock_manager_cls):
         """Test that templates always have a null thumbnail."""
         mock_manager = MagicMock()
-        mock_manager.get_templates.return_value = [
-            self._create_test_template()
-        ]
+        mock_manager.get_templates.return_value = [self._create_test_template()]
         mock_manager_cls.return_value = mock_manager
 
         response = self.client.get("/pipeline-templates")
