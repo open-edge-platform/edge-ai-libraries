@@ -114,7 +114,6 @@ const ViewModeSwitcher = ({
   const handleDiscardChanges = () => {
     setShowUnsavedDialog(false);
     if (pendingModeChange !== null) {
-      // Skip saving when discarding changes to avoid persisting bad state
       performModeSwitch(pendingModeChange, true);
       setPendingModeChange(null);
     }

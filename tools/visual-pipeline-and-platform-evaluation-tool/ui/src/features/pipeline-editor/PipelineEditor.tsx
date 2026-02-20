@@ -109,7 +109,6 @@ const PipelineEditorContent = forwardRef<
       [handleNodeDataUpdate, setNodes, setEdges],
     );
 
-    // Notify parent of changes for history tracking
     useEffect(() => {
       if (hasInitialized) {
         onNodesChangeCallback?.(nodes);

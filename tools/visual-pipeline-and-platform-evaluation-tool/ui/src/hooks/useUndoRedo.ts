@@ -9,16 +9,15 @@ interface UseUndoRedoOptions {
   maxHistorySize?: number;
 }
 
-// Normalize nodes for history comparison - exclude UI-only properties
-const normalizeNodesForHistory = (nodes: ReactFlowNode[]) => {
-  return nodes.map((node) => ({
+const normalizeNodesForHistory = (nodes: ReactFlowNode[]) =>
+  // The history of graph edits track only position and data changes
+  // Excluded: selected, dragging, width, height, etc.
+  nodes.map((node) => ({
     id: node.id,
     type: node.type,
     position: node.position,
     data: node.data,
-    // Exclude: selected, dragging, width, height, etc.
   }));
-};
 
 export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
   const { debounceMs = 500, maxHistorySize = 50 } = options;
@@ -47,13 +46,10 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
 
   const addToHistory = useCallback(
     (nodes: ReactFlowNode[], edges: ReactFlowEdge[]) => {
-      // Skip if this is an undo/redo action
       if (isUndoRedoAction.current) return;
 
-      // Normalize nodes to exclude UI-only properties for comparison
       const normalizedNodes = normalizeNodesForHistory(nodes);
 
-      // Skip if there are no meaningful changes
       if (lastHistoryStateRef.current) {
         const normalizedLastNodes = normalizeNodesForHistory(
           lastHistoryStateRef.current.nodes,
@@ -67,7 +63,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
         if (!nodesChanged && !edgesChanged) return;
       }
 
-      // Store the actual nodes/edges (not normalized)
       lastHistoryStateRef.current = { nodes, edges };
 
       setHistory((prev) => {
@@ -77,7 +72,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
           edges: JSON.parse(JSON.stringify(edges)),
         };
         newHistory.push(stateCopy);
-        // Limit history to maxHistorySize entries
         if (newHistory.length > maxHistorySize) {
           newHistory.shift();
           return newHistory;
@@ -96,7 +90,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
       setCurrentNodes(prevState.nodes);
       setCurrentEdges(prevState.edges);
       setHistoryIndex(historyIndex - 1);
-      // Don't call onEditorKeyChange during undo - it forces a remount which resets viewport
       setTimeout(() => {
         isUndoRedoAction.current = false;
       }, 0);
@@ -110,7 +103,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
       setCurrentNodes(nextState.nodes);
       setCurrentEdges(nextState.edges);
       setHistoryIndex(historyIndex + 1);
-      // Don't call onEditorKeyChange during redo - it forces a remount which resets viewport
       setTimeout(() => {
         isUndoRedoAction.current = false;
       }, 0);
@@ -131,7 +123,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
     (nodes: ReactFlowNode[], edges: ReactFlowEdge[]) => {
       setCurrentNodes(nodes);
       setCurrentEdges(edges);
-      // Initialize history with the initial state
       if (nodes.length > 0 || edges.length > 0) {
         setHistory([
           {
@@ -146,7 +137,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
     [],
   );
 
-  // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -171,7 +161,6 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
     };
   }, [undo, redo]);
 
-  // Debounced history tracking - add to history after changes settle
   useEffect(() => {
     if (isUndoRedoAction.current) return;
 
@@ -193,13 +182,10 @@ export const useUndoRedo = (options: UseUndoRedoOptions = {}) => {
   }, [currentNodes, currentEdges, addToHistory, debounceMs]);
 
   return {
-    // State
     currentNodes,
     currentEdges,
     canUndo: historyIndex > 0,
     canRedo: historyIndex < history.length - 1,
-
-    // Methods
     handleNodesChange,
     handleEdgesChange,
     setCurrentNodes,

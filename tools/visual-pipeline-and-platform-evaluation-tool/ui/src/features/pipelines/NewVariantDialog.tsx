@@ -8,9 +8,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.tsx";
 import {
-  useCreateVariantMutation,
-  useConvertSimpleToAdvancedMutation,
+  type PipelineGraph,
   useConvertAdvancedToSimpleMutation,
+  useConvertSimpleToAdvancedMutation,
+  useCreateVariantMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
 import { isApiError } from "@/lib/apiUtils.ts";
@@ -21,7 +22,7 @@ import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
 } from "@xyflow/react";
-import { newVariantSchema, type NewVariantFormData } from "./pipelineSchemas";
+import { type NewVariantFormData, newVariantSchema } from "./pipelineSchemas";
 
 type NewVariantDialogProps = {
   pipelineId: string;
@@ -76,21 +77,17 @@ export const NewVariantDialog = ({
         })),
       };
 
-      // Convert based on current mode
-      let advancedGraph = pipelineGraph;
-      let simpleGraph = pipelineGraph;
+      let advancedGraph: PipelineGraph;
+      let simpleGraph: PipelineGraph;
 
       if (isSimpleMode) {
-        // Current graph is simple, need to convert to advanced
-        const convertedAdvanced = await convertSimpleToAdvanced({
+        advancedGraph = await convertSimpleToAdvanced({
           pipelineId,
           variantId,
           pipelineGraph,
         }).unwrap();
-        advancedGraph = convertedAdvanced;
         simpleGraph = pipelineGraph;
       } else {
-        // Current graph is advanced, need to convert to simple
         const convertedSimple = await convertAdvancedToSimple({
           pipelineId,
           variantId,
