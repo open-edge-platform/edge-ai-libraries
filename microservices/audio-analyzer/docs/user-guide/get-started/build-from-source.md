@@ -13,12 +13,12 @@ This guide is ideal for developers who want to work directly with the source cod
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify your system meets the [minimum requirements](./get-started/system-requirements.md).
+- **System Requirements**: Verify your system meets the [minimum requirements](../get-started/system-requirements.md).
 - This guide assumes basic familiarity with Git commands, Python virtual environments, and
 terminal usage. If you are new to these concepts, see:
   - [Git Documentation](https://git-scm.com/doc)
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
-- Follow all the steps provided in [get started](./get-started.md) documentation with respect to [environment variables](./get-started.md#environment-variables) configuration, setting up of [storage backends](./get-started.md#setup-the-storage-backends) and [model selection](./get-started.md#model-selection).
+- Follow all the steps provided in [get started](../get-started.md) documentation with respect to [environment variables](../get-started.md#environment-variables) configuration, setting up of [storage backends](../get-started.md#setup-the-storage-backends) and [model selection](../get-started.md#model-selection).
 
 ## Steps to Build
 
@@ -45,7 +45,7 @@ The following options are provided to build the microservice:
     export MINIO_SECRET_KEY=<your-minio-password>
     ```
 
-    > __NOTE :__ To override the default storage backend, see [setup the storage backends](./get-started.md#setup-the-storage-backends).
+    > __NOTE :__ To override the default storage backend, see [setup the storage backends](../get-started.md#setup-the-storage-backends).
 
 3. The Docker setup will build the image if not already present on the machine. We can optionally set a registry URL and tag, if we wish to push this image to any repository. If not set, default image will be built as `audio-analyzer:latest`.
 
@@ -161,7 +161,7 @@ The setup script will:
 
 ## Supporting Resources
 
-- [Get Started Guide](./get-started.md)
-- [System Requirements](./get-started/system-requirements.md)
-- [API Reference](./api-reference.md)
-- [Troubleshooting](./troubleshooting.md)
+- [Get Started Guide](../get-started.md)
+- [System Requirements](./system-requirements.md)
+- [API Reference](../api-reference.md)
+- [Troubleshooting](../troubleshooting.md)

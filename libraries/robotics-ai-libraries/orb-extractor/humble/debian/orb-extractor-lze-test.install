@@ -1,1 +1,3 @@
-opt/intel/orb_lze/tests/
+opt/intel/orb_lze/tests/*
+# Include fuzzer sources for container-aware builds
+tests/fuzzer/simple_fuzzer_*.cpp opt/intel/orb_lze/tests/

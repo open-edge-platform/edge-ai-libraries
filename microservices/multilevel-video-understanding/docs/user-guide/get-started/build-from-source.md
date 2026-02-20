@@ -1,4 +1,4 @@
-# How to Build from Source
+# Build from Source
 
 Build the Multi-level Video Understanding Microservice from source to customize, debug, or extend its functionality. In this guide, you will:
 

@@ -171,7 +171,7 @@ More details can be found in  [LLM Microservice with vLLM on Intel XPU](https://
 
 Before launching the service as documented below, users need to prepare the docker images:
 
-- **Option1.** [Build the docker images](./get-started/how-to-build-from-source.md#steps-to-build)
+- **Option1.** [Build the docker images](./get-started/build-from-source.md#steps-to-build)
 - **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
@@ -380,8 +380,8 @@ http://localhost:8192/docs
 :::{toctree}
 :hidden:
 
-get-started/system-requirements
-get-started/how-to-build-from-source
+./get-started/system-requirements
+./get-started/build-from-source
 
 :::
 hide_directive-->
