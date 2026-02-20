@@ -1,5 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router";
 import {
+  useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useRunPerformanceTestMutation,
@@ -96,6 +97,7 @@ export const Pipelines = () => {
     useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
+  const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: performanceTestJobId! },
@@ -210,7 +212,7 @@ export const Pipelines = () => {
   };
 
   const handleRunPipeline = async () => {
-    if (!id) return;
+    if (!id || !variant) return;
 
     setCompletedVideoPath(null);
     setShowDetailsPanel(true);
@@ -230,26 +232,31 @@ export const Pipelines = () => {
         })),
       };
 
-      // TODO: for predefined pipelines we cannot pass simple_graph, cannot sync changes
-      // so most likely can just pass advanced graph, no matter what mode is active
+      // If in simple mode, convert to advanced graph first
+      let finalGraphData = graphData;
+      if (isSimpleMode) {
+        finalGraphData = await convertSimpleToAdvanced({
+          pipelineId: id,
+          variantId: variant,
+          pipelineGraph: graphData,
+        }).unwrap();
+      }
 
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
-          execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
-          },
+        performanceTestSpec: {
           pipeline_performance_specs: [
             {
               pipeline: {
                 source: "graph",
-                //pipeline_graph: graphData,
-                pipeline_graph: data!.variants.find((v) => v.id === variant)!
-                  .pipeline_graph,
+                pipeline_graph: finalGraphData,
               },
               streams: 1,
             },
           ],
+          execution_config: {
+            output_mode: videoOutputEnabled ? "file" : "disabled",
+            max_runtime: 0,
+          },
         },
       }).unwrap();
 
