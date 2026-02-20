@@ -69,7 +69,6 @@ export const Pipelines = () => {
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
 
-  // Undo/Redo functionality
   const {
     currentNodes,
     currentEdges,
@@ -150,22 +149,18 @@ export const Pipelines = () => {
     setCurrentViewport(viewport);
   };
 
-  // Track if we're in an undo/redo operation to prevent circular updates
   const isUndoRedoRef = useRef(false);
 
   const undo = () => {
     isUndoRedoRef.current = true;
     undoHistory();
-    // The useEffect below will handle updating the editor
   };
 
   const redo = () => {
     isUndoRedoRef.current = true;
     redoHistory();
-    // The useEffect below will handle updating the editor
   };
 
-  // Sync editor state when undo/redo changes currentNodes/currentEdges
   useEffect(() => {
     if (isUndoRedoRef.current && pipelineEditorRef.current) {
       pipelineEditorRef.current.setNodes(currentNodes);
@@ -199,7 +194,6 @@ export const Pipelines = () => {
   ) => {
     pipelineEditorRef.current?.updateNodeData(nodeId, updatedData);
 
-    // Update currentNodes to trigger history tracking
     setCurrentNodes((prevNodes) =>
       prevNodes.map((node) =>
         node.id === nodeId ? { ...node, data: updatedData } : node,
@@ -232,10 +226,9 @@ export const Pipelines = () => {
         })),
       };
 
-      // If in simple mode, convert to advanced graph first
-      let finalGraphData = graphData;
+      let payloadGraphData = graphData;
       if (isSimpleMode) {
-        finalGraphData = await convertSimpleToAdvanced({
+        payloadGraphData = await convertSimpleToAdvanced({
           pipelineId: id,
           variantId: variant,
           pipelineGraph: graphData,
@@ -248,7 +241,7 @@ export const Pipelines = () => {
             {
               pipeline: {
                 source: "graph",
-                pipeline_graph: finalGraphData,
+                pipeline_graph: payloadGraphData,
               },
               streams: 1,
             },
