@@ -2,7 +2,7 @@ import logging
 import threading
 from typing import List, Optional
 
-from api.api_schemas import Camera
+from api.api_schemas import Camera, NetworkCameraDetails, USBCameraDetails
 from camera import USBCameraDiscovery, ONVIFCameraDiscovery
 
 logger = logging.getLogger("camera_manager")
@@ -167,7 +167,7 @@ class CameraManager:
         It does not trigger new discovery - use discover_* methods first if needed.
 
         Args:
-            camera_id: Camera identifier (e.g., "usb_camera_0" or "network_camera_192.168.1.100_80").
+            camera_id: Camera identifier (e.g., "usb-camera-0" or "network-camera-192.168.1.100-80").
 
         Returns:
             Camera object if found, None otherwise.
@@ -191,6 +191,66 @@ class CameraManager:
         self.logger.debug(f"Camera {camera_id} not found in cache")
         return None
 
+    def get_camera_by_device_path(self, device_path: str) -> Optional[Camera]:
+        """Get a USB camera by its device path from the cache.
+
+        Searches cached USB cameras for one matching the given device path.
+        Does not trigger new discovery.
+
+        Args:
+            device_path: Device path (e.g., "/dev/video0").
+
+        Returns:
+            Camera object if found, None otherwise.
+        """
+        if not device_path:
+            return None
+
+        with self._lock:
+            for camera in self._usb_cameras:
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, USBCameraDetails):
+                    continue
+                if camera.details.device_path == device_path:
+                    self.logger.debug(f"Found USB camera for device path {device_path}")
+                    return camera
+
+        self.logger.debug(f"No USB camera found for device path {device_path}")
+        return None
+
+    def get_camera_by_rtsp_url(self, rtsp_url: str) -> Optional[Camera]:
+        """Get a network camera that has a profile matching the given RTSP URL.
+
+        Searches cached network cameras for one with a profile whose rtsp_url
+        matches. Does not trigger new discovery or authentication.
+
+        Args:
+            rtsp_url: RTSP URL to search for (e.g., "rtsp://192.168.1.100:554/stream1").
+
+        Returns:
+            Camera object if found, None otherwise.
+        """
+        if not rtsp_url:
+            return None
+
+        normalized = rtsp_url.strip()
+        with self._lock:
+            for camera in self._network_cameras:
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, NetworkCameraDetails):
+                    continue
+                for profile in camera.details.profiles:
+                    if profile.rtsp_url == normalized:
+                        self.logger.debug(
+                            f"Found network camera for RTSP URL {rtsp_url}"
+                        )
+                        return camera
+
+        self.logger.debug(f"No network camera found for RTSP URL {rtsp_url}")
+        return None
+
     def load_camera_profiles(
         self, camera_id: str, username: str, password: str
     ) -> Camera:
@@ -201,7 +261,7 @@ class CameraManager:
         and updates the cached camera object with the profile information.
 
         Args:
-            camera_id: Camera identifier (e.g., "network_camera_192.168.1.100_80").
+            camera_id: Camera identifier (e.g., "network-camera-192.168.1.100-80").
             username: ONVIF username for authentication.
             password: ONVIF password for authentication.
 
@@ -215,7 +275,7 @@ class CameraManager:
         """
         self.logger.debug(f"Loading profiles for camera {camera_id}")
 
-        if not camera_id.startswith("network_camera_"):
+        if not camera_id.startswith("network-camera-"):
             error_msg = "Invalid camera type - only network cameras supported"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
@@ -242,3 +302,34 @@ class CameraManager:
                     break
 
         return authenticated_camera
+
+    def get_encoding_for_rtsp_url(self, rtsp_url: str) -> Optional[str]:
+        """Get encoding for a given RTSP URL from cached ONVIF profiles.
+
+        Network camera profiles (including `encoding` and `rtsp_url`) are only
+        populated after successful authentication via `load_camera_profiles()`.
+        This method does not trigger discovery/authentication; it only searches
+        the in-memory cache.
+
+        Args:
+            rtsp_url: RTSP URL that appears in a profile (e.g. "rtsp://.../stream")
+
+        Returns:
+            Encoding string from the matching profile (e.g. "H264", "H265"),
+            or None if not found.
+        """
+        if not rtsp_url:
+            return None
+
+        normalized = rtsp_url.strip()
+        with self._lock:
+            for camera in self._network_cameras:
+                if camera.details is None:
+                    continue
+                if not isinstance(camera.details, NetworkCameraDetails):
+                    continue
+                for profile in camera.details.profiles:
+                    if profile.rtsp_url == normalized:
+                        return profile.encoding
+
+        return None
