@@ -128,11 +128,22 @@ if [[ "$ACTION" != "down" ]]; then
         MODEL_PATH="$DEFAULT_MODEL_PATH"
     fi
     
+
     # If OVMS release tag is not provided, use default
     if [[ -z "$OVMS_RELEASE_TAG" ]]; then
         OVMS_RELEASE_TAG="$DEFAULT_OVMS_RELEASE_TAG"
     fi
-    
+
+    if [[ "$OVMS_RELEASE_TAG" =~ ^[vV]([0-9]{4})\.([0-9]+)([.]([0-9]+))?$ ]]; then
+        if (( 10#${BASH_REMATCH[1]} < 2025 )) || (( 10#${BASH_REMATCH[1]} == 2025 && 10#${BASH_REMATCH[2]} < 4 )); then
+            log_error "OVMS_RELEASE_TAG '$OVMS_RELEASE_TAG' is not supported. Minimum required version is 2025.4."
+            return 1
+        fi
+    else
+        log_error "Invalid OVMS_RELEASE_TAG format '$OVMS_RELEASE_TAG'. Expected format: vYYYY.M or vYYYY.M.P (e.g. v2025.4 or v2025.4.1)"
+        return 1
+    fi
+
     log_info "Setting up model path: ${BOLD}$MODEL_PATH${NC}"
 
     if [[ "$MODEL_PATH" != /* ]]; then

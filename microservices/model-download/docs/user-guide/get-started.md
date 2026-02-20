@@ -79,11 +79,12 @@ The Model Download is a microservice that downloads models from multiple hubs as
         __Options__:
         | Option                   | Description                                                                                      |
         |--------------------------|--------------------------------------------------------------------------------------------------|
-        | `--build`                | Builds the Docker image before running                                                            |
-        | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
-        | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics, or geti`) or `all` to enable all available plugins |
-        | `--help`                 | Shows this help message                                                                           |
+        | `--build`                | Build the Docker image before running                                                            |
+        | `--rebuild`              | This flag instructs to ignore any existing cached images and rebuild them from scratch using the Dockerfile definitions|
+        | `--model-path <path>`    | Set custom model path (default: `$HOME/models/`)                                           |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics,geti`) or `all` to enable all available plugins |
+        | `--ovms-release-tag <tag>` |  Set OVMS release tag (e.g., v2025.4.1) (default: v2025.4.1)                                   |
+        | `--help`                 | Show this help message                                                                           |
       
       **Examples**:
         - Start the service with default settings: `source scripts/run_service.sh up`
