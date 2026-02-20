@@ -42,5 +42,5 @@ version: 2026.0.0-helm
 # 2. Ensure this matches the version field above: 2026.0.0-<date>-weekly-helm
 #
 # Example: If the release date is February 2, 2026:
-#   appVersion: "2026.0.0-20260202-weekly"
+#   appVersion: "2026.0.0-20260202-weekly-helm"
 appVersion: "2026.0.0-helm"
