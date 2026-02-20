@@ -38,6 +38,7 @@ import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
 import AvDecH264Node from "./AvDecH264Node.tsx";
+import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -68,6 +69,7 @@ export const nodeTypes = {
   tee: TeeNode,
   splitmuxsink: SplitMuxSinkNode,
   videoscale: VideoScaleNode,
+  source: SourceNode,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -80,6 +82,7 @@ export const nodeWidths: Record<string, number> = {
   gvawatermark: GVAWatermarkNodeWidth,
   videoconvert: VideoConvertNodeWidth,
   splitmuxsink: SplitMuxSinkNodeWidth,
+  source: SourceNodeWidth,
 };
 
 export const defaultNodeWidth = 220;

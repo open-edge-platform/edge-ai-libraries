@@ -20,12 +20,13 @@ terminal usage. If you are new to these concepts, see:
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
 - Follow all the steps provided in [get started](../get-started.md) documentation with respect to [environment variables](../get-started.md#environment-variables) configuration, setting up of [storage backends](../get-started.md#setup-the-storage-backends) and [model selection](../get-started.md#model-selection).
 
-## Steps to Build
+## Options to Build From Source
 
 The following options are provided to build the microservice:
 
-- [Build and run application with required dependencies using Docker Script](#build-and-run-in-container-using-docker-script).
-- [Build and run on host using Setup Script](#build-and-run-on-host-using-setup-script).
+- [Build and run application using **Docker script**](#build-and-run-in-container-using-docker-script).
+- [Build and run on host using **Setup script**](#build-and-run-on-host-using-setup-script).
+- [Build and run on host manually](#build-and-run-on-host-manually)
 
 ### Build and run in container using Docker script
 
@@ -37,7 +38,7 @@ The following options are provided to build the microservice:
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
     ```
 
-2. Default storage backend used in the Docker script based setup is `minio`. We need to set following required environment variables for Minio on shell:
+2. Storage backend used in this setup is `minio`. We need to set following **required environment variables** for Minio on current shell:
 
     ```bash
     # MinIO credentials (required)
@@ -45,7 +46,7 @@ The following options are provided to build the microservice:
     export MINIO_SECRET_KEY=<your-minio-password>
     ```
 
-    > __NOTE :__ To override the default storage backend, see [setup the storage backends](../get-started.md#setup-the-storage-backends).
+    > __NOTE :__ If `minio` storage backend is not required, see [Overriding Storage Backend](../get-started.md#overriding-storage-backends).
 
 3. The Docker setup will build the image if not already present on the machine. We can optionally set a registry URL and tag, if we wish to push this image to any repository. If not set, default image will be built as `audio-analyzer:latest`.
 
@@ -71,17 +72,10 @@ The following options are provided to build the microservice:
     ```bash
     # Set a default model to use, if one is not provided explicitly. Should be one of the ENABLED_WHISPER_MODELS
     export DEFAULT_WHISPER_MODEL=tiny.en
-
-    # Device to use: cpu, gpu, or auto
-    export DEFAULT_DEVICE=cpu
-    export USE_FP16=true
-
-    # Storage backend: minio or local
-    export STORAGE_BACKEND=minio
     export MAX_FILE_SIZE=314572800
     ```
 
-6. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
+6. Run the setup script to build and bring up production version of application. This also brings up Minio Server container, if `minio` storage backend is used:
 
     ```bash
     cd edge-ai-libraries/microservices/audio-analyzer
@@ -153,6 +147,88 @@ The setup script will:
 - Create directories for model storage. **For host setup using script, only storage backend available is local filesystem.**
 - Install Poetry and project dependencies
 - Start the Audio Analyzer service
+
+## Build and run on host manually
+
+> **__NOTE :__** As an alternative easier method to setup on host, please see : [setting up on host using setup script](#build-and-run-on-host-using-setup-script). When setting up on host manually, **the storage backend used is local filesystem** which can be overridden to `minio`. Please make sure the value of `STORAGE_BACKEND` environment variable is `minio`, unless you want to explicitly use the Minio storage backend.
+
+1. Clone the repository and change directory to the audio-analyzer microservice:
+    ```bash
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Access the code
+    cd edge-ai-libraries/microservices/audio-analyzer
+    ```
+
+2. Install Poetry if not already installed.
+    ```bash
+    pip install poetry==1.8.3
+    ```
+
+3. Configure poetry to create a local virtual environment.
+    ```bash
+    poetry config virtualenvs.create true
+    poetry config virtualenvs.in-project true
+    ```
+
+4. Install dependencies:
+    ```bash
+    poetry lock --no-update
+    poetry install
+    ```
+
+5. Set comma-separated list of whisper models that need to be enabled:
+    ```bash
+    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
+    ```
+
+6. Set directories on host where models will be downloaded:
+    ```bash
+    export GGML_MODEL_DIR=/tmp/audio_analyzer_model/ggml
+    export OPENVINO_MODEL_DIR=/tmp/audio_analyzer_model/openvino
+    ```
+
+7. Run the service:
+    ```bash
+    DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
+
+8. _(Optional):_ To run the service with Minio storage backend, make sure Minio Server is running. Please see [Running a Local Minio Server](#manually-running-a-local-minio-server). User might need to update the `MINIO_ENDPOINT` environment variable depending on where the Minio Server is running (if not set, default value considered is `localhost:9000`).
+
+    ```bash
+    export MINIO_ENDPOINT="<minio_host>:<minio_port>"
+    ```
+    Run the Audio Analyzer application on host:
+    ```bash
+    STORAGE_BACKEND=minio DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
+
+### Running tests for host setup
+
+We can run unit tests and generate coverage by running following command in the application's directory (microservices/audio-analyzer) in the cloned repo:
+
+```bash
+poetry lock --no-update
+poetry install --with dev
+# set a required env var to set model name : required due to compliance issue
+export ENABLED_WHISPER_MODELS=tiny.en
+
+# Run tests
+poetry run coverage run -m pytest ./tests
+
+# Generate Coverage report
+poetry run coverage report -m
+```
+
+### API Documentation
+
+When running the service, you can access the Swagger UI documentation at:
+
+```bash
+http://localhost:8000/docs
+```
 
 ## Validation
 
