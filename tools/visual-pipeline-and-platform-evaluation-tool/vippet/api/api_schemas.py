@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 class PipelineSource(str, Enum):
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
+    TEMPLATE = "TEMPLATE"
 
 
 class AppStatus(str, Enum):
