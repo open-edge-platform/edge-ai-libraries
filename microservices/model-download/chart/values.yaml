@@ -11,7 +11,7 @@ modeldownload:
   name: model-download
   image:
     registry: "intel/"
-    tag: latest
+    tag: 1.1.0-rc1
     pullPolicy: IfNotPresent
 
   readinessProbe:
