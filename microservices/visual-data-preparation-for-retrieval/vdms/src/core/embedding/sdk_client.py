@@ -8,15 +8,23 @@ import time
 import traceback
 import uuid
 from collections.abc import Iterable
-from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import numpy as np
-from PIL import Image
 from langchain_core.embeddings import Embeddings
-from langchain_vdms.vectorstores import VDMS, VDMS_Client
-from multimodal_embedding_serving import EmbeddingModel, get_model_handler
+from langchain_vdms.vectorstores import VDMS
+from langchain_vdms.vectorstores import VDMS_Client
+from multimodal_embedding_serving import EmbeddingModel
+from multimodal_embedding_serving import get_model_handler
+from PIL import Image
 
-from src.common import Strings, logger, settings
+from src.common import Strings
+from src.common import logger
+from src.common import settings
 
 
 class DummyEmbedding(Embeddings):
@@ -201,6 +209,7 @@ class SDKVDMSClient:
             if self.supports_image:
                 logger.debug("Probing dimensions via image pathway")
                 dummy_image = Image.new('RGB', (224, 224), color='white')
+                dummy_image = np.array(dummy_image).astype(np.uint8)
                 test_embedding = self.model_handler.encode_image([dummy_image])
                 logger.debug(
                     "Image probe type=%s length=%s",
@@ -479,56 +488,41 @@ class SDKVDMSClient:
             logger.error("Error generating image embedding: %s", exc)
             return None
 
-    def generate_embeddings_for_images(self, image_inputs: List[Any]) -> List[Optional[List[float]]]:
+    def generate_embeddings_for_images(self, image_inputs: List[np.ndarray]) -> List[Optional[List[float]]]:
         """
         Generate embeddings for multiple images using SDK in batch.
         
         Args:
-            image_inputs: List of image inputs (PIL Images, numpy arrays, or paths)
+            image_inputs: List of image inputs (numpy arrays)
             
         Returns:
             List of embeddings as lists of floats or None for failed images
         """
+        image_len = len(image_inputs)
         try:
             if not self.supports_image:
                 logger.info(
                     "Model %s does not support image embeddings; skipping batch of %d images.",
                     self.model_id,
-                    len(image_inputs),
+                    image_len,
                 )
-                return [None] * len(image_inputs)
+                return [None] * image_len
 
             # Convert all inputs to PIL Images
-            pil_images = []
-            for image_input in image_inputs:
-                if isinstance(image_input, str):
-                    # If it's a path, load the image
-                    image = Image.open(image_input)
-                elif isinstance(image_input, np.ndarray):
-                    # If it's a numpy array, convert to PIL
-                    image = Image.fromarray(image_input)
-                else:
-                    # Assume it's already a PIL Image
-                    image = image_input
-                pil_images.append(image)
-            
+            # with ThreadPoolExecutor(max_workers=8) as pool:
+            #     image_inputs = list(pool.map(Image.fromarray, image_inputs))
+
             # Generate embeddings using the model handler in batch
-            embeddings = self.model_handler.encode_image(pil_images)
-            
-            if embeddings is not None:
-                results = []
-                for embedding in embeddings:
-                    if embedding is not None:
-                        vector = self._to_list(embedding)
-                        results.append(vector or None)
-                    else:
-                        results.append(None)
-                return results
-            return [None] * len(image_inputs)
+            results = []
+            embeddings = self.model_handler.encode_image(image_inputs)
+            results.extend([self._to_list(e) if e is not None else None for e in embeddings])
+            del embeddings, image_inputs
+
+            return results
             
         except Exception as exc:
             logger.error("Error generating batch image embeddings: %s", exc)
-            return [None] * len(image_inputs)
+            return [None] * image_len
 
     def generate_embedding_for_text(self, text: str) -> Optional[List[float]]:
         """Generate embedding for a single text input using the SDK model."""

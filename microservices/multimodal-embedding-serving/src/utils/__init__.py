@@ -28,10 +28,10 @@ from .utils import (
     download_video,
     decode_base64_video,
     extract_video_frames,
-    parallel_preprocess_images,
+    ParallelImagePreprocessor,
 )
 
-from .decoder import extract_frames
+from .decoder import extract_batched_frames
 
 __all__ = [
     "Settings",
@@ -45,6 +45,6 @@ __all__ = [
     "download_video",
     "decode_base64_video",
     "extract_video_frames",
-    "parallel_preprocess_images",
-    "extract_frames",
+    "ParallelImagePreprocessor",
+    "extract_batched_frames",
 ]

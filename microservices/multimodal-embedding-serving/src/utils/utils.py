@@ -9,7 +9,7 @@ including images and videos from different sources (URLs, base64, local files).
 
 Key functionality:
 - Image downloading and processing from URLs
-- Base64 decoding for images and videos  
+- Base64 decoding for images and videos
 - Video frame extraction and processing
 - File management operations
 - Error handling and validation
@@ -22,7 +22,7 @@ import base64
 import os
 import tempfile
 import time
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 import uuid
 from io import BytesIO
 from urllib.parse import urlparse
@@ -36,6 +36,7 @@ from PIL import Image
 from torchvision.transforms import ToPILImage
 from concurrent.futures import ThreadPoolExecutor
 
+# from memory_profiler import profile
 from .common import ErrorMessages, logger, settings
 
 decord.bridge.set_bridge("torch")
@@ -50,34 +51,55 @@ if settings.https_proxy:
 # if settings.no_proxy_env:
 #     proxies["no_proxy"] = settings.no_proxy_env
 
-_thread_pool: ThreadPoolExecutor = None
-_default_workers: int = min(16, (os.cpu_count() or 4) * 2)
 
+class ParallelImagePreprocessor:
 
-def parallel_preprocess_images(
-    preprocess_fn: Callable[[Image.Image], np.ndarray],
-    images: List[Image.Image],
-    max_workers: int = None,
-) -> np.ndarray:
-    """
-    Parallel image preprocessing using thread pool.
-    
-    Args:
-        preprocess_fn: Preprocessing function (e.g., self.preprocess).
-        images: List of PIL Images to preprocess.
-        max_workers: Number of worker threads (default: min(16, cpu_count * 2)).
-        
-    Returns:
-        Preprocessed images as numpy array with shape [N, C, H, W].
-    """
-    global _thread_pool
-    if _thread_pool is None:
-        _thread_pool = ThreadPoolExecutor(max_workers=max_workers or _default_workers)
-    
-    def process(img):
-        return np.asarray(preprocess_fn(img), dtype=np.float32)
-    
-    return np.stack(list(_thread_pool.map(process, images)))
+    def __init__(
+        self,
+        preprocess_fn: Callable[[Image.Image], np.ndarray],
+        max_workers: Optional[int] = None,
+        batch_size: int = 64,
+    ):
+        self.preprocess_fn = preprocess_fn
+        self.max_workers = max_workers
+        self.batch_size = batch_size
+        self.pool = ThreadPoolExecutor(
+            max_workers=self.max_workers, thread_name_prefix="ImagePreprocessWorker"
+        )
+
+    def __del__(self):
+        # Ensure threads are cleaned up
+        if self.pool:
+            self.pool.shutdown(wait=True)
+
+    def preprocess_images(
+        self,
+        images: List[np.ndarray],
+    ) -> np.ndarray:
+        """
+        Parallel image preprocessing using thread pool.
+
+        Args:
+            images: List of ndarray to preprocess. [H, W, C]
+
+        Returns:
+            Preprocessed images as numpy array with shape [N, C, H, W].
+        """
+        if not images:
+            raise ValueError("images must be non-empty")
+
+        try:
+
+            def _process(image: np.ndarray):
+                return self.preprocess_fn(Image.fromarray(image))
+
+            return np.stack(list(self.pool.map(_process, images)), axis=0)
+
+        except Exception as e:
+            logger.error(
+                f"Error during parallel image preprocessing: {e}", exc_info=True
+            )
+            raise RuntimeError(f"Error during parallel image preprocessing: {e}")
 
 
 def should_bypass_proxy(url: str, no_proxy: str) -> bool:
@@ -94,7 +116,7 @@ def should_bypass_proxy(url: str, no_proxy: str) -> bool:
 
     Returns:
         True if the URL should bypass the proxy, False otherwise
-        
+
     Note:
         The function performs suffix matching, so 'example.com' will match
         both 'example.com' and 'subdomain.example.com'.
@@ -256,7 +278,9 @@ async def download_video(video_url: str) -> str:
                 # Get filename from URL (without extension)
                 parsed_url = urlparse(video_url)
                 filename = os.path.basename(parsed_url.path)
-                filename_without_ext = os.path.splitext(filename)[0] if filename else "video"
+                filename_without_ext = (
+                    os.path.splitext(filename)[0] if filename else "video"
+                )
                 # Create unique filename without extension
                 unique_filename = f"{uuid.uuid4().hex}_{filename_without_ext}"
                 temp_dir = tempfile.gettempdir()
@@ -363,7 +387,7 @@ def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
         num_frames = segment_config.get("num_frames", settings.DEFAULT_NUM_FRAMES)
         extraction_fps = segment_config.get("extraction_fps")
         frame_indexes = segment_config.get("frame_indexes")
-        
+
         logger.debug(
             f"video_path: {video_path} start_offset_sec: {start_offset_sec}, clip_duration: {clip_duration}, "
             f"num_frames: {num_frames}, extraction_fps: {extraction_fps}, frame_indexes: {frame_indexes}"
@@ -383,43 +407,53 @@ def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
         if frame_indexes is not None:
             if not isinstance(frame_indexes, (list, tuple, np.ndarray)):
                 raise ValueError("frame_indexes must be a list, tuple, or numpy array")
-            
+
             # Convert to numpy array and ensure valid indices
             frame_indexes = np.array(frame_indexes, dtype=int)
-            
+
             # Filter indices to be within the video segment bounds
-            valid_indices = frame_indexes[(frame_indexes >= start_idx) & (frame_indexes <= end_idx)]
-            
+            valid_indices = frame_indexes[
+                (frame_indexes >= start_idx) & (frame_indexes <= end_idx)
+            ]
+
             if len(valid_indices) == 0:
-                logger.warning(f"No valid frame indices found within segment bounds [{start_idx}, {end_idx})")
+                logger.warning(
+                    f"No valid frame indices found within segment bounds [{start_idx}, {end_idx})"
+                )
                 # Fall back to default uniform sampling
                 frame_idx = np.linspace(
-                    start_idx, end_idx, num=settings.DEFAULT_NUM_FRAMES, endpoint=False, dtype=int
+                    start_idx,
+                    end_idx,
+                    num=settings.DEFAULT_NUM_FRAMES,
+                    endpoint=False,
+                    dtype=int,
                 )
             else:
                 frame_idx = valid_indices
-            
+
             logger.debug(f"Using frame_indexes with {len(frame_idx)} valid indices")
-        
+
         # Priority 2: fps - uniform sampling at specified rate
         elif extraction_fps is not None:
             if not isinstance(extraction_fps, (int, float)) or extraction_fps <= 0:
                 raise ValueError("fps must be a positive number")
-            
+
             # Calculate frame interval based on user fps (float to preserve precision)
             frame_interval = float(video_fps) / float(extraction_fps)
-            
+
             # Generate frame indices at the specified fps rate
             frame_indices = []
             current_frame = float(start_idx)
-            
+
             while current_frame <= end_idx:
                 frame_indices.append(int(current_frame))
                 current_frame += frame_interval
-            
+
             frame_idx = np.array(frame_indices, dtype=int)
-            logger.debug(f"Using fps={extraction_fps} for sampling, generated {len(frame_idx)} frames")
-        
+            logger.debug(
+                f"Using fps={extraction_fps} for sampling, generated {len(frame_idx)} frames"
+            )
+
         # Priority 3: num_frames - use explicit value if provided, otherwise use default
         # Default: use DEFAULT_NUM_FRAMES for uniform sampling (lowest priority)
         else:

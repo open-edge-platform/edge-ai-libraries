@@ -26,7 +26,7 @@ from .utils import (
     download_video,
     extract_video_frames,
     logger,
-    extract_frames
+    extract_batched_frames
 )
 
 
@@ -240,7 +240,7 @@ class EmbeddingModel:
             if not os.path.exists(video_path):
                 raise FileNotFoundError(f"Video file not found: {video_path}")
 
-            return self.get_video_sampled_embeddings(video_path, frame_interval=15)
+            return self.get_video_sampled_embeddings(video_path, frame_interval=1)
             # return self.get_video_keyframes_embeddings(video_path)
             # clip_images = extract_video_frames(video_path, segment_config)
             # logger.info("Video embedding extracted successfully from file")
@@ -500,15 +500,16 @@ class EmbeddingModel:
         """
 
         embeddings = []
-        for i, frame_batch in enumerate(extract_frames(video_path, keyframes_only=True)):
+        for i, frame_batch in enumerate(extract_batched_frames(video_path, keyframes_only=True)):
             logger.debug(f"Processing batch {i} of keyframes with {len(frame_batch)} frames")
-            batch_embeddings = self.handler.encode_images(frame_batch)
+            batch_embeddings = self.handler.encode_image(frame_batch)
             batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
             embeddings.append(batch_embeddings.tolist())
         logger.info(f"Extracted embeddings for {len(embeddings)} keyframes from video: {video_path}")
 
         return embeddings
     
+    #TODO: Support SHM + Metadata-based optimized processing for sampled frames as well (similar to get_video_embedding_from_frames_manifest)
     def get_video_sampled_embeddings(self, video_path: str, frame_interval: int = 1) -> List[List[float]]:
         """
         Get sampled frame embeddings from a video file based on a specified interval.
@@ -523,29 +524,43 @@ class EmbeddingModel:
         frame_batches = []
         start = time.perf_counter()
         encode_time = 0.0
-        for i, frame_batch in enumerate(extract_frames(video_path, frame_interval=frame_interval)):
-            logger.debug(f"Processing batch {i} of sampled frames with {len(frame_batch)} frames")
-            frame_batches.extend(frame_batch)
-            if i % 4 == 0: # Process in batches of 4 for better performance
-                batch_start = time.perf_counter()
-                batch_embeddings = self.handler.encode_images(frame_batch)
-                batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
-                frame_batches.clear() # Clear the batch after processing to free memory
-                embeddings.append(batch_embeddings)
-                encode_time += time.perf_counter() - batch_start
-        
-        if len(frame_batches) > 0:
-            print("Processing remaining frames in final batch...")
-            batch_start = time.perf_counter()
-            batch_embeddings = self.handler.encode_images(frame_batches[-1])
-            batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
-            frame_batches.clear()
-            embeddings.append(batch_embeddings)
-            encode_time += time.perf_counter() - batch_start
-        print(f"Time taken for encoding to list conversion: {encode_time:.2f} seconds")
-        print(f"Total Time (parallel decode+pre-process+inference): {time.perf_counter() - start:.2f} seconds")
-        logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval})")
+        prep_batch_time = 0.0
+        wall_time = 0.0
+        batch_size = 64
+        try:
+            for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=1, batch_size=batch_size)):
+                # pass
+                # logger.debug(f"Processing batch {i} of sampled frames with {len(frame_batch)} frames")
+                # print(frame_batch[0]) # Debug log for first frame in batch
 
+                # frame_batches.extend(frame_batch)
+                # if i % 64 == 0: # Process in batches of 64 for better performance
+                prep_batch_time_start = time.perf_counter()
+                frame_batch = [f for _ , f in frame_batch]
+                prep_batch_time += (time.perf_counter() - prep_batch_time_start)
+                encode_time_start = time.perf_counter()
+                batch_embeddings = self.handler.encode_image(frame_batch)
+                # # batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
+                # frame_batches.clear() # Clear the batch after processing to free memory
+                embeddings.append(batch_embeddings)
+                encode_time += (time.perf_counter() - encode_time_start)
+            
+            # if len(frame_batches) > 0:
+            #     print("Processing remaining frames in final batch...")
+            #     batch_start = time.perf_counter()
+            #     batch_embeddings = self.handler.encode_image(frame_batches[-1])
+            #     batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
+            #     frame_batches.clear()
+            #     embeddings.append(batch_embeddings)
+            #     encode_time += time.perf_counter() - batch_start
+            total_Wall_time = time.perf_counter() - start
+            print(f"Time taken for list iter: {prep_batch_time:.2f} seconds")
+            print(f"Time taken for encoding only: {encode_time:.2f} seconds")
+            print(f"Total Time (parallel decode+pre-process+inference): {total_Wall_time:.2f} seconds [{batch_size} batch size]")
+            logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval})")
+        except Exception as e:
+            logger.error(f"Error extracting sampled frame embeddings from video: {e.with_traceback(e.__traceback__)}")
+            raise RuntimeError(f"Failed to extract sampled frame embeddings from video: {e}")   
         return torch.cat(embeddings, dim=0).tolist()
 
     def check_health(self) -> bool:
