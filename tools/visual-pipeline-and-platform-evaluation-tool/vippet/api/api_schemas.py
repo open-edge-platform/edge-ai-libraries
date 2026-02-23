@@ -283,7 +283,7 @@ class Variant(BaseModel):
             Not used when creating or updating variants.
         name: Variant name (e.g., "CPU", "GPU", "NPU").
         read_only: Whether the variant is read-only. Defaults to false.
-            Can only be set to true for PREDEFINED pipeline variants.
+            Can only be set to true for PREDEFINED or TEMPLATE pipeline variants.
         pipeline_graph: Advanced graph representation for this variant.
         pipeline_graph_simple: Simplified graph representation for this variant.
         created_at: Creation timestamp as UTC datetime.
@@ -304,7 +304,7 @@ class Variant(BaseModel):
     )
     read_only: bool = Field(
         default=False,
-        description="Whether the variant is read-only. Can only be true for PREDEFINED pipelines.",
+        description="Whether the variant is read-only. Can only be true for PREDEFINED or TEMPLATE pipelines.",
     )
     pipeline_graph: PipelineGraph = Field(
         ...,

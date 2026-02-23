@@ -33,9 +33,7 @@ def get_pipeline_templates():
     Operation:
         Return all read-only pipeline templates loaded from configuration.
         Properties that require user-supplied values (e.g. input source URI, model paths)
-        are stored as empty strings. Use templates as a starting point – copy the desired variant's graph,
-        fill in the empty properties with real values, and submit it as a new
-        pipeline via ``POST /pipelines``.
+        are stored as empty strings. Use templates as a starting point.
 
     Path / query parameters:
         None.

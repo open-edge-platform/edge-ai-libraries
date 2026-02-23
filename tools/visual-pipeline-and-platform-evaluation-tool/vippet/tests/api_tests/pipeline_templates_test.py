@@ -161,7 +161,7 @@ class TestPipelineTemplatesAPI(unittest.TestCase):
             first["description"],
             "Template pipeline with a single object detection model.",
         )
-        self.assertEqual(first["source"], schemas.PipelineSource.TEMPLATE)
+        self.assertEqual(first["source"], schemas.PipelineSource.TEMPLATE.value)
         self.assertIn("template", first["tags"])
         self.assertIsNone(first["thumbnail"])
         self.assertIn("variants", first)
@@ -237,7 +237,7 @@ class TestPipelineTemplatesAPI(unittest.TestCase):
             data["description"],
             "Template pipeline with a single object detection model.",
         )
-        self.assertEqual(data["source"], schemas.PipelineSource.TEMPLATE)
+        self.assertEqual(data["source"], schemas.PipelineSource.TEMPLATE.value)
         self.assertIn("template", data["tags"])
         self.assertIsNone(data["thumbnail"])
         self.assertIn("variants", data)
