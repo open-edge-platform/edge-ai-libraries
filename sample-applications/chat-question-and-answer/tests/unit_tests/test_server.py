@@ -1,5 +1,10 @@
 ﻿def test_query_chain_successful_response(test_client, mocker):
-    payload = {"input": "What is AI?"}
+    payload = {
+        "conversation_messages": [
+            {"role": "user", "content": "What is AI?"}
+        ],
+        "max_tokens": 512,
+    }
     mocker.patch("app.server.process_chunks", return_value=iter(["one", "two"]))
     response = test_client.post("/chat", json=payload)
     assert response.status_code == 200
@@ -13,7 +18,12 @@
     assert "two" in streamed_data
 
 def test_query_chain_no_input(test_client):
-    payload = {"input": ""}
+    payload = {
+        "conversation_messages": [
+            {"role": "user", "content": ""}
+        ],
+        "max_tokens": 512,
+    }
     response = test_client.post("/chat", json=payload)
     assert response.status_code == 422
     assert response.json() == {"detail": "Question is required"}
