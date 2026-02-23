@@ -73,52 +73,60 @@ def stop_test_job_handler(job_id: str):
 @router.get(
     "/tests/performance/status",
     operation_id="get_performance_statuses",
+    summary="List all performance test jobs",
     response_model=List[schemas.PerformanceJobStatus],
 )
 def get_performance_statuses():
     """
-    List statuses of all performance test jobs.
+    **List statuses of all performance test jobs.**
 
-    Operation:
-        Read current state and metrics for every performance test job created
-        via the performance test API.
+    ## Operation
+    
+    Reads current state and metrics for every performance test job created via the performance test API.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    
+    None
 
-    Returns:
-        200 OK:
-            JSON array of PerformanceJobStatus objects.
+    ## Response Format
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of PerformanceJobStatus objects |
+    | 500  | Unexpected internal error |
 
-    Success:
-        * TestsManager is initialized.
-        * Zero or more jobs may be present.
+    ## Conditions
+    
+    ### ✅ Success
+    - TestsManager is initialized
+    - Zero or more jobs may be present
+    
+    ### ❌ Failure
+    - Internal errors → 500
 
-    Failure:
-        * Any unexpected internal error (propagated as 500 by FastAPI).
-
-    Response example (200):
-        .. code-block:: json
-
-            [
-              {
-                "id": "job123",
-                "start_time": 1715000000000,
-                "elapsed_time": 120000,
-                "state": "RUNNING",
-                "total_fps": 480.0,
-                "per_stream_fps": 30.0,
-                "total_streams": 16,
-                "streams_per_pipeline": [
-                  {"id": "pipeline-1", "streams": 8},
-                  {"id": "pipeline-2", "streams": 8}
-                ],
-                "video_output_paths": {
-                  "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-                },
-                "error_message": null
-              }
-            ]
+    ## Example Response
+    
+    ```json
+    [
+      {
+        "id": "job123",
+        "start_time": 1715000000000,
+        "elapsed_time": 120000,
+        "state": "RUNNING",
+        "total_fps": 480.0,
+        "per_stream_fps": 30.0,
+        "total_streams": 16,
+        "streams_per_pipeline": [
+          {"id": "pipeline-1", "streams": 8},
+          {"id": "pipeline-2", "streams": 8}
+        ],
+        "video_output_paths": {
+          "pipeline-1": ["/outputs/job123-p1-0.mp4"]
+        },
+        "error_message": null
+      }
+    ]
+    ```
     """
     return TestsManager().get_job_statuses_by_type(PerformanceJob)
 
@@ -126,6 +134,7 @@ def get_performance_statuses():
 @router.get(
     "/tests/performance/{job_id}/status",
     operation_id="get_performance_job_status",
+    summary="Get performance test job status",
     responses={
         200: {
             "description": "Successful Response",
@@ -136,50 +145,60 @@ def get_performance_statuses():
 )
 def get_performance_job_status(job_id: str):
     """
-    Get detailed status of a single performance test job.
+    **Get detailed status of a single performance test job.**
 
-    Path parameters:
-        job_id: Identifier of the performance job to inspect.
+    ## Operation
+    
+    Retrieves current state, timings, FPS metrics, and output paths for a specific performance test job.
 
-    Returns:
-        200 OK:
-            PerformanceJobStatus with current state, timings, FPS and output paths.
-        404 Not Found:
-            MessageResponse if job with given id does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the performance job to inspect
 
-    Success:
-        * Job with given id exists in TestsManager.
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | PerformanceJobStatus with current state, timings, FPS and output paths |
+    | 404  | Job with given id does not exist |
 
-    Failure:
-        * Unknown job id → 404.
+    ## Conditions
+    
+    ### ✅ Success
+    - Job with given id exists in TestsManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
 
-    Successful response example (200):
-        .. code-block:: json
-
-            {
-              "id": "job123",
-              "start_time": 1715000000000,
-              "elapsed_time": 60000,
-              "state": "COMPLETED",
-              "total_fps": 480.0,
-              "per_stream_fps": 30.0,
-              "total_streams": 16,
-              "streams_per_pipeline": [
-                {"id": "pipeline-1", "streams": 8},
-                {"id": "pipeline-2", "streams": 8}
-              ],
-              "video_output_paths": {
-                "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-              },
-              "error_message": null
-            }
-
-    Error response example (404):
-        .. code-block:: json
-
-            {
-              "message": "Performance job job123 not found"
-            }
+    ## Examples
+    
+    Success (200):
+    ```json
+    {
+      "id": "job123",
+      "start_time": 1715000000000,
+      "elapsed_time": 60000,
+      "state": "COMPLETED",
+      "total_fps": 480.0,
+      "per_stream_fps": 30.0,
+      "total_streams": 16,
+      "streams_per_pipeline": [
+        {"id": "pipeline-1", "streams": 8},
+        {"id": "pipeline-2", "streams": 8}
+      ],
+      "video_output_paths": {
+        "pipeline-1": ["/outputs/job123-p1-0.mp4"]
+      },
+      "error_message": null
+    }
+    ```
+    
+    Error (404):
+    ```json
+    {
+      "message": "Performance job job123 not found"
+    }
+    ```
     """
     return get_job_status_or_404(job_id, "Performance")
 
@@ -187,6 +206,7 @@ def get_performance_job_status(job_id: str):
 @router.get(
     "/tests/performance/{job_id}",
     operation_id="get_performance_job_summary",
+    summary="Get performance test job summary",
     responses={
         200: {
             "description": "Successful Response",
@@ -197,38 +217,47 @@ def get_performance_job_status(job_id: str):
 )
 def get_performance_job_summary(job_id: str):
     """
-    Get a short summary of a performance test job.
+    **Get a short summary of a performance test job.**
 
-    Path parameters:
-        job_id: Identifier of the performance job created earlier.
+    ## Operation
+    
+    Retrieves the job id and original PerformanceTestSpec for a specific job.
 
-    Returns:
-        200 OK:
-            PerformanceJobSummary with job id and original PerformanceTestSpec.
-        404 Not Found:
-            MessageResponse when job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the performance job created earlier
 
-    Success:
-        * Job exists in TestsManager.
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | PerformanceJobSummary with job id and original request |
+    | 404  | Job does not exist |
 
-    Failure:
-        * Unknown job id → 404.
+    ## Conditions
+    
+    ### ✅ Success
+    - Job exists in TestsManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
 
-    Response example (200):
-        .. code-block:: json
-
-            {
-              "id": "job123",
-              "request": {
-                "pipeline_performance_specs": [
-                  {"id": "pipeline-1", "streams": 8}
-                ],
-                "video_output": {
-                  "enabled": false,
-                  "encoder_device": {"device_name": "GPU", "gpu_id": 0}
-                }
-              }
-            }
+    ## Example Response
+    
+    ```json
+    {
+      "id": "job123",
+      "request": {
+        "pipeline_performance_specs": [
+          {"id": "pipeline-1", "streams": 8}
+        ],
+        "video_output": {
+          "enabled": false,
+          "encoder_device": {"device_name": "GPU", "gpu_id": 0}
+        }
+      }
+    }
+    ```
     """
     summary = TestsManager().get_job_summary(job_id)
     if summary is None:
@@ -245,6 +274,7 @@ def get_performance_job_summary(job_id: str):
 @router.delete(
     "/tests/performance/{job_id}",
     operation_id="stop_performance_test_job",
+    summary="Stop a running performance test job",
     responses={
         200: {
             "description": "Successful Response",
@@ -266,45 +296,51 @@ def get_performance_job_summary(job_id: str):
 )
 def stop_performance_test_job(job_id: str):
     """
-    Stop a running performance test job.
+    **Stop a running performance test job.**
 
-    Path parameters:
-        job_id: Identifier of the performance test job to stop.
+    ## Operation
+    
+    Requests cancellation of a RUNNING performance test job.
 
-    Returns:
-        200 OK:
-            MessageResponse when the job was RUNNING and cancellation was
-            successfully requested.
-        404 Not Found:
-            MessageResponse when job id is unknown or there is no active runner
-            (job already finished or was never started).
-        409 Conflict:
-            MessageResponse when job exists but is not in RUNNING state.
-        500 Internal Server Error:
-            MessageResponse when an unexpected error occurs while stopping.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the performance test job to stop
 
-    Success:
-        * Job exists and state == RUNNING.
-        * TestsManager.stop_job() returns success.
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | Job was RUNNING and cancellation was successfully requested |
+    | 404  | Job id is unknown or there is no active runner |
+    | 409  | Job exists but is not in RUNNING state |
+    | 500  | Unexpected error occurs while stopping |
 
-    Failure:
-        * TestsManager.stop_job() returns "not found" / "no active runner" → 404.
-        * TestsManager.stop_job() returns "not running" → 409.
-        * Any other error message from stop_job() → 500.
+    ## Conditions
+    
+    ### ✅ Success
+    - Job exists and state == RUNNING
+    - TestsManager.stop_job() returns success
+    
+    ### ❌ Failure
+    - TestsManager.stop_job() returns "not found" / "no active runner" → 404
+    - TestsManager.stop_job() returns "not running" → 409
+    - Any other error from stop_job() → 500
 
-    Successful response example (200):
-        .. code-block:: json
-
-            {
-              "message": "Job job123 stopped"
-            }
-
-    Conflict example (409):
-        .. code-block:: json
-
-            {
-              "message": "Job job123 is not running (state: COMPLETED)"
-            }
+    ## Examples
+    
+    Success (200):
+    ```json
+    {
+      "message": "Job job123 stopped"
+    }
+    ```
+    
+    Conflict (409):
+    ```json
+    {
+      "message": "Job job123 is not running (state: COMPLETED)"
+    }
+    ```
     """
     return stop_test_job_handler(job_id)
 
@@ -312,47 +348,55 @@ def stop_performance_test_job(job_id: str):
 @router.get(
     "/tests/density/status",
     operation_id="get_density_statuses",
+    summary="List all density test jobs",
     response_model=List[schemas.DensityJobStatus],
 )
 def get_density_statuses():
     """
-    List statuses of all density test jobs.
+    **List statuses of all density test jobs.**
 
-    Operation:
-        Read current state and metrics for every density test job.
+    ## Operation
+    
+    Reads current state and metrics for every density test job.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    
+    None
 
-    Returns:
-        200 OK:
-            JSON array of DensityJobStatus objects.
+    ## Response Format
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of DensityJobStatus objects |
 
-    Success:
-        * TestsManager is initialized.
+    ## Conditions
+    
+    ### ✅ Success
+    - TestsManager is initialized
 
-    Response example (200):
-        .. code-block:: json
-
-            [
-              {
-                "id": "job456",
-                "start_time": 1715000000000,
-                "elapsed_time": 45000,
-                "state": "RUNNING",
-                "total_fps": null,
-                "per_stream_fps": 28.5,
-                "total_streams": 32,
-                "streams_per_pipeline": [
-                  {"id": "pipeline-1", "streams": 16},
-                  {"id": "pipeline-2", "streams": 16}
-                ],
-                "video_output_paths": {
-                  "pipeline-1": ["/outputs/job456-p1-0.mp4"]
-                },
-                "error_message": null
-              }
-            ]
+    ## Example Response
+    
+    ```json
+    [
+      {
+        "id": "job456",
+        "start_time": 1715000000000,
+        "elapsed_time": 45000,
+        "state": "RUNNING",
+        "total_fps": null,
+        "per_stream_fps": 28.5,
+        "total_streams": 32,
+        "streams_per_pipeline": [
+          {"id": "pipeline-1", "streams": 16},
+          {"id": "pipeline-2", "streams": 16}
+        ],
+        "video_output_paths": {
+          "pipeline-1": ["/outputs/job456-p1-0.mp4"]
+        },
+        "error_message": null
+      }
+    ]
+    ```
     """
     return TestsManager().get_job_statuses_by_type(DensityJob)
 
@@ -360,6 +404,7 @@ def get_density_statuses():
 @router.get(
     "/tests/density/{job_id}/status",
     operation_id="get_density_job_status",
+    summary="Get density test job status",
     responses={
         200: {
             "description": "Successful Response",
@@ -370,23 +415,38 @@ def get_density_statuses():
 )
 def get_density_job_status(job_id: str):
     """
-    Get detailed status of a single density test job.
+    **Get detailed status of a single density test job.**
 
-    Path parameters:
-        job_id: Identifier of the density job to inspect.
+    ## Operation
+    
+    Retrieves current state, timings, and FPS metrics for a specific density test job.
 
-    Returns:
-        200 OK:
-            DensityJobStatus for the given job.
-        404 Not Found:
-            MessageResponse when job id is unknown.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the density job to inspect
 
-    Error response example (404):
-        .. code-block:: json
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | DensityJobStatus for the given job |
+    | 404  | Job id is unknown |
 
-            {
-              "message": "Density job job456 not found"
-            }
+    ## Conditions
+    
+    ### ✅ Success
+    - Job with given id exists in TestsManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
+
+    ## Error Example
+    
+    ```json
+    {
+      "message": "Density job job456 not found"
+    }
+    ```
     """
     return get_job_status_or_404(job_id, "Density")
 
@@ -394,6 +454,7 @@ def get_density_job_status(job_id: str):
 @router.get(
     "/tests/density/{job_id}",
     operation_id="get_density_job_summary",
+    summary="Get density test job summary",
     responses={
         200: {
             "description": "Successful Response",
@@ -404,34 +465,49 @@ def get_density_job_status(job_id: str):
 )
 def get_density_job_summary(job_id: str):
     """
-    Get a short summary of a density test job.
+    **Get a short summary of a density test job.**
 
-    Path parameters:
-        job_id: Identifier of the density job created earlier.
+    ## Operation
+    
+    Retrieves the job id and original DensityTestSpec for a specific job.
 
-    Returns:
-        200 OK:
-            DensityJobSummary with job id and original DensityTestSpec.
-        404 Not Found:
-            MessageResponse if job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the density job created earlier
 
-    Response example (200):
-        .. code-block:: json
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | DensityJobSummary with job id and original request |
+    | 404  | Job does not exist |
 
-            {
-              "id": "job456",
-              "request": {
-                "fps_floor": 30,
-                "pipeline_density_specs": [
-                  {"id": "pipeline-1", "stream_rate": 50},
-                  {"id": "pipeline-2", "stream_rate": 50}
-                ],
-                "video_output": {
-                  "enabled": false,
-                  "encoder_device": {"device_name": "GPU", "gpu_id": 0}
-                }
-              }
-            }
+    ## Conditions
+    
+    ### ✅ Success
+    - Job exists in TestsManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
+
+    ## Example Response
+    
+    ```json
+    {
+      "id": "job456",
+      "request": {
+        "fps_floor": 30,
+        "pipeline_density_specs": [
+          {"id": "pipeline-1", "stream_rate": 50},
+          {"id": "pipeline-2", "stream_rate": 50}
+        ],
+        "video_output": {
+          "enabled": false,
+          "encoder_device": {"device_name": "GPU", "gpu_id": 0}
+        }
+      }
+    }
+    ```
     """
     summary = TestsManager().get_job_summary(job_id)
     if summary is None:
@@ -448,6 +524,7 @@ def get_density_job_summary(job_id: str):
 @router.delete(
     "/tests/density/{job_id}",
     operation_id="stop_density_test_job",
+    summary="Stop a running density test job",
     responses={
         200: {
             "description": "Successful Response",
@@ -469,24 +546,28 @@ def get_density_job_summary(job_id: str):
 )
 def stop_density_test_job(job_id: str):
     """
-    Stop a running density test job.
+    **Stop a running density test job.**
 
-    Path parameters:
-        job_id: Identifier of the density test job to stop.
+    ## Operation
+    
+    Requests cancellation of a RUNNING density test job.
 
-    Returns:
-        200 OK:
-            MessageResponse when the job was RUNNING and cancellation was
-            successfully requested.
-        404 Not Found:
-            MessageResponse if job id is unknown or there is no active runner.
-        409 Conflict:
-            MessageResponse if job exists but is not RUNNING.
-        500 Internal Server Error:
-            MessageResponse for other unexpected errors.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the density test job to stop
 
-    Behavior:
-        Same status mapping logic as ``stop_performance_test_job``.
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | Job was RUNNING and cancellation was successfully requested |
+    | 404  | Job id is unknown or there is no active runner |
+    | 409  | Job exists but is not RUNNING |
+    | 500  | Unexpected error |
+
+    ## Conditions
+    
+    Same status mapping logic as stop_performance_test_job.
     """
     return stop_test_job_handler(job_id)
 
