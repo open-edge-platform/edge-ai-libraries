@@ -137,9 +137,9 @@ class dlsps_utils():
                 pipeline_config = data[config_path]["pipelines"][0]
                 pipeline_config["source"] = value["source_conifg"]
                 if value.get("type_r")=="autosource":
-                    pipeline_config["pipeline"] = "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink"
+                    pipeline_config["pipeline"] = "{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink"
                 elif value.get("type_r")=="autosource_destination":
-                    pipeline_config["pipeline"] = "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination"            
+                    pipeline_config["pipeline"] = "{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination"            
             with open(self.dlsps_config, "w") as jsonFile:
                 json.dump(data, jsonFile, indent=4)
 

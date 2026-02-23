@@ -183,7 +183,7 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
 > consider adding it to your pipeline. In that case, the `"pipeline"` string may look like this.
 
     ```sh
-    "pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
+    "pipeline": "{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
     ```
 
 - The configuration above will allow DL Streamer Pipeline Server to load a pipeline that would

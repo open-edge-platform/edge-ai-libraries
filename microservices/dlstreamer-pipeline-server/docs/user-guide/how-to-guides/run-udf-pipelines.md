@@ -18,7 +18,7 @@ by replacing the following sections in [WORKDIR]/edge-ai-libraries/microservices
 - replace `"pipeline"` section with
 
     ```sh
-    "pipeline": "{auto_source} ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! gvametapublish file-path=/tmp/results.jsonl ! appsink name=destination",
+    "pipeline": "{auto_source} ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! gvametapublish file-path=/tmp/results.jsonl ! appsink name=destination",
     ```
 
 - replace `"properties"` section with

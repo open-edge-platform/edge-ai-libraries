@@ -95,7 +95,7 @@ If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipel
 ```sh
 # Sample pipeline
 
-"pipeline": "{auto_source} ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink"
+"pipeline": "{auto_source} ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink"
 ```
 
 ---

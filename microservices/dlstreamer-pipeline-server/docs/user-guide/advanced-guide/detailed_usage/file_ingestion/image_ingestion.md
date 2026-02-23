@@ -28,14 +28,14 @@ dlstreamer-pipeline-server:
 Refer the following snippet for enabling the image ingestion feature for Jpg images and and modify the appropriate `config.json` file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
   ```javascript
-    "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%02d.jpg\" index=1 name=source ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%02d.jpg\" index=1 name=source ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 
   ```
 
   For example: If the images are named in the format `frame_01`, `frame_02` and so on, then use the following pipeline.
 
   ```javascript
-  "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/frame_%02d.jpg\" index=1 name=source ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+  "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/frame_%02d.jpg\" index=1 name=source ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 
   ```
 
@@ -55,7 +55,7 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
   Refer to the following pipeline while using png images.
 
   ```javascript
-  "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%03d.png\" index=1 name=source ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+  "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%03d.png\" index=1 name=source ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 
   ```
 
@@ -66,7 +66,7 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 Refer to the following snippet for enabling the image ingestion feature for bmp image and modify the appropriate `config.json` file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
 ```javascript
-    "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%03d.bmp\" start-index=1 framerate=1/1 ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%03d.bmp\" start-index=1 framerate=1/1 ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 
 ```
 

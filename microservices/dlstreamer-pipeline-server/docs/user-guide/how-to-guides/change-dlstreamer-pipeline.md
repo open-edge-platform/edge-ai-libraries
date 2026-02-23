@@ -24,7 +24,7 @@ As an example we are creating `video-ingestion and resize` pipeline. We need to 
 as shown below. It will create a DL Streamer pipeline that reads the user provided video file,
 decodes it, and resizes it to 1280x720.
 ```sh
-"pipeline": "{auto_source} ! decodebin ! videoscale ! video/x-raw, width=1280,height=720 ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} ! decodebin3 ! videoscale ! video/x-raw, width=1280,height=720 ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 > **Note:** If needed users can change pipeline name by updating `name` key in `config.json`.

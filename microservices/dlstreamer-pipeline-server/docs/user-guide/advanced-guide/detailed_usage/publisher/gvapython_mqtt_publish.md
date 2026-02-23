@@ -41,7 +41,7 @@ For starting MQTT subscriber, refer [here](./mqtt_publish.md#start-mqtt-subscrib
 Here is a sample configuration which performs Pallet Defect Detection and publishes the inference results to mqtt broker using gvapython script.
 
 ```bash
-"pipeline": "{auto_source} ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 ```bash

@@ -32,7 +32,7 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     # _RtspVideoPipeline_GPU_VAMemory = " ! videoconvert ! gvawatermark ! vaapijpegenc ! rtpjpegpay name=pay0" 
 
     # Decoding audio again as there is issue with audio pipeline element audiomixer
-    _RtspAudioPipeline = " ! queue ! decodebin ! audioresample ! audioconvert " \
+    _RtspAudioPipeline = " ! queue ! decodebin3 ! audioresample ! audioconvert " \
     " ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96"
 
     def replace_with_vaelements_when_VAMemory(self, pipeline):
