@@ -2,8 +2,12 @@ import logging
 import os
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 
 from api.api_schemas import AppStatus
 from api.middleware import InitializationMiddleware
@@ -11,6 +15,8 @@ from api.routes import health, metrics
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
 from videos import VideosManager
+
+BASE_DIR = Path(__file__).resolve().parent
 
 # Configure logging
 handler = logging.StreamHandler()
@@ -135,6 +141,49 @@ app = FastAPI(
         {"url": "/api/v1"},
     ],
     lifespan=lifespan,
+    docs_url=None,  # disable default /docs endpoint
+    redoc_url=None,  # disable default /redoc endpoint
+)
+
+# Mount static files directory with absolute path
+static_dir = BASE_DIR / "static"
+logger.info(f"Mounting static files from: {static_dir}")
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Custom Swagger UI endpoint with custom CSS
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+        <link type="text/css" rel="stylesheet" href="/static/css/swagger-custom.css">
+        <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
+        <title>Visual Pipeline and Platform Evaluation Tool API - Swagger UI</title>
+    </head>
+    <body>
+        <div id="swagger-ui">
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({
+            url: '/api/v1/openapi.json',
+            "dom_id": "#swagger-ui",
+            "layout": "BaseLayout",
+            "deepLinking": true,
+            "showExtensions": true,
+            "showCommonExtensions": true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.SwaggerUIStandalonePreset
+            ],
+        })
+        </script>
+    </body>
+    </html>
+    """
 )
 
 # Add middleware to block requests during initialization
