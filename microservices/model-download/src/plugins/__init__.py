@@ -10,6 +10,7 @@ PLUGINS = {
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),
     'geti': ('src.plugins.geti_plugin', 'GetiPlugin'),
+    'hls': ('src.plugins.hls_plugin', 'HlsPlugin'),
 }
 
 # Determine enabled plugins from ENABLED_PLUGINS env variable

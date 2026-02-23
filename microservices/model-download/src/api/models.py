@@ -74,6 +74,7 @@ class ModelHub(str, Enum):
     OLLAMA = "ollama"
     OPENVINO = "openvino"
     GETI = "geti"
+    HLS = "hls"
 
 class ModelType(str, Enum):
     LLM = "llm"
@@ -81,6 +82,9 @@ class ModelType(str, Enum):
     EMBEDDINGS = "embeddings"
     RERANKER = "rerank"
     VISION = "vision"
+    THREE_D_POSE = "3d-pose"
+    RPPG = "rppg"
+    AI_ECG = "ai-ecg"
 
 
 class OpenVINOOptimizationConfig(BaseModel):
