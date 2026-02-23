@@ -575,43 +575,51 @@ def stop_density_test_job(job_id: str):
 @router.get(
     "/optimization/status",
     operation_id="get_optimization_statuses",
+    summary="List all optimization jobs",
     response_model=List[schemas.OptimizationJobStatus],
 )
 def get_optimization_statuses():
     """
-    List statuses of all optimization jobs.
+    **List statuses of all optimization jobs.**
 
-    Operation:
-        Read current state and results for every optimization job.
+    ## Operation
+    
+    Reads current state and results for every optimization job.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    
+    None
 
-    Returns:
-        200 OK:
-            JSON array of OptimizationJobStatus objects.
+    ## Response Format
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of OptimizationJobStatus objects |
 
-    Success:
-        * OptimizationManager is initialized.
+    ## Conditions
+    
+    ### ✅ Success
+    - OptimizationManager is initialized
 
-    Response example (200):
-        .. code-block:: json
-
-            [
-              {
-                "id": "opt789",
-                "type": "OPTIMIZE",
-                "start_time": 1715000000000,
-                "elapsed_time": 20000,
-                "state": "RUNNING",
-                "total_fps": null,
-                "original_pipeline_graph": {"nodes": [], "edges": []},
-                "optimized_pipeline_graph": null,
-                "original_pipeline_description": "videotestsrc ! fakesink",
-                "optimized_pipeline_description": null,
-                "error_message": null
-              }
-            ]
+    ## Example Response
+    
+    ```json
+    [
+      {
+        "id": "opt789",
+        "type": "OPTIMIZE",
+        "start_time": 1715000000000,
+        "elapsed_time": 20000,
+        "state": "RUNNING",
+        "total_fps": null,
+        "original_pipeline_graph": {"nodes": [], "edges": []},
+        "optimized_pipeline_graph": null,
+        "original_pipeline_description": "videotestsrc ! fakesink",
+        "optimized_pipeline_description": null,
+        "error_message": null
+      }
+    ]
+    ```
     """
     # Delegate to the manager; FastAPI takes care of serializing the
     # resulting Pydantic models into JSON.
@@ -621,6 +629,7 @@ def get_optimization_statuses():
 @router.get(
     "/optimization/{job_id}",
     operation_id="get_optimization_job_summary",
+    summary="Get optimization job summary",
     responses={
         200: {
             "description": "Successful Response",
@@ -634,23 +643,38 @@ def get_optimization_statuses():
 )
 def get_optimization_job_summary(job_id: str):
     """
-    Get a short summary of an optimization job.
+    **Get a short summary of an optimization job.**
 
-    Path parameters:
-        job_id: Identifier of the optimization job created earlier.
+    ## Operation
+    
+    Retrieves the job id and original optimization request for a specific job.
 
-    Returns:
-        200 OK:
-            OptimizationJobSummary with job id and original optimization request.
-        404 Not Found:
-            MessageResponse if job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the optimization job created earlier
 
-    Error response example (404):
-        .. code-block:: json
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | OptimizationJobSummary with job id and original request |
+    | 404  | Job does not exist |
 
-            {
-              "message": "Optimization job opt789 not found"
-            }
+    ## Conditions
+    
+    ### ✅ Success
+    - Job exists in OptimizationManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
+
+    ## Error Example
+    
+    ```json
+    {
+      "message": "Optimization job opt789 not found"
+    }
+    ```
     """
     # Ask the manager for the summary.  It returns None when the job id
     # is unknown, which we map to a 404 HTTP response.
@@ -672,6 +696,7 @@ def get_optimization_job_summary(job_id: str):
 @router.get(
     "/optimization/{job_id}/status",
     operation_id="get_optimization_job_status",
+    summary="Get optimization job status",
     responses={
         200: {
             "description": "Successful Response",
@@ -685,17 +710,30 @@ def get_optimization_job_summary(job_id: str):
 )
 def get_optimization_job_status(job_id: str):
     """
-    Get detailed status of a single optimization job.
+    **Get detailed status of a single optimization job.**
 
-    Path parameters:
-        job_id: Identifier of the optimization job to inspect.
+    ## Operation
+    
+    Retrieves timings, state, graphs, descriptions and total_fps (for OPTIMIZE) for a specific optimization job.
 
-    Returns:
-        200 OK:
-            OptimizationJobStatus containing timings, state, graphs,
-            descriptions and total_fps (for OPTIMIZE).
-        404 Not Found:
-            MessageResponse when job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the optimization job to inspect
+
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | OptimizationJobStatus containing timings, state, graphs and descriptions |
+    | 404  | Job does not exist |
+
+    ## Conditions
+    
+    ### ✅ Success
+    - Job with given id exists in OptimizationManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
     """
     # Query the manager for the job status.  Unknown job ids are mapped
     # to a 404 response, mirroring the behaviour of the summary endpoint.
@@ -714,38 +752,46 @@ def get_optimization_job_status(job_id: str):
 @router.get(
     "/validation/status",
     operation_id="get_validation_statuses",
+    summary="List all validation jobs",
     response_model=List[schemas.ValidationJobStatus],
 )
 def get_validation_statuses():
     """
-    List statuses of all validation jobs.
+    **List statuses of all validation jobs.**
 
-    Operation:
-        Read current state and validation result for all validation jobs.
+    ## Operation
+    
+    Reads current state and validation result for all validation jobs.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    
+    None
 
-    Returns:
-        200 OK:
-            JSON array of ValidationJobStatus objects.
+    ## Response Format
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of ValidationJobStatus objects |
 
-    Success:
-        * ValidationManager is initialized.
+    ## Conditions
+    
+    ### ✅ Success
+    - ValidationManager is initialized
 
-    Response example (200):
-        .. code-block:: json
-
-            [
-              {
-                "id": "val001",
-                "start_time": 1715000000000,
-                "elapsed_time": 10000,
-                "state": "RUNNING",
-                "is_valid": null,
-                "error_message": null
-              }
-            ]
+    ## Example Response
+    
+    ```json
+    [
+      {
+        "id": "val001",
+        "start_time": 1715000000000,
+        "elapsed_time": 10000,
+        "state": "RUNNING",
+        "is_valid": null,
+        "error_message": null
+      }
+    ]
+    ```
     """
     return ValidationManager().get_all_job_statuses()
 
@@ -753,6 +799,7 @@ def get_validation_statuses():
 @router.get(
     "/validation/{job_id}",
     operation_id="get_validation_job_summary",
+    summary="Get validation job summary",
     responses={
         200: {
             "description": "Successful Response",
@@ -766,16 +813,30 @@ def get_validation_statuses():
 )
 def get_validation_job_summary(job_id: str):
     """
-    Get a short summary of a validation job.
+    **Get a short summary of a validation job.**
 
-    Path parameters:
-        job_id: Identifier of the validation job created earlier.
+    ## Operation
+    
+    Retrieves the job id and original validation request for a specific job.
 
-    Returns:
-        200 OK:
-            ValidationJobSummary with job id and original validation request.
-        404 Not Found:
-            MessageResponse when job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the validation job created earlier
+
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | ValidationJobSummary with job id and original request |
+    | 404  | Job does not exist |
+
+    ## Conditions
+    
+    ### ✅ Success
+    - Job exists in ValidationManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
     """
     summary = ValidationManager().get_job_summary(job_id)
     if summary is None:
@@ -792,6 +853,7 @@ def get_validation_job_summary(job_id: str):
 @router.get(
     "/validation/{job_id}/status",
     operation_id="get_validation_job_status",
+    summary="Get validation job status",
     responses={
         200: {
             "description": "Successful Response",
@@ -805,24 +867,38 @@ def get_validation_job_summary(job_id: str):
 )
 def get_validation_job_status(job_id: str):
     """
-    Get detailed status of a single validation job.
+    **Get detailed status of a single validation job.**
 
-    Path parameters:
-        job_id: Identifier of the validation job to inspect.
+    ## Operation
+    
+    Retrieves timings, state, is_valid flag and error_message list for a specific validation job.
 
-    Returns:
-        200 OK:
-            ValidationJobStatus with timings, state, is_valid flag and
-            error_message list.
-        404 Not Found:
-            MessageResponse when job does not exist.
+    ## Path Parameters
+    
+    - `job_id`: Identifier of the validation job to inspect
 
-    Error response example (404):
-        .. code-block:: json
+    ## Response Codes
+    
+    | Code | Description |
+    |------|-------------|
+    | 200  | ValidationJobStatus with timings, state, is_valid flag and error_message |
+    | 404  | Job does not exist |
 
-            {
-              "message": "Validation job val001 not found"
-            }
+    ## Conditions
+    
+    ### ✅ Success
+    - Job with given id exists in ValidationManager
+    
+    ### ❌ Failure
+    - Unknown job id → 404
+
+    ## Error Example
+    
+    ```json
+    {
+      "message": "Validation job val001 not found"
+    }
+    ```
     """
     status = ValidationManager().get_job_status(job_id)
     if status is None:
