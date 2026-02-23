@@ -45,6 +45,7 @@ type UrlParams = {
 };
 
 export const Pipelines = () => {
+  const LOOPING_MAX_RUNTIME_SECONDS = 1 * 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
   const source = searchParams.get("source");
@@ -57,6 +58,7 @@ export const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -248,7 +250,7 @@ export const Pipelines = () => {
           ],
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
+            max_runtime: loopingEnabled ? LOOPING_MAX_RUNTIME_SECONDS : 0,
           },
         },
       }).unwrap();
@@ -410,6 +412,28 @@ export const Pipelines = () => {
                 <p>
                   Selecting this option changes the last fakesink to filesink so
                   it is possible to view generated output
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={loopingEnabled}
+                    onCheckedChange={(checked) =>
+                      setLoopingEnabled(checked === true)
+                    }
+                  />
+                  <span className="text-sm font-medium">Looping</span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  When enabled, the pipeline keeps running in a loop until you
+                  stop it manually.
                 </p>
               </TooltipContent>
             </Tooltip>
