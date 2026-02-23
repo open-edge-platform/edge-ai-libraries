@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDeleteVariantMutation } from "@/api/api.generated";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import { Trash2 } from "lucide-react";
 
 type DeletePipelineVariantDialogProps = {
@@ -40,10 +40,7 @@ export const DeletePipelineVariantDialog = ({
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error(`Failed to delete variant: ${errorMessage}`);
+      handleApiError(error, "Failed to delete variant");
     }
   };
 

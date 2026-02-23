@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
+import type { Pipeline } from "@/api/api.generated";
 import {
+  useGetOptimizationJobStatusQuery,
+  useGetValidationJobStatusQuery,
+  useOptimizeVariantMutation,
   useToDescriptionMutation,
   useToGraphMutation,
-  useValidatePipelineMutation,
-  useOptimizeVariantMutation,
-  useGetValidationJobStatusQuery,
-  useGetOptimizationJobStatusQuery,
   useUpdatePipelineMutation,
+  useValidatePipelineMutation,
 } from "@/api/api.generated";
 import {
   type Edge as ReactFlowEdge,
@@ -26,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +52,6 @@ import {
 import { EditVariantDialog } from "@/features/pipelines/EditVariantDialog";
 import { DeletePipelineVariantDialog } from "@/features/pipelines/DeletePipelineVariantDialog";
 import { DeletePipelineDialog } from "@/features/pipelines/DeletePipelineDialog";
-import type { Pipeline } from "@/api/api.generated";
 
 interface PipelineActionsMenuProps {
   pipeline: Pipeline;
@@ -198,12 +198,7 @@ export const PipelineActionsMenu = ({
       URL.revokeObjectURL(url);
       toast.success("Pipeline description downloaded");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to generate pipeline description", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to generate pipeline description");
       console.error("Failed to generate description:", error);
     }
   };
@@ -253,12 +248,7 @@ export const PipelineActionsMenu = ({
       setImportDialogOpen(false);
       setPipelineDescription("");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to import pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to import pipeline");
       console.error("Failed to import pipeline:", error);
     } finally {
       setIsImporting(false);
@@ -295,12 +285,7 @@ export const PipelineActionsMenu = ({
         toast.info("Validating pipeline...");
       }
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to start validation", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to start validation");
       setIsOptimizing(false);
       setPendingOptimizationNodes([]);
       setPendingOptimizationEdges([]);
@@ -374,12 +359,7 @@ export const PipelineActionsMenu = ({
           toast.info("Optimizing pipeline...");
         }
       } catch (error) {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error("Failed to start optimization", {
-          description: errorMessage,
-        });
+        handleApiError(error, "Failed to start optimization");
         setIsOptimizing(false);
         setPendingOptimizationNodes([]);
         setPendingOptimizationEdges([]);

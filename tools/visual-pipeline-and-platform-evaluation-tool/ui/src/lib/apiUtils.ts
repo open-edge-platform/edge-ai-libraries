@@ -1,5 +1,6 @@
 import type { MessageResponse } from "@/api/api.generated";
 import type { AsyncJobStatus } from "@/hooks/useAsyncJob";
+import { toast } from "sonner";
 
 type RTKQueryError = {
   status: number;
@@ -20,3 +21,44 @@ export const isAsyncJobError = (error: unknown): error is AsyncJobStatus =>
   typeof error === "object" &&
   "state" in error &&
   "error_message" in error;
+
+export const handleAsyncJobError = (
+  error: AsyncJobStatus,
+  titlePrefix: string,
+) => {
+  const formatErrorMessage = (
+    errorMessage: string[] | string | null | undefined,
+    defaultMessage: string,
+  ): string => {
+    if (!errorMessage) return defaultMessage;
+    if (Array.isArray(errorMessage)) {
+      return errorMessage.join(", ") ?? defaultMessage;
+    }
+    return errorMessage ?? defaultMessage;
+  };
+
+  if (error.state === "ERROR") {
+    const description = formatErrorMessage(
+      error.error_message,
+      "Unknown error",
+    );
+    toast.error(`${titlePrefix} error`, {
+      description,
+    });
+  } else if (error.state === "ABORTED") {
+    const description = formatErrorMessage(
+      error.error_message,
+      "Operation aborted",
+    );
+    toast.error(`${titlePrefix} aborted`, {
+      description,
+    });
+  }
+};
+
+export const handleApiError = (error: unknown, title: string) => {
+  const errorMessage = isApiError(error) ? error.data.message : "Unknown error";
+  toast.error(title, {
+    description: errorMessage,
+  });
+};

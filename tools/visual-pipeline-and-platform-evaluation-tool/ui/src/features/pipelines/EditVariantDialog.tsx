@@ -15,7 +15,7 @@ import {
   useUpdateVariantMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils.ts";
+import { handleApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
@@ -144,11 +144,9 @@ export const EditVariantDialog = ({
         navigate(`/pipelines/${pipelineId}/${newVariant.id}`);
       }
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error(
-        `Failed to ${mode === "edit" ? "rename" : "create"} variant: ${errorMessage}`,
+      handleApiError(
+        error,
+        `Failed to ${mode === "edit" ? "rename" : "create"} variant`,
       );
       console.error(
         `Failed to ${mode === "edit" ? "rename" : "create"} variant:`,

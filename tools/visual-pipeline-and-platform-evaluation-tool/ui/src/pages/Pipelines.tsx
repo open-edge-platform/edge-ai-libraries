@@ -18,6 +18,7 @@ import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
@@ -25,7 +26,11 @@ import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPane
 import { toast } from "sonner";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
-import { isApiError } from "@/lib/apiUtils";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils";
 import {
   Tooltip,
   TooltipContent,
@@ -52,9 +57,6 @@ export const Pipelines = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const source = searchParams.get("source");
-  const [performanceTestJobId, setPerformanceTestJobId] = useState<
-    string | null
-  >(null);
   const [currentViewport, setCurrentViewport] = useState<Viewport | undefined>(
     undefined,
   );
@@ -96,46 +98,19 @@ export const Pipelines = () => {
     },
   );
 
-  const [runPerformanceTest, { isLoading: isRunning }] =
-    useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
-  const { data: jobStatus } = useGetPerformanceJobStatusQuery(
-    { jobId: performanceTestJobId! },
-    {
-      skip: !performanceTestJobId,
-      pollingInterval: 1000,
-    },
-  );
-
-  useEffect(() => {
-    if (jobStatus?.state === "COMPLETED") {
-      toast.success("Pipeline run completed", {
-        description: new Date().toISOString(),
-      });
-
-      if (videoOutputEnabled && jobStatus.video_output_paths) {
-        // const paths = jobStatus.video_output_paths[id]; // TODO: Fix key mismatch - not using pipelineId as key
-        const paths = Object.values(jobStatus.video_output_paths)[0];
-        if (paths && paths.length > 0) {
-          const videoPath = [...paths].pop();
-          if (videoPath) {
-            setCompletedVideoPath(videoPath);
-          }
-        }
-      }
-
-      setPerformanceTestJobId(null);
-    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
-      toast.error("Pipeline run failed", {
-        description: jobStatus.error_message || "Unknown error",
-      });
-      setPerformanceTestJobId(null);
-    }
-  }, [jobStatus, videoOutputEnabled, id]);
+  const {
+    execute: runPipeline,
+    isLoading: isPipelineRunning,
+    jobStatus,
+  } = useAsyncJob({
+    asyncJobHook: useRunPerformanceTestMutation,
+    statusCheckHook: useGetPerformanceJobStatusQuery,
+  });
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -201,18 +176,13 @@ export const Pipelines = () => {
 
       resetHistory();
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to save variant", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to save variant");
       console.error("Failed to save variant:", error);
     }
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (performanceTestJobId) {
+    if (jobStatus?.state === "RUNNING") {
       return;
     }
 
@@ -271,7 +241,11 @@ export const Pipelines = () => {
         }).unwrap();
       }
 
-      const response = await runPerformanceTest({
+      toast.success("Pipeline run started", {
+        description: new Date().toISOString(),
+      });
+
+      const status = await runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
             {
@@ -287,35 +261,39 @@ export const Pipelines = () => {
             max_runtime: 0,
           },
         },
-      }).unwrap();
+      });
 
-      if (response && typeof response === "object" && "job_id" in response) {
-        setPerformanceTestJobId(response.job_id as string);
-      }
-
-      toast.success("Pipeline run started", {
+      toast.success("Pipeline run completed", {
         description: new Date().toISOString(),
       });
+
+      if (videoOutputEnabled && status.video_output_paths) {
+        const paths = Object.values(status.video_output_paths)[0];
+        if (paths && paths.length > 0) {
+          const videoPath = [...paths].pop();
+          if (videoPath) {
+            setCompletedVideoPath(videoPath);
+          }
+        }
+      }
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to start pipeline", {
-        description: errorMessage,
-      });
+      if (isAsyncJobError(error)) {
+        handleAsyncJobError(error, "Pipeline run");
+      } else {
+        handleApiError(error, "Failed to start pipeline");
+      }
       console.error("Failed to start pipeline:", error);
     }
   };
 
   const handleStopPipeline = async () => {
-    if (!performanceTestJobId) return;
+    if (!jobStatus?.id) return;
 
     try {
       await stopPerformanceTest({
-        jobId: performanceTestJobId,
+        jobId: jobStatus.id,
       }).unwrap();
 
-      setPerformanceTestJobId(null);
       setShowDetailsPanel(false);
       setCompletedVideoPath(null);
 
@@ -323,12 +301,7 @@ export const Pipelines = () => {
         description: new Date().toISOString(),
       });
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to stop pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to stop pipeline");
       console.error("Failed to stop pipeline:", error);
     }
   };
@@ -365,7 +338,7 @@ export const Pipelines = () => {
           target.getAttribute("data-resize-handle") !== null;
 
         if (!isResizeHandle) {
-          if (!performanceTestJobId && !completedVideoPath) {
+          if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
             setShowDetailsPanel(false);
             setSelectedNode(null);
           }
@@ -378,7 +351,7 @@ export const Pipelines = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
+  }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
     const currentVariantData = data.variants.find((v) => v.id === variant);
@@ -538,7 +511,7 @@ export const Pipelines = () => {
 
             <Separator orientation="vertical" className="h-6" />
 
-            {performanceTestJobId ? (
+            {jobStatus?.state === "RUNNING" ? (
               <StopPipelineButton
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
@@ -546,7 +519,7 @@ export const Pipelines = () => {
             ) : (
               <RunPipelineButton
                 onRun={handleRunPipeline}
-                isRunning={isRunning}
+                isRunning={isPipelineRunning}
               />
             )}
             <PipelineActionsMenu
@@ -557,7 +530,7 @@ export const Pipelines = () => {
               currentViewport={currentViewport}
               isSimpleMode={isSimpleMode}
               isReadOnly={isReadOnly}
-              performanceTestJobId={performanceTestJobId}
+              performanceTestJobId={jobStatus?.id ?? null}
               onGraphUpdate={updateGraph}
               onVariantRenamed={() => {
                 refetch();
@@ -617,7 +590,7 @@ export const Pipelines = () => {
                   >
                     {showDetailsPanel && !selectedNode ? (
                       <PerformanceTestPanel
-                        isRunning={performanceTestJobId != null}
+                        isRunning={jobStatus?.state === "RUNNING"}
                         completedVideoPath={completedVideoPath}
                       />
                     ) : (
