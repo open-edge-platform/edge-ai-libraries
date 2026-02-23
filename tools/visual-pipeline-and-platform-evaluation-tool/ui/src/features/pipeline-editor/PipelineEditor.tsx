@@ -34,6 +34,8 @@ export interface PipelineEditorHandle {
     nodeId: string,
     updatedData: Record<string, unknown>,
   ) => void;
+  setNodes: (nodes: ReactFlowNode[]) => void;
+  setEdges: (edges: ReactFlowEdge[]) => void;
 }
 
 interface PipelineEditorProps {
@@ -97,17 +99,27 @@ const PipelineEditorContent = forwardRef<
 
     const { theme } = useTheme();
 
-    useImperativeHandle(ref, () => ({
-      updateNodeData: handleNodeDataUpdate,
-    }));
+    useImperativeHandle(
+      ref,
+      () => ({
+        updateNodeData: handleNodeDataUpdate,
+        setNodes,
+        setEdges,
+      }),
+      [handleNodeDataUpdate, setNodes, setEdges],
+    );
 
     useEffect(() => {
-      onNodesChangeCallback?.(nodes);
-    }, [nodes, onNodesChangeCallback]);
+      if (hasInitialized) {
+        onNodesChangeCallback?.(nodes);
+      }
+    }, [nodes, hasInitialized, onNodesChangeCallback]);
 
     useEffect(() => {
-      onEdgesChangeCallback?.(edges);
-    }, [edges, onEdgesChangeCallback]);
+      if (hasInitialized) {
+        onEdgesChangeCallback?.(edges);
+      }
+    }, [edges, hasInitialized, onEdgesChangeCallback]);
 
     useEffect(() => {
       setHasInitialized(false);

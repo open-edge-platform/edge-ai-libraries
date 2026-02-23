@@ -259,6 +259,28 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["pipelines"],
       }),
+      convertAdvancedToSimple: build.mutation<
+        ConvertAdvancedToSimpleApiResponse,
+        ConvertAdvancedToSimpleApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/convert-to-simple`,
+          method: "POST",
+          body: queryArg.pipelineGraph,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      convertSimpleToAdvanced: build.mutation<
+        ConvertSimpleToAdvancedApiResponse,
+        ConvertSimpleToAdvancedApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/convert-to-advanced`,
+          method: "POST",
+          body: queryArg.pipelineGraph,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
       runPerformanceTest: build.mutation<
         RunPerformanceTestApiResponse,
         RunPerformanceTestApiArg
@@ -266,7 +288,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/performance`,
           method: "POST",
-          body: queryArg.performanceTestSpecInput,
+          body: queryArg.performanceTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -277,7 +299,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/density`,
           method: "POST",
-          body: queryArg.densityTestSpecInput,
+          body: queryArg.densityTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -401,8 +423,7 @@ export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
 export type ValidatePipelineApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Pipeline validation started */ ValidationJobResponse;
+  /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -423,8 +444,7 @@ export type DeletePipelineApiArg = {
   pipelineId: string;
 };
 export type OptimizeVariantApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 202 Variant optimization started */ OptimizationJobResponse;
+  /** status 202 Variant optimization started */ OptimizationJobResponse;
 export type OptimizeVariantApiArg = {
   pipelineId: string;
   variantId: string;
@@ -449,15 +469,29 @@ export type UpdateVariantApiArg = {
   variantId: string;
   variantUpdate: VariantUpdate;
 };
+export type ConvertAdvancedToSimpleApiResponse =
+  /** status 200 Converted simple graph */ PipelineGraph;
+export type ConvertAdvancedToSimpleApiArg = {
+  pipelineId: string;
+  variantId: string;
+  pipelineGraph: PipelineGraph;
+};
+export type ConvertSimpleToAdvancedApiResponse =
+  /** status 200 Converted advanced graph */ PipelineGraph;
+export type ConvertSimpleToAdvancedApiArg = {
+  pipelineId: string;
+  variantId: string;
+  pipelineGraph: PipelineGraph;
+};
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
 export type RunPerformanceTestApiArg = {
-  performanceTestSpecInput: PerformanceTestSpec2;
+  performanceTestSpec: PerformanceTestSpec;
 };
 export type RunDensityTestApiResponse =
   /** status 202 Density test job created */ TestJobResponse;
 export type RunDensityTestApiArg = {
-  densityTestSpecInput: DensityTestSpec2;
+  densityTestSpec: DensityTestSpec;
 };
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
@@ -517,6 +551,8 @@ export type ValidationError = {
   loc: (string | number)[];
   msg: string;
   type: string;
+  input?: any;
+  ctx?: object;
 };
 export type HttpValidationError = {
   detail?: ValidationError[];
@@ -558,46 +594,11 @@ export type PerformanceJobStatus = {
     [key: string]: string;
   } | null;
 };
-export type GraphInline = {
-  source?: "graph";
-  /** Inline pipeline graph to use for the test. */
-  pipeline_graph: PipelineGraph;
-};
-export type VariantReference = {
-  source?: "variant";
-  /** ID of the pipeline containing the variant. */
-  pipeline_id: string;
-  /** ID of the variant within the pipeline. */
-  variant_id: string;
-};
-export type PipelinePerformanceSpec = {
-  /** Graph source - either a reference to existing variant or inline graph. */
-  pipeline:
-    | ({
-        source: "graph";
-      } & GraphInline)
-    | ({
-        source: "variant";
-      } & VariantReference);
-  /** Number of parallel streams for this pipeline. */
-  streams?: number;
-};
-export type OutputMode = "disabled" | "file" | "live_stream";
-export type ExecutionConfig = {
-  /** Mode for pipeline output generation. */
-  output_mode?: OutputMode;
-  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
-  max_runtime?: number;
-};
-export type PerformanceTestSpec = {
-  /** List of pipelines with number of streams for each. */
-  pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
-};
 export type PerformanceJobSummary = {
   id: string;
-  request: PerformanceTestSpec;
+  request: {
+    [key: string]: any;
+  };
 };
 export type DensityJobStatus = {
   id: string;
@@ -613,29 +614,11 @@ export type DensityJobStatus = {
   } | null;
   error_message: string | null;
 };
-export type PipelineDensitySpec = {
-  /** Graph source - either a reference to existing variant or inline graph. */
-  pipeline:
-    | ({
-        source: "graph";
-      } & GraphInline)
-    | ({
-        source: "variant";
-      } & VariantReference);
-  /** Relative share of total streams for this pipeline (percentage). */
-  stream_rate?: number;
-};
-export type DensityTestSpec = {
-  /** Minimum acceptable FPS per stream. */
-  fps_floor: number;
-  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
-  pipeline_density_specs: PipelineDensitySpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
-};
 export type DensityJobSummary = {
   id: string;
-  request: DensityTestSpec;
+  request: {
+    [key: string]: any;
+  };
 };
 export type OptimizationType = "preprocess" | "optimize";
 export type OptimizationJobState =
@@ -780,46 +763,75 @@ export type TestJobResponse = {
   /** Identifier of the created test job. */
   job_id: string;
 };
-export type GraphInline2 = {
+export type PipelineDescriptionSource = {
+  source?: "description";
+  /** GStreamer pipeline string with elements separated by '!'. */
+  pipeline_description: string;
+  /** Optional custom identifier for pipeline description. Must be URL-safe. */
+  description_id?: string | null;
+};
+export type GraphInline = {
   source?: "graph";
+  /** Optional custom identifier for inline graph. Must be URL-safe. */
+  graph_id?: string | null;
   /** Inline pipeline graph to use for the test. */
   pipeline_graph: PipelineGraph;
 };
-export type PipelinePerformanceSpec2 = {
+export type VariantReference = {
+  source?: "variant";
+  /** ID of the pipeline containing the variant. */
+  pipeline_id: string;
+  /** ID of the variant within the pipeline. */
+  variant_id: string;
+};
+export type PipelinePerformanceSpec = {
   /** Graph source - either a reference to existing variant or inline graph. */
   pipeline:
     | ({
+        source: "description";
+      } & PipelineDescriptionSource)
+    | ({
         source: "graph";
-      } & GraphInline2)
+      } & GraphInline)
     | ({
         source: "variant";
       } & VariantReference);
   /** Number of parallel streams for this pipeline. */
   streams?: number;
 };
-export type PerformanceTestSpec2 = {
+export type OutputMode = "disabled" | "file" | "live_stream";
+export type ExecutionConfig = {
+  /** Mode for pipeline output generation. */
+  output_mode?: OutputMode;
+  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
+  max_runtime?: number;
+};
+export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
-  pipeline_performance_specs: PipelinePerformanceSpec2[];
+  pipeline_performance_specs: PipelinePerformanceSpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
 };
-export type PipelineDensitySpec2 = {
+export type PipelineDensitySpec = {
   /** Graph source - either a reference to existing variant or inline graph. */
   pipeline:
     | ({
+        source: "description";
+      } & PipelineDescriptionSource)
+    | ({
         source: "graph";
-      } & GraphInline2)
+      } & GraphInline)
     | ({
         source: "variant";
       } & VariantReference);
   /** Relative share of total streams for this pipeline (percentage). */
   stream_rate?: number;
 };
-export type DensityTestSpec2 = {
+export type DensityTestSpec = {
   /** Minimum acceptable FPS per stream. */
   fps_floor: number;
   /** List of pipelines with relative stream_rate percentages that must sum to 100. */
-  pipeline_density_specs: PipelineDensitySpec2[];
+  pipeline_density_specs: PipelineDensitySpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
 };
@@ -913,6 +925,8 @@ export const {
   useCreateVariantMutation,
   useDeleteVariantMutation,
   useUpdateVariantMutation,
+  useConvertAdvancedToSimpleMutation,
+  useConvertSimpleToAdvancedMutation,
   useRunPerformanceTestMutation,
   useRunDensityTestMutation,
   useGetVideosQuery,
