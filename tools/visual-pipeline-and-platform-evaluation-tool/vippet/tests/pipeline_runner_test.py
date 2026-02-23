@@ -1,4 +1,5 @@
 import itertools
+import signal
 import sys
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
@@ -68,7 +69,9 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(cmd[3], "normal")
         self.assertEqual(cmd[4], "--max-runtime")
         self.assertEqual(cmd[5], "0")
-        self.assertEqual(cmd[6], self.test_pipeline_command)
+        self.assertEqual(cmd[6], "--log-level")
+        self.assertIn(cmd[7], ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"))
+        self.assertEqual(cmd[8], self.test_pipeline_command)
 
         # Verify FPS extraction with type narrowing
         assert isinstance(result, PipelineRunResult)  # Type narrowing
@@ -85,8 +88,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
 
         # Mock process
         process_mock = MagicMock()
-        process_mock.poll.side_effect = [None]
-        process_mock.wait.return_value = -1
+        # First poll() returns None (main loop check: process running),
+        # second poll() returns None (_graceful_terminate check: still running,
+        # so it sends SIGINT and waits).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.wait.return_value = 0
         mock_popen.return_value = process_mock
 
         runner = PipelineRunner(mode="normal", max_runtime=0)
@@ -103,6 +109,9 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(result.per_stream_fps, expected_result.per_stream_fps)
         self.assertEqual(result.num_streams, expected_result.num_streams)
 
+        # Verify SIGINT was sent for graceful shutdown
+        process_mock.send_signal.assert_called_once_with(signal.SIGINT)
+
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.select.select")
     def test_pipeline_hang_raises_runtime_error(self, mock_select, mock_popen):
@@ -116,8 +125,9 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         )
 
         process_mock = MagicMock()
-        # Process keeps running (poll() always returns None).
-        process_mock.poll.return_value = None
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
         process_mock.stdout = MagicMock()
         process_mock.stderr = MagicMock()
         # No data available on stdout/stderr, select returns no readable fds.
@@ -244,7 +254,9 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         )
 
         process_mock = MagicMock()
-        process_mock.poll.return_value = None
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
         process_mock.stdout = MagicMock()
         process_mock.stderr = MagicMock()
         mock_select.return_value = ([], [], [])
@@ -273,8 +285,10 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     def test_stop_pipeline_writes_zero_fps(self, mock_open_file, mock_popen):
         """PipelineRunner should write 0.0 to FPS file when cancelled."""
         process_mock = MagicMock()
-        process_mock.poll.side_effect = [None]
-        process_mock.wait.return_value = -1
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.wait.return_value = 0
         process_mock.stdout.fileno.return_value = 10
         process_mock.stderr.fileno.return_value = 11
         mock_popen.return_value = process_mock
@@ -370,25 +384,17 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
     def test_run_validation_timeout(self, mock_popen):
         """PipelineRunner in validation mode should handle timeout gracefully."""
         process_mock = MagicMock()
-        process_mock.communicate.side_effect = [
-            __import__("subprocess").TimeoutExpired("gst_runner.py", 70)
-        ]
-        process_mock.communicate.side_effect = lambda timeout: (
-            (_ for _ in ()).throw(
-                __import__("subprocess").TimeoutExpired("gst_runner.py", timeout)
-            )
-            if timeout
-            else ("", "")
-        )
 
-        # After kill, second communicate returns empty
         def communicate_with_timeout(timeout=None):
             if timeout:
                 raise __import__("subprocess").TimeoutExpired("gst_runner.py", timeout)
-            return ("", "")
+            return "", ""
 
         process_mock.communicate = communicate_with_timeout
-        process_mock.returncode = -9
+        # _graceful_terminate checks poll(), sends SIGINT, then waits.
+        process_mock.poll.return_value = None
+        process_mock.wait.return_value = 0
+        process_mock.returncode = -2
         mock_popen.return_value = process_mock
 
         runner = PipelineRunner(mode="validation", max_runtime=10)
@@ -399,6 +405,9 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
         assert isinstance(result, PipelineValidationResult)
         self.assertFalse(result.is_valid)
         self.assertTrue(any("timed out" in err for err in result.errors))
+
+        # Verify SIGINT was sent for graceful shutdown
+        process_mock.send_signal.assert_called_once_with(signal.SIGINT)
 
     def test_parse_validation_stderr(self):
         """_parse_validation_stderr should extract only gst_runner ERROR messages."""
