@@ -2,8 +2,6 @@ name: Detect & Classify
 definition: >
   Template pipeline with object detection followed by classification.
   Configure the input source, detection model, and classification model to get started.
-  Placeholders: __INPUT__ for the video source URI, __DETECT_MODEL__ for the path to your detection model XML file,
-  __CLASSIFY_MODEL__ for the path to your classification model XML file.
 tags:
   - template
   - detection
@@ -11,12 +9,12 @@ tags:
 variants:
   - name: CPU
     pipeline_description: >-
-      filesrc location=__INPUT__ !
+      filesrc location="" !
       decodebin3 !
       queue !
       gvadetect
         device=CPU
-        model=__DETECT_MODEL__
+        model=""
         pre-process-backend=opencv
         batch-size=1
         inference-interval=3
@@ -27,7 +25,7 @@ variants:
       queue !
       gvaclassify
         device=CPU
-        model=__CLASSIFY_MODEL__
+        model=""
         pre-process-backend=opencv
         batch-size=1
         inference-interval=3
@@ -39,12 +37,12 @@ variants:
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
     pipeline_description: >-
-      filesrc location=__INPUT__ !
+      filesrc location="" !
       decodebin3 !
       queue !
       gvadetect
         device=GPU
-        model=__DETECT_MODEL__
+        model=""
         pre-process-backend=va-surface-sharing
         nireq=2
         ie-config=NUM_STREAMS=2
@@ -57,7 +55,7 @@ variants:
       queue !
       gvaclassify
         device=GPU
-        model=__CLASSIFY_MODEL__
+        model=""
         pre-process-backend=va-surface-sharing
         nireq=2
         ie-config=NUM_STREAMS=2
@@ -71,12 +69,12 @@ variants:
       fakesink name=default_output_sink sync=false async=false
   - name: NPU
     pipeline_description: >-
-      filesrc location=__INPUT__ !
+      filesrc location="" !
       decodebin3 !
       queue !
       gvadetect
         device=NPU
-        model=__DETECT_MODEL__
+        model=""
         pre-process-backend=opencv
         nireq=4
         batch-size=1
@@ -88,7 +86,7 @@ variants:
       queue !
       gvaclassify
         device=NPU
-        model=__CLASSIFY_MODEL__
+        model=""
         pre-process-backend=opencv
         nireq=4
         batch-size=1
@@ -101,12 +99,12 @@ variants:
       fakesink name=default_output_sink sync=false async=false
   - name: GPU_NPU
     pipeline_description: >-
-      filesrc location=__INPUT__ !
+      filesrc location="" !
       decodebin3 !
       queue !
       gvadetect
         device=GPU
-        model=__DETECT_MODEL__
+        model=""
         pre-process-backend=va-surface-sharing
         nireq=2
         ie-config=NUM_STREAMS=2
@@ -119,7 +117,7 @@ variants:
       queue !
       gvaclassify
         device=NPU
-        model=__CLASSIFY_MODEL__
+        model=""
         pre-process-backend=opencv
         nireq=4
         batch-size=1

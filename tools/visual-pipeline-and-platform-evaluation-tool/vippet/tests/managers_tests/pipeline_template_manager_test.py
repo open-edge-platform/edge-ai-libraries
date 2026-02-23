@@ -25,15 +25,15 @@ MOCK_TEMPLATE_CONFIGS = [
             {
                 "name": "CPU",
                 "pipeline_description": (
-                    "filesrc location=__INPUT__ ! decodebin !"
-                    " gvadetect model=__DETECT_MODEL__ ! fakesink"
+                    'filesrc location="" ! decodebin !'
+                    ' gvadetect device=CPU model="" ! fakesink'
                 ),
             },
             {
                 "name": "GPU",
                 "pipeline_description": (
-                    "filesrc location=__INPUT__ ! decodebin !"
-                    " gvadetect model=__DETECT_MODEL__ ! fakesink"
+                    'filesrc location="" ! decodebin !'
+                    ' gvadetect device=GPU model="" ! fakesink'
                 ),
             },
         ],
@@ -46,9 +46,9 @@ MOCK_TEMPLATE_CONFIGS = [
             {
                 "name": "CPU",
                 "pipeline_description": (
-                    "filesrc location=__INPUT__ ! decodebin !"
-                    " gvadetect model=__DETECT_MODEL__ !"
-                    " gvaclassify model=__CLASSIFY_MODEL__ ! fakesink"
+                    'filesrc location="" ! decodebin !'
+                    ' gvadetect device=CPU model="" !'
+                    ' gvaclassify device=CPU model="" ! fakesink'
                 ),
             },
         ],
@@ -607,6 +607,7 @@ class TestBuildTemplateFromConfig(unittest.TestCase):
             self.assertIsInstance(variant.created_at, datetime)
             self.assertIsInstance(variant.modified_at, datetime)
             self.assertEqual(variant.created_at.tzinfo, timezone.utc)
+            self.assertEqual(variant.modified_at.tzinfo, timezone.utc)
 
     def test_build_template_id_generated_from_name(self):
         """Template ID must be a slugified version of the name."""

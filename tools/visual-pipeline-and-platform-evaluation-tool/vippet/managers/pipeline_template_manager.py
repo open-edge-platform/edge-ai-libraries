@@ -100,8 +100,7 @@ class PipelineTemplateManager:
         Templates are loaded similarly to predefined pipelines but:
             * source is set to TEMPLATE
             * all variants are read_only=True
-            * placeholder tokens (__INPUT__, __DETECT_MODEL__, etc.) are
-              replaced with empty string values in node properties
+            * fields that require user input are stored as empty strings
 
         Returns:
             List of Pipeline template objects.
@@ -182,8 +181,6 @@ class PipelineTemplateManager:
                     f"'{variant_name}' in template '{name}'"
                 )
 
-            # Placeholder tokens (__INPUT__, __DETECT_MODEL__, etc.) are replaced
-            # with empty string values in node properties during graph parsing.
             graph = Graph.from_pipeline_description(pipeline_desc)
             pipeline_graph = PipelineGraph.model_validate(graph.to_dict())
 

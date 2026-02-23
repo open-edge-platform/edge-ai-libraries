@@ -2142,6 +2142,12 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         if model_path is None:
             continue
 
+        if model_path == "":
+            logger.debug(
+                f"Model path is empty string for node {node.id}, skipping model lookup"
+            )
+            continue
+
         model_proc_path = node.data.get("model-proc", None)
         model = SupportedModelsManager().find_installed_model_by_model_and_proc_path(
             model_path, model_proc_path
@@ -2330,6 +2336,12 @@ def _input_video_path_to_display_name(nodes: list[Node]) -> None:
         for key in ("source", "location"):
             path = node.data.get(key)
             if path is None:
+                continue
+
+            if path == "":
+                logger.debug(
+                    f"Video path is empty string for node {node.id}, skipping video lookup"
+                )
                 continue
 
             if filename := VideosManager().get_video_filename(path):
