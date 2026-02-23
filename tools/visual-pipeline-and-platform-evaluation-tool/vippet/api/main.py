@@ -58,7 +58,7 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize PipelineTemplateManager - loads pipeline templates
         PipelineTemplateManager()
 
-        # Register remaining routers after VideosManager and PipelineManager are initialized
+        # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
         register_routers(app)
 
         app_state_manager.set_status(AppStatus.READY)
