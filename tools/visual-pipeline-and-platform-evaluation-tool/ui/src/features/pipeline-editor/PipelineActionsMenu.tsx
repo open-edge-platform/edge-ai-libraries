@@ -16,7 +16,9 @@ import {
 import {
   Download,
   FileJson,
+  Lock,
   MoreVertical,
+  PencilLine,
   Save,
   Terminal,
   Trash2,
@@ -41,16 +43,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NewVariantDialog } from "@/features/pipelines/NewVariantDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { EditVariantDialog } from "@/features/pipelines/EditVariantDialog";
+import { DeletePipelineVariantDialog } from "@/features/pipelines/DeletePipelineVariantDialog";
+import { DeletePipelineDialog } from "@/features/pipelines/DeletePipelineDialog";
+import type { Pipeline } from "@/api/api.generated";
 
 interface PipelineActionsMenuProps {
-  pipelineId: string;
-  variant: string;
+  pipeline: Pipeline;
+  variantId: string;
   currentNodes: ReactFlowNode[];
   currentEdges: ReactFlowEdge[];
   currentViewport?: Viewport;
-  pipelineName: string;
   isSimpleMode: boolean;
+  isReadOnly: boolean;
   performanceTestJobId: string | null;
   onGraphUpdate: (
     nodes: ReactFlowNode[],
@@ -58,21 +68,37 @@ interface PipelineActionsMenuProps {
     viewport: Viewport,
     shouldFitView: boolean,
   ) => void;
+  onVariantDeleted?: () => void;
+  onVariantRenamed?: () => void;
 }
 
 export const PipelineActionsMenu = ({
-  pipelineId,
-  variant,
+  pipeline,
+  variantId,
   currentNodes,
   currentEdges,
   currentViewport,
-  pipelineName,
   isSimpleMode,
+  isReadOnly,
   performanceTestJobId,
   onGraphUpdate,
+  onVariantDeleted,
+  onVariantRenamed,
 }: PipelineActionsMenuProps) => {
+  const pipelineId = pipeline.id;
+  const pipelineName = pipeline.name;
+  const variantName =
+    pipeline.variants.find((v) => v.id === variantId)?.name ?? "";
+  const variantsCount = pipeline.variants.length;
+
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [saveVariantDialogOpen, setSaveVariantDialogOpen] = useState(false);
+  const [editVariantDialogOpen, setEditVariantDialogOpen] = useState(false);
+  const [editVariantMode, setEditVariantMode] = useState<"create" | "edit">(
+    "create",
+  );
+  const [deleteVariantDialogOpen, setDeleteVariantDialogOpen] = useState(false);
+  const [deletePipelineDialogOpen, setDeletePipelineDialogOpen] =
+    useState(false);
   const [pipelineDescription, setPipelineDescription] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -515,69 +541,183 @@ export const PipelineActionsMenu = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            onClick={handleOptimizePipeline}
-            disabled={isOptimizing || performanceTestJobId != null}
+            disabled={isReadOnly}
+            className="flex items-center justify-between gap-2"
+            onClick={() => {
+              setEditVariantMode("edit");
+              setEditVariantDialogOpen(true);
+            }}
           >
-            <Zap className="w-4 h-4" />
-            Optimize pipeline
+            <div className="flex items-center gap-2">
+              <PencilLine className="w-4 h-4" />
+              Rename variant
+            </div>
+            {isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Read-only variant cannot be renamed.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              setSaveVariantDialogOpen(true);
+              setEditVariantMode("create");
+              setEditVariantDialogOpen(true);
             }}
           >
             <Save className="w-4 h-4" />
             Save as new variant
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Upload className="w-4 h-4" />
-              Import pipeline
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleImportJson}>
-                <FileJson className="w-4 h-4" />
-                Import JSON File
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setImportDialogOpen(true);
-                }}
-              >
-                <Terminal className="w-4 h-4" />
-                Import GST Description
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Download className="w-4 h-4" />
-              Export pipeline
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleExportJson}>
-                <FileJson className="w-4 h-4" />
-                Export as JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleExportDescription}
-                disabled={isExportingDescription}
-              >
-                <Terminal className="w-4 h-4" />
-                {isExportingDescription
-                  ? "Generating..."
-                  : "Export as GST Description"}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <DropdownMenuItem
+            onClick={handleOptimizePipeline}
+            disabled={
+              isSimpleMode ||
+              isReadOnly ||
+              isOptimizing ||
+              performanceTestJobId != null
+            }
+            className="flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Optimize pipeline
+            </div>
+            {(isSimpleMode || isReadOnly) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isReadOnly
+                    ? "Read-only variant cannot be modified."
+                    : "Only available in advanced mode."}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </DropdownMenuItem>
+          {isSimpleMode || isReadOnly ? (
+            <DropdownMenuItem
+              disabled
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Import pipeline
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isReadOnly
+                    ? "Read-only variant cannot be modified."
+                    : "Only available in advanced mode."}
+                </TooltipContent>
+              </Tooltip>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Upload className="w-4 h-4" />
+                Import pipeline
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={handleImportJson}>
+                  <FileJson className="w-4 h-4" />
+                  Import JSON File
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setImportDialogOpen(true);
+                  }}
+                >
+                  <Terminal className="w-4 h-4" />
+                  Import GST Description
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          {isSimpleMode ? (
+            <DropdownMenuItem
+              disabled
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Export pipeline
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Only available in advanced mode.
+                </TooltipContent>
+              </Tooltip>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Download className="w-4 h-4" />
+                Export pipeline
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={handleExportJson}>
+                  <FileJson className="w-4 h-4" />
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExportDescription}
+                  disabled={isExportingDescription}
+                >
+                  <Terminal className="w-4 h-4" />
+                  {isExportingDescription
+                    ? "Generating..."
+                    : "Export as GST Description"}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           <DropdownMenuItem
             variant="destructive"
+            disabled={isReadOnly}
+            className="flex items-center justify-between gap-2"
             onClick={() => {
-              toast.info("Delete variant - Not yet implemented");
+              if (variantsCount === 1) {
+                setDeletePipelineDialogOpen(true);
+              } else {
+                setDeleteVariantDialogOpen(true);
+              }
             }}
           >
-            <Trash2 className="w-4 h-4" />
-            Delete variant
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              {variantsCount === 1 ? "Delete pipeline" : "Delete variant"}
+            </div>
+            {isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Read-only variant cannot be deleted.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -651,14 +791,37 @@ export const PipelineActionsMenu = ({
         </DialogContent>
       </Dialog>
 
-      <NewVariantDialog
+      <EditVariantDialog
+        mode={editVariantMode}
         pipelineId={pipelineId}
-        variantId={variant}
+        variantId={variantId}
+        currentVariantName={variantName}
         currentNodes={currentNodes}
         currentEdges={currentEdges}
         isSimpleMode={isSimpleMode}
-        open={saveVariantDialogOpen}
-        onOpenChange={setSaveVariantDialogOpen}
+        open={editVariantDialogOpen}
+        onOpenChange={setEditVariantDialogOpen}
+        onSuccess={() => {
+          if (editVariantMode === "edit") {
+            onVariantRenamed?.();
+          }
+        }}
+      />
+
+      <DeletePipelineVariantDialog
+        open={deleteVariantDialogOpen}
+        onOpenChange={setDeleteVariantDialogOpen}
+        pipelineId={pipelineId}
+        variantId={variantId}
+        variantName={variantName}
+        onSuccess={onVariantDeleted}
+      />
+
+      <DeletePipelineDialog
+        open={deletePipelineDialogOpen}
+        onOpenChange={setDeletePipelineDialogOpen}
+        pipeline={pipeline}
+        onSuccess={onVariantDeleted}
       />
     </>
   );

@@ -1,10 +1,11 @@
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
+  useUpdateVariantMutation,
 } from "@/api/api.generated";
 import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
 import {
@@ -38,6 +39,8 @@ import {
 } from "@/components/ui/resizable";
 import { ArrowLeft, Redo2, Save, Undo2 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 type UrlParams = {
   id: string;
@@ -47,6 +50,7 @@ type UrlParams = {
 export const Pipelines = () => {
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const source = searchParams.get("source");
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
@@ -97,6 +101,7 @@ export const Pipelines = () => {
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
+  const [updateVariant] = useUpdateVariantMutation();
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: performanceTestJobId! },
@@ -169,10 +174,41 @@ export const Pipelines = () => {
     }
   }, [currentNodes, currentEdges]);
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log("Save clicked");
-    // After successful save, call: resetHistory();
+  const handleSave = async () => {
+    if (!id || !variant) return;
+
+    try {
+      const graphData = {
+        nodes: currentNodes.map((node) => ({
+          id: node.id,
+          type: node.type ?? "",
+          data: node.data as { [key: string]: string },
+        })),
+        edges: currentEdges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        })),
+      };
+
+      await updateVariant({
+        pipelineId: id,
+        variantId: variant,
+        variantUpdate: isSimpleMode
+          ? { pipeline_graph_simple: graphData }
+          : { pipeline_graph: graphData },
+      }).unwrap();
+
+      resetHistory();
+    } catch (error) {
+      const errorMessage = isApiError(error)
+        ? error.data.message
+        : "Unknown error";
+      toast.error("Failed to save variant", {
+        description: errorMessage,
+      });
+      console.error("Failed to save variant:", error);
+    }
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
@@ -345,6 +381,9 @@ export const Pipelines = () => {
   }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
 
   if (isSuccess && data) {
+    const currentVariantData = data.variants.find((v) => v.id === variant);
+    const isReadOnly = currentVariantData?.read_only ?? false;
+
     const editorContent = (
       <div className="w-full h-full relative">
         <div
@@ -442,14 +481,15 @@ export const Pipelines = () => {
           <div className="flex items-center gap-2 px-4">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={undo}
                   disabled={!canUndo}
-                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Undo"
                 >
                   <Undo2 className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p>Undo (Ctrl+Z)</p>
@@ -458,14 +498,15 @@ export const Pipelines = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={redo}
                   disabled={!canRedo}
-                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Redo"
                 >
                   <Redo2 className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p>Redo (Ctrl+Y)</p>
@@ -474,20 +515,28 @@ export const Pipelines = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={handleSave}
-                  className="p-2 hover:bg-accent rounded transition-colors"
+                  disabled={isReadOnly || !canUndo}
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Save"
                 >
                   <Save className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Save (Ctrl+S)</p>
+                <p>
+                  {isReadOnly
+                    ? "Read-only variant cannot be saved."
+                    : !canUndo
+                      ? "No changes to save"
+                      : "Save (Ctrl+S)"}
+                </p>
               </TooltipContent>
             </Tooltip>
 
-            <div className="w-px h-6 bg-border" />
+            <Separator orientation="vertical" className="h-6" />
 
             {performanceTestJobId ? (
               <StopPipelineButton
@@ -501,15 +550,36 @@ export const Pipelines = () => {
               />
             )}
             <PipelineActionsMenu
-              pipelineId={id!}
-              variant={variant!}
+              pipeline={data}
+              variantId={variant!}
               currentNodes={currentNodes}
               currentEdges={currentEdges}
               currentViewport={currentViewport}
-              pipelineName={data.name}
               isSimpleMode={isSimpleMode}
+              isReadOnly={isReadOnly}
               performanceTestJobId={performanceTestJobId}
               onGraphUpdate={updateGraph}
+              onVariantRenamed={() => {
+                refetch();
+              }}
+              onVariantDeleted={() => {
+                // If only one variant existed, the whole pipeline was deleted
+                if (data.variants.length === 1) {
+                  navigate("/pipelines");
+                  return;
+                }
+                // Filter out the deleted variant before selecting the first one
+                const remainingVariants = data.variants.filter(
+                  (v) => v.id !== variant,
+                );
+                const firstVariant = remainingVariants[0];
+                if (firstVariant) {
+                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                } else {
+                  // If no variants left, navigate back to pipeline list
+                  navigate("/pipelines");
+                }
+              }}
             />
           </div>
         </header>
