@@ -84,7 +84,7 @@ services:
       - "/tmp:/tmp"
       - "./mr_models:/home/pipeline-server/mr_models:rw"
     group_add:
-      # render group ID; this variable should be exported on host before running docker compose
+      # render group ID; this variable should be exported on host before running docker compose or added to .env
       - "${RENDER_GID}"
     device_cgroup_rules:
       # Default run - device-cgroup-rule='c 189:* rmw'
