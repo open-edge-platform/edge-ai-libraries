@@ -23,15 +23,15 @@
 
     1. Download helm chart with the following command
 
-        `helm pull oci://registry-1.docker.io/intel/time-series-analytics-microservice --version 2026.0.0-rc1-helm`
+        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.0.0-rc1-helm`
 
     2. unzip the package using the following command
 
-        `tar -xvzf time-series-analytics-microservice-2026.0.0-rc1-helm.tgz`
+        `tar -xvzf ia-time-series-analytics-microservice-2026.0.0-rc1-helm.tgz`
 
     - Get into the helm directory
 
-        `cd time-series-analytics-microservice`
+        `cd ia-time-series-analytics-microservice`
 
 ## Install helm charts
 
