@@ -11,22 +11,14 @@ To determine which graphics processor you have, refer to the [Hardware table](ht
 
 ### Provide GPU or NPU access to the container
 
-For containerized application such as the Deep Learning Streamer Pipeline Server (DL Streamer
-Pipeline server), first we need to provide GPU/NPU device(s) access to the container user. This
-can be done by making the following changes to the docker compose file.
+For containerized applications such as the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server), you must first grant the container user access to GPU/NPU device(s).
+Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and export it as an environment variable **before** running Docker Compose.
 
-```yaml
-services:
-  dlstreamer-pipeline-server:
-    group_add:
-      # verify render group ID on your host and add it here
-      - "110"
-      - "992"
-    devices:
-      # you can add specific devices like /dev/dri or /dev/accel in case you don't want to provide access to all like below.
-      - "/dev:/dev"
-```
-The changes above adds the container user to the `render` group and provides access to the GPU devices.
+- On the host machine, determine and export the render group ID. Run the following command on your host:
+
+    ```sh
+        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+    ```
 
 ### Hardware specific encoder/decoders
 Unlike the changes done for the container above, the following requires a modification to the media pipeline itself.
