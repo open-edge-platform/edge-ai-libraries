@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/dlstreamer-pipeline-server:2026.0.0-20260210-weekly-ubuntu24
+FROM intel/dlstreamer-pipeline-server:2026.0.0-ubuntu24-rc1
 
 COPY requirements.txt . 
 RUN pip install --no-cache-dir -r requirements.txt
