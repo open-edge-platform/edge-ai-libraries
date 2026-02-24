@@ -186,6 +186,30 @@ async def custom_swagger_ui_html():
     """
 )
 
+# Custom ReDoc endpoint (optional)
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Visual Pipeline and Platform Evaluation Tool API - ReDoc</title>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+        <link rel="stylesheet" href="/static/css/swagger-custom.css">
+        <style>
+            body { margin: 0; padding: 0; }
+        </style>
+    </head>
+    <body>
+        <redoc spec-url='/api/v1/openapi.json'></redoc>
+        <script src="https://cdn.jsdelivr.net/npm/redoc@2.0.0/bundles/redoc.standalone.js"></script>
+    </body>
+    </html>
+    """
+)
+
 # Add middleware to block requests during initialization
 app.add_middleware(InitializationMiddleware)
 
