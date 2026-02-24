@@ -9,7 +9,7 @@ import logging
 
 from fastapi import APIRouter
 
-from api.api_schemas import AppStatus, HealthResponse, StatusResponse
+from api.api_schemas import HealthResponse, StatusResponse
 from managers.app_state_manager import AppStateManager
 
 router = APIRouter()
