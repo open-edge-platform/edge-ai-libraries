@@ -46,7 +46,8 @@ The Plugin System extends the service's functionality by handling interactions w
 - **HuggingFace Hub Plugin**: Downloads models from the Hugging Face hub, including handling authentication for private or gated models.
 - **Ollama Hub Plugin**: Interfaces with Ollama tool to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
-- **Geti™ Plugin**:  Downloads models optimized through the Geti™ platform.
+- **Geti™ Plugin**:  Downloads models optmized on Geti™.
+- **HLS Plugin**: Download pre-configured Health AI suite models from Github.
 
 **Conversion Plugins:**
 - **OpenVINO™ Model Conversion Plugin**: Converts downloaded models, for example, from Hugging Face model hub into the OpenVINO Intermediate Representation (IR) format for optimized inference on Intel® hardware.

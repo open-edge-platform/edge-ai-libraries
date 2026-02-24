@@ -55,7 +55,7 @@ show_usage() {
     echo -e "  ${CYAN}--build${NC}                     Build the Docker image only (without starting services)"
     echo -e "  ${CYAN}--rebuild${NC}                   Force rebuild the Docker image without cache (without starting services)"
     echo -e "  ${CYAN}--model-path${NC} <path>         Set custom model path (default: $DEFAULT_MODEL_PATH)"
-    echo -e "  ${CYAN}--plugins${NC} <list>            Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti) or 'all' to enable all"
+    echo -e "  ${CYAN}--plugins${NC} <list>            Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti,hls) or 'all' to enable all"
     echo -e "  ${CYAN}--ovms-release-tag${NC} <tag>    Set OVMS release tag (e.g., v2025.4.1) (default: $DEFAULT_OVMS_RELEASE_TAG)"
     echo -e "  ${CYAN}--help${NC}                      Show this help message"
 }
@@ -185,20 +185,20 @@ if [[ "$ACTION" != "down" ]]; then
     export ENABLED_PLUGINS="$PLUGINS"
     export OVMS_RELEASE_TAG="$OVMS_RELEASE_TAG"
 
-if [[ $PLUGINS == 'hls' || $PLUGINS == 'all' ]]; then
-        log_info "Configuring HLS asset download URLs..."
-        export HLS_3D_POSE_CHECKPOINT_URL="${HLS_3D_POSE_CHECKPOINT_URL:-$HLS_3D_POSE_CHECKPOINT_URL_DEFAULT}"
-        export HLS_ECG_BASE_URL="${HLS_ECG_BASE_URL:-$HLS_ECG_BASE_URL_DEFAULT}"
-        export HLS_RPPG_MODEL_URL="${HLS_RPPG_MODEL_URL:-$HLS_RPPG_MODEL_URL_DEFAULT}"
-    else
-        unset HLS_3D_POSE_CHECKPOINT_URL
-        unset HLS_ECG_BASE_URL
-        unset HLS_RPPG_MODEL_URL
-    fi
+if [[ "$PLUGINS" =~ hls || "$PLUGINS" == "all" ]]; then
+    log_info "Configuring HLS asset download URLs..."
+    export HLS_3D_POSE_CHECKPOINT_URL="${HLS_3D_POSE_CHECKPOINT_URL:-$HLS_3D_POSE_CHECKPOINT_URL_DEFAULT}"
+    export HLS_ECG_BASE_URL="${HLS_ECG_BASE_URL:-$HLS_ECG_BASE_URL_DEFAULT}"
+    export HLS_RPPG_MODEL_URL="${HLS_RPPG_MODEL_URL:-$HLS_RPPG_MODEL_URL_DEFAULT}"
+else
+    unset HLS_3D_POSE_CHECKPOINT_URL
+    unset HLS_ECG_BASE_URL
+    unset HLS_RPPG_MODEL_URL
+fi
 
-    # Generate environment file for docker-compose in current directory
-    log_info "Generating environment settings..."
-    cat > .env << EOF
+# Generate environment file for docker-compose in current directory
+log_info "Generating environment settings..."
+cat > .env << EOF
 TAG=$TAG
 REGISTRY=$REGISTRY
 USER_GROUP_ID=$USER_GROUP_ID

@@ -17,6 +17,7 @@ of regressions and keep maintenance localized.
 import asyncio
 import os
 import subprocess
+import venv
 from pathlib import Path
 from typing import Dict, Any
 
@@ -32,6 +33,20 @@ SUPPORTED_TYPES = {
     "ai-ecg": SCRIPTS_DIR / "ecg_download_assets.sh",
 }
 
+# HLS-dedicated virtual environment
+HLS_VENV_PATH = Path("/opt/hls_venv")
+HLS_VENV_PYTHON = HLS_VENV_PATH / "bin" / "python"
+HLS_VENV_MARKER = HLS_VENV_PATH / ".hls_deps_installed"
+HLS_DEPENDENCIES = [
+    "openvino==2025.4.0",
+    "torch==2.9.1+cpu",
+    "torchvision==0.24.1+cpu",
+    "tensorflow",
+    "tqdm>=4.67",
+]
+
+_hls_venv_lock = asyncio.Lock()
+
 
 class HlsPlugin(ModelDownloadPlugin):
     """Downloader plugin that orchestrates fixed HLS assets."""
@@ -44,10 +59,56 @@ class HlsPlugin(ModelDownloadPlugin):
         model_type = (kwargs.get("type") or "").lower()
         return hub.lower() == "hls" and model_type in SUPPORTED_TYPES
 
+    async def _ensure_hls_venv(self) -> Path:
+        """Return the HLS venv Python executable, creating the venv and
+        installing dependencies on the very first call.  Subsequent calls
+        return immediately once the marker file exists."""
+        async with _hls_venv_lock:
+            if HLS_VENV_MARKER.exists():
+                logger.info("hls_venv_reuse", path=str(HLS_VENV_PATH))
+                return HLS_VENV_PYTHON
+
+            logger.info("hls_venv_create", path=str(HLS_VENV_PATH))
+            await asyncio.to_thread(self._create_hls_venv)
+            return HLS_VENV_PYTHON
+
+    def _create_hls_venv(self) -> None:
+        """Blocking: create venv and pip-install HLS dependencies inside it."""
+        venv.create(str(HLS_VENV_PATH), with_pip=True, clear=True)
+        logger.info("hls_venv_pip_install", packages=HLS_DEPENDENCIES)
+        pip_cmd = [
+            str(HLS_VENV_PYTHON),
+            "-m", "pip", "install",
+            "--timeout", "120",
+            "--retries", "5",
+            "--extra-index-url", "https://download.pytorch.org/whl/cpu",
+            *HLS_DEPENDENCIES,
+        ]
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            logger.info("hls_venv_pip_attempt", attempt=attempt, max=max_attempts)
+            proc = subprocess.run(pip_cmd, capture_output=True, text=True)
+            if proc.returncode == 0:
+                HLS_VENV_MARKER.touch()
+                logger.info("hls_venv_ready", path=str(HLS_VENV_PATH))
+                return
+            logger.warning(
+                "hls_venv_pip_attempt_failed",
+                attempt=attempt,
+                stderr=proc.stderr[-500:],
+            )
+        logger.error("hls_venv_install_failed", stderr=proc.stderr)
+        raise RuntimeError(
+            f"Failed to install HLS venv dependencies after {max_attempts} attempts"
+        )
+
     async def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         model_type = (kwargs.get("type") or "").lower()
         if model_type not in SUPPORTED_TYPES:
             raise ValueError(f"Unsupported HLS model type: {model_type}")
+
+        # Ensure (or reuse) the isolated HLS virtual environment.
+        hls_python = await self._ensure_hls_venv()
 
         script_path = SUPPORTED_TYPES[model_type]
         models_dir = self._compute_output_dir(output_dir, model_type)
@@ -65,6 +126,7 @@ class HlsPlugin(ModelDownloadPlugin):
             script=script_path,
             args=args,
             cwd=str(Path(output_dir).resolve()),
+            python_executable=hls_python,
         )
 
         host_path = str(models_dir)
@@ -102,15 +164,38 @@ class HlsPlugin(ModelDownloadPlugin):
             args.append(str(models_dir))
         return args
 
-    def _run_script(self, script: Path, args: list, cwd: str) -> int:
+    def _run_script(
+        self,
+        script: Path,
+        args: list,
+        cwd: str,
+        python_executable: Path = None,
+    ) -> int:
+        """Run *script* inside a subprocess that has the HLS venv activated.
+
+        For `.py` scripts the venv Python is used directly.
+        For `.sh` scripts bash is used but PATH and VIRTUAL_ENV are set so
+        that any `python` / `python3` calls inside the shell script resolve
+        to the HLS venv interpreter.
+        """
         script_path = str(script)
+
+        # Build an environment that mirrors an activated venv.
+        env = os.environ.copy()
+        if python_executable is not None and python_executable.exists():
+            venv_bin = str(python_executable.parent)
+            env["VIRTUAL_ENV"] = str(python_executable.parent.parent)
+            env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+            env.pop("PYTHONHOME", None)
+
         if script_path.endswith(".sh"):
             cmd = ["bash", script_path, *args]
         else:
-            cmd = ["python3", script_path, *args]
+            py = str(python_executable) if python_executable else "python3"
+            cmd = [py, script_path, *args]
 
         logger.info("hls_script_start", cmd=" ".join(cmd))
-        proc = subprocess.run(cmd, cwd=cwd)
+        proc = subprocess.run(cmd, cwd=cwd, env=env)
         if proc.returncode != 0:
             logger.error("hls_script_failed", cmd=" ".join(cmd), returncode=proc.returncode)
             raise RuntimeError(f"HLS script {script_path} failed with code {proc.returncode}")
