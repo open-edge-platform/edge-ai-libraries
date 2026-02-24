@@ -1,14 +1,12 @@
-import { useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
-  useGetOptimizationJobStatusQuery,
+  useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
-  useGetValidationJobStatusQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
-  useUpdatePipelineMutation,
-  useValidatePipelineMutation,
 } from "@/api/api.generated";
+import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -18,16 +16,14 @@ import { useEffect, useRef, useState } from "react";
 import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
+import { useUndoRedo } from "@/hooks/useUndoRedo";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import { toast } from "sonner";
-import ExportPipelineButton from "@/features/pipeline-editor/ExportPipelineButton.tsx";
-import DeletePipelineButton from "@/features/pipeline-editor/DeletePipelineButton.tsx";
-import ImportPipelineButton from "@/features/pipeline-editor/ImportPipelineButton.tsx";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
-import { Zap } from "lucide-react";
+import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
 import { isApiError } from "@/lib/apiUtils";
 import {
   Tooltip,
@@ -40,6 +36,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { ArrowLeft, Redo2, Save, Undo2 } from "lucide-react";
+import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 
 type UrlParams = {
   id: string;
@@ -48,11 +46,11 @@ type UrlParams = {
 
 export const Pipelines = () => {
   const { id, variant } = useParams<UrlParams>();
+  const [searchParams] = useSearchParams();
+  const source = searchParams.get("source");
   const [performanceTestJobId, setPerformanceTestJobId] = useState<
     string | null
   >(null);
-  const [currentNodes, setCurrentNodes] = useState<ReactFlowNode[]>([]);
-  const [currentEdges, setCurrentEdges] = useState<ReactFlowEdge[]>([]);
   const [currentViewport, setCurrentViewport] = useState<Viewport | undefined>(
     undefined,
   );
@@ -64,23 +62,26 @@ export const Pipelines = () => {
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
-  const [validationJobId, setValidationJobId] = useState<string | null>(null);
-  const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
-    null,
-  );
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [/*pendingOptimizationNodes, */ setPendingOptimizationNodes] = useState<
-    ReactFlowNode[]
-  >([]);
-  const [/*pendingOptimizationEdges, */ setPendingOptimizationEdges] = useState<
-    ReactFlowEdge[]
-  >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
   const detailsPanelSizeRef = useRef(30);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+
+  const {
+    currentNodes,
+    currentEdges,
+    canUndo,
+    canRedo,
+    handleNodesChange,
+    handleEdgesChange,
+    setCurrentNodes,
+    setCurrentEdges,
+    undo: undoHistory,
+    redo: redoHistory,
+    resetHistory,
+  } = useUndoRedo();
 
   const { data, isSuccess, refetch } = useGetPipelineQuery(
     {
@@ -95,9 +96,7 @@ export const Pipelines = () => {
     useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
-  const [updatePipeline] = useUpdatePipelineMutation();
-  const [validatePipeline] = useValidatePipelineMutation();
-  // const [optimizePipeline] = useOptimizeVariantMutation();
+  const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
 
   const { data: jobStatus } = useGetPerformanceJobStatusQuery(
     { jobId: performanceTestJobId! },
@@ -106,24 +105,6 @@ export const Pipelines = () => {
       pollingInterval: 1000,
     },
   );
-
-  const { data: validationStatus, error: validationError } =
-    useGetValidationJobStatusQuery(
-      { jobId: validationJobId! },
-      {
-        skip: !validationJobId,
-        pollingInterval: 1000,
-      },
-    );
-
-  const { data: optimizationStatus, error: optimizationError } =
-    useGetOptimizationJobStatusQuery(
-      { jobId: optimizationJobId! },
-      {
-        skip: !optimizationJobId,
-        pollingInterval: 1000,
-      },
-    );
 
   useEffect(() => {
     if (jobStatus?.state === "COMPLETED") {
@@ -151,225 +132,47 @@ export const Pipelines = () => {
     }
   }, [jobStatus, videoOutputEnabled, id]);
 
+  // Reset editor state when variant changes
   useEffect(() => {
-    if (validationError && validationJobId) {
-      toast.error("Failed to get validation status", {
-        description: "An error occurred while checking validation status",
-      });
-      setIsOptimizing(false);
-      setValidationJobId(null);
-      // setPendingOptimizationNodes([]);
-      //setPendingOptimizationEdges([]);
-    }
-  }, [validationError, validationJobId]);
-
-  useEffect(() => {
-    if (optimizationError && optimizationJobId) {
-      toast.error("Failed to get optimization status", {
-        description: "An error occurred while checking optimization status",
-      });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-      //   setPendingOptimizationNodes([]);
-      // setPendingOptimizationEdges([]);
-    }
-  }, [optimizationError, optimizationJobId]);
-  /*
-  useEffect(() => {
-    if (!validationJobId) return;
-
-    const handleOptimizeAfterValidation = async () => {
-      if (!id) return;
-
-      try {
-        await updatePipeline({
-          pipelineId: id,
-          pipelineUpdate: {
-            pipeline_graph: {
-              nodes: pendingOptimizationNodes.map((node) => ({
-                id: node.id,
-                type: node.type ?? "",
-                data: node.data as { [key: string]: string },
-              })),
-              edges: pendingOptimizationEdges.map((edge) => ({
-                id: edge.id,
-                source: edge.source,
-                target: edge.target,
-              })),
-            },
-          },
-        }).unwrap();
-
-        const optimizationResponse = await optimizePipeline({
-          pipelineId: id,
-          pipelineRequestOptimize: {
-            type: "optimize",
-            parameters: {
-              search_duration: 300,
-              sample_duration: 10,
-            },
-          },
-        }).unwrap();
-
-        if (optimizationResponse && "job_id" in optimizationResponse) {
-          setOptimizationJobId(optimizationResponse.job_id);
-          toast.info("Optimizing pipeline...");
-        }
-      } catch (error) {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error("Failed to start optimization", {
-          description: errorMessage,
-        });
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-        console.error("Failed to start optimization:", error);
-      }
-    };
-
-    if (validationStatus?.state === "COMPLETED") {
-      if (validationStatus.is_valid) {
-        handleOptimizeAfterValidation();
-      } else {
-        toast.error("Pipeline validation failed", {
-          description:
-            validationStatus.error_message?.join(", ") || "Unknown error",
-        });
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-      }
-      setValidationJobId(null);
-    } else if (
-      validationStatus?.state === "ERROR" ||
-      validationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Validation job failed", {
-        description:
-          validationStatus.error_message?.join(", ") || "Unknown error",
-      });
-      setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      setValidationJobId(null);
-    }
-  }, [
-    validationStatus,
-    validationJobId,
-    id,
-    pendingOptimizationNodes,
-    pendingOptimizationEdges,
-    updatePipeline,
-    optimizePipeline,
-  ]);*/
-
-  useEffect(() => {
-    const applyOptimizedPipeline = async (optimizedGraph: {
-      nodes: { id: string; type: string; data: { [key: string]: string } }[];
-      edges: { id: string; source: string; target: string }[];
-    }) => {
-      if (!id) return;
-
-      try {
-        toast.dismiss();
-
-        // Step 1: Save optimized pipeline to backend
-        /* await updatePipeline({
-          pipelineId: id,
-          pipelineUpdate: {
-            pipeline_graph: optimizedGraph,
-          },
-        }).unwrap();
-*/
-        // Step 2: Convert optimized graph to ReactFlow format with layout
-        const newNodes: ReactFlowNode[] = optimizedGraph.nodes.map(
-          (node, index) => ({
-            id: node.id,
-            type: node.type,
-            data: node.data,
-            position: { x: 250 * index, y: 100 },
-          }),
-        );
-
-        const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        }));
-
-        // Step 3: Update local state
-        setCurrentNodes(newNodes);
-        setCurrentEdges(newEdges);
-        setShouldFitView(true);
-        setEditorKey((prev) => prev + 1); // Force re-render with layout
-
-        //  setPendingOptimizationNodes([]);
-        //setPendingOptimizationEdges([]);
-
-        toast.success("Optimized pipeline applied");
-      } catch (error) {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error("Failed to apply optimized pipeline", {
-          description: errorMessage,
-        });
-        console.error("Failed to apply optimized pipeline:", error);
-      }
-    };
-
-    if (optimizationStatus?.state === "COMPLETED") {
-      const optimizedGraph = optimizationStatus.optimized_pipeline_graph;
-
-      if (optimizedGraph) {
-        toast.success("Pipeline optimization completed", {
-          duration: Infinity,
-          description: "Would you like to apply the optimized pipeline?",
-          action: {
-            label: "Apply",
-            onClick: () => {
-              applyOptimizedPipeline(optimizedGraph);
-            },
-          },
-          cancel: {
-            label: "Cancel",
-            onClick: () => {
-              toast.dismiss();
-              //  setPendingOptimizationNodes([]);
-              //setPendingOptimizationEdges([]);
-            },
-          },
-        });
-      } else {
-        toast.error("Optimization completed but no optimized graph available");
-      }
-
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-    } else if (
-      optimizationStatus?.state === "ERROR" ||
-      optimizationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Optimization job failed", {
-        description: optimizationStatus.error_message || "Unknown error",
-      });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-    }
-  }, [optimizationStatus, id, updatePipeline]);
-
-  const handleNodesChange = (nodes: ReactFlowNode[]) => {
-    setCurrentNodes(nodes);
-  };
-
-  const handleEdgesChange = (edges: ReactFlowEdge[]) => {
-    setCurrentEdges(edges);
-  };
+    setCurrentNodes([]);
+    setCurrentEdges([]);
+    setCurrentViewport(undefined);
+    setShouldFitView(true);
+    setEditorKey((prev) => prev + 1);
+    setSelectedNode(null);
+    setShowDetailsPanel(false);
+    setCompletedVideoPath(null);
+    resetHistory();
+  }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
+  };
+
+  const isUndoRedoRef = useRef(false);
+
+  const undo = () => {
+    isUndoRedoRef.current = true;
+    undoHistory();
+  };
+
+  const redo = () => {
+    isUndoRedoRef.current = true;
+    redoHistory();
+  };
+
+  useEffect(() => {
+    if (isUndoRedoRef.current && pipelineEditorRef.current) {
+      pipelineEditorRef.current.setNodes(currentNodes);
+      pipelineEditorRef.current.setEdges(currentEdges);
+      isUndoRedoRef.current = false;
+    }
+  }, [currentNodes, currentEdges]);
+
+  const handleSave = () => {
+    // TODO: Implement save functionality
+    console.log("Save clicked");
+    // After successful save, call: resetHistory();
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
@@ -391,13 +194,19 @@ export const Pipelines = () => {
   ) => {
     pipelineEditorRef.current?.updateNodeData(nodeId, updatedData);
 
+    setCurrentNodes((prevNodes) =>
+      prevNodes.map((node) =>
+        node.id === nodeId ? { ...node, data: updatedData } : node,
+      ),
+    );
+
     if (selectedNode && selectedNode.id === nodeId) {
       setSelectedNode({ ...selectedNode, data: updatedData });
     }
   };
 
   const handleRunPipeline = async () => {
-    if (!id) return;
+    if (!id || !variant) return;
 
     setCompletedVideoPath(null);
     setShowDetailsPanel(true);
@@ -417,26 +226,30 @@ export const Pipelines = () => {
         })),
       };
 
-      // TODO: for predefined pipelines we cannot pass simple_graph, cannot sync changes
-      // so most likely can just pass advanced graph, no matter what mode is active
+      let payloadGraphData = graphData;
+      if (isSimpleMode) {
+        payloadGraphData = await convertSimpleToAdvanced({
+          pipelineId: id,
+          variantId: variant,
+          pipelineGraph: graphData,
+        }).unwrap();
+      }
 
       const response = await runPerformanceTest({
-        performanceTestSpecInput: {
-          execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
-          },
+        performanceTestSpec: {
           pipeline_performance_specs: [
             {
               pipeline: {
                 source: "graph",
-                //pipeline_graph: graphData,
-                pipeline_graph: data!.variants.find((v) => v.id === variant)!
-                  .pipeline_graph,
+                pipeline_graph: payloadGraphData,
               },
               streams: 1,
             },
           ],
+          execution_config: {
+            output_mode: videoOutputEnabled ? "file" : "disabled",
+            max_runtime: 0,
+          },
         },
       }).unwrap();
 
@@ -484,7 +297,7 @@ export const Pipelines = () => {
     }
   };
 
-  const handleImport = (
+  const updateGraph = (
     nodes: ReactFlowNode[],
     edges: ReactFlowEdge[],
     viewport: Viewport,
@@ -531,52 +344,6 @@ export const Pipelines = () => {
     };
   }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
 
-  const handleOptimizePipeline = async () => {
-    if (!id) return;
-
-    setIsOptimizing(true);
-
-    // setPendingOptimizationNodes(currentNodes);
-    // setPendingOptimizationEdges(currentEdges);
-
-    try {
-      const pipelineGraph = {
-        nodes: currentNodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "",
-          data: node.data as { [key: string]: string },
-        })),
-        edges: currentEdges.map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-        })),
-      };
-
-      const validationResponse = await validatePipeline({
-        pipelineValidationInput: {
-          pipeline_graph: pipelineGraph,
-        },
-      }).unwrap();
-
-      if (validationResponse && "job_id" in validationResponse) {
-        setValidationJobId(validationResponse.job_id);
-        toast.info("Validating pipeline...");
-      }
-    } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to start validation", {
-        description: errorMessage,
-      });
-      setIsOptimizing(false);
-      //   setPendingOptimizationNodes([]);
-      // setPendingOptimizationEdges([]);
-      console.error("Failed to start validation:", error);
-    }
-  };
-
   if (isSuccess && data) {
     const editorContent = (
       <div className="w-full h-full relative">
@@ -603,43 +370,6 @@ export const Pipelines = () => {
 
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
           <div className="flex gap-2">
-            {performanceTestJobId ? (
-              <StopPipelineButton
-                isStopping={isStopping}
-                onStop={handleStopPipeline}
-              />
-            ) : (
-              <RunPipelineButton
-                onRun={handleRunPipeline}
-                isRunning={isRunning}
-              />
-            )}
-
-            <button
-              className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
-              title="Optimize Pipeline"
-              disabled={isOptimizing || performanceTestJobId != null}
-              onClick={handleOptimizePipeline}
-            >
-              <Zap className="w-5 h-5" />
-              <span>{isOptimizing ? "Optimizing..." : "Optimize"}</span>
-            </button>
-
-            <ImportPipelineButton onImport={handleImport} />
-
-            <ExportPipelineButton
-              edges={currentEdges}
-              nodes={currentNodes}
-              viewport={currentViewport}
-              pipelineName={data.name}
-            />
-
-            {id && (
-              <DeletePipelineButton pipelineId={id} pipelineName={data.name} />
-            )}
-          </div>
-
-          <div className="flex gap-2">
             {id && variant && (
               <ViewModeSwitcher
                 pipelineId={id}
@@ -648,6 +378,7 @@ export const Pipelines = () => {
                 isSimpleMode={isSimpleMode}
                 currentNodes={currentNodes}
                 currentEdges={currentEdges}
+                hasUnsavedChanges={canUndo}
                 onModeChange={setIsSimpleMode}
                 onTransitionStart={() => setIsTransitioning(true)}
                 onTransitionEnd={() => setIsTransitioning(false)}
@@ -657,6 +388,7 @@ export const Pipelines = () => {
                 }}
                 onRefetch={refetch}
                 onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+                onResetHistory={resetHistory}
               />
             )}
           </div>
@@ -687,53 +419,150 @@ export const Pipelines = () => {
     );
 
     return (
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="w-full h-full"
-        onLayoutChange={(sizes) => {
-          const sizeValues = Object.values(sizes);
-          if (sizeValues.length === 2) {
-            detailsPanelSizeRef.current = sizeValues[1];
-          }
-        }}
-      >
-        <ResizablePanel
-          defaultSize={
-            showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
-          }
-          minSize={30}
-        >
-          {editorContent}
-        </ResizablePanel>
-
-        {showDetailsPanel && (
-          <>
-            <ResizableHandle withHandle />
-
-            <ResizablePanel
-              defaultSize={detailsPanelSizeRef.current}
-              minSize={20}
+      <div className="flex flex-col h-full w-full">
+        <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
+          <div className="flex items-center gap-2 px-2">
+            <Link
+              to={source === "dashboard" ? "/" : "/pipelines"}
+              className="p-2 hover:bg-accent rounded transition-colors"
             >
-              <div
-                ref={detailsPanelRef}
-                className="w-full h-full bg-background overflow-auto relative"
-              >
-                {showDetailsPanel && !selectedNode ? (
-                  <PerformanceTestPanel
-                    isRunning={performanceTestJobId != null}
-                    completedVideoPath={completedVideoPath}
-                  />
-                ) : (
-                  <NodeDataPanel
-                    selectedNode={selectedNode}
-                    onNodeDataUpdate={handleNodeDataUpdate}
-                  />
-                )}
-              </div>
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            {id && <PipelineName pipelineId={id} />}
+            {id && variant && (
+              <PipelineVariantSelect
+                pipelineId={id}
+                currentVariant={variant}
+                variants={data.variants}
+                source={source}
+                hasUnsavedChanges={canUndo}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2 px-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={undo}
+                  disabled={!canUndo}
+                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Undo"
+                >
+                  <Undo2 className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Undo (Ctrl+Z)</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={redo}
+                  disabled={!canRedo}
+                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Redo"
+                >
+                  <Redo2 className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Redo (Ctrl+Y)</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleSave}
+                  className="p-2 hover:bg-accent rounded transition-colors"
+                  aria-label="Save"
+                >
+                  <Save className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Save (Ctrl+S)</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <div className="w-px h-6 bg-border" />
+
+            {performanceTestJobId ? (
+              <StopPipelineButton
+                isStopping={isStopping}
+                onStop={handleStopPipeline}
+              />
+            ) : (
+              <RunPipelineButton
+                onRun={handleRunPipeline}
+                isRunning={isRunning}
+              />
+            )}
+            <PipelineActionsMenu
+              pipelineId={id!}
+              variant={variant!}
+              currentNodes={currentNodes}
+              currentEdges={currentEdges}
+              currentViewport={currentViewport}
+              pipelineName={data.name}
+              isSimpleMode={isSimpleMode}
+              performanceTestJobId={performanceTestJobId}
+              onGraphUpdate={updateGraph}
+            />
+          </div>
+        </header>
+        <div className="flex-1 overflow-hidden">
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="w-full h-full"
+            onLayoutChange={(sizes) => {
+              const sizeValues = Object.values(sizes);
+              if (sizeValues.length === 2) {
+                detailsPanelSizeRef.current = sizeValues[1];
+              }
+            }}
+          >
+            <ResizablePanel
+              defaultSize={
+                showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
+              }
+              minSize={30}
+            >
+              {editorContent}
             </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+
+            {showDetailsPanel && (
+              <>
+                <ResizableHandle withHandle />
+
+                <ResizablePanel
+                  defaultSize={detailsPanelSizeRef.current}
+                  minSize={20}
+                >
+                  <div
+                    ref={detailsPanelRef}
+                    className="w-full h-full bg-background overflow-auto relative"
+                  >
+                    {showDetailsPanel && !selectedNode ? (
+                      <PerformanceTestPanel
+                        isRunning={performanceTestJobId != null}
+                        completedVideoPath={completedVideoPath}
+                      />
+                    ) : (
+                      <NodeDataPanel
+                        selectedNode={selectedNode}
+                        onNodeDataUpdate={handleNodeDataUpdate}
+                      />
+                    )}
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        </div>
+      </div>
     );
   }
 

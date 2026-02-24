@@ -98,7 +98,11 @@ export const Home = () => {
             {isLoadingPipelines ? (
               <PipelineCardsLoader count={(maxCards ?? 0) + 1} />
             ) : (
-              <PipelineCards pipelines={sortedPipelines} maxCards={maxCards} />
+              <PipelineCards
+                pipelines={sortedPipelines}
+                maxCards={maxCards}
+                source="dashboard"
+              />
             )}
           </div>
         </div>
