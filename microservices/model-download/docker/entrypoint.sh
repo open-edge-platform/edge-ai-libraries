@@ -172,6 +172,7 @@ install_dependencies() {
             ;;
         hls)
             print_info "HLS plugin dependencies will be installed via uv sync"
+            echo "0" > "${status_file}"
             ;;
         *)
             echo -e "${RED} ERROR:${NC} Unknown plugin: $plugin"
@@ -263,6 +264,8 @@ if [ "$PLUGINS" = "all" ]; then
     for plugin in "${AVAILABLE_PLUGINS[@]}"; do
         if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
             print_info "Skipping openvino uv extra — dependencies will be installed from openvino model server requirements.txt"
+        elif [[ "$plugin" == "hls" ]]; then
+            print_info "Skipping hls uv extra — HLS dependencies are installed in an isolated venv at first request"
         else
             EXTRA_ARGS+=("--extra" "$plugin")
         fi
@@ -283,6 +286,8 @@ else
     for plugin in "${TRIMMED_PLUGINS[@]}"; do
         if [[ "$plugin" == "openvino" && "${OVMS_CUSTOM_TAG}" == "true" ]]; then
             print_info "Skipping openvino uv extra — dependencies will be installed from OpenVINO model server requirements.txt"
+        elif [[ "$plugin" == "hls" ]]; then
+            print_info "Skipping hls uv extra — HLS dependencies are installed in an isolated venv at first request"
         else
             EXTRA_ARGS+=("--extra" "$plugin")
         fi
