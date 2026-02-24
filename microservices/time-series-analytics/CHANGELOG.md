@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [2026.0] - March 2026
 
 ### Changed
-- Updated Time Series Analytics image versioning to `2026.0` and standardized tag format across Docker Compose and Helm configurations. ([#1727])
+- Updated Time Series Analytics image versioning and standardized tag format across Docker Compose and Helm configurations. ([#1727])
 - Updated Helm chart versioning scheme to include `-helm` suffix and aligned chart metadata/docs. ([#1814])
 - Removed Model Registry references from Time Series Analytics documentation/content. ([#1766])
 - Updated production-usage guidance for Ubuntu-based prebuilt images to direct users toward self-built production images. ([#1635])
