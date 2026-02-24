@@ -911,6 +911,105 @@
         }
       }
     },
+    "/pipeline-templates": {
+      "get": {
+        "tags": [
+          "pipeline-templates"
+        ],
+        "summary": "Get Pipeline Templates",
+        "description": "List all available pipeline templates.\n\nOperation:\n    Return all read-only pipeline templates loaded from configuration.\n    Properties that require user-supplied values (e.g. input source URI, model paths)\n    are stored as empty strings. Use templates as a starting point \u2013 copy the desired variant's graph,\n    fill in the empty properties with real values, and submit it as a new\n    pipeline via ``POST /pipelines``.\n\nPath / query parameters:\n    None.\n\nReturns:\n    200 OK:\n        JSON array of Pipeline objects with ``source=TEMPLATE``.\n        Each pipeline includes:\n        * id, name, description, source, tags\n        * variants (list of Variant objects with graphs and timestamps),\n          all variants have ``read_only=True``\n        * thumbnail (always null for templates)\n        * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings)\n\nSuccess conditions:\n    * PipelineTemplateManager is initialized (even if no templates are loaded,\n      an empty array is returned).\n\nFailure conditions:\n    * Unexpected errors will be returned as 500 Internal Server Error.\n\nResponse example (200):\n    .. code-block:: json\n\n        [\n          {\n            \"id\": \"detect-only\",\n            \"name\": \"Detect Only\",\n            \"description\": \"Template pipeline with a single object detection model.\",\n            \"source\": \"TEMPLATE\",\n            \"tags\": [\"template\", \"detection\"],\n            \"variants\": [\n              {\n                \"id\": \"cpu\",\n                \"name\": \"CPU\",\n                \"read_only\": true,\n                \"pipeline_graph\": {},\n                \"pipeline_graph_simple\": {},\n                \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n                \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n              }\n            ],\n            \"thumbnail\": null,\n            \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n            \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n          }\n        ]",
+        "operationId": "get_pipeline_templates",
+        "responses": {
+          "200": {
+            "description": "List of all available pipeline templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Pipeline"
+                  },
+                  "type": "array",
+                  "title": "Response 200 Get Pipeline Templates"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipeline-templates/{template_id}": {
+      "get": {
+        "tags": [
+          "pipeline-templates"
+        ],
+        "summary": "Get Pipeline Template",
+        "description": "Get a single pipeline template by its ID.\n\nOperation:\n    Look up a template by its unique identifier and return it.\n\nPath / query parameters:\n    template_id: Unique identifier of the template.\n\nReturns:\n    200 OK:\n        Pipeline object with ``source=TEMPLATE``.\n        Includes:\n        * id, name, description, source, tags\n        * variants (list of Variant objects with graphs and timestamps),\n          all variants have ``read_only=True``\n        * thumbnail (always null for templates)\n        * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings)\n    404 Not Found:\n        MessageResponse if a template with the given ID does not exist.\n    500 Internal Server Error:\n        MessageResponse when an unexpected error occurs.\n\nSuccess conditions:\n    * Template with the given ID exists.\n\nFailure conditions:\n    * Template with the given ID does not exist \u2013 404 Not Found.\n    * Unexpected errors will be returned as 500 Internal Server Error.\n\nResponse example (200):\n    .. code-block:: json\n\n        {\n          \"id\": \"detect-only\",\n          \"name\": \"Detect Only\",\n          \"description\": \"Template pipeline with a single object detection model.\",\n          \"source\": \"TEMPLATE\",\n          \"tags\": [\"template\", \"detection\"],\n          \"variants\": [\n            {\n              \"id\": \"cpu\",\n              \"name\": \"CPU\",\n              \"read_only\": true,\n              \"pipeline_graph\": {},\n              \"pipeline_graph_simple\": {},\n              \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n              \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n            }\n          ],\n          \"thumbnail\": null,\n          \"created_at\": \"2026-02-05T14:30:45.123000+00:00\",\n          \"modified_at\": \"2026-02-05T14:30:45.123000+00:00\"\n        }",
+        "operationId": "get_pipeline_template",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pipeline"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/pipelines": {
       "get": {
         "tags": [
@@ -2707,6 +2806,16 @@
             },
             "type": "array",
             "title": "Profiles"
+          },
+          "best_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CameraProfileInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2716,7 +2825,7 @@
           "profiles"
         ],
         "title": "NetworkCameraDetails",
-        "description": "Network camera specific details.\n\nAttributes:\n    ip: IP address of the camera.\n    port: Port number for ONVIF communication.\n    profiles: List of ONVIF profiles available on this camera (populated after authentication)."
+        "description": "Network camera details including ONVIF profiles and the best\nprofile selected by the scoring algorithm.\n\nAttributes:\n    ip: IP address of the camera.\n    port: Port number for ONVIF communication.\n    profiles: List of ONVIF profiles available on this camera (populated after authentication).\n    best_profile: Best profile selected by scoring algorithm."
       },
       "Node": {
         "properties": {
@@ -3497,7 +3606,8 @@
         "type": "string",
         "enum": [
           "PREDEFINED",
-          "USER_CREATED"
+          "USER_CREATED",
+          "TEMPLATE"
         ],
         "title": "PipelineSource"
       },
@@ -3698,25 +3808,52 @@
             "type": "string",
             "title": "Device Path"
           },
-          "resolution": {
+          "best_capture": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/V4L2BestCapture"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Resolution"
+            ]
           }
         },
         "type": "object",
         "required": [
-          "device_path",
-          "resolution"
+          "device_path"
         ],
         "title": "USBCameraDetails",
-        "description": "USB camera specific details.\n\nAttributes:\n    device_path: System device path (e.g., /dev/video0).\n    resolution: Supported or current resolution (optional, e.g., \"1920x1080\")."
+        "description": "USB camera details including the best capture configuration\nselected by the scoring algorithm.\n\nAttributes:\n    device_path: System device path (e.g., /dev/video0).\n    best_capture: Best capture configuration selected by scoring algorithm."
+      },
+      "V4L2BestCapture": {
+        "properties": {
+          "fourcc": {
+            "type": "string",
+            "title": "Fourcc"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "fps": {
+            "type": "number",
+            "title": "Fps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fourcc",
+          "width",
+          "height",
+          "fps"
+        ],
+        "title": "V4L2BestCapture",
+        "description": "Best capture configuration selected from available V4L2 formats."
       },
       "ValidationError": {
         "properties": {
