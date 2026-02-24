@@ -1,6 +1,7 @@
 import type { MessageResponse } from "@/api/api.generated";
 import type { AsyncJobStatus } from "@/hooks/useAsyncJob";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/lib/utils.ts";
 
 type RTKQueryError = {
   status: number;
@@ -26,22 +27,8 @@ export const handleAsyncJobError = (
   error: AsyncJobStatus,
   titlePrefix: string,
 ) => {
-  const formatErrorMessage = (
-    errorMessage: string[] | string | null | undefined,
-    defaultMessage: string,
-  ): string => {
-    if (!errorMessage) return defaultMessage;
-    if (Array.isArray(errorMessage)) {
-      return errorMessage.join(", ") ?? defaultMessage;
-    }
-    return errorMessage ?? defaultMessage;
-  };
-
   if (error.state === "ERROR") {
-    const description = formatErrorMessage(
-      error.error_message,
-      "Unknown error",
-    );
+    const description = formatErrorMessage(error.error_message);
     toast.error(`${titlePrefix} error`, {
       description,
     });

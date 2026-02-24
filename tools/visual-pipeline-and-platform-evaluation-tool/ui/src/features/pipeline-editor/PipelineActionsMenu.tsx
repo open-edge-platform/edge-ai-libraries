@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Pipeline } from "@/api/api.generated";
 import {
   useGetOptimizationJobStatusQuery,
@@ -9,6 +9,7 @@ import {
   useUpdateVariantMutation,
   useValidatePipelineMutation,
 } from "@/api/api.generated";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -52,6 +53,7 @@ import {
 import { EditVariantDialog } from "@/features/pipelines/EditVariantDialog";
 import { DeletePipelineVariantDialog } from "@/features/pipelines/DeletePipelineVariantDialog";
 import { DeletePipelineDialog } from "@/features/pipelines/DeletePipelineDialog";
+import { formatErrorMessage } from "@/lib/utils.ts";
 
 interface PipelineActionsMenuProps {
   pipeline: Pipeline;
@@ -101,42 +103,23 @@ export const PipelineActionsMenu = ({
     useState(false);
   const [pipelineDescription, setPipelineDescription] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [validationJobId, setValidationJobId] = useState<string | null>(null);
-  const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
-    null,
-  );
-  const [pendingOptimizationNodes, setPendingOptimizationNodes] = useState<
-    ReactFlowNode[]
-  >([]);
-  const [pendingOptimizationEdges, setPendingOptimizationEdges] = useState<
-    ReactFlowEdge[]
-  >([]);
 
   const [toDescription, { isLoading: isExportingDescription }] =
     useToDescriptionMutation();
   const [toGraph] = useToGraphMutation();
-  const [validatePipeline] = useValidatePipelineMutation();
-  const [optimizePipeline] = useOptimizeVariantMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
-  const { data: validationStatus, error: validationError } =
-    useGetValidationJobStatusQuery(
-      { jobId: validationJobId! },
-      {
-        skip: !validationJobId,
-        pollingInterval: 1000,
-      },
-    );
+  const { execute: executeValidation, isLoading: isValidating } = useAsyncJob({
+    asyncJobHook: useValidatePipelineMutation,
+    statusCheckHook: useGetValidationJobStatusQuery,
+  });
 
-  const { data: optimizationStatus, error: optimizationError } =
-    useGetOptimizationJobStatusQuery(
-      { jobId: optimizationJobId! },
-      {
-        skip: !optimizationJobId,
-        pollingInterval: 1000,
-      },
-    );
+  const { execute: executeOptimization, isLoading: isOptimizing } = useAsyncJob(
+    {
+      asyncJobHook: useOptimizeVariantMutation,
+      statusCheckHook: useGetOptimizationJobStatusQuery,
+    },
+  );
 
   const handleImportJson = () => {
     document.getElementById("import-pipeline-input")?.click();
@@ -256,10 +239,6 @@ export const PipelineActionsMenu = ({
   };
 
   const handleOptimizePipeline = async () => {
-    setIsOptimizing(true);
-    setPendingOptimizationNodes(currentNodes);
-    setPendingOptimizationEdges(currentEdges);
-
     try {
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
@@ -274,222 +253,104 @@ export const PipelineActionsMenu = ({
         })),
       };
 
-      const validationResponse = await validatePipeline({
+      toast.info("Validating pipeline...");
+
+      const validationStatus = await executeValidation({
         pipelineValidationInput: {
+          pipeline_graph: pipelineGraph,
+        },
+      });
+
+      if (!validationStatus.is_valid) {
+        toast.error("Pipeline validation failed", {
+          description: formatErrorMessage(validationStatus.error_message),
+        });
+        return;
+      }
+
+      await updateVariant({
+        pipelineId,
+        variantId,
+        variantUpdate: {
           pipeline_graph: pipelineGraph,
         },
       }).unwrap();
 
-      if (validationResponse && "job_id" in validationResponse) {
-        setValidationJobId(validationResponse.job_id);
-        toast.info("Validating pipeline...");
-      }
-    } catch (error) {
-      handleApiError(error, "Failed to start validation");
-      setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      console.error("Failed to start validation:", error);
-    }
-  };
+      toast.info("Optimizing pipeline...");
 
-  // Handle validation errors
-  useEffect(() => {
-    if (validationError && validationJobId) {
-      toast.error("Failed to get validation status", {
-        description: "An error occurred while checking validation status",
-      });
-      setIsOptimizing(false);
-      setValidationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-    }
-  }, [validationError, validationJobId]);
-
-  // Handle optimization errors
-  useEffect(() => {
-    if (optimizationError && optimizationJobId) {
-      toast.error("Failed to get optimization status", {
-        description: "An error occurred while checking optimization status",
-      });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-    }
-  }, [optimizationError, optimizationJobId]);
-
-  // Handle validation completion
-  useEffect(() => {
-    if (!validationJobId) return;
-
-    const handleOptimizeAfterValidation = async () => {
-      try {
-        await updateVariant({
-          pipelineId,
-          variantId,
-          variantUpdate: {
-            pipeline_graph: {
-              nodes: pendingOptimizationNodes.map((node) => ({
-                id: node.id,
-                type: node.type ?? "",
-                data: node.data as { [key: string]: string },
-              })),
-              edges: pendingOptimizationEdges.map((edge) => ({
-                id: edge.id,
-                source: edge.source,
-                target: edge.target,
-              })),
-            },
+      const optimizationStatus = await executeOptimization({
+        pipelineId,
+        variantId,
+        pipelineRequestOptimize: {
+          type: "optimize",
+          parameters: {
+            search_duration: 300,
+            sample_duration: 10,
           },
-        }).unwrap();
-
-        const optimizationResponse = await optimizePipeline({
-          pipelineId,
-          variantId,
-          pipelineRequestOptimize: {
-            type: "optimize",
-            parameters: {
-              search_duration: 300,
-              sample_duration: 10,
-            },
-          },
-        }).unwrap();
-
-        if (optimizationResponse && "job_id" in optimizationResponse) {
-          setOptimizationJobId(optimizationResponse.job_id);
-          toast.info("Optimizing pipeline...");
-        }
-      } catch (error) {
-        handleApiError(error, "Failed to start optimization");
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-        console.error("Failed to start optimization:", error);
-      }
-    };
-
-    if (validationStatus?.state === "COMPLETED") {
-      if (validationStatus.is_valid) {
-        handleOptimizeAfterValidation();
-      } else {
-        toast.error("Pipeline validation failed", {
-          description:
-            validationStatus.error_message?.join(", ") || "Unknown error",
-        });
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-      }
-      setValidationJobId(null);
-    } else if (
-      validationStatus?.state === "ERROR" ||
-      validationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Validation job failed", {
-        description:
-          validationStatus.error_message?.join(", ") || "Unknown error",
+        },
       });
-      setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      setValidationJobId(null);
-    }
-  }, [
-    validationStatus,
-    validationJobId,
-    pipelineId,
-    variantId,
-    pendingOptimizationNodes,
-    pendingOptimizationEdges,
-    updateVariant,
-    optimizePipeline,
-  ]);
 
-  // Handle optimization completion
-  useEffect(() => {
-    if (!optimizationJobId) return;
-
-    const applyOptimizedPipeline = async (optimizedGraph: {
-      nodes: { id: string; type: string; data: { [key: string]: string } }[];
-      edges: { id: string; source: string; target: string }[];
-    }) => {
-      toast.dismiss();
-
-      // Import createGraphLayout dynamically
-      const { createGraphLayout } = await import(
-        "@/features/pipeline-editor/utils/graphLayout"
-      );
-
-      const nodesWithPositions = createGraphLayout(
-        optimizedGraph.nodes.map((node) => ({
-          id: node.id,
-          type: node.type,
-          data: node.data,
-          position: { x: 0, y: 0 },
-        })),
-        optimizedGraph.edges,
-      );
-
-      const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-      }));
-
-      const viewport: Viewport = {
-        x: 0,
-        y: 0,
-        zoom: 1,
-      };
-
-      onGraphUpdate(nodesWithPositions, newEdges, viewport, true);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      toast.success("Optimized pipeline applied");
-    };
-
-    if (optimizationStatus?.state === "COMPLETED") {
       const optimizedGraph = optimizationStatus.optimized_pipeline_graph;
 
-      if (optimizedGraph) {
-        toast.success("Pipeline optimization completed", {
-          duration: Infinity,
-          description: "Would you like to apply the optimized pipeline?",
-          action: {
-            label: "Apply",
-            onClick: () => {
-              applyOptimizedPipeline(optimizedGraph);
-            },
-          },
-          cancel: {
-            label: "Cancel",
-            onClick: () => {
-              toast.dismiss();
-              setPendingOptimizationNodes([]);
-              setPendingOptimizationEdges([]);
-            },
-          },
-        });
-      } else {
+      if (!optimizedGraph) {
         toast.error("Optimization completed but no optimized graph available");
+        return;
       }
 
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-    } else if (
-      optimizationStatus?.state === "ERROR" ||
-      optimizationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Optimization job failed", {
-        description: optimizationStatus.error_message || "Unknown error",
+      const applyOptimizedPipeline = async () => {
+        toast.dismiss();
+
+        const { createGraphLayout } = await import(
+          "@/features/pipeline-editor/utils/graphLayout"
+        );
+
+        const nodesWithPositions = createGraphLayout(
+          optimizedGraph.nodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            data: node.data,
+            position: { x: 0, y: 0 },
+          })),
+          optimizedGraph.edges,
+        );
+
+        const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        }));
+
+        const viewport: Viewport = {
+          x: 0,
+          y: 0,
+          zoom: 1,
+        };
+
+        onGraphUpdate(nodesWithPositions, newEdges, viewport, true);
+        toast.success("Optimized pipeline applied");
+      };
+
+      toast.success("Pipeline optimization completed", {
+        duration: Infinity,
+        description: "Would you like to apply the optimized pipeline?",
+        action: {
+          label: "Apply",
+          onClick: () => {
+            applyOptimizedPipeline();
+          },
+        },
+        cancel: {
+          label: "Cancel",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
       });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
+    } catch (error) {
+      handleApiError(error, "Failed to optimize pipeline");
+      console.error("Failed to optimize pipeline:", error);
     }
-  }, [optimizationStatus, optimizationJobId, onGraphUpdate]);
+  };
 
   return (
     <>
@@ -570,6 +431,7 @@ export const PipelineActionsMenu = ({
             disabled={
               isSimpleMode ||
               isReadOnly ||
+              isValidating ||
               isOptimizing ||
               performanceTestJobId != null
             }
