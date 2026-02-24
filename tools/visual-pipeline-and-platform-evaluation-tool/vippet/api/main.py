@@ -186,7 +186,7 @@ async def custom_swagger_ui_html():
     """
 )
 
-# Custom ReDoc endpoint (optional)
+# Custom ReDoc endpoint
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html():
     return HTMLResponse("""
@@ -197,7 +197,6 @@ async def redoc_html():
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
-        <link rel="stylesheet" href="/static/css/swagger-custom.css">
         <style>
             body { margin: 0; padding: 0; }
         </style>
