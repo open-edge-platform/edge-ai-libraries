@@ -22,34 +22,34 @@ def get_videos():
     **List all discovered input videos with metadata.**
 
     ## Operation
-    
+
     1. VideosManager scans RECORDINGS_PATH for supported video files (h264/h265 codecs only)
     2. Metadata is loaded or extracted for each file (resolution, fps, duration, codec)
     3. Returns array of Video objects
 
     ## Parameters
-    
+
     None
 
     ## Response Format
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | JSON array of Video objects (empty if no videos found) |
     | 500  | Runtime error during video listing |
 
     ## Conditions
-    
+
     ### ✅ Success
     - VideosManager successfully initialized at startup
     - RECORDINGS_PATH exists and is a valid directory
-    
+
     ### ❌ Failure
     - VideosManager initialization fails → application exits at startup
     - Runtime errors → 500
 
     ## Example Response
-    
+
     ```json
     [
       {

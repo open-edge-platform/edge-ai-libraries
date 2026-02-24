@@ -52,14 +52,14 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
     **Start an asynchronous performance test job.**
 
     ## Operation
-    
+
     1. Validates the performance test request
     2. Creates a PerformanceJob with RUNNING state
     3. Spawns a background thread that runs the pipelines using a GStreamer-based runner
     4. Returns the job identifier for status polling
 
     ## Request Body
-    
+
     - `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:
       - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
       - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
@@ -69,7 +69,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 202  | TestJobResponse with job_id of the created performance job |
@@ -77,19 +77,19 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
     | 500  | Unexpected error when creating the job or starting background thread |
 
     ## Conditions
-    
+
     ### ✅ Success
     - At least one stream is requested across all pipelines
     - All referenced variants exist
     - No duplicate pipeline_ids in request
     - TestsManager.test_performance() successfully enqueues the job
-    
+
     ### ❌ Failure
     - Validation or configuration error → 400
     - Unhandled exception in job creation → 500
 
     ## Examples
-    
+
     Request (variant reference):
     ```json
     {
@@ -109,7 +109,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       }
     }
     ```
-    
+
     Request (inline graph):
     ```json
     {
@@ -131,14 +131,14 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       }
     }
     ```
-    
+
     Success (202):
     ```json
     {
       "job_id": "job123"
     }
     ```
-    
+
     Error (400):
     ```json
     {
@@ -197,7 +197,7 @@ def run_density_test(body: schemas.DensityTestSpec):
     **Start an asynchronous density test job.**
 
     ## Operation
-    
+
     1. Validates the density test request
     2. Uses requested fps_floor and per-pipeline stream_rate ratios
     3. Creates a DensityJob with RUNNING state
@@ -205,7 +205,7 @@ def run_density_test(body: schemas.DensityTestSpec):
     5. Returns the job identifier for status polling
 
     ## Request Body
-    
+
     - `fps_floor`: Minimum acceptable FPS per stream
     - `pipeline_density_specs`: List of pipelines with stream_rate percentages that must sum to 100. Each pipeline can be:
       - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
@@ -216,7 +216,7 @@ def run_density_test(body: schemas.DensityTestSpec):
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 202  | TestJobResponse with job_id of the created density job |
@@ -224,20 +224,20 @@ def run_density_test(body: schemas.DensityTestSpec):
     | 500  | Unexpected error when creating or starting the job |
 
     ## Conditions
-    
+
     ### ✅ Success
     - pipeline_density_specs is not empty
     - All referenced variants exist
     - No duplicate pipeline_ids in request
     - stream_rate ratios sum to 100%
     - DensityTestSpec is valid and Benchmark.run() can be started in background thread
-    
+
     ### ❌ Failure
     - Validation errors → 400
     - Unhandled exception → 500
 
     ## Examples
-    
+
     Request (variant reference):
     ```json
     {
@@ -266,7 +266,7 @@ def run_density_test(body: schemas.DensityTestSpec):
       }
     }
     ```
-    
+
     Request (inline graph):
     ```json
     {
@@ -289,14 +289,14 @@ def run_density_test(body: schemas.DensityTestSpec):
       }
     }
     ```
-    
+
     Success (202):
     ```json
     {
       "job_id": "job456"
     }
     ```
-    
+
     Error (400):
     ```json
     {

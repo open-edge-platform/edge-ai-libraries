@@ -256,7 +256,7 @@ def validate_pipeline(body: schemas.PipelineValidation):
     operation_id="get_pipelines",
     summary="List All Pipelines",
     response_model=List[schemas.Pipeline],
-    response_description="List of all pipelines including predefined and user-created"
+    response_description="List of all pipelines including predefined and user-created",
 )
 def get_pipelines():
     """
@@ -331,7 +331,10 @@ def get_pipelines():
     operation_id="get_pipeline",
     summary="Get Pipeline by ID",
     responses={
-        200: {"description": "Pipeline details retrieved successfully", "model": schemas.Pipeline},
+        200: {
+            "description": "Pipeline details retrieved successfully",
+            "model": schemas.Pipeline,
+        },
         404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
         500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
@@ -431,7 +434,10 @@ def get_pipeline(pipeline_id: str):
     operation_id="update_pipeline",
     summary="Update Pipeline",
     responses={
-        200: {"description": "Pipeline successfully updated", "model": schemas.Pipeline},
+        200: {
+            "description": "Pipeline successfully updated",
+            "model": schemas.Pipeline,
+        },
         404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
         400: {"description": "Invalid request", "model": schemas.MessageResponse},
         422: {"description": "Validation error", "model": schemas.MessageResponse},
@@ -700,7 +706,10 @@ def optimize_variant(
     operation_id="delete_pipeline",
     summary="Delete Pipeline",
     responses={
-        200: {"description": "Pipeline successfully deleted", "model": schemas.MessageResponse},
+        200: {
+            "description": "Pipeline successfully deleted",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Cannot delete PREDEFINED pipeline",
             "model": schemas.MessageResponse,
@@ -927,7 +936,10 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
     operation_id="delete_variant",
     summary="Delete Variant",
     responses={
-        200: {"description": "Variant successfully deleted", "model": schemas.MessageResponse},
+        200: {
+            "description": "Variant successfully deleted",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Cannot delete read-only variant or last variant",
             "model": schemas.MessageResponse,
