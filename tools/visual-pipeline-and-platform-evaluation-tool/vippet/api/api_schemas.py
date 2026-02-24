@@ -7,6 +7,20 @@ from pydantic import BaseModel, Field, model_validator
 
 # # Enums based on OpenAPI schema
 class PipelineSource(str, Enum):
+    """
+    **Source of a pipeline definition.**
+
+    ## Values
+    - `PREDEFINED` - Pipeline is predefined by the system
+    - `USER_CREATED` - Pipeline was created by the user
+    - `TEMPLATE` - Pipeline is a template
+
+    ### Example
+    ```json
+    "USER_CREATED"
+    ```
+    """
+
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
     TEMPLATE = "TEMPLATE"
@@ -14,13 +28,18 @@ class PipelineSource(str, Enum):
 
 class AppStatus(str, Enum):
     """
-    Application status enum for tracking initialization progress.
+    **Application status enum for tracking initialization progress.**
 
-    Values:
-        STARTING: Application is starting, no initialization yet.
-        INITIALIZING: Application is initializing resources (e.g., loading videos).
-        READY: Application is fully initialized and ready to serve requests.
-        SHUTDOWN: Application is shutting down.
+    ## Values
+    - `STARTING` - Application is starting, no initialization yet
+    - `INITIALIZING` - Application is initializing resources (e.g., loading videos)
+    - `READY` - Application is fully initialized and ready to serve requests
+    - `SHUTDOWN` - Application is shutting down
+
+    ### Example
+    ```json
+    "ready"
+    ```
     """
 
     STARTING = "starting"
@@ -31,13 +50,18 @@ class AppStatus(str, Enum):
 
 class TestJobState(str, Enum):
     """
-    Generic state of a long-running test job (performance or density).
+    **Generic state of a long-running test job (performance or density).**
 
-    Values:
-        RUNNING: Job is still executing.
-        COMPLETED: Job finished successfully.
-        ERROR: Job failed with an error_message.
-        ABORTED: Job was cancelled by the user.
+    ## Values
+    - `RUNNING` - Job is still executing
+    - `COMPLETED` - Job finished successfully
+    - `ERROR` - Job failed with an error_message
+    - `ABORTED` - Job was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -48,13 +72,18 @@ class TestJobState(str, Enum):
 
 class OptimizationJobState(str, Enum):
     """
-    Generic state of an optimization job.
+    **Generic state of an optimization job.**
 
-    Values:
-        RUNNING: Optimization is in progress.
-        COMPLETED: Optimization finished successfully.
-        ERROR: Optimization failed with an error_message.
-        ABORTED: Optimization was cancelled by the user.
+    ## Values
+    - `RUNNING` - Optimization is in progress
+    - `COMPLETED` - Optimization finished successfully
+    - `ERROR` - Optimization failed with an error_message
+    - `ABORTED` - Optimization was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -65,13 +94,18 @@ class OptimizationJobState(str, Enum):
 
 class ValidationJobState(str, Enum):
     """
-    Generic state of a validation job.
+    **Generic state of a validation job.**
 
-    Values:
-        RUNNING: Validation is in progress.
-        COMPLETED: Validation finished.
-        ERROR: Validation failed with a technical error.
-        ABORTED: Validation was cancelled by the user.
+    ## Values
+    - `RUNNING` - Validation is in progress
+    - `COMPLETED` - Validation finished
+    - `ERROR` - Validation failed with a technical error
+    - `ABORTED` - Validation was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -82,11 +116,16 @@ class ValidationJobState(str, Enum):
 
 class DeviceType(str, Enum):
     """
-    High level type of hardware device.
+    **High level type of hardware device.**
 
-    Values:
-        DISCRETE: Standalone accelerator board (for example a dedicated GPU).
-        INTEGRATED: Device integrated into CPU or SoC.
+    ## Values
+    - `DISCRETE` - Standalone accelerator board (for example a dedicated GPU)
+    - `INTEGRATED` - Device integrated into CPU or SoC
+
+    ### Example
+    ```json
+    "DISCRETE"
+    ```
     """
 
     DISCRETE = "DISCRETE"
@@ -95,12 +134,17 @@ class DeviceType(str, Enum):
 
 class DeviceFamily(str, Enum):
     """
-    Hardware family of a device used for inference.
+    **Hardware family of a device used for inference.**
 
-    Values:
-        CPU: Central Processing Unit.
-        GPU: Graphics Processing Unit.
-        NPU: Neural Processing Unit / AI accelerator.
+    ## Values
+    - `CPU` - Central Processing Unit
+    - `GPU` - Graphics Processing Unit
+    - `NPU` - Neural Processing Unit / AI accelerator
+
+    ### Example
+    ```json
+    "CPU"
+    ```
     """
 
     CPU = "CPU"
@@ -109,22 +153,53 @@ class DeviceFamily(str, Enum):
 
 
 class ModelCategory(str, Enum):
+    """
+    **Model category for classification or detection tasks.**
+
+    ## Values
+    - `CLASSIFICATION` - Classification model
+    - `DETECTION` - Detection model
+
+    ### Example
+    ```json
+    "detection"
+    ```
+    """
+
     CLASSIFICATION = "classification"
     DETECTION = "detection"
 
 
 class OptimizationType(str, Enum):
+    """
+    **Type of optimization operation.**
+
+    ## Values
+    - `PREPROCESS` - Run only preprocessing
+    - `OPTIMIZE` - Run full optimization with search/sampling
+
+    ### Example
+    ```json
+    "optimize"
+    ```
+    """
+
     PREPROCESS = "preprocess"
     OPTIMIZE = "optimize"
 
 
 class CameraType(str, Enum):
     """
-    Type of camera device.
+    **Type of camera device.**
 
-    Values:
-        USB: USB camera connected directly to the system.
-        NETWORK: Network camera accessible via IP protocols.
+    ## Values
+    - `USB` - USB camera connected directly to the system
+    - `NETWORK` - Network camera accessible via IP protocols
+
+    ### Example
+    ```json
+    "USB"
+    ```
     """
 
     USB = "USB"
@@ -1027,12 +1102,17 @@ class PipelineRequestOptimize(BaseModel):
 
 class OutputMode(str, Enum):
     """
-    Mode for pipeline output generation.
+    **Mode for pipeline output generation.**
 
-    Values:
-        DISABLED: No output generation (default).
-        FILE: Save output to file.
-        LIVE_STREAM: Stream output live to media server.
+    ## Values
+    - `DISABLED` - No output generation (default)
+    - `FILE` - Save output to file
+    - `LIVE_STREAM` - Stream output live to media server
+
+    ### Example
+    ```json
+    "disabled"
+    ```
     """
 
     DISABLED = "disabled"
