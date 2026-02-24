@@ -12,9 +12,8 @@ To determine which graphics processor you have, refer to the [Hardware table](ht
 ### Provide GPU or NPU access to the container
 
 For containerized applications such as the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server), you must first grant the container user access to GPU/NPU device(s).
-Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and export it as an environment variable **before** running Docker Compose.
 
-- On the host machine, determine and export the render group ID. Run the following command on your host:
+Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
 
     ```sh
         export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)

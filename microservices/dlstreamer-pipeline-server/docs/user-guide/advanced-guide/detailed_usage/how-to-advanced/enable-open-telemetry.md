@@ -39,8 +39,13 @@ PROMETHEUS_PORT=9999 # The port on your host where the Prometheus UI & API will 
 GRAFANA_PORT=3000 # The port on your host where the Grafana dashboard is exposed (ex: visit http://<HOST_IP>:3000 to visualize metrics & logs).
 GRAFANA_USERNAME= # Provide username to be used to login to Grafana, ex: GRAFANA_USERNAME=dlsps123
 GRAFANA_PASSWORD= # Provide username to be used to login to Grafana, ex: GRAFANA_PASSWORD=dlsps123
-RENDER_GID= # render group ID from host needed to use GPU/NPU in containers
 ```
+
+To run it on GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
+
+    ```sh
+        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+    ```
 
 ---
 
