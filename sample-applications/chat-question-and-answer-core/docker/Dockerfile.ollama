@@ -47,7 +47,7 @@ COPY poetry.lock pyproject.toml ./
 RUN poetry install --with ollama --without dev --without openvino
 
 # Install ollama and exclude nvidia gpu-related packages
-ARG OLLAMA_VERSION=0.16.3
+ARG OLLAMA_VERSION=0.17.0
 ARG OLLAMA_ARCHIVE=linux-amd64
 ARG OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-${OLLAMA_ARCHIVE}.tar.zst"
 
