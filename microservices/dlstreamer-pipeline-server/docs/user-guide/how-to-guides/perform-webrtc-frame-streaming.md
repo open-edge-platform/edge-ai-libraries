@@ -14,6 +14,7 @@ Below are the necessary configuration to be aware of (or modify accordingly base
 ```sh
 WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which an open MediaMTX container is running.
 WHIP_SERVER_PORT=8889 # It is the port which is configured for the MediaMTX server. Default port is 8889.
+RENDER_GID= # render group ID from host needed to use GPU/NPU in containers
 ```
 After setting all the above information, we can start the WebRTC streaming:
 - Start the services
