@@ -3,9 +3,13 @@ import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader.ts";
 
 interface WebRTCVideoPlayerProps {
   pipelineId?: string;
+  liveStreamUrl?: string | null;
 }
 
-const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
+const WebRTCVideoPlayer = ({
+  pipelineId,
+  liveStreamUrl,
+}: WebRTCVideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [message, setMessage] = useState<string>("");
   const [defaultControls, setDefaultControls] = useState<boolean>(true);
@@ -38,17 +42,44 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
   }, []);
 
   useEffect(() => {
-    if (!pipelineId) {
+    if (!pipelineId && !liveStreamUrl) {
       return;
     }
 
+    const appBaseUrl = `${window.location.origin}/`;
     const baseUrl =
       import.meta.env.VITE_MEDIAMTX_BASE_URL || `${window.location.origin}/`;
     const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    const url = new URL(`stream_${pipelineId}/whep`, normalizedBaseUrl);
+
+    let playbackUrl = "";
+
+    if (liveStreamUrl) {
+      try {
+        const streamUrl = new URL(liveStreamUrl);
+        const streamPath = streamUrl.pathname.replace(/^\/+/, "");
+        const whepPath = streamPath.endsWith("/whep")
+          ? streamPath
+          : `${streamPath}/whep`;
+        playbackUrl = new URL(whepPath, appBaseUrl).toString();
+      } catch {
+        const normalizedPath = liveStreamUrl.replace(/^\/+/, "");
+        const whepPath = normalizedPath.endsWith("/whep")
+          ? normalizedPath
+          : `${normalizedPath}/whep`;
+        playbackUrl = new URL(whepPath, appBaseUrl).toString();
+      }
+    }
+
+    if (!playbackUrl && pipelineId) {
+      playbackUrl = new URL(`stream_${pipelineId}/whep`, normalizedBaseUrl).toString();
+    }
+
+    if (!playbackUrl) {
+      return;
+    }
 
     const reader = new MediaMTXWebRTCReader({
-      url: url.toString(),
+      url: playbackUrl,
       onError: (err: string) => {
         setMessage(err);
         if (videoRef.current) videoRef.current.controls = false;
@@ -65,9 +96,9 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
     return () => {
       reader?.close();
     };
-  }, [defaultControls, pipelineId]);
+  }, [defaultControls, pipelineId, liveStreamUrl]);
 
-  if (!pipelineId) {
+  if (!pipelineId && !liveStreamUrl) {
     return null;
   }
 

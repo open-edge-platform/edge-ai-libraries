@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
 import { isApiError } from "@/lib/apiUtils";
+import type { OutputMode } from "@/api/api.generated";
 import {
   Tooltip,
   TooltipContent,
@@ -58,6 +59,7 @@ export const Pipelines = () => {
   const [editorKey, setEditorKey] = useState(0);
   const [shouldFitView, setShouldFitView] = useState(false);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
+  const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -215,6 +217,12 @@ export const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const outputMode: OutputMode = livePreviewEnabled
+        ? "live_stream"
+        : videoOutputEnabled
+          ? "file"
+          : "disabled";
+
       const graphData = {
         nodes: currentNodes.map((node) => ({
           id: node.id,
@@ -249,7 +257,7 @@ export const Pipelines = () => {
             },
           ],
           execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
+            output_mode: outputMode,
             max_runtime: loopingEnabled ? LOOPING_MAX_RUNTIME_SECONDS : 0,
           },
         },
@@ -401,9 +409,13 @@ export const Pipelines = () => {
                 <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={videoOutputEnabled}
-                    onCheckedChange={(checked) =>
-                      setVideoOutputEnabled(checked === true)
-                    }
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setVideoOutputEnabled(isChecked);
+                      if (isChecked) {
+                        setLivePreviewEnabled(false);
+                      }
+                    }}
                   />
                   <span className="text-sm font-medium">Save output</span>
                 </label>
@@ -438,6 +450,33 @@ export const Pipelines = () => {
               </TooltipContent>
             </Tooltip>
           </div>
+
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={livePreviewEnabled}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLivePreviewEnabled(isChecked);
+                      if (isChecked) {
+                        setVideoOutputEnabled(false);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">Live preview</span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  When enabled, the pipeline provides a live preview of the output.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          
         </div>
       </div>
     );
@@ -573,6 +612,11 @@ export const Pipelines = () => {
                       <PerformanceTestPanel
                         isRunning={performanceTestJobId != null}
                         completedVideoPath={completedVideoPath}
+                        livePreviewEnabled={livePreviewEnabled}
+                        liveStreamUrl={
+                          Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
+                          null
+                        }
                       />
                     ) : (
                       <NodeDataPanel
