@@ -6,7 +6,7 @@ import {
   useOptimizeVariantMutation,
   useToDescriptionMutation,
   useToGraphMutation,
-  useUpdatePipelineMutation,
+  useUpdateVariantMutation,
   useValidatePipelineMutation,
 } from "@/api/api.generated";
 import {
@@ -118,7 +118,7 @@ export const PipelineActionsMenu = ({
   const [toGraph] = useToGraphMutation();
   const [validatePipeline] = useValidatePipelineMutation();
   const [optimizePipeline] = useOptimizeVariantMutation();
-  const [updatePipeline] = useUpdatePipelineMutation();
+  const [updateVariant] = useUpdateVariantMutation();
 
   const { data: validationStatus, error: validationError } =
     useGetValidationJobStatusQuery(
@@ -325,9 +325,10 @@ export const PipelineActionsMenu = ({
 
     const handleOptimizeAfterValidation = async () => {
       try {
-        await updatePipeline({
+        await updateVariant({
           pipelineId,
-          pipelineUpdate: {
+          variantId,
+          variantUpdate: {
             pipeline_graph: {
               nodes: pendingOptimizationNodes.map((node) => ({
                 id: node.id,
@@ -345,6 +346,7 @@ export const PipelineActionsMenu = ({
 
         const optimizationResponse = await optimizePipeline({
           pipelineId,
+          variantId,
           pipelineRequestOptimize: {
             type: "optimize",
             parameters: {
@@ -397,27 +399,36 @@ export const PipelineActionsMenu = ({
     validationStatus,
     validationJobId,
     pipelineId,
+    variantId,
     pendingOptimizationNodes,
     pendingOptimizationEdges,
-    updatePipeline,
+    updateVariant,
     optimizePipeline,
   ]);
 
   // Handle optimization completion
   useEffect(() => {
-    const applyOptimizedPipeline = (optimizedGraph: {
+    if (!optimizationJobId) return;
+
+    const applyOptimizedPipeline = async (optimizedGraph: {
       nodes: { id: string; type: string; data: { [key: string]: string } }[];
       edges: { id: string; source: string; target: string }[];
     }) => {
       toast.dismiss();
 
-      const newNodes: ReactFlowNode[] = optimizedGraph.nodes.map(
-        (node, index) => ({
+      // Import createGraphLayout dynamically
+      const { createGraphLayout } = await import(
+        "@/features/pipeline-editor/utils/graphLayout"
+      );
+
+      const nodesWithPositions = createGraphLayout(
+        optimizedGraph.nodes.map((node) => ({
           id: node.id,
           type: node.type,
           data: node.data,
-          position: { x: 250 * index, y: 100 },
-        }),
+          position: { x: 0, y: 0 },
+        })),
+        optimizedGraph.edges,
       );
 
       const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
@@ -432,7 +443,7 @@ export const PipelineActionsMenu = ({
         zoom: 1,
       };
 
-      onGraphUpdate(newNodes, newEdges, viewport, true);
+      onGraphUpdate(nodesWithPositions, newEdges, viewport, true);
       setPendingOptimizationNodes([]);
       setPendingOptimizationEdges([]);
       toast.success("Optimized pipeline applied");
@@ -478,7 +489,7 @@ export const PipelineActionsMenu = ({
       setPendingOptimizationNodes([]);
       setPendingOptimizationEdges([]);
     }
-  }, [optimizationStatus, onGraphUpdate]);
+  }, [optimizationStatus, optimizationJobId, onGraphUpdate]);
 
   return (
     <>
@@ -502,7 +513,7 @@ export const PipelineActionsMenu = ({
                   true,
                 );
                 toast.success("Pipeline imported successfully");
-              } catch (error) {
+              } catch {
                 toast.error("Failed to import pipeline", {
                   description: "Invalid file format",
                 });
