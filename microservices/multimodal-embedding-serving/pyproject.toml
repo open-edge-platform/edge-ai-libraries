@@ -31,6 +31,7 @@ urllib3 = "^2.6.3"
 protobuf = "^6.33.5"
 fonttools = "^4.61.1"
 filelock = "^3.20.3"
+pillow = "^12.1.1"
 numpy = { version = ">=2.1.0", source = "pytorch-cpu" }
 torch = { version = "==2.8.0", source = "pytorch-cpu" }
 torchvision = { version = "==0.23.0", source = "pytorch-cpu" }

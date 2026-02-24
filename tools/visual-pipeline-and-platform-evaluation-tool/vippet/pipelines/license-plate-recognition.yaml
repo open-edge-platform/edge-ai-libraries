@@ -32,6 +32,7 @@ variants:
         batch-size=0
         inference-interval=3
         nireq=0
+        inference-region=roi-list
         reclassify-interval=1 !
       queue !
       gvawatermark !
@@ -41,11 +42,7 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/license-plate-detection.mp4 !
-      qtdemux !
-      h264parse !
       decodebin3 !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
       gvafpscounter starting-frame=500 !
       gvadetect
         model=/models/output/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
@@ -66,6 +63,38 @@ variants:
         batch-size=0
         inference-interval=3
         nireq=0
+        inference-region=roi-list
+        reclassify-interval=1 !
+      queue !
+      gvawatermark !
+      gvametaconvert format=json json-indent=4 !
+      gvametapublish method=file file-path=/dev/null !
+      fakesink name=default_output_sink
+  - name: GPU_NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/license-plate-detection.mp4 !
+      decodebin3 !
+      gvafpscounter starting-frame=500 !
+      gvadetect
+        model=/models/output/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
+        model-instance-id=detect0-gpu-npu
+        pre-process-backend=va-surface-sharing
+        device=GPU
+        batch-size=0
+        inference-interval=3
+        nireq=0 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        model=/models/output/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
+        model-instance-id=classify0-gpu-npu
+        pre-process-backend=va
+        device=NPU
+        batch-size=0
+        inference-interval=3
+        nireq=0
+        inference-region=roi-list
         reclassify-interval=1 !
       queue !
       gvawatermark !

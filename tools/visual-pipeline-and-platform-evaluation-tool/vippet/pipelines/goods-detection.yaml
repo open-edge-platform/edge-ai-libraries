@@ -7,13 +7,9 @@ tags:
 thumbnail: images/goods-detection.png
 variants:
   - name: CPU
-    pipeline_description: >- 
+    pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !
-      qtdemux !
-      h264parse !
-      avdec_h264 !
-      video/x-raw !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=odmodel-cpu
@@ -32,12 +28,7 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !
-      qtdemux !
-      h264parse !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=odmodel-gpu
@@ -56,19 +47,14 @@ variants:
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/obj_classification.mp4 !
-      qtdemux !
-      h264parse !
-      vah264dec !
-      vapostproc !
-      video/x-raw(memory:VAMemory) !
-      queue !
+      decodebin3 !
       gvadetect
         batch-size=1
         model-instance-id=odmodel-npu
         model=/models/output/public/yolo11n/FP16/yolo11n.xml
         threshold=0.5
         device=NPU
-        pre-process-backend=va-surface-sharing
+        pre-process-backend=va
         nireq=4 !
       gvafpscounter starting-frame=100 !
       gvawatermark !

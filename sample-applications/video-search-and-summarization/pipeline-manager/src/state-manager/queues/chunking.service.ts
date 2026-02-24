@@ -16,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { FeaturesEnum, FeaturesService } from 'src/features/features.service';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
-import { State, StateChunkFrame } from '../models/state.model';
+import { State, StateActionStatus, StateChunkFrame } from '../models/state.model';
 import { TemplateService } from 'src/language-model/services/template.service';
 import { DataPrepShimService } from 'src/data-prep/services/data-prep-shim.service';
 import { DataPrepSummaryDTO } from 'src/data-prep/models/data-prep.models';
@@ -111,6 +111,26 @@ export class ChunkingService {
 
   addChunk(stateId: string, frames: string[]) {
     const queueKey: string = frames.join('#');
+
+    const state = this.$state.fetch(stateId);
+    const existingSummary = state?.frameSummaries?.[queueKey];
+
+    const alreadyQueued =
+      this.waiting.some(
+        (el) => el.stateId === stateId && el.queueKey === queueKey,
+      ) ||
+      this.processing.some(
+        (el) => el.stateId === stateId && el.queueKey === queueKey,
+      );
+
+    if (
+      alreadyQueued ||
+      existingSummary?.status === StateActionStatus.COMPLETE ||
+      existingSummary?.status === StateActionStatus.IN_PROGRESS
+    ) {
+      return;
+    }
+
     this.waiting.push({ stateId, frames, queueKey });
     this.$state.addFrameSummary(stateId, frames);
   }
