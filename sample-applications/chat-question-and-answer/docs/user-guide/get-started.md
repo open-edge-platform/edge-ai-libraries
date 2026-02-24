@@ -136,7 +136,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
-    export TAG=2.0.1
+    export TAG=latest
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)

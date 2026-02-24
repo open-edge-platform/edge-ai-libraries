@@ -1088,8 +1088,14 @@ class PerformanceTestSpec(BaseModel):
         description="List of pipelines with number of streams for each.",
         examples=[
             [
-                {"id": "pipeline-1", "streams": 8},
-                {"id": "pipeline-2", "streams": 8},
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a3f5d9e1",
+                        "variant_id": "variant-abc123",
+                    },
+                    "streams": 4,
+                },
             ]
         ],
     )
@@ -1120,8 +1126,22 @@ class DensityTestSpec(BaseModel):
         description="List of pipelines with relative stream_rate percentages that must sum to 100.",
         examples=[
             [
-                {"id": "pipeline-1", "stream_rate": 50},
-                {"id": "pipeline-2", "stream_rate": 50},
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a3f5d9e1",
+                        "variant_id": "variant-abc123",
+                    },
+                    "stream_rate": 50,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-b7c2e114",
+                        "variant_id": "variant-def456",
+                    },
+                    "stream_rate": 50,
+                },
             ]
         ],
     )
@@ -1466,32 +1486,58 @@ class CameraDetails(BaseModel):
     pass
 
 
+class V4L2FormatSize(BaseModel):
+    """Single supported resolution with available frame rates for a V4L2 format."""
+
+    width: int
+    height: int
+    fps_list: List[float]
+
+
+class V4L2Format(BaseModel):
+    """Single V4L2 pixel format with all supported resolutions and frame rates."""
+
+    fourcc: str
+    sizes: List[V4L2FormatSize]
+
+
+class V4L2BestCapture(BaseModel):
+    """Best capture configuration selected from available V4L2 formats."""
+
+    fourcc: str
+    width: int
+    height: int
+    fps: float
+
+
 class USBCameraDetails(CameraDetails):
-    """
-    USB camera specific details.
+    """USB camera details including the best capture configuration
+    selected by the scoring algorithm.
 
     Attributes:
         device_path: System device path (e.g., /dev/video0).
-        resolution: Supported or current resolution (optional, e.g., "1920x1080").
+        best_capture: Best capture configuration selected by scoring algorithm.
     """
 
     device_path: str
-    resolution: Optional[str]
+    best_capture: Optional[V4L2BestCapture] = None
 
 
 class NetworkCameraDetails(CameraDetails):
-    """
-    Network camera specific details.
+    """Network camera details including ONVIF profiles and the best
+    profile selected by the scoring algorithm.
 
     Attributes:
         ip: IP address of the camera.
         port: Port number for ONVIF communication.
         profiles: List of ONVIF profiles available on this camera (populated after authentication).
+        best_profile: Best profile selected by scoring algorithm.
     """
 
     ip: str
     port: int
     profiles: list["CameraProfileInfo"]
+    best_profile: Optional["CameraProfileInfo"] = None
 
 
 class Camera(BaseModel):
@@ -1511,7 +1557,7 @@ class Camera(BaseModel):
         .. code-block:: json
 
             {
-              "device_id": "usb_camera_0",
+              "device_id": "usb-camera-0",
               "device_name": "Integrated Camera",
               "device_type": "USB",
               "details": {
@@ -1524,7 +1570,7 @@ class Camera(BaseModel):
         .. code-block:: json
 
             {
-              "device_id": "network_camera_192.168.1.100_80",
+              "device_id": "network-camera-192.168.1.100-80",
               "device_name": "ONVIF Camera 192.168.1.100",
               "device_type": "NETWORK",
               "details": {
@@ -1628,7 +1674,7 @@ class CameraAuthResponse(BaseModel):
 
             {
               "camera": {
-                "device_id": "network_camera_192.168.1.100_80",
+                "device_id": "network-camera-192.168.1.100-80",
                 "device_name": "ONVIF Camera 192.168.1.100",
                 "device_type": "NETWORK",
                 "details": {

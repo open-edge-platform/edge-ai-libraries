@@ -62,7 +62,7 @@ def get_cameras():
 
             [
               {
-                "device_id": "usb_camera_0",
+                "device_id": "usb-camera-0",
                 "device_name": "Integrated Camera",
                 "device_type": "USB",
                 "details": {
@@ -71,7 +71,7 @@ def get_cameras():
                 }
               },
               {
-                "device_id": "network_camera_192.168.1.100_80",
+                "device_id": "network-camera-192.168.1.100-80",
                 "device_name": "ONVIF Camera 192.168.1.100",
                 "device_type": "NETWORK",
                 "details": {
@@ -128,8 +128,8 @@ def get_camera(camera_id: str):
         * Return camera details if found.
 
     Path parameters:
-        camera_id: The unique identifier of the camera (e.g., "usb_camera_0" or
-                   "network_camera_192.168.1.100_80").
+        camera_id: The unique identifier of the camera (e.g., "usb-camera-0" or
+                   "network-camera-192.168.1.100-80").
 
     Returns:
         200 OK:
@@ -150,7 +150,7 @@ def get_camera(camera_id: str):
         .. code-block:: json
 
             {
-              "device_id": "usb_camera_0",
+              "device_id": "usb-camera-0",
               "device_name": "Integrated Camera",
               "device_type": "USB",
               "details": {
@@ -223,7 +223,7 @@ def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest)
         * Return updated camera object
 
     Path parameters:
-        camera_id: The unique identifier of the camera (e.g., "network_camera_192.168.1.100_80").
+        camera_id: The unique identifier of the camera (e.g., "network-camera-192.168.1.100-80").
 
     Request body:
         JSON object with username and password.
@@ -255,7 +255,7 @@ def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest)
 
             {
               "camera": {
-                "device_id": "network_camera_192.168.1.100_80",
+                "device_id": "network-camera-192.168.1.100-80",
                 "device_name": "ONVIF Camera 192.168.1.100",
                 "device_type": "NETWORK",
                 "details": {
