@@ -189,5 +189,5 @@ class OllamaBackend:
             return ollama.show(model_id)
 
         except Exception as e:
-            logger.error(f"Error retrieving model metadata for {model_id}: {e}")
+            logger.error(f"Error retrieving ollama model metadata: {e}")
             raise
