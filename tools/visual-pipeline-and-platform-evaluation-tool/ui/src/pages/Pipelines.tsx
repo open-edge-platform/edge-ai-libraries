@@ -536,12 +536,6 @@ export const Pipelines = () => {
                 refetch();
               }}
               onVariantDeleted={() => {
-                // If only one variant existed, the whole pipeline was deleted
-                if (data.variants.length === 1) {
-                  navigate("/pipelines");
-                  return;
-                }
-                // Filter out the deleted variant before selecting the first one
                 const remainingVariants = data.variants.filter(
                   (v) => v.id !== variant,
                 );
@@ -549,7 +543,6 @@ export const Pipelines = () => {
                 if (firstVariant) {
                   navigate(`/pipelines/${id}/${firstVariant.id}`);
                 } else {
-                  // If no variants left, navigate back to pipeline list
                   navigate("/pipelines");
                 }
               }}
