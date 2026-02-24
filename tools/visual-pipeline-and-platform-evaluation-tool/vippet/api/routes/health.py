@@ -6,42 +6,14 @@ application initialization state.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 
-from api.api_schemas import AppStatus
+from api.api_schemas import AppStatus, HealthResponse, StatusResponse
 from managers.app_state_manager import AppStateManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.health")
-
-
-class HealthResponse(BaseModel):
-    """
-    Response model for health endpoint.
-
-    Attributes:
-        healthy: True if application is healthy (not shutdown).
-    """
-
-    healthy: bool
-
-
-class StatusResponse(BaseModel):
-    """
-    Response model for status endpoint.
-
-    Attributes:
-        status: Current application status.
-        message: Optional message describing current activity.
-        ready: True if application is ready to serve API requests.
-    """
-
-    status: AppStatus
-    message: Optional[str]
-    ready: bool
 
 
 @router.get(

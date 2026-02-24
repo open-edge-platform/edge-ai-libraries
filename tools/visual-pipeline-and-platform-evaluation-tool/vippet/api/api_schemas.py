@@ -130,6 +130,54 @@ class CameraType(str, Enum):
     NETWORK = "NETWORK"
 
 
+class HealthResponse(BaseModel):
+    """
+    **Response model for health endpoint.**
+
+    Used by Docker healthcheck and monitoring systems to verify
+    application health status.
+
+    ## Attributes
+    - `healthy` - True if application is healthy (not shutdown)
+
+    ### Example
+    ```json
+    {
+      "healthy": true
+    }
+    ```
+    """
+
+    healthy: bool
+
+
+class StatusResponse(BaseModel):
+    """
+    **Response model for status endpoint.**
+
+    Provides detailed information about application initialization state
+    and readiness to serve requests.
+
+    ## Attributes
+    - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
+    - `message` - Optional message describing current activity or initialization progress
+    - `ready` - True if application is ready to serve API requests
+
+    ### Example
+    ```json
+    {
+      "status": "ready",
+      "message": null,
+      "ready": true
+    }
+    ```
+    """
+
+    status: AppStatus
+    message: Optional[str]
+    ready: bool
+
+
 class Node(BaseModel):
     """
     **Single node in a generic pipeline graph.**
