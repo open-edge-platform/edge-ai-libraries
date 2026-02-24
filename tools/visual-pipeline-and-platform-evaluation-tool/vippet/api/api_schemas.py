@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 class PipelineSource(str, Enum):
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
+    TEMPLATE = "TEMPLATE"
 
 
 class AppStatus(str, Enum):
@@ -341,7 +342,7 @@ class Variant(BaseModel):
     )
     read_only: bool = Field(
         default=False,
-        description="Whether the variant is read-only. Can only be true for PREDEFINED pipelines.",
+        description="Whether the variant is read-only. Can only be true for PREDEFINED or TEMPLATE pipelines.",
     )
     pipeline_graph: PipelineGraph = Field(
         ...,
