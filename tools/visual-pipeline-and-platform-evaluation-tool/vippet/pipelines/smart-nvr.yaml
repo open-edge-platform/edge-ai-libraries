@@ -9,14 +9,13 @@ variants:
   - name: CPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t0 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
       t0. !
       queue !
-      decodebin3 !
+      avdec_h264 !
       video/x-raw !
       gvafpscounter starting-frame=100 !
       gvadetect
@@ -40,6 +39,7 @@ variants:
         batch-size=0
         inference-interval=3
         nireq=0
+        inference-region=roi-list
         reclassify-interval=1 !
       queue !
       gvawatermark !
@@ -51,8 +51,7 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t0 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
@@ -82,6 +81,7 @@ variants:
         batch-size=0
         inference-interval=3
         nireq=0
+        inference-region=roi-list
         reclassify-interval=1 !
       queue !
       gvawatermark !
@@ -93,21 +93,21 @@ variants:
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t0 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
       t0. !
       queue !
       vah264dec !
-      video/x-raw !
+      vapostproc !
+      video/x-raw\(memory:VAMemory\) !
       gvafpscounter starting-frame=100 !
       gvadetect
         model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
         model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
         model-instance-id=detect0
-        pre-process-backend=opencv
+        pre-process-backend=va
         device=NPU
         batch-size=0
         inference-interval=3
@@ -119,16 +119,59 @@ variants:
         model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
         model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
         model-instance-id=classify0
-        pre-process-backend=opencv
+        pre-process-backend=va
         device=NPU
         batch-size=0
         inference-interval=3
         nireq=0
+        inference-region=roi-list
         reclassify-interval=1 !
       queue !
       gvawatermark !
       gvametaconvert format=json json-indent=4 !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw,width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=320,height=240 !
+      fakesink name=default_output_sink
+  - name: GPU_NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      parsebin !
+      tee name=t0 !
+      queue !
+      splitmuxsink location=/tmp/people-output.mp4
+      t0. !
+      queue !
+      vah264dec !
+      video/x-raw(memory:VAMemory) !
+      gvafpscounter starting-frame=100 !
+      gvadetect
+        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
+        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model-instance-id=detect0-gpu-npu
+        pre-process-backend=va-surface-sharing
+        device=GPU
+        batch-size=0
+        inference-interval=3
+        nireq=0 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
+        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model-instance-id=classify0-gpu-npu
+        pre-process-backend=va
+        device=NPU
+        batch-size=0
+        inference-interval=3
+        nireq=0
+        inference-region=roi-list
+        reclassify-interval=1 !
+      queue !
+      gvawatermark !
+      gvametaconvert format=json json-indent=4 !
+      gvametapublish method=file file-path=/dev/null !
+      vapostproc !
+      video/x-raw(memory:VAMemory),width=320,height=240 !
       fakesink name=default_output_sink

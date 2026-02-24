@@ -8,14 +8,13 @@ variants:
   - name: CPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t1 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
       t1. !
       queue !
-      decodebin3 !
+      avdec_h264 !
       video/x-raw !
       gvafpscounter starting-frame=100 !
       videoscale !
@@ -24,8 +23,7 @@ variants:
   - name: GPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t1 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
@@ -40,8 +38,7 @@ variants:
   - name: NPU
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
-      qtdemux !
-      h264parse !
+      parsebin !
       tee name=t1 !
       queue !
       splitmuxsink location=/tmp/people-output.mp4
