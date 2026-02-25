@@ -20,6 +20,7 @@ logger = logging.getLogger("api.routes.pipelines")
 @router.post(
     "",
     operation_id="create_pipeline",
+    summary="Create Pipeline",
     status_code=201,
     responses={
         201: {
@@ -35,68 +36,81 @@ logger = logging.getLogger("api.routes.pipelines")
 )
 def create_pipeline(body: schemas.PipelineDefinition):
     """
-    Create a new user-defined pipeline.
+    **Create a new user-defined pipeline.**
 
-    Operation:
-        * Enforce USER_CREATED source
-        * Delegate to PipelineManager.add_pipeline()
-        * Return generated pipeline ID
+    ## Operation
+    1. Enforce `USER_CREATED` source
+    2. Delegate to `PipelineManager.add_pipeline()`
+    3. Return generated pipeline ID
 
+    ## Auto-Generated Fields
     The backend automatically sets:
-        * Pipeline ID (generated from name)
-        * Pipeline created_at and modified_at timestamps
-        * Variant IDs (generated from variant names)
-        * Variant read_only=False for all variants
-        * Variant created_at and modified_at timestamps
-        * Pipeline thumbnail is always None for user-created pipelines
+    - Pipeline ID (generated from name)
+    - Timestamps (`created_at` and `modified_at`)
+    - Variant IDs (generated from variant names)
+    - Variant `read_only=False` for all variants
+    - Pipeline `thumbnail=None` (user-created pipelines)
 
-    Request body:
-        body: PipelineDefinition
-            * name – non-empty pipeline name.
-            * description – non-empty human-readable text describing what the pipeline does.
-            * source – ignored and forced to USER_CREATED by this endpoint.
-            * tags – list of tags for categorizing the pipeline.
-            * variants – list of VariantCreate objects with name, pipeline_graph,
-                and pipeline_graph_simple. The backend generates IDs and sets read_only=False.
+    ## Request Body
+    **`PipelineDefinition`** with:
+    - `name` *(required)* - Non-empty pipeline name
+    - `description` *(required)* - Human-readable description
+    - `source` *(ignored)* - Forced to `USER_CREATED`
+    - `tags` *(optional)* - List of categorization tags
+    - `variants` *(required)* - List of `VariantCreate` objects:
+      - `name` - Variant name
+      - `pipeline_graph` - Advanced graph representation
+      - `pipeline_graph_simple` - Simplified graph representation
 
-    Returns:
-        201 Created:
-            PipelineCreationResponse with generated pipeline id.
-        400 Bad Request:
-            MessageResponse when pipeline definition is invalid.
-        500 Internal Server Error:
-            MessageResponse when an unexpected error occurs.
+    ## Response Codes
 
-    Success conditions:
-        * PipelineDefinition is structurally valid
-        * PipelineManager successfully creates pipeline
+    | Code | Description |
+    |------|-------------|
+    | 201 | `PipelineCreationResponse` with generated pipeline `id` |
+    | 400 | `MessageResponse` - Invalid pipeline definition |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Failure conditions:
-        * Invalid pipeline definition at manager level → 400
-        * Any other unhandled error → 500
+    ## Conditions
 
-    Request example:
-        .. code-block:: json
+    ### ✅ Success
+    - Valid PipelineDefinition
+    - PipelineManager successfully creates pipeline
 
-            {
-              "name": "vehicle-detection",
-              "description": "Simple vehicle detection pipeline",
-              "tags": ["detection", "vehicle"],
-              "variants": [
-                {
-                  "name": "CPU",
-                  "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...}
-                }
-              ]
-            }
+    ### ❌ Failure
+    - Invalid pipeline definition → 400
+    - Unhandled error → 500
 
-    Successful response example (201):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "id": "pipeline-a3f5d9e1"
-            }
+    ### Request
+    ```json
+    {
+      "name": "vehicle-detection",
+      "description": "Simple vehicle detection pipeline",
+      "tags": ["detection", "vehicle"],
+      "variants": [
+        {
+          "name": "CPU",
+          "pipeline_graph": {...},
+          "pipeline_graph_simple": {...}
+        }
+      ]
+    }
+    ```
+
+    ### Success Response (201)
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1"
+    }
+    ```
+
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Pipeline name cannot be empty"
+    }
+    ```
     """
     try:
         # Enforce USER_CREATED source for pipelines created via API
@@ -127,6 +141,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
 @router.post(
     "/validate",
     operation_id="validate_pipeline",
+    summary="Validate Pipeline",
     status_code=202,
     responses={
         202: {
@@ -142,73 +157,74 @@ def create_pipeline(body: schemas.PipelineDefinition):
 )
 def validate_pipeline(body: schemas.PipelineValidation):
     """
-    Start an asynchronous validation job for an ad-hoc pipeline graph.
+    **Start asynchronous validation job for a pipeline graph.**
 
-    Operation:
-        * Convert the provided PipelineGraph to a GStreamer launch string.
-        * Extract validation parameters (for example ``max-runtime``).
-        * Create a new validation job and run ``gst_runner.py`` in validation
-          mode in a background thread.
-        * Return the generated job id.
+    ## Operation
+    1. Convert PipelineGraph to GStreamer launch string
+    2. Extract validation parameters (e.g., `max-runtime`)
+    3. Create validation job and run `gst_runner.py` in background
+    4. Return generated job ID
 
-    Request body:
-        body: PipelineValidation
-            * pipeline_graph – nodes and edges representation of the pipeline.
-            * parameters – optional dict, e.g. ``{"max-runtime": 10}``.
-              Note: max-runtime must be greater than 0 for validation mode.
+    ## Request Body
+    **`PipelineValidation`** with:
+    - `pipeline_graph` *(required)* - Nodes and edges representation
+    - `parameters` *(optional)* - Configuration dict, e.g., `{"max-runtime": 10}`
+      - **Note:** `max-runtime` must be > 0 for validation mode
 
-    Returns:
-        202 Accepted:
-            ValidationJobResponse with job_id of created validation job.
-        400 Bad Request:
-            MessageResponse when request parameters are invalid, e.g.:
-            * ``max-runtime`` is not an integer,
-            * ``max-runtime`` is < 1.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors (e.g. Graph conversion).
+    ## Response Codes
 
-    Success conditions:
-        * Graph can be converted to a valid launch string.
-        * Parameters pass ValidationManager checks.
-        * Background validation job is successfully started.
+    | Code | Description |
+    |------|-------------|
+    | 202 | `ValidationJobResponse` with `job_id` |
+    | 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |
+    | 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |
 
-    Failure conditions:
-        * Parameter validation error (ValueError) → 400.
-        * Any other unexpected exception → 500.
+    ## Conditions
 
-    Request example:
-        .. code-block:: json
+    ### ✅ Success
+    - Graph converts to valid launch string
+    - Parameters pass ValidationManager checks
+    - Background validation job started
 
-            {
-              "pipeline_graph": {
-                "nodes": [
-                  {"id": "0", "type": "filesrc", "data": {"location": "/videos/input.mp4"}},
-                  {"id": "1", "type": "decodebin", "data": {}},
-                  {"id": "2", "type": "fakesink", "data": {}}
-                ],
-                "edges": [
-                  {"id": "0", "source": "0", "target": "1"},
-                  {"id": "1", "source": "1", "target": "2"}
-                ]
-              },
-              "parameters": {
-                "max-runtime": 10
-              }
-            }
+    ### ❌ Failure
+    - Parameter validation error → 400
+    - Unexpected exception → 500
 
-    Successful response example (202):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "job_id": "val001"
-            }
+    ### Request
+    ```json
+    {
+      "pipeline_graph": {
+        "nodes": [
+          {"id": "0", "type": "filesrc", "data": {"location": "/videos/input.mp4"}},
+          {"id": "1", "type": "decodebin", "data": {}},
+          {"id": "2", "type": "fakesink", "data": {}}
+        ],
+        "edges": [
+          {"id": "0", "source": "0", "target": "1"},
+          {"id": "1", "source": "1", "target": "2"}
+        ]
+      },
+      "parameters": {
+        "max-runtime": 10
+      }
+    }
+    ```
 
-    Error response example (400):
-        .. code-block:: json
+    ### Success Response (202)
+    ```json
+    {
+      "job_id": "val001"
+    }
+    ```
 
-            {
-              "message": "Parameter 'max-runtime' must be greater than or equal to 1."
-            }
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Parameter 'max-runtime' must be greater than or equal to 1."
+    }
+    ```
     """
     try:
         job_id = ValidationManager().run_validation(body)
@@ -235,60 +251,77 @@ def validate_pipeline(body: schemas.PipelineValidation):
         )
 
 
-@router.get("", operation_id="get_pipelines", response_model=List[schemas.Pipeline])
+@router.get(
+    "",
+    operation_id="get_pipelines",
+    summary="List All Pipelines",
+    response_model=List[schemas.Pipeline],
+    response_description="List of all pipelines including predefined and user-created",
+)
 def get_pipelines():
     """
-    List all pipelines currently registered in the system.
+    **List all pipelines currently registered in the system.**
 
-    Operation:
-        Return both predefined pipelines loaded from configuration and
-        user-created pipelines added via this API.
+    ## Operation
+    Return both predefined pipelines loaded from configuration and
+    user-created pipelines added via this API.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    - **Path/Query parameters:** None
 
-    Returns:
-        200 OK:
-            JSON array of Pipeline objects with all variants.
-            Each pipeline includes:
-            * id, name, description, source, tags
-            * variants (list of Variant objects with graphs and timestamps)
-            * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
-              Note: thumbnail is redacted in logs but returned in full in API response.
-            * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings)
+    ## Response Format
 
-    Success conditions:
-        * PipelineManager is initialized and has pipelines loaded.
+    ### 200 OK
+    JSON array of Pipeline objects with all variants.
 
-    Failure conditions:
-        * Unexpected errors will be propagated as 500 by FastAPI.
+    **Each pipeline includes:**
+    - `id` - Unique pipeline identifier
+    - `name` - Pipeline name
+    - `description` - Human-readable description
+    - `source` - Pipeline source (`PREDEFINED` or `USER_CREATED`)
+    - `tags` - List of categorization tags
+    - `variants` - List of Variant objects with:
+      - Pipeline graphs and timestamps
+      - `read_only` flag
+    - `thumbnail` - Base64-encoded image for PREDEFINED pipelines, `null` otherwise
+      > **Note:** Thumbnail is redacted in logs but returned in full in API response
+    - `created_at`, `modified_at` - UTC datetime (ISO 8601 format)
 
-    Response example (200):
-        .. code-block:: json
+    ## Conditions
 
-            [
-              {
-                "id": "pipeline-a3f5d9e1",
-                "name": "vehicle-detection",
-                "description": "Simple vehicle detection pipeline",
-                "source": "PREDEFINED",
-                "tags": ["detection"],
-                "variants": [
-                  {
-                    "id": "variant-1",
-                    "name": "CPU",
-                    "read_only": true,
-                    "pipeline_graph": {...},
-                    "pipeline_graph_simple": {...},
-                    "created_at": "2026-02-05T14:30:45.123000+00:00",
-                    "modified_at": "2026-02-05T14:30:45.123000+00:00"
-                  }
-                ],
-                "thumbnail": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
-                "created_at": "2026-02-05T14:30:45.123000+00:00",
-                "modified_at": "2026-02-05T14:30:45.123000+00:00"
-              }
-            ]
+    ### ✅ Success
+    - PipelineManager is initialized and has pipelines loaded
+
+    ### ❌ Failure
+    - Unexpected errors will be propagated as 500 by FastAPI
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "id": "pipeline-a3f5d9e1",
+        "name": "vehicle-detection",
+        "description": "Simple vehicle detection pipeline",
+        "source": "PREDEFINED",
+        "tags": ["detection"],
+        "variants": [
+          {
+            "id": "variant-1",
+            "name": "CPU",
+            "read_only": true,
+            "pipeline_graph": {...},
+            "pipeline_graph_simple": {...},
+            "created_at": "2026-02-05T14:30:45.123000+00:00",
+            "modified_at": "2026-02-05T14:30:45.123000+00:00"
+          }
+        ],
+        "thumbnail": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+        "created_at": "2026-02-05T14:30:45.123000+00:00",
+        "modified_at": "2026-02-05T14:30:45.123000+00:00"
+      }
+    ]
+    ```
     """
     return PipelineManager().get_pipelines()
 
@@ -296,76 +329,85 @@ def get_pipelines():
 @router.get(
     "/{pipeline_id}",
     operation_id="get_pipeline",
+    summary="Get Pipeline by ID",
     responses={
-        200: {"description": "Successful Response", "model": schemas.Pipeline},
+        200: {
+            "description": "Pipeline details retrieved successfully",
+            "model": schemas.Pipeline,
+        },
         404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
         500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def get_pipeline(pipeline_id: str):
     """
-    Get details of a single pipeline by its id.
+    **Get details of a single pipeline by its ID.**
 
-    Operation:
-        Retrieve the full pipeline definition including all variants,
-        metadata, timestamps, and tags.
+    ## Operation
+    Retrieve the full pipeline definition including all variants,
+    metadata, timestamps, and tags.
 
-    Path parameters:
-        pipeline_id: Unique identifier of the pipeline (for example
-            ``"pipeline-a3f5d9e1"``).
+    ## Path Parameters
+    - `pipeline_id` - Unique identifier of the pipeline (e.g., `"pipeline-a3f5d9e1"`)
 
-    Returns:
-        200 OK:
-            Pipeline object with all fields:
-            * id, name, description, source, tags
-            * variants (each with pipeline_graph, pipeline_graph_simple, and timestamps)
-            * thumbnail (base64-encoded image for PREDEFINED pipelines, null otherwise)
-              Note: thumbnail is redacted in logs but returned in full in API response.
-            * created_at, modified_at (UTC datetime, serialized as ISO 8601 strings, set by backend only)
-        404 Not Found:
-            MessageResponse if pipeline with given id does not exist.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors in the manager layer.
+    ## Response Codes
 
-    Success conditions:
-        * Pipeline with the given id is present in PipelineManager.
-        * All variants are available.
+    | Code | Description |
+    |------|-------------|
+    | 200 | Complete Pipeline object with all fields |
+    | 404 | `MessageResponse` - Pipeline with given ID does not exist |
+    | 500 | `MessageResponse` - Unexpected error in manager layer |
 
-    Failure conditions:
-        * Unknown id → 404.
-        * Any other unhandled exception → 500.
+    ## Response Fields (200)
+    - `id`, `name`, `description`, `source`, `tags`
+    - `variants` - Each with `pipeline_graph`, `pipeline_graph_simple`, and timestamps
+    - `thumbnail` - Base64-encoded image for PREDEFINED pipelines, `null` otherwise
+      > **Note:** Thumbnail is redacted in logs but returned in full in API response
+    - `created_at`, `modified_at` - UTC datetime (ISO 8601 format, set by backend only)
 
-    Successful response example (200):
-        .. code-block:: json
+    ## Conditions
 
-            {
-              "id": "pipeline-a3f5d9e1",
-              "name": "vehicle-detection",
-              "description": "Simple vehicle detection pipeline",
-              "source": "USER_CREATED",
-              "tags": ["detection", "vehicle"],
-              "variants": [
-                {
-                  "id": "variant-1",
-                  "name": "CPU",
-                  "read_only": false,
-                  "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...},
-                  "created_at": "2026-02-05T14:30:45.123000+00:00",
-                  "modified_at": "2026-02-05T14:30:45.123000+00:00"
-                }
-              ],
-              "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123000+00:00",
-              "modified_at": "2026-02-05T14:30:45.123000+00:00"
-            }
+    ### ✅ Success
+    - Pipeline with the given ID is present in PipelineManager
+    - All variants are available
 
-    Error response example (404):
-        .. code-block:: json
+    ### ❌ Failure
+    - Unknown ID → 404
+    - Any other unhandled exception → 500
 
-            {
-              "message": "Pipeline with id 'pipeline-unknown' not found."
-            }
+    ## Examples
+
+    ### Success Response (200)
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1",
+      "name": "vehicle-detection",
+      "description": "Simple vehicle detection pipeline",
+      "source": "USER_CREATED",
+      "tags": ["detection", "vehicle"],
+      "variants": [
+        {
+          "id": "variant-1",
+          "name": "CPU",
+          "read_only": false,
+          "pipeline_graph": {...},
+          "pipeline_graph_simple": {...},
+          "created_at": "2026-02-05T14:30:45.123000+00:00",
+          "modified_at": "2026-02-05T14:30:45.123000+00:00"
+        }
+      ],
+      "thumbnail": null,
+      "created_at": "2026-02-05T14:30:45.123000+00:00",
+      "modified_at": "2026-02-05T14:30:45.123000+00:00"
+    }
+    ```
+
+    ### Error Response (404)
+    ```json
+    {
+      "message": "Pipeline with id 'pipeline-unknown' not found."
+    }
+    ```
     """
     try:
         return PipelineManager().get_pipeline_by_id(pipeline_id)
@@ -390,8 +432,12 @@ def get_pipeline(pipeline_id: str):
 @router.patch(
     "/{pipeline_id}",
     operation_id="update_pipeline",
+    summary="Update Pipeline",
     responses={
-        200: {"description": "Pipeline updated", "model": schemas.Pipeline},
+        200: {
+            "description": "Pipeline successfully updated",
+            "model": schemas.Pipeline,
+        },
         404: {"description": "Pipeline not found", "model": schemas.MessageResponse},
         400: {"description": "Invalid request", "model": schemas.MessageResponse},
         422: {"description": "Validation error", "model": schemas.MessageResponse},
@@ -400,90 +446,89 @@ def get_pipeline(pipeline_id: str):
 )
 def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
     """
-    Partially update selected fields of an existing pipeline.
+    **Partially update selected fields of an existing pipeline.**
 
-    Operation:
-        * Validate request body via PipelineUpdate model (at least one field,
-          non-empty strings after trim)
-        * Delegate to PipelineManager.update_pipeline()
-        * Backend automatically updates modified_at timestamp
+    ## Operation
+    1. Validate request body via `PipelineUpdate` model
+    2. Delegate to `PipelineManager.update_pipeline()`
+    3. Backend automatically updates `modified_at` timestamp
 
-    Note: The following fields cannot be updated via API:
-        * id (immutable)
-        * source (immutable)
-        * thumbnail (only set for PREDEFINED pipelines from config files)
-        * created_at (immutable, set when pipeline is created)
-        * modified_at (automatically updated by backend as UTC datetime)
+    ## Immutable Fields
+    The following fields **cannot** be updated via API:
+    - `id` - Immutable identifier
+    - `source` - Immutable source type
+    - `thumbnail` - Only set for PREDEFINED pipelines from config files
+    - `created_at` - Immutable creation timestamp
+    - `modified_at` - Automatically updated by backend (UTC datetime)
 
-    Path parameters:
-        pipeline_id: ID of the pipeline to update.
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline to update
 
-    Request body:
-        body: PipelineUpdate (validated by Pydantic)
-            Any combination of:
-            * name – new pipeline name (non-empty string after trim).
-            * description – new human-readable text (non-empty string after trim).
-            * tags – list of tags (can be empty).
+    ## Request Body
+    **`PipelineUpdate`** (validated by Pydantic) - any combination of:
+    - `name` *(optional)* - New pipeline name (non-empty after trim)
+    - `description` *(optional)* - New description (non-empty after trim)
+    - `tags` *(optional)* - List of tags (can be empty)
 
-    Returns:
-        200 OK:
-            Updated Pipeline object with all fields including updated modified_at.
-        400 Bad Request:
-            MessageResponse when manager-level validation fails.
-        404 Not Found:
-            MessageResponse when pipeline id does not exist.
-        422 Unprocessable Entity:
-            Pydantic validation error when:
-            * none of the updatable fields is provided,
-            * provided name or description is empty after trim.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors.
+    ## Response Codes
 
-    Success conditions:
-        * Pipeline with the given id exists.
-        * At least one valid field is provided and passes validation.
+    | Code | Description |
+    |------|-------------|
+    | 200 | Updated Pipeline object with new `modified_at` |
+    | 400 | `MessageResponse` - Manager-level validation fails |
+    | 404 | `MessageResponse` - Pipeline ID does not exist |
+    | 422 | Pydantic validation error (no fields or empty values) |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Failure conditions:
-        * No fields provided → 422 (Pydantic validation)
-        * Empty name or description after trim → 422 (Pydantic validation)
-        * Unknown id → 404
-        * Any other exception → 500
+    ## Conditions
 
-    Request example:
-        .. code-block:: json
+    ### ✅ Success
+    - Pipeline with the given ID exists
+    - At least one valid field is provided and passes validation
 
-            {
-              "name": "vehicle-detection-v2",
-              "description": "Updated pipeline with better preprocessing",
-              "tags": ["updated", "v2"]
-            }
+    ### ❌ Failure
+    - No fields provided → 422 (Pydantic validation)
+    - Empty name or description after trim → 422 (Pydantic validation)
+    - Unknown ID → 404
+    - Any other exception → 500
 
-    Successful response example (200):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "id": "pipeline-a3f5d9e1",
-              "name": "vehicle-detection-v2",
-              "description": "Updated pipeline with better preprocessing",
-              "source": "USER_CREATED",
-              "tags": ["updated", "v2"],
-              "variants": [...],
-              "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123000+00:00",
-              "modified_at": "2026-02-05T15:45:00.456000+00:00"
-            }
+    ### Request
+    ```json
+    {
+      "name": "vehicle-detection-v2",
+      "description": "Updated pipeline with better preprocessing",
+      "tags": ["updated", "v2"]
+    }
+    ```
 
-    Error response example (422):
-        .. code-block:: json
+    ### Success Response (200)
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1",
+      "name": "vehicle-detection-v2",
+      "description": "Updated pipeline with better preprocessing",
+      "source": "USER_CREATED",
+      "tags": ["updated", "v2"],
+      "variants": [...],
+      "thumbnail": null,
+      "created_at": "2026-02-05T14:30:45.123000+00:00",
+      "modified_at": "2026-02-05T15:45:00.456000+00:00"
+    }
+    ```
 
-            {
-              "detail": [
-                {
-                  "type": "value_error",
-                  "msg": "Value error, At least one of 'name', 'description', or 'tags' must be provided."
-                }
-              ]
-            }
+    ### Error Response (422)
+    ```json
+    {
+      "detail": [
+        {
+          "type": "value_error",
+          "msg": "Value error, At least one of 'name', 'description', or 'tags' must be provided."
+        }
+      ]
+    }
+    ```
     """
     try:
         updated_pipeline = PipelineManager().update_pipeline(
@@ -532,10 +577,11 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
 @router.post(
     "/{pipeline_id}/variants/{variant_id}/optimize",
     operation_id="optimize_variant",
+    summary="Optimize Variant",
     status_code=202,
     responses={
         202: {
-            "description": "Variant optimization started",
+            "description": "Optimization job successfully started",
             "model": schemas.OptimizationJobResponse,
         },
         404: {
@@ -549,69 +595,69 @@ def optimize_variant(
     pipeline_id: str, variant_id: str, body: schemas.PipelineRequestOptimize
 ):
     """
-    Start an asynchronous optimization job for a specific pipeline variant.
+    **Start asynchronous optimization job for a pipeline variant.**
 
-    Operation:
-        * Validate that pipeline and variant exist
-        * Delegate to OptimizationManager.run_optimization() with variant
-        * Return generated job ID
+    ## Operation
+    1. Validate that pipeline and variant exist
+    2. Delegate to `OptimizationManager.run_optimization()` with variant
+    3. Return generated job ID
 
-    Note: Optimization works with both read-only (PREDEFINED) and user-created variants.
-    The optimization job uses the variant's pipeline_graph and pipeline_graph_simple
-    as input but does not modify the original variant.
+    > **Note:** Optimization works with both read-only (PREDEFINED) and user-created variants.
+    > The optimization job uses the variant's graphs as input but does not modify the original variant.
 
-    Path parameters:
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant to optimize.
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant to optimize
 
-    Request body:
-        body: PipelineRequestOptimize
-            * type – optimization type: ``"preprocess"`` or ``"optimize"``.
-            * parameters – optional dict with optimizer-specific options,
-              for example:
+    ## Request Body
+    **`PipelineRequestOptimize`** with:
+    - `type` *(required)* - Optimization type: `"preprocess"` or `"optimize"`
+    - `parameters` *(optional)* - Optimizer-specific options, e.g.:
+      ```json
+      {
+        "search_duration": 300,
+        "sample_duration": 10
+      }
+      ```
 
-              .. code-block:: json
+    ## Response Codes
 
-                  {
-                    "search_duration": 300,
-                    "sample_duration": 10
-                  }
+    | Code | Description |
+    |------|-------------|
+    | 202 | `OptimizationJobResponse` with `job_id` of created job |
+    | 404 | `MessageResponse` - Pipeline or variant with given IDs do not exist |
+    | 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |
 
-    Returns:
-        202 Accepted:
-            OptimizationJobResponse with job_id of the created optimization job.
-        404 Not Found:
-            MessageResponse if pipeline or variant with given IDs do not exist.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors when starting optimization
-            (e.g. Graph conversion, external optimizer issues thrown early).
+    ## Conditions
 
-    Success conditions:
-        * Pipeline and variant exist
-        * Variant's graph can be converted to a launch string
-        * OptimizationManager.run_optimization() starts a background job
+    ### ✅ Success
+    - Pipeline and variant exist
+    - Variant's graph can be converted to a launch string
+    - OptimizationManager starts a background job
 
-    Failure conditions:
-        * Unknown pipeline or variant ID → 404
-        * Any unhandled exception in pipeline/variant lookup or job creation → 500
+    ### ❌ Failure
+    - Unknown pipeline or variant ID → 404
+    - Unhandled exception in pipeline/variant lookup or job creation → 500
 
-    Request example:
-        .. code-block:: json
+    ## Examples
 
-            {
-              "type": "optimize",
-              "parameters": {
-                "search_duration": 300,
-                "sample_duration": 10
-              }
-            }
+    ### Request
+    ```json
+    {
+      "type": "optimize",
+      "parameters": {
+        "search_duration": 300,
+        "sample_duration": 10
+      }
+    }
+    ```
 
-    Successful response example (202):
-        .. code-block:: json
-
-            {
-              "job_id": "opt789"
-            }
+    ### Success Response (202)
+    ```json
+    {
+      "job_id": "opt789"
+    }
+    ```
     """
     try:
         # Use get_variant_by_ids to validate both pipeline and variant exist
@@ -658,8 +704,12 @@ def optimize_variant(
 @router.delete(
     "/{pipeline_id}",
     operation_id="delete_pipeline",
+    summary="Delete Pipeline",
     responses={
-        200: {"description": "Pipeline deleted", "model": schemas.MessageResponse},
+        200: {
+            "description": "Pipeline successfully deleted",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Cannot delete PREDEFINED pipeline",
             "model": schemas.MessageResponse,
@@ -672,56 +722,60 @@ def optimize_variant(
 )
 def delete_pipeline(pipeline_id: str):
     """
-    Delete a pipeline by its id.
+    **Delete a pipeline by its ID.**
 
-    Operation:
-        * Validate that pipeline exists
-        * Validate that pipeline is not PREDEFINED
-        * Delegate to PipelineManager.delete_pipeline_by_id()
+    ## Operation
+    1. Validate that pipeline exists
+    2. Validate that pipeline is not PREDEFINED
+    3. Delegate to `PipelineManager.delete_pipeline_by_id()`
 
-    Path parameters:
-        pipeline_id: ID of the pipeline to delete.
+    > **Note:** PREDEFINED pipelines cannot be deleted. They are loaded from
+    > configuration files and include thumbnail images.
 
-    Returns:
-        200 OK:
-            MessageResponse when the pipeline was successfully deleted.
-        400 Bad Request:
-            MessageResponse when trying to delete PREDEFINED pipeline.
-        404 Not Found:
-            MessageResponse when a pipeline with given id does not exist.
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline to delete
 
-    Success conditions:
-        * Pipeline with the given id is found
-        * Pipeline is USER_CREATED (not PREDEFINED)
-        * Pipeline is removed from manager
+    ## Response Codes
 
-    Failure conditions:
-        * Pipeline is PREDEFINED → 400
-        * Unknown id → 404
+    | Code | Description |
+    |------|-------------|
+    | 200 | `MessageResponse` confirming deletion |
+    | 400 | `MessageResponse` - Trying to delete PREDEFINED pipeline |
+    | 404 | `MessageResponse` - Pipeline with given ID does not exist |
 
-    Note: PREDEFINED pipelines cannot be deleted. They are loaded from
-    configuration files and include thumbnail images.
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - Pipeline with the given ID is found
+    - Pipeline is USER_CREATED (not PREDEFINED)
+    - Pipeline is removed from manager
 
-            {
-              "message": "Pipeline deleted"
-            }
+    ### ❌ Failure
+    - Pipeline is PREDEFINED → 400
+    - Unknown ID → 404
 
-    Error response example (400):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "message": "Cannot delete PREDEFINED pipeline 'pipeline-a3f5d9e1'."
-            }
+    ### Success Response (200)
+    ```json
+    {
+      "message": "Pipeline deleted"
+    }
+    ```
 
-    Error response example (404):
-        .. code-block:: json
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Cannot delete PREDEFINED pipeline 'pipeline-a3f5d9e1'."
+    }
+    ```
 
-            {
-              "message": "Pipeline with id 'pipeline-unknown' not found."
-            }
+    ### Error Response (404)
+    ```json
+    {
+      "message": "Pipeline with id 'pipeline-unknown' not found."
+    }
+    ```
     """
     try:
         PipelineManager().delete_pipeline_by_id(pipeline_id)
@@ -745,10 +799,11 @@ def delete_pipeline(pipeline_id: str):
 @router.post(
     "/{pipeline_id}/variants",
     operation_id="create_variant",
+    summary="Create Variant",
     status_code=201,
     responses={
         201: {
-            "description": "Variant created",
+            "description": "Variant successfully created",
             "model": schemas.Variant,
         },
         400: {
@@ -764,79 +819,80 @@ def delete_pipeline(pipeline_id: str):
 )
 def create_variant(pipeline_id: str, body: schemas.VariantCreate):
     """
-    Create a new variant for an existing pipeline.
+    **Create a new variant for an existing pipeline.**
 
-    Operation:
-        * Validate that pipeline exists
-        * Delegate to PipelineManager.add_variant()
-        * Return created variant with generated ID and timestamps
+    ## Operation
+    1. Validate that pipeline exists
+    2. Delegate to `PipelineManager.add_variant()`
+    3. Return created variant with generated ID and timestamps
 
+    ## Auto-Generated Fields
     The backend automatically sets:
-        * Variant ID (generated from variant name)
-        * read_only=false (user-created variants are never read-only)
-        * created_at timestamp (current UTC time)
-        * modified_at timestamp (same as created_at initially)
-        * Pipeline's modified_at timestamp is also updated
+    - Variant ID (generated from variant name)
+    - `read_only=false` (user-created variants are never read-only)
+    - `created_at` timestamp (current UTC time)
+    - `modified_at` timestamp (same as `created_at` initially)
+    - Pipeline's `modified_at` timestamp is also updated
 
-    Path parameters:
-        pipeline_id: ID of the pipeline to add variant to.
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline to add variant to
 
-    Request body:
-        body: VariantCreate
-            * name – variant name (required, non-empty).
-            * pipeline_graph – advanced graph representation (required).
-            * pipeline_graph_simple – simplified graph representation (required).
+    ## Request Body
+    **`VariantCreate`** with:
+    - `name` *(required)* - Variant name (non-empty)
+    - `pipeline_graph` *(required)* - Advanced graph representation
+    - `pipeline_graph_simple` *(required)* - Simplified graph representation
 
-    Returns:
-        201 Created:
-            Complete Variant object with:
-            * generated id
-            * read_only=false
-            * created_at and modified_at timestamps
-        400 Bad Request:
-            MessageResponse when variant definition is invalid.
-        404 Not Found:
-            MessageResponse when pipeline does not exist.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors.
+    ## Response Codes
 
-    Success conditions:
-        * Pipeline exists
-        * Variant definition is valid
-        * Variant is successfully added
+    | Code | Description |
+    |------|-------------|
+    | 201 | Complete Variant object with generated `id`, `read_only=false`, and timestamps |
+    | 400 | `MessageResponse` - Invalid variant definition |
+    | 404 | `MessageResponse` - Pipeline does not exist |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Failure conditions:
-        * Pipeline not found → 404
-        * Invalid variant definition → 400
-        * Any other exception → 500
+    ## Conditions
 
-    Request example:
-        .. code-block:: json
+    ### ✅ Success
+    - Pipeline exists
+    - Variant definition is valid
+    - Variant is successfully added
 
-            {
-              "name": "GPU",
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              },
-              "pipeline_graph_simple": {
-                "nodes": [...],
-                "edges": [...]
-              }
-            }
+    ### ❌ Failure
+    - Pipeline not found → 404
+    - Invalid variant definition → 400
+    - Any other exception → 500
 
-    Successful response example (201):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "id": "gpu",
-              "name": "GPU",
-              "read_only": false,
-              "pipeline_graph": {...},
-              "pipeline_graph_simple": {...},
-              "created_at": "2026-02-05T14:30:45.123000+00:00",
-              "modified_at": "2026-02-05T14:30:45.123000+00:00"
-            }
+    ### Request
+    ```json
+    {
+      "name": "GPU",
+      "pipeline_graph": {
+        "nodes": [...],
+        "edges": [...]
+      },
+      "pipeline_graph_simple": {
+        "nodes": [...],
+        "edges": [...]
+      }
+    }
+    ```
+
+    ### Success Response (201)
+    ```json
+    {
+      "id": "gpu",
+      "name": "GPU",
+      "read_only": false,
+      "pipeline_graph": {...},
+      "pipeline_graph_simple": {...},
+      "created_at": "2026-02-05T14:30:45.123000+00:00",
+      "modified_at": "2026-02-05T14:30:45.123000+00:00"
+    }
+    ```
     """
     try:
         new_variant = PipelineManager().add_variant(
@@ -878,8 +934,12 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
 @router.delete(
     "/{pipeline_id}/variants/{variant_id}",
     operation_id="delete_variant",
+    summary="Delete Variant",
     responses={
-        200: {"description": "Variant deleted", "model": schemas.MessageResponse},
+        200: {
+            "description": "Variant successfully deleted",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Cannot delete read-only variant or last variant",
             "model": schemas.MessageResponse,
@@ -892,63 +952,68 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
 )
 def delete_variant(pipeline_id: str, variant_id: str):
     """
-    Delete a variant from a pipeline.
+    **Delete a variant from a pipeline.**
 
-    Operation:
-        * Validate that pipeline and variant exist
-        * Check that variant is not read-only
-        * Check that variant is not the last one
-        * Delegate to PipelineManager.delete_variant()
-        * Pipeline's modified_at timestamp is updated
+    ## Operation
+    1. Validate that pipeline and variant exist
+    2. Check that variant is not read-only
+    3. Check that variant is not the last one
+    4. Delegate to `PipelineManager.delete_variant()`
+    5. Pipeline's `modified_at` timestamp is updated
 
-    Path parameters:
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant to delete.
+    ## Restrictions
+    **Cannot delete:**
+    - Read-only variants (from PREDEFINED pipelines)
+    - The last remaining variant of a pipeline
 
-    Cannot delete:
-        * Read-only variants (from PREDEFINED pipelines)
-        * The last remaining variant of a pipeline
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant to delete
 
-    Returns:
-        200 OK:
-            MessageResponse confirming deletion.
-        400 Bad Request:
-            MessageResponse when trying to delete read-only variant or last variant.
-        404 Not Found:
-            MessageResponse when pipeline or variant not found.
+    ## Response Codes
 
-    Success conditions:
-        * Pipeline and variant exist
-        * Variant is not read-only
-        * Variant is not the last one
-        * Variant is successfully deleted
-        * Pipeline's modified_at is updated
+    | Code | Description |
+    |------|-------------|
+    | 200 | `MessageResponse` confirming deletion |
+    | 400 | `MessageResponse` - Trying to delete read-only or last variant |
+    | 404 | `MessageResponse` - Pipeline or variant not found |
 
-    Failure conditions:
-        * Pipeline or variant not found → 404
-        * Variant is read-only → 400
-        * Variant is last one → 400
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - Pipeline and variant exist
+    - Variant is not read-only
+    - Variant is not the last one
+    - Variant is successfully deleted
+    - Pipeline's `modified_at` is updated
 
-            {
-              "message": "Variant deleted"
-            }
+    ### ❌ Failure
+    - Pipeline or variant not found → 404
+    - Variant is read-only → 400
+    - Variant is last one → 400
 
-    Error response example (400, read-only):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "message": "Cannot delete read-only variant 'variant-1'."
-            }
+    ### Success Response (200)
+    ```json
+    {
+      "message": "Variant deleted"
+    }
+    ```
 
-    Error response example (400, last variant):
-        .. code-block:: json
+    ### Error Response (400 - Read-only)
+    ```json
+    {
+      "message": "Cannot delete read-only variant 'variant-1'."
+    }
+    ```
 
-            {
-              "message": "Cannot delete variant 'variant-1' as it is the last variant in pipeline 'pipeline-a3f5d9e1'."
-            }
+    ### Error Response (400 - Last Variant)
+    ```json
+    {
+      "message": "Cannot delete variant 'variant-1' as it is the last variant in pipeline 'pipeline-a3f5d9e1'."
+    }
+    ```
     """
     try:
         PipelineManager().delete_variant(pipeline_id, variant_id)
@@ -974,8 +1039,9 @@ def delete_variant(pipeline_id: str, variant_id: str):
 @router.patch(
     "/{pipeline_id}/variants/{variant_id}",
     operation_id="update_variant",
+    summary="Update Variant",
     responses={
-        200: {"description": "Variant updated", "model": schemas.Variant},
+        200: {"description": "Variant successfully updated", "model": schemas.Variant},
         400: {
             "description": "Invalid request or cannot update read-only variant",
             "model": schemas.MessageResponse,
@@ -985,122 +1051,118 @@ def delete_variant(pipeline_id: str, variant_id: str):
             "model": schemas.MessageResponse,
         },
         422: {"description": "Validation error", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdate):
     """
-    Update an existing variant.
+    **Update an existing variant.**
 
-    Operation:
-        * Validate request body via VariantUpdate model (at least one field,
-          non-empty strings after trim, graph exclusivity)
-        * Validate that pipeline and variant exist
-        * Check that variant is not read-only
-        * Delegate to PipelineManager.update_variant()
-        * Backend automatically updates variant's and pipeline's modified_at timestamps
+    ## Operation
+    1. Validate request body via `VariantUpdate` model
+    2. Validate that pipeline and variant exist
+    3. Check that variant is not read-only
+    4. Delegate to `PipelineManager.update_variant()`
+    5. Backend automatically updates variant's and pipeline's `modified_at` timestamps
 
-    Note: The following fields cannot be updated via API:
-        * id (immutable)
-        * read_only (immutable)
-        * created_at (immutable, set when variant is created)
-        * modified_at (automatically updated by backend)
+    ## Immutable Fields
+    The following fields **cannot** be updated via API:
+    - `id` - Immutable identifier
+    - `read_only` - Immutable flag
+    - `created_at` - Immutable creation timestamp
+    - `modified_at` - Automatically updated by backend
 
-    Path parameters:
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant to update.
+    ## Restrictions
+    - Only one of `pipeline_graph` or `pipeline_graph_simple` can be provided per request
+    - Cannot update read-only variants (from PREDEFINED pipelines)
 
-    Request body:
-        body: VariantUpdate (validated by Pydantic)
-            * name: Optional variant name (non-empty after trim)
-            * pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple)
-            * pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph)
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant to update
 
-    Allowed fields:
-        * name: Variant name (non-empty after trim)
-        * pipeline_graph: Advanced graph (mutually exclusive with pipeline_graph_simple)
-        * pipeline_graph_simple: Simplified graph (mutually exclusive with pipeline_graph)
+    ## Request Body
+    **`VariantUpdate`** (validated by Pydantic) - any combination of:
+    - `name` *(optional)* - Variant name (non-empty after trim)
+    - `pipeline_graph` *(optional)* - Advanced graph (mutually exclusive with `pipeline_graph_simple`)
+    - `pipeline_graph_simple` *(optional)* - Simplified graph (mutually exclusive with `pipeline_graph`)
 
-    Only one of pipeline_graph or pipeline_graph_simple can be provided per request.
-    Cannot update read-only variants (from PREDEFINED pipelines).
+    ## Response Codes
 
-    Returns:
-        200 OK:
-            Updated Variant object with updated modified_at timestamp.
-        400 Bad Request:
-            MessageResponse when variant is read-only.
-        404 Not Found:
-            MessageResponse when pipeline or variant not found.
-        422 Unprocessable Entity:
-            Pydantic validation error when:
-            * no fields provided,
-            * both graphs provided,
-            * name is empty after trim.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors.
+    | Code | Description |
+    |------|-------------|
+    | 200 | Updated Variant object with new `modified_at` |
+    | 400 | `MessageResponse` - Variant is read-only |
+    | 404 | `MessageResponse` - Pipeline or variant not found |
+    | 422 | Pydantic validation error (no fields, both graphs, or empty name) |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Success conditions:
-        * Pipeline and variant exist
-        * Variant is not read-only
-        * At least one field provided
-        * At most one graph field provided
-        * Name is non-empty after trim (if provided)
-        * Variant is successfully updated
-        * Variant's and pipeline's modified_at are updated
+    ## Conditions
 
-    Failure conditions:
-        * Pipeline or variant not found → 404
-        * Variant is read-only → 400
-        * Invalid request (no fields, both graphs, empty name) → 422 (Pydantic validation)
-        * Any other exception → 500
+    ### ✅ Success
+    - Pipeline and variant exist
+    - Variant is not read-only
+    - At least one field provided
+    - At most one graph field provided
+    - Name is non-empty after trim (if provided)
+    - Variant is successfully updated
+    - Variant's and pipeline's `modified_at` are updated
 
-    Request example (update name):
-        .. code-block:: json
+    ### ❌ Failure
+    - Pipeline or variant not found → 404
+    - Variant is read-only → 400
+    - Invalid request (no fields, both graphs, empty name) → 422 (Pydantic validation)
+    - Any other exception → 500
 
-            {
-              "name": "GPU-optimized"
-            }
+    ## Examples
 
-    Request example (update advanced graph):
-        .. code-block:: json
+    ### Request (Update Name)
+    ```json
+    {
+      "name": "GPU-optimized"
+    }
+    ```
 
-            {
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              }
-            }
+    ### Request (Update Advanced Graph)
+    ```json
+    {
+      "pipeline_graph": {
+        "nodes": [...],
+        "edges": [...]
+      }
+    }
+    ```
 
-    Successful response example (200):
-        .. code-block:: json
+    ### Success Response (200)
+    ```json
+    {
+      "id": "variant-1",
+      "name": "GPU-optimized",
+      "read_only": false,
+      "pipeline_graph": {...},
+      "pipeline_graph_simple": {...},
+      "created_at": "2026-02-05T14:30:45.123000+00:00",
+      "modified_at": "2026-02-05T15:45:00.456000+00:00"
+    }
+    ```
 
-            {
-              "id": "variant-1",
-              "name": "GPU-optimized",
-              "read_only": false,
-              "pipeline_graph": {...},
-              "pipeline_graph_simple": {...},
-              "created_at": "2026-02-05T14:30:45.123000+00:00",
-              "modified_at": "2026-02-05T15:45:00.456000+00:00"
-            }
+    ### Error Response (400 - Read-only)
+    ```json
+    {
+      "message": "Cannot update read-only variant 'variant-1'."
+    }
+    ```
 
-    Error response example (400, read-only):
-        .. code-block:: json
-
-            {
-              "message": "Cannot update read-only variant 'variant-1'."
-            }
-
-    Error response example (422, empty name):
-        .. code-block:: json
-
-            {
-              "detail": [
-                {
-                  "type": "value_error",
-                  "msg": "Value error, Field 'name' must not be empty."
-                }
-              ]
-            }
+    ### Error Response (422 - Empty Name)
+    ```json
+    {
+      "detail": [
+        {
+          "type": "value_error",
+          "msg": "Value error, Field 'name' must not be empty."
+        }
+      ]
+    }
+    ```
     """
     try:
         updated_variant = PipelineManager().update_variant(
@@ -1141,9 +1203,10 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
 @router.post(
     "/{pipeline_id}/variants/{variant_id}/convert-to-simple",
     operation_id="convert_advanced_to_simple",
+    summary="Convert to Simple Graph",
     responses={
         200: {
-            "description": "Converted simple graph",
+            "description": "Successfully converted to simplified graph",
             "model": schemas.PipelineGraph,
         },
         400: {
@@ -1161,78 +1224,79 @@ def convert_advanced_to_simple(
     pipeline_id: str, variant_id: str, body: schemas.PipelineGraph
 ):
     """
-    Convert an advanced pipeline graph to simplified view without saving.
+    **Convert advanced pipeline graph to simplified view (read-only operation).**
 
-    Operation:
-        * Validate that pipeline and variant exist
-        * Convert the provided advanced graph (PipelineGraph) to a Graph object
-        * Validate the advanced graph and generate simplified view
-        * Return the simplified graph without modifying the variant
+    ## Operation
+    1. Validate that pipeline and variant exist
+    2. Convert provided advanced graph (PipelineGraph) to Graph object
+    3. Validate advanced graph and generate simplified view
+    4. Return simplified graph **without modifying the variant**
 
-    This is a read-only conversion operation. The variant is not modified.
-    Use PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph to
-    save changes.
+    > **Note:** This is a read-only conversion. To save changes, use
+    > `PATCH /{pipeline_id}/variants/{variant_id}` with `pipeline_graph`.
 
-    Path parameters:
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant (used for context/validation).
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant (used for context/validation)
 
-    Request body:
-        body: PipelineGraph
-            Advanced graph with all pipeline elements to convert.
+    ## Request Body
+    **`PipelineGraph`** - Advanced graph with all pipeline elements to convert
 
-    Returns:
-        200 OK:
-            PipelineGraph representing the simplified view.
-        400 Bad Request:
-            MessageResponse when the graph is invalid or cannot be converted.
-        404 Not Found:
-            MessageResponse when pipeline or variant not found.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors.
+    ## Response Codes
 
-    Success conditions:
-        * Pipeline and variant exist
-        * Advanced graph is valid and can be converted to GStreamer pipeline
-        * Simplified view is generated successfully
+    | Code | Description |
+    |------|-------------|
+    | 200 | `PipelineGraph` representing the simplified view |
+    | 400 | `MessageResponse` - Invalid graph or conversion failed |
+    | 404 | `MessageResponse` - Pipeline or variant not found |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Failure conditions:
-        * Pipeline or variant not found → 404
-        * Invalid graph structure → 400
-        * Conversion error → 400
-        * Any other exception → 500
+    ## Conditions
 
-    Request example:
-        .. code-block:: json
+    ### ✅ Success
+    - Pipeline and variant exist
+    - Advanced graph is valid and can be converted to GStreamer pipeline
+    - Simplified view is generated successfully
 
-            {
-              "nodes": [
-                {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
-                {"id": "1", "type": "queue", "data": {}},
-                {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
-                {"id": "3", "type": "fakesink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"},
-                {"id": "2", "source": "2", "target": "3"}
-              ]
-            }
+    ### ❌ Failure
+    - Pipeline or variant not found → 404
+    - Invalid graph structure → 400
+    - Conversion error → 400
+    - Any other exception → 500
 
-    Successful response example (200):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "nodes": [
-                {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
-                {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
-                {"id": "3", "type": "fakesink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "2"},
-                {"id": "1", "source": "2", "target": "3"}
-              ]
-            }
+    ### Request
+    ```json
+    {
+      "nodes": [
+        {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
+        {"id": "1", "type": "queue", "data": {}},
+        {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
+        {"id": "3", "type": "fakesink", "data": {}}
+      ],
+      "edges": [
+        {"id": "0", "source": "0", "target": "1"},
+        {"id": "1", "source": "1", "target": "2"},
+        {"id": "2", "source": "2", "target": "3"}
+      ]
+    }
+    ```
+
+    ### Success Response (200)
+    ```json
+    {
+      "nodes": [
+        {"id": "0", "type": "filesrc", "data": {"location": "video.mp4"}},
+        {"id": "2", "type": "gvadetect", "data": {"model": "detection"}},
+        {"id": "3", "type": "fakesink", "data": {}}
+      ],
+      "edges": [
+        {"id": "0", "source": "0", "target": "2"},
+        {"id": "1", "source": "2", "target": "3"}
+      ]
+    }
+    ```
     """
     try:
         # Validate pipeline and variant exist
@@ -1282,9 +1346,10 @@ def convert_advanced_to_simple(
 @router.post(
     "/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
     operation_id="convert_simple_to_advanced",
+    summary="Convert to Advanced Graph",
     responses={
         200: {
-            "description": "Converted advanced graph",
+            "description": "Successfully converted to advanced graph",
             "model": schemas.PipelineGraph,
         },
         400: {
@@ -1302,93 +1367,92 @@ def convert_simple_to_advanced(
     pipeline_id: str, variant_id: str, body: schemas.PipelineGraph
 ):
     """
-    Convert a simplified pipeline graph to advanced view without saving.
+    **Convert simplified pipeline graph to advanced view (read-only operation).**
 
-    Operation:
-        * Validate that pipeline and variant exist
-        * Convert the provided simple graph (PipelineGraph) to a Graph object
-        * Validate simple graph changes and merge into advanced view
-        * Return the updated advanced graph without modifying the variant
+    ## Operation
+    1. Validate that pipeline and variant exist
+    2. Convert provided simple graph (PipelineGraph) to Graph object
+    3. Validate simple graph changes and merge into advanced view
+    4. Return updated advanced graph **without modifying the variant**
 
-    This is a read-only conversion operation. The variant is not modified.
-    The conversion uses the variant's current advanced graph as base and
-    applies property changes from the simple graph.
+    > **Note:** This is a read-only conversion. The conversion uses the variant's current
+    > advanced graph as base and applies property changes from the simple graph.
+    >
+    > To save changes, use `PATCH /{pipeline_id}/variants/{variant_id}` with `pipeline_graph_simple`.
+    >
+    > **Only property modifications are allowed.** Structural changes (adding/removing
+    > nodes or edges) will be rejected.
 
-    Use PATCH /{pipeline_id}/variants/{variant_id} with pipeline_graph_simple
-    to save changes.
+    ## Path Parameters
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant whose advanced graph is used as base
 
-    Note: Only property modifications are allowed. Structural changes
-    (adding/removing nodes or edges) will be rejected.
+    ## Request Body
+    **`PipelineGraph`** - Simplified graph with property changes to apply
 
-    Path parameters:
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant whose advanced graph is used as base.
+    ## Response Codes
 
-    Request body:
-        body: PipelineGraph
-            Simplified graph with property changes to apply.
+    | Code | Description |
+    |------|-------------|
+    | 200 | `PipelineGraph` representing the updated advanced view |
+    | 400 | `MessageResponse` - Invalid graph, structural changes, or merge failed |
+    | 404 | `MessageResponse` - Pipeline or variant not found |
+    | 500 | `MessageResponse` - Unexpected error |
 
-    Returns:
-        200 OK:
-            PipelineGraph representing the updated advanced view.
-        400 Bad Request:
-            MessageResponse when the graph is invalid, contains structural
-            changes, or cannot be merged.
-        404 Not Found:
-            MessageResponse when pipeline or variant not found.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors.
+    ## Conditions
 
-    Success conditions:
-        * Pipeline and variant exist
-        * Simple graph contains only property changes (no structural changes)
-        * Changes can be merged into advanced graph
-        * Resulting advanced graph is valid
+    ### ✅ Success
+    - Pipeline and variant exist
+    - Simple graph contains **only property changes** (no structural changes)
+    - Changes can be merged into advanced graph
+    - Resulting advanced graph is valid
 
-    Failure conditions:
-        * Pipeline or variant not found → 404
-        * Structural changes detected (nodes/edges added/removed) → 400
-        * Invalid resulting graph → 400
-        * Any other exception → 500
+    ### ❌ Failure
+    - Pipeline or variant not found → 404
+    - Structural changes detected (nodes/edges added/removed) → 400
+    - Invalid resulting graph → 400
+    - Any other exception → 500
 
-    Request example:
-        .. code-block:: json
+    ## Examples
 
-            {
-              "nodes": [
-                {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
-                {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
-                {"id": "3", "type": "fakesink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "2"},
-                {"id": "1", "source": "2", "target": "3"}
-              ]
-            }
+    ### Request
+    ```json
+    {
+      "nodes": [
+        {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
+        {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
+        {"id": "3", "type": "fakesink", "data": {}}
+      ],
+      "edges": [
+        {"id": "0", "source": "0", "target": "2"},
+        {"id": "1", "source": "2", "target": "3"}
+      ]
+    }
+    ```
 
-    Successful response example (200):
-        .. code-block:: json
+    ### Success Response (200)
+    ```json
+    {
+      "nodes": [
+        {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
+        {"id": "1", "type": "queue", "data": {}},
+        {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
+        {"id": "3", "type": "fakesink", "data": {}}
+      ],
+      "edges": [
+        {"id": "0", "source": "0", "target": "1"},
+        {"id": "1", "source": "1", "target": "2"},
+        {"id": "2", "source": "2", "target": "3"}
+      ]
+    }
+    ```
 
-            {
-              "nodes": [
-                {"id": "0", "type": "filesrc", "data": {"location": "new_video.mp4"}},
-                {"id": "1", "type": "queue", "data": {}},
-                {"id": "2", "type": "gvadetect", "data": {"model": "new_model"}},
-                {"id": "3", "type": "fakesink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"},
-                {"id": "2", "source": "2", "target": "3"}
-              ]
-            }
-
-    Error response example (400, structural change):
-        .. code-block:: json
-
-            {
-              "message": "Invalid pipeline_graph_simple: Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes."
-            }
+    ### Error Response (400 - Structural Change)
+    ```json
+    {
+      "message": "Invalid pipeline_graph_simple: Node additions are not supported in simple view. Added nodes: 4. Please use advanced view to add new nodes."
+    }
+    ```
     """
     try:
         # Validate pipeline and variant exist

@@ -4,7 +4,7 @@ This article contains troubleshooting steps for known issues. If you encounter a
 with the application not addressed here, check the [GitHub Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues)
 board. Feel free to file new tickets there.
 
-## Troubleshooting
+## Solutions
 
 ### Using REST API in Image Ingestor mode has low first inference latency
 
@@ -44,9 +44,11 @@ gpu:
 ### Deploying without Intel GPU K8S Extension
 
 If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
+
 ```sh
 privileged_access_required: true
 ```
+
 Keep in mind that without GPU K8S extension gpu.enable must be set to false
 
 ---
@@ -56,6 +58,7 @@ Keep in mind that without GPU K8S extension gpu.enable must be set to false
 If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 with Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
+
 ```sh
 npu:
    enabled: true
@@ -69,9 +72,11 @@ npu:
 If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 without Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
+
 ```sh
 privileged_access_required: true
 ```
+
 Keep in mind that without NPU K8S extension gpu.enable must be set to false
 
 ---
@@ -80,6 +85,7 @@ Keep in mind that without NPU K8S extension gpu.enable must be set to false
 
 If you are using GPU elements in the pipeline, RTSP/WebRTC streaming, S3_write and MQTT will not work because these are expects CPU buffer. \
 Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in case you are using S3_write) in the GPU pipeline.
+
 ```sh
 # Sample pipeline
 
@@ -91,7 +97,8 @@ Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in ca
 ### RTSP streaming fails if you are using udfloader
 
 If you are using [udfloader pipeline](./how-to-guides/run-udf-pipelines.md), RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
-If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add  `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
+If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
+
 ```sh
 # Sample pipeline
 
@@ -107,28 +114,36 @@ If you see the following warning in Prometheus, it indicates a time sync issue.
 **Warning: Error fetching server time: Detected xxx.xxx seconds time difference between your browser and the server.**
 
 You can following the below steps to synchronize system time using NTP.
+
 1. **Install systemd-timesyncd** if not already installed:
+
    ```bash
    sudo apt install systemd-timesyncd
    ```
 
 2. **Check service status**:
+
    ```bash
    systemctl status systemd-timesyncd
    ```
 
 3. **Configure an NTP server** (if behind a corporate proxy):
+
    ```bash
    sudo nano /etc/systemd/timesyncd.conf
    ```
+
    Add:
+
    ```ini
    [Time]
    NTP=corp.intel.com
    ```
+
    Replace `corp.intel.com` with a different ntp server that is supported on your network.
 
 4. **Restart the service**:
+
    ```bash
    sudo systemctl restart systemd-timesyncd
    ```
@@ -143,7 +158,9 @@ This should resolve the time discrepancy in Prometheus.
 ---
 
 ### WebRTC Stream on web browser
+
 The firewall may prevent you from viewing the video stream on web browser. Please disable the firewall using this command.
+
 ```sh
 sudo ufw disable
 ```
@@ -180,6 +197,7 @@ User has to install `docker compose v2` to run DL Streamer Pipeline Server on Ub
 ## Error Logs
 
 View the container logs using this command.
+
 ```sh
 docker logs -f <CONTAINER_NAME>
 ```

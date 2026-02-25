@@ -19,55 +19,55 @@ clients_lock = Lock()
 @router.websocket("/ws/collector")
 async def collector_websocket(websocket: WebSocket):
     """
-    WebSocket endpoint for a single metrics collector.
+    **WebSocket endpoint for a single metrics collector.**
 
-    Operation:
-        * Accept exactly one collector connection at a time.
-        * Receive metric batches from the collector as JSON (mode="binary").
-        * Broadcast every received payload to all connected client websockets
-          at ``/ws/clients`` as JSON (mode="text").
+    ## Operation
 
-    Path:
-        /ws/collector
+    1. Accepts exactly one collector connection at a time
+    2. Receives metric batches from the collector as JSON (mode="binary")
+    3. Broadcasts every received payload to all connected client websockets at /ws/clients as JSON (mode="text")
 
-    Protocol:
-        * Client must open a WebSocket handshake.
-        * On success, server replies with HTTP 101 (Switching Protocols).
-        * If another collector is already connected, the new connection is:
-          - accepted,
-          - sent a short text message
-            ``"Collector already connected; only one allowed."``,
-          - then closed with code ``1008`` (Policy Violation).
+    ## Protocol
 
-    Success cases:
-        * Single collector connected and sending JSON messages.
-        * All messages are forwarded to currently connected clients.
+    - Client opens WebSocket handshake
+    - On success, server replies with HTTP 101 (Switching Protocols)
+    - If another collector is already connected:
+      - New connection is accepted
+      - Sent message: "Collector already connected; only one allowed."
+      - Then closed with code 1008 (Policy Violation)
 
-    Failure cases (non‑exhaustive):
-        * Second collector connection attempt → connection closed with 1008.
-        * Network / protocol error → `WebSocketDisconnect`, logged and cleaned up.
-        * Unexpected exception → logged; collector slot is released.
+    ## Conditions
 
-    Collector request example (JSON message):
-        .. code-block:: json
+    ### ✅ Success
+    - Single collector connected and sending JSON messages
+    - All messages are forwarded to currently connected clients
 
-            [
-              {
-                "name": "total_fps",
-                "description": "Total FPS over all streams",
-                "timestamp": 1715000000000,
-                "value": 512.4
-              },
-              {
-                "name": "cpu_usage",
-                "description": "CPU utilization in percent",
-                "timestamp": 1715000000000,
-                "value": 75.3
-              }
-            ]
+    ### ❌ Failure
+    - Second collector connection attempt → connection closed with 1008
+    - Network/protocol error → WebSocketDisconnect, logged and cleaned up
+    - Unexpected exception → logged; collector slot is released
 
-    Forwarded message example (to /ws/clients):
-        Exactly the same JSON payload as received from the collector.
+    ## Example Message
+
+    Collector request (JSON):
+    ```json
+    [
+      {
+        "name": "total_fps",
+        "description": "Total FPS over all streams",
+        "timestamp": 1715000000000,
+        "value": 512.4
+      },
+      {
+        "name": "cpu_usage",
+        "description": "CPU utilization in percent",
+        "timestamp": 1715000000000,
+        "value": 75.3
+      }
+    ]
+    ```
+
+    Forwarded to /ws/clients: Same JSON payload as received.
     """
     global collector_ws
     await websocket.accept()
@@ -116,41 +116,43 @@ async def collector_websocket(websocket: WebSocket):
 @router.websocket("/ws/clients")
 async def clients_websocket(websocket: WebSocket):
     """
-    WebSocket endpoint for clients that receive live metrics.
+    **WebSocket endpoint for clients that receive live metrics.**
 
-    Operation:
-        * Accept any number of client connections.
-        * Keep connection open and push every metrics payload received from
-          ``/ws/collector`` as JSON to each client.
-        * Messages sent from clients are currently ignored and only logged.
+    ## Operation
 
-    Path:
-        /ws/clients
+    1. Accepts any number of client connections
+    2. Keeps connection open and pushes every metrics payload received from /ws/collector as JSON to each client
+    3. Messages sent from clients are ignored and only logged
 
-    Protocol:
-        * Client must open a WebSocket handshake.
-        * On success, server replies with HTTP 101 (Switching Protocols).
-        * Client is expected to keep the connection alive (e.g. via ping/pong).
-        * Text messages sent by the client are read but not processed.
+    ## Protocol
 
-    Success cases:
-        * Client connection stays open and receives broadcast metrics.
+    - Client opens WebSocket handshake
+    - On success, server replies with HTTP 101 (Switching Protocols)
+    - Client should keep connection alive (e.g. via ping/pong)
+    - Text messages sent by the client are read but not processed
 
-    Failure cases:
-        * Network / protocol error → `WebSocketDisconnect`, connection removed.
-        * Unexpected exception → logged; connection removed from the set.
+    ## Conditions
 
-    Example (message received by client):
-        .. code-block:: json
+    ### ✅ Success
+    - Client connection stays open and receives broadcast metrics
 
-            [
-              {
-                "name": "total_fps",
-                "description": "Total FPS over all streams",
-                "timestamp": 1715000000000,
-                "value": 512.4
-              }
-            ]
+    ### ❌ Failure
+    - Network/protocol error → WebSocketDisconnect, connection removed
+    - Unexpected exception → logged; connection removed from the set
+
+    ## Example Message
+
+    Message received by client:
+    ```json
+    [
+      {
+        "name": "total_fps",
+        "description": "Total FPS over all streams",
+        "timestamp": 1715000000000,
+        "value": 512.4
+      }
+    ]
+    ```
     """
     await websocket.accept()
     logger.debug("Client connected: %s", websocket.client)

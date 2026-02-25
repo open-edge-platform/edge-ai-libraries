@@ -5,7 +5,7 @@ export interface AsyncJobStatus {
   start_time: number;
   elapsed_time: number;
   state: "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
-  error_message?: string[] | null;
+  error_message?: string[] | string | null;
 }
 
 interface AsyncJobResponse {
@@ -152,6 +152,7 @@ export function useAsyncJob<
         onFinallyRef.current?.();
         jobResolveRef.current = null;
         jobRejectRef.current = null;
+        setJobId(null);
       }
     };
 

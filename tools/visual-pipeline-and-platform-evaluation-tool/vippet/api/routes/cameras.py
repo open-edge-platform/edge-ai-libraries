@@ -29,58 +29,62 @@ logger = logging.getLogger("api.routes.cameras")
 )
 def get_cameras():
     """
-    Get all cameras (both USB and network) available to the system.
+    **Get all cameras (both USB and network) available to the system.**
 
-    This endpoint combines results from both USB and network camera discovery
-    to provide a comprehensive list of all available camera devices.
+    ## Operation
+    Combines results from both USB and network camera discovery to provide
+    a comprehensive list of all available camera devices.
 
-    Operation:
-        * Discover all USB cameras using v4l2-ctl or device scanning.
-        * Discover all network cameras using various protocols.
-        * Combine and return the complete list.
+    1. Discover all USB cameras using v4l2-ctl or device scanning
+    2. Discover all network cameras using various protocols
+    3. Combine and return the complete list
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    - **Path/Query parameters:** None
 
-    Returns:
-        200 OK:
-            JSON array of Camera objects containing both USB and network cameras.
-            If no cameras are found, an empty list is returned.
-        500 Internal Server Error:
-            MessageResponse with error description if discovery fails unexpectedly.
+    ## Response Codes
 
-    Success conditions:
-        * At least one discovery method succeeds.
-        * Results can be combined and returned.
+    | Code | Description |
+    |------|-------------|
+    | 200 | JSON array of Camera objects (USB and network cameras) |
+    | 500 | `MessageResponse` - Unexpected error during discovery |
 
-    Failure conditions:
-        * Both USB and network discovery fail.
-        * System error during discovery process.
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - At least one discovery method succeeds
+    - Results can be combined and returned
+    - Empty list is returned if no cameras are found
 
-            [
-              {
-                "device_id": "usb-camera-0",
-                "device_name": "Integrated Camera",
-                "device_type": "USB",
-                "details": {
-                  "device_path": "/dev/video0",
-                  "resolution": "1920x1080"
-                }
-              },
-              {
-                "device_id": "network-camera-192.168.1.100-80",
-                "device_name": "ONVIF Camera 192.168.1.100",
-                "device_type": "NETWORK",
-                "details": {
-                  "ip": "192.168.1.100",
-                  "port": 80,
-                  "profiles": []
-                }
-              }
-            ]
+    ### ❌ Failure
+    - Both USB and network discovery fail
+    - System error during discovery process
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "device_id": "usb-camera-0",
+        "device_name": "Integrated Camera",
+        "device_type": "USB",
+        "details": {
+          "device_path": "/dev/video0",
+          "resolution": "1920x1080"
+        }
+      },
+      {
+        "device_id": "network-camera-192.168.1.100-80",
+        "device_name": "ONVIF Camera 192.168.1.100",
+        "device_type": "NETWORK",
+        "details": {
+          "ip": "192.168.1.100",
+          "port": 80,
+          "profiles": []
+        }
+      }
+    ]
+    ```
     """
     try:
         cameras = CameraManager().discover_all_cameras()
@@ -118,46 +122,48 @@ def get_cameras():
 )
 def get_camera(camera_id: str):
     """
-    Get a specific camera by its ID.
+    **Get a specific camera by its ID.**
 
-    This endpoint retrieves information about a single camera device using its
-    unique identifier. The camera must be already discovered and cached.
+    ## Operation
+    Retrieves information about a single camera device using its unique identifier.
+    The camera must be already discovered and cached.
 
-    Operation:
-        * Search for the camera in the cached cameras list.
-        * Return camera details if found.
+    1. Search for the camera in the cached cameras list
+    2. Return camera details if found
 
-    Path parameters:
-        camera_id: The unique identifier of the camera (e.g., "usb-camera-0" or
-                   "network-camera-192.168.1.100-80").
+    ## Path Parameters
+    - `camera_id` - The unique identifier of the camera (e.g., `"usb-camera-0"` or `"network-camera-192.168.1.100-80"`)
 
-    Returns:
-        200 OK:
-            JSON object containing camera details.
-        404 Not Found:
-            MessageResponse if camera with the given ID is not found.
-        500 Internal Server Error:
-            MessageResponse with error description if retrieval fails unexpectedly.
+    ## Response Codes
 
-    Success conditions:
-        * Camera with the given ID exists in the cache.
+    | Code | Description |
+    |------|-------------|
+    | 200 | JSON object containing camera details |
+    | 404 | `MessageResponse` - Camera with the given ID not found |
+    | 500 | `MessageResponse` - Unexpected error during retrieval |
 
-    Failure conditions:
-        * Camera with the given ID does not exist.
-        * System error during retrieval.
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - Camera with the given ID exists in the cache
 
-            {
-              "device_id": "usb-camera-0",
-              "device_name": "Integrated Camera",
-              "device_type": "USB",
-              "details": {
-                "device_path": "/dev/video0",
-                "resolution": "1920x1080"
-              }
-            }
+    ### ❌ Failure
+    - Camera with the given ID does not exist → 404
+    - System error during retrieval → 500
+
+    ## Example Response
+
+    ```json
+    {
+      "device_id": "usb-camera-0",
+      "device_name": "Integrated Camera",
+      "device_type": "USB",
+      "details": {
+        "device_path": "/dev/video0",
+        "resolution": "1920x1080"
+      }
+    }
+    ```
     """
     try:
         camera = CameraManager().get_camera_by_id(camera_id)
@@ -210,78 +216,81 @@ def get_camera(camera_id: str):
 )
 def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest):
     """
-    Load ONVIF profiles from a network camera.
+    **Load ONVIF profiles from a network camera.**
 
-    This endpoint connects to a specific ONVIF-compatible network camera using
-    the provided credentials and loads all available media profiles from the camera.
+    ## Operation
+    Connects to a specific ONVIF-compatible network camera using the provided
+    credentials and loads all available media profiles from the camera.
 
-    Operation:
-        * Parse the camera_id to extract IP address and port
-        * Establish ONVIF connection with provided credentials
-        * Load all available media profiles from the camera
-        * Update the cached camera with profile information
-        * Return updated camera object
+    1. Parse the `camera_id` to extract IP address and port
+    2. Establish ONVIF connection with provided credentials
+    3. Load all available media profiles from the camera
+    4. Update the cached camera with profile information
+    5. Return updated camera object
 
-    Path parameters:
-        camera_id: The unique identifier of the camera (e.g., "network-camera-192.168.1.100-80").
+    ## Path Parameters
+    - `camera_id` - Unique identifier of the camera (e.g., `"network-camera-192.168.1.100-80"`)
 
-    Request body:
-        JSON object with username and password.
+    ## Request Body
+    **`CameraProfilesRequest`** with:
+    - `username` *(required)* - ONVIF camera username
+    - `password` *(required)* - ONVIF camera password
 
-    Returns:
-        200 OK:
-            CameraAuthResponse with updated camera object containing profiles.
-        400 Bad Request:
-            Invalid camera_id format.
-        401 Unauthorized:
-            Failed to load profiles - credentials rejected by camera.
-        404 Not Found:
-            Camera with specified ID not found or not reachable.
-        500 Internal Server Error:
-            Unexpected error during profile loading.
+    ## Response Codes
 
-    Success conditions:
-        * Camera is reachable on the network.
-        * Credentials are valid.
-        * Camera supports ONVIF protocol.
+    | Code | Description |
+    |------|-------------|
+    | 200 | `CameraAuthResponse` with updated camera object containing profiles |
+    | 400 | `MessageResponse` - Invalid camera_id format |
+    | 401 | `MessageResponse` - Credentials rejected by camera |
+    | 404 | `MessageResponse` - Camera not found or not reachable |
+    | 500 | `MessageResponse` - Unexpected error during profile loading |
 
-    Failure conditions:
-        * Invalid camera_id format.
-        * Camera is offline or unreachable.
-        * Invalid credentials.
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - Camera is reachable on the network
+    - Credentials are valid
+    - Camera supports ONVIF protocol
 
+    ### ❌ Failure
+    - Invalid camera_id format → 400
+    - Camera is offline or unreachable → 404
+    - Invalid credentials → 401
+
+    ## Example Response
+
+    ```json
+    {
+      "camera": {
+        "device_id": "network-camera-192.168.1.100-80",
+        "device_name": "ONVIF Camera 192.168.1.100",
+        "device_type": "NETWORK",
+        "details": {
+          "ip": "192.168.1.100",
+          "port": 80,
+          "profiles": [
             {
-              "camera": {
-                "device_id": "network-camera-192.168.1.100-80",
-                "device_name": "ONVIF Camera 192.168.1.100",
-                "device_type": "NETWORK",
-                "details": {
-                  "ip": "192.168.1.100",
-                  "port": 80,
-                  "profiles": [
-                    {
-                      "name": "Profile_1",
-                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
-                      "resolution": "1920x1080",
-                      "encoding": "H264",
-                      "framerate": 30,
-                      "bitrate": 4096
-                    },
-                    {
-                      "name": "Profile_2",
-                      "rtsp_url": "rtsp://192.168.1.100:554/stream2",
-                      "resolution": "1280x720",
-                      "encoding": "H264",
-                      "framerate": 15,
-                      "bitrate": 2048
-                    }
-                  ]
-                }
-              }
+              "name": "Profile_1",
+              "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+              "resolution": "1920x1080",
+              "encoding": "H264",
+              "framerate": 30,
+              "bitrate": 4096
+            },
+            {
+              "name": "Profile_2",
+              "rtsp_url": "rtsp://192.168.1.100:554/stream2",
+              "resolution": "1280x720",
+              "encoding": "H264",
+              "framerate": 15,
+              "bitrate": 2048
             }
+          ]
+        }
+      }
+    }
+    ```
     """
     try:
         authenticated_camera = CameraManager().load_camera_profiles(
