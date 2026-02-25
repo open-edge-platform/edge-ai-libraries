@@ -53,7 +53,9 @@ Choose the appropriate `values*.yaml` file based on the model server you want to
 
 Note: If deploying from a cloned repo, the user can choose to edit only the `values.yaml` file which is symlinked to `values_ovms.yaml` as default option. When the chart is downloaded from registry, the symlink gets removed and the user should use the preferred `values*.yaml` file.
 
-Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Ensure you set the `huggingface.apiToken`, proxy settings, and `dataprepPgvector.env.ALLOWED_HOSTS` as required.
+
+For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration).
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -74,9 +76,10 @@ Ensure you set the `huggingface.apiToken` and proxy settings as required.
 | `global.GPU.enabled` | For model server deployed on GPU | false |
 | `global.GPU.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
+| `dataprepPgvector.env.ALLOWED_HOSTS` | Mandatory comma-separated trusted domains for URL ingestion (SSRF mitigation) | `example.com,subdomain.example.com` |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `2.0.1`   |
+| `Chatqna.image.tag` | latest image tag                                  | `2.1.0`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |

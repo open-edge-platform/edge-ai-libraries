@@ -80,7 +80,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:1.2.3
+    image: ${REGISTRY:-}document-ingestion:latest
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -98,6 +98,7 @@ services:
       MINIO_API_PORT: ${MINIO_API_PORT:-9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?error}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?error}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?error}
     ports:
       - "8000:8000"
     depends_on:
@@ -217,7 +218,7 @@ services:
     shm_size: "1g"
 
   ovms-service:
-    image: openvino/model_server:2025.4.1
+    image: openvino/model_server:2026.0
     container_name: ovms-service
     profiles:
       - OVMS
@@ -266,7 +267,7 @@ services:
 
 
   ovms-service-gpu:
-    image: openvino/model_server:2025.4.1-gpu
+    image: openvino/model_server:2026.0-gpu
     container_name: ovms-service
     profiles:
       - GPU-OVMS
