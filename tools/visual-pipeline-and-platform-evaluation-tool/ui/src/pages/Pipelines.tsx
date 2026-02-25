@@ -31,13 +31,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ArrowLeft, Redo2, Save, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, Eye, Film, Infinity, Redo2, Save, SlidersHorizontal, Timer, Undo2 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 
 type UrlParams = {
@@ -46,7 +50,8 @@ type UrlParams = {
 };
 
 export const Pipelines = () => {
-  const LOOPING_MAX_RUNTIME_SECONDS = 1 * 60;
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
   const source = searchParams.get("source");
@@ -61,6 +66,9 @@ export const Pipelines = () => {
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(true);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
+  const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
+    DEFAULT_LOOPING_RUNTIME_SECONDS.toString(),
+  );
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -217,6 +225,18 @@ export const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const parsedLoopingRuntimeSeconds = Number.parseInt(
+        loopingRuntimeSeconds,
+        10,
+      );
+      const maxRuntimeSeconds = livePreviewEnabled
+        ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+        : loopingEnabled
+          ? Number.isNaN(parsedLoopingRuntimeSeconds)
+            ? DEFAULT_LOOPING_RUNTIME_SECONDS
+            : Math.max(1, parsedLoopingRuntimeSeconds)
+          : 0;
+
       const outputMode: OutputMode = livePreviewEnabled
         ? "live_stream"
         : videoOutputEnabled
@@ -258,7 +278,7 @@ export const Pipelines = () => {
           ],
           execution_config: {
             output_mode: outputMode,
-            max_runtime: loopingEnabled ? LOOPING_MAX_RUNTIME_SECONDS : 0,
+            max_runtime: maxRuntimeSeconds,
           },
         },
       }).unwrap();
@@ -377,114 +397,13 @@ export const Pipelines = () => {
             isSimpleGraph={isSimpleMode}
           />
         </div>
-
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
-          <div className="flex gap-2">
-            {id && variant && (
-              <ViewModeSwitcher
-                pipelineId={id}
-                variant={variant}
-                isPredefined={data.source === "PREDEFINED"}
-                isSimpleMode={isSimpleMode}
-                currentNodes={currentNodes}
-                currentEdges={currentEdges}
-                hasUnsavedChanges={canUndo}
-                onModeChange={setIsSimpleMode}
-                onTransitionStart={() => setIsTransitioning(true)}
-                onTransitionEnd={() => setIsTransitioning(false)}
-                onClearGraph={() => {
-                  setCurrentNodes([]);
-                  setCurrentEdges([]);
-                }}
-                onRefetch={refetch}
-                onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
-                onResetHistory={resetHistory}
-              />
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={videoOutputEnabled}
-                    onCheckedChange={(checked) => {
-                      const isChecked = checked === true;
-                      setVideoOutputEnabled(isChecked);
-                      if (isChecked) {
-                        setLivePreviewEnabled(false);
-                      }
-                    }}
-                  />
-                  <span className="text-sm font-medium">Save output</span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>
-                  Selecting this option changes the last fakesink to filesink so
-                  it is possible to view generated output
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={loopingEnabled}
-                    onCheckedChange={(checked) =>
-                      setLoopingEnabled(checked === true)
-                    }
-                  />
-                  <span className="text-sm font-medium">Looping</span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>
-                  When enabled, the pipeline keeps running in a loop until you
-                  stop it manually.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={livePreviewEnabled}
-                    onCheckedChange={(checked) => {
-                      const isChecked = checked === true;
-                      setLivePreviewEnabled(isChecked);
-                      if (isChecked) {
-                        setVideoOutputEnabled(false);
-                      }
-                    }}
-                  />
-                  <span className="text-sm font-medium">Live preview</span>
-                </label>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>
-                  When enabled, the pipeline provides a live preview of the output.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          
-        </div>
       </div>
     );
 
     return (
       <div className="flex flex-col h-full w-full">
-        <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
-          <div className="flex items-center gap-2 px-2">
+        <header className="flex min-h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b py-2">
+          <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
               className="p-2 hover:bg-accent rounded transition-colors"
@@ -500,6 +419,143 @@ export const Pipelines = () => {
                 source={source}
                 hasUnsavedChanges={canUndo}
               />
+            )}
+
+            {id && variant && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="ml-1">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Pipeline options
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[420px] p-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Advanced view
+                      </p>
+                      <ViewModeSwitcher
+                        pipelineId={id}
+                        variant={variant}
+                        isPredefined={data.source === "PREDEFINED"}
+                        isSimpleMode={isSimpleMode}
+                        currentNodes={currentNodes}
+                        currentEdges={currentEdges}
+                        hasUnsavedChanges={canUndo}
+                        onModeChange={setIsSimpleMode}
+                        onTransitionStart={() => setIsTransitioning(true)}
+                        onTransitionEnd={() => setIsTransitioning(false)}
+                        onClearGraph={() => {
+                          setCurrentNodes([]);
+                          setCurrentEdges([]);
+                        }}
+                        onRefetch={refetch}
+                        onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+                        onResetHistory={resetHistory}
+                      />
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Film className="h-4 w-4 text-muted-foreground" />
+                          <span>Save output</span>
+                        </div>
+                        <Switch
+                          disabled={(loopingEnabled || livePreviewEnabled) && !videoOutputEnabled}
+                          checked={videoOutputEnabled}
+                          onCheckedChange={(checked) => {
+                            setVideoOutputEnabled(checked);
+                            if (checked) {
+                              setLivePreviewEnabled(false);
+                              setLoopingEnabled(false);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Infinity className="h-4 w-4 text-muted-foreground" />
+                          <span>Looping</span>
+                        </div>
+                        <Switch
+                          disabled={(videoOutputEnabled || livePreviewEnabled) && !loopingEnabled}
+                          checked={loopingEnabled}
+                          onCheckedChange={(checked) => {
+                            setLoopingEnabled(checked);
+                            if (checked) {
+                              setVideoOutputEnabled(false);
+                              setLivePreviewEnabled(false);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {loopingEnabled && (
+                        <div className="ml-6 flex items-center gap-2">
+                          <Timer className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            Duration
+                          </span>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={loopingRuntimeSeconds}
+                            onChange={(event) =>
+                              setLoopingRuntimeSeconds(event.target.value)
+                            }
+                            onBlur={() => {
+                              const parsedSeconds = Number.parseInt(
+                                loopingRuntimeSeconds,
+                                10,
+                              );
+
+                              if (
+                                Number.isNaN(parsedSeconds) ||
+                                parsedSeconds < 1
+                              ) {
+                                setLoopingRuntimeSeconds(
+                                  DEFAULT_LOOPING_RUNTIME_SECONDS.toString(),
+                                );
+                              }
+                            }}
+                            className="h-8 w-24 px-2 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            s
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <span>Live preview</span>
+                        </div>
+                        <Switch
+                          disabled={
+                            (videoOutputEnabled || loopingEnabled) &&
+                            !livePreviewEnabled
+                          }
+                          checked={livePreviewEnabled}
+                          onCheckedChange={(checked) => {
+                            setLivePreviewEnabled(checked);
+                            if (checked) {
+                              setVideoOutputEnabled(false);
+                              setLoopingEnabled(false);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           <div className="flex items-center gap-2 px-4">
