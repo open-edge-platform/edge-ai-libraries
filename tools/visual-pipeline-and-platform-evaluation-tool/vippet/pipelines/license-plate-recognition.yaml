@@ -20,6 +20,7 @@ variants:
         pre-process-backend=opencv
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
@@ -51,6 +52,7 @@ variants:
         device=GPU
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
@@ -82,6 +84,7 @@ variants:
         device=GPU
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
@@ -89,7 +92,7 @@ variants:
       gvaclassify
         model=/models/output/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
         model-instance-id=classify0-gpu-npu
-        pre-process-backend=va
+        pre-process-backend=opencv
         device=NPU
         batch-size=0
         inference-interval=3

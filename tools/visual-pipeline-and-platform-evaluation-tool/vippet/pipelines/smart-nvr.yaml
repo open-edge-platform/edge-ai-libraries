@@ -19,20 +19,20 @@ variants:
       video/x-raw !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolov10s/FP16/yolov10s.xml
         model-instance-id=detect0
         pre-process-backend=opencv
         device=CPU
         batch-size=0
+        inference-region=full-frame
         inference-interval=3
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
         pre-process-backend=opencv
         device=CPU
@@ -61,20 +61,20 @@ variants:
       video/x-raw(memory:VAMemory) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolov10s/FP16/yolov10s.xml
         model-instance-id=detect0
         pre-process-backend=va-surface-sharing
         device=GPU
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
         pre-process-backend=va-surface-sharing
         device=GPU
@@ -104,22 +104,22 @@ variants:
       video/x-raw\(memory:VAMemory\) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolov10s/FP16/yolov10s.xml
         model-instance-id=detect0
-        pre-process-backend=va
+        pre-process-backend=opencv
         device=NPU
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0
-        pre-process-backend=va
+        pre-process-backend=opencv
         device=NPU
         batch-size=0
         inference-interval=3
@@ -146,22 +146,22 @@ variants:
       video/x-raw(memory:VAMemory) !
       gvafpscounter starting-frame=100 !
       gvadetect
-        model=/models/output/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml
-        model-proc=/models/output/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json
+        model=/models/output/public/yolov10s/FP16/yolov10s.xml
         model-instance-id=detect0-gpu-npu
         pre-process-backend=va-surface-sharing
         device=GPU
         batch-size=0
         inference-interval=3
+        inference-region=full-frame
         nireq=0 !
       queue !
       gvatrack tracking-type=short-term-imageless !
       queue !
       gvaclassify
-        model=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml
-        model-proc=/models/output/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json
+        model=/models/output/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+        model-proc=/models/output/omz/mobilenet-v2-pytorch/mobilenet-v2.json
         model-instance-id=classify0-gpu-npu
-        pre-process-backend=va
+        pre-process-backend=opencv
         device=NPU
         batch-size=0
         inference-interval=3
