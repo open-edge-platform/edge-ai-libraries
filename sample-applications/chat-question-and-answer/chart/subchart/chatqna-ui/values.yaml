@@ -8,7 +8,7 @@ chatqnaui:
   name: chatqna-ui
   image:
     repository: intel/chatqna-ui
-    tag: "2.1.0"
+    tag: "latest"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

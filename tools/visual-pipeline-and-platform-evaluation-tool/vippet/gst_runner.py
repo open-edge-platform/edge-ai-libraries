@@ -24,7 +24,8 @@ The runner:
 5. Stops the pipeline when:
    - an ERROR is observed on the bus (run FAIL), OR
    - EOS is observed on the bus, OR
-   - the max-runtime elapses (if configured).
+   - the max-runtime elapses (if configured), OR
+   - SIGINT (Ctrl+C) is received.
 
 Running semantics:
 
@@ -37,17 +38,14 @@ Running semantics:
   * invalid combination of mode and max-runtime arguments.
 - Success (exit code 0):
   * the pipeline is parsed successfully AND
-  * no GStreamer ERROR appears during parsing, run, or shutdown.
-
-The script is designed to:
-
-- Be callable as a subprocess by another application.
-- Provide clear logging for diagnosing pipeline issues.
-- Be testable via dependency injection.
+  * no GStreamer ERROR appears during parsing, run, or shutdown AND
+  * the pipeline finishes via EOS, max-runtime, or SIGINT.
 """
 
 import argparse
+import gc
 import logging
+import signal
 import sys
 import threading
 import time
@@ -160,11 +158,13 @@ def gst_log_bridge(
     text = text.replace("\r", " ").replace("\n", " ")
 
     # Log only the message body, without any extra category/prefix.
-    if level >= Gst.DebugLevel.ERROR:
+    # Note: GStreamer debug levels use lower values for higher severity:
+    # ERROR=1, WARNING=2, FIXME=3, INFO=4, DEBUG=5, LOG=6, TRACE=7
+    if level <= Gst.DebugLevel.ERROR:
         logger.error("%s", text)
-    elif level >= Gst.DebugLevel.WARNING:
+    elif level <= Gst.DebugLevel.WARNING:
         logger.warning("%s", text)
-    elif level >= Gst.DebugLevel.INFO:
+    elif level <= Gst.DebugLevel.INFO:
         logger.info("%s", text)
     else:
         logger.debug("%s", text)
@@ -300,7 +300,7 @@ def _parse_log_collector(
         state: A _ParseLogState instance used to record whether an ERROR
                was observed.
     """
-    if level >= Gst.DebugLevel.ERROR:
+    if level <= Gst.DebugLevel.ERROR:
         state.error_seen = True
 
 
@@ -476,41 +476,72 @@ class _PipelineRunner:
 
         return True
 
-    def _max_runtime_enforcement_thread(self, loop: GLib.MainLoop):
-        """Thread that enforces the maximum pipeline runtime.
+    def _initiate_shutdown(self, reason: str, loop: GLib.MainLoop) -> None:
+        """Initiate a graceful pipeline shutdown.
 
-        After `max_run_time_sec` seconds, this thread stops the pipeline and
-        quits the main loop, regardless of whether EOS was reached.
+        This method is safe to call from any context (thread, signal handler,
+        GLib callback). It sets the shutdown flags and quits the main loop.
+        The actual pipeline teardown (set_state(NULL)) is handled by the
+        ``run()`` method's ``finally`` block.
 
-        Note:
-            If an ERROR or EOS has already terminated the run, this thread
-            does nothing. Otherwise, it performs a controlled stop of the
-            pipeline, which is treated as success (provided no ERRORs are
-            found on the bus).
+        If shutdown has already been initiated (by max-runtime, SIGINT, or
+        a previous call), this method is a no-op.
+
+        Args:
+            reason: Human-readable reason for the shutdown (e.g. "max_runtime",
+                    "sigint").
+            loop: The GLib.MainLoop to quit.
         """
-        time.sleep(self._max_run_time_sec)
-
-        # If an ERROR or EOS already terminated the run, do nothing.
+        if self._state.shutdown_in_progress:
+            return
         if self._state.error_seen or self._state.eos_seen:
             return
 
-        self._logger.info(
-            "Max runtime (%.1f s) elapsed; stopping pipeline.",
-            self._max_run_time_sec,
-        )
-        self._state.max_runtime_triggered = True
+        self._logger.info("Stopping pipeline (reason: %s).", reason)
         self._state.shutdown_in_progress = True
-        self._state.reason = self._state.reason or "max_runtime"
+        self._state.reason = self._state.reason or reason
 
-        try:
-            self._pipeline.set_state(Gst.State.NULL)
-        except Exception as exc:  # noqa: BLE001
-            self._logger.warning(
-                "Error while stopping pipeline at max runtime: %r", exc
-            )
+        if reason == "max_runtime":
+            self._state.max_runtime_triggered = True
 
-        # Quit the loop so that run() can proceed to final evaluation.
         loop.quit()
+
+    def _max_runtime_enforcement_thread(self, loop: GLib.MainLoop):
+        """Thread that enforces the maximum pipeline runtime.
+
+        After `max_run_time_sec` seconds, this thread initiates a graceful
+        shutdown by calling _initiate_shutdown(), which quits the GLib main
+        loop. The actual pipeline teardown (set_state(NULL)) is handled by
+        the ``run()`` method's ``finally`` block.
+
+        The shutdown approach mimics what gst-launch-1.0 does when it
+        receives SIGINT (Ctrl+C): transition directly to NULL without
+        sending EOS. Sending EOS is deliberately avoided because with
+        looping sources (e.g. multifilesrc loop=true), EOS must propagate
+        through all inference elements (gvadetect, gvaclassify, gvatrack)
+        which continue processing buffered frames, causing unacceptable
+        delays.
+
+        Elements like gvafpscounter emit their "FpsCounter(overall ...)"
+        summary during GObject element finalization (C destructor), which
+        happens when the pipeline object's reference count drops to zero.
+        This is triggered by ``del pipeline`` + ``gc.collect()`` in
+        ``run_pipeline()``.
+        """
+        time.sleep(self._max_run_time_sec)
+        self._initiate_shutdown("max_runtime", loop)
+
+    def _on_sigint(self, loop: GLib.MainLoop) -> bool:
+        """GLib idle callback scheduled by the SIGINT signal handler.
+
+        This runs inside the GLib main loop context (via GLib.idle_add),
+        which is safe for calling loop.quit().
+
+        Returns:
+            GLib.SOURCE_REMOVE so the idle source is not called again.
+        """
+        self._initiate_shutdown("sigint", loop)
+        return GLib.SOURCE_REMOVE
 
     def run(self) -> Tuple[bool, Optional[str]]:
         """Run the pipeline and return (ok, reason).
@@ -524,18 +555,26 @@ class _PipelineRunner:
            to log the initial state-change outcome.
         5. If max-runtime > 0, start a background thread that will trigger when
            max_run_time_sec elapses.
-        6. Run the GLib.MainLoop until:
+        6. Install a Python-level SIGINT handler that schedules a graceful
+           shutdown via GLib.idle_add().
+        7. Run the GLib.MainLoop until:
              - ERROR on the bus, OR
              - EOS on the bus, OR
-             - the max-runtime enforcement thread calls loop.quit().
-        7. After the loop exits, stop the pipeline, remove the bus watch,
-           drain any remaining bus messages for logging, and derive the
-           final result from _RunState.
+             - the max-runtime enforcement thread calls loop.quit(), OR
+             - SIGINT (Ctrl+C) triggers a graceful shutdown.
+        8. After the loop exits:
+             a. Restore the original SIGINT handler.
+             b. Disconnect the bus signal handler and remove the signal
+                watch to break reference cycles (needed for GObject
+                element finalization by Python's GC).
+             c. Transition the pipeline to NULL.
+             d. Drain any remaining bus messages for logging.
+        9. Derive the final result from _RunState.
 
         Returns:
             (True, None)
-                if the pipeline ran successfully (EOS or clean run before
-                max-runtime, and no errors on the bus).
+                if the pipeline ran successfully (EOS, SIGINT, or clean run
+                before max-runtime, and no errors on the bus).
             (True, "max_runtime")
                 if the pipeline was stopped at max-runtime with no errors
                 observed during run or shutdown.
@@ -547,15 +586,13 @@ class _PipelineRunner:
 
         # Attach bus watch and connect handler.
         bus.add_signal_watch()
-        bus.connect("message", self._on_bus_message, loop)
+        handler_id = bus.connect("message", self._on_bus_message, loop)
 
         # Request PLAYING state.
         ret = self._pipeline.set_state(Gst.State.PLAYING)
         self._logger.debug("Requested pipeline state PLAYING, result: %s", ret)
 
         # Wait for initial state change (for logging only).
-        # This does not control the run outcome directly; runtime errors
-        # are still detected via bus messages and the max-runtime enforcement thread.
         state_change_ret, current_state, pending = self._pipeline.get_state(
             5 * Gst.SECOND,
         )
@@ -576,24 +613,54 @@ class _PipelineRunner:
             )
             max_runtime_thread.start()
 
+        # Install a Python-level SIGINT handler that schedules a graceful
+        # shutdown on the GLib main loop via GLib.idle_add().
+        #
+        # We use Python's signal.signal() instead of GLib.unix_signal_add()
+        # because the latter does not work reliably when Python's signal
+        # handling infrastructure is active — Python intercepts the signal
+        # at the C level before GLib's pipe/eventfd mechanism can see it.
+        #
+        # GLib.idle_add() is thread-safe and main-loop-safe, so calling it
+        # from a Python signal handler (which runs in the main thread
+        # between bytecode instructions) is correct.
+        original_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        def _sigint_handler(signum, frame):
+            GLib.idle_add(self._on_sigint, loop)
+
+        signal.signal(signal.SIGINT, _sigint_handler)
+
         # Run main loop until:
         #   - ERROR (bus handler quits loop),
         #   - EOS (bus handler quits loop),
-        #   - max-runtime enforcement thread quits loop (if configured).
+        #   - max-runtime enforcement thread quits loop (if configured),
+        #   - SIGINT (Ctrl+C) handler quits loop.
         try:
             loop.run()
         finally:
-            # Ensure we always stop the pipeline and clean up the bus watch.
+            # Restore the original SIGINT handler.
+            signal.signal(signal.SIGINT, original_sigint_handler)
+
+            # Disconnect the bus signal handler and remove the signal watch
+            # BEFORE setting state to NULL. This breaks the reference cycle
+            # between the bus, the signal handler closure, and the pipeline,
+            # which is essential for Python's GC to later destroy the
+            # pipeline object and trigger C-level element finalizers.
+            try:
+                bus.disconnect(handler_id)
+            except Exception:  # noqa: BLE001
+                pass
+            bus.remove_signal_watch()
+
+            # Transition to NULL. This stops all elements.
             try:
                 self._pipeline.set_state(Gst.State.NULL)
             except Exception as exc:  # noqa: BLE001
                 self._logger.warning("Error while stopping pipeline after run: %r", exc)
-            bus.remove_signal_watch()
 
         # Drain any remaining messages for logging purposes.
         if drain_bus_messages(bus, self._logger):
-            # If we see an ERROR here and no reason was recorded yet,
-            # treat it as an error.
             if not self._state.error_seen:
                 self._state.error_seen = True
                 self._state.reason = self._state.reason or "error"
@@ -603,7 +670,7 @@ class _PipelineRunner:
             return False, "error"
         if self._state.max_runtime_triggered and not self._state.error_seen:
             return True, "max_runtime"
-        # EOS or normal stop without errors.
+        # EOS, SIGINT, or normal stop without errors.
         return True, None
 
 
@@ -697,6 +764,17 @@ def run_pipeline(
             pipeline.set_state(Gst.State.NULL)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Error while cleaning up pipeline: %r", exc)
+
+        # Explicitly delete the pipeline reference and force garbage
+        # collection so that GObject element finalizers run immediately.
+        # This is critical because elements like gvafpscounter emit their
+        # "FpsCounter(overall ...)" summary during GObject finalization
+        # (element disposal/destroy), NOT during EOS or state change to
+        # NULL.  In gst-launch-1.0, this happens during "Freeing pipeline".
+        # Without this, the Python GstPipeline wrapper prevents the C
+        # object from being finalized, and the summary never appears.
+        del pipeline
+        gc.collect()
 
     if not run_ok:
         logger.error(

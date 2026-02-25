@@ -21,7 +21,7 @@ export const Pipelines2 = () => {
         {isLoading ? (
           <PipelineCardsLoader count={10} />
         ) : (
-          <PipelineCards pipelines={sortedPipelines} />
+          <PipelineCards pipelines={sortedPipelines} source="pipelines" />
         )}
       </div>
     </div>

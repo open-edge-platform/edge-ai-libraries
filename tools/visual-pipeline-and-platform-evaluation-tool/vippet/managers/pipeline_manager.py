@@ -11,12 +11,12 @@ from api.api_schemas import (
     Variant,
 )
 from graph import Graph, OUTPUT_PLACEHOLDER
-from pipelines.loader import PipelineLoader
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
     InternalPipelinePerformanceSpec,
 )
+from pipelines.loader import PipelineLoader
 from utils import (
     generate_unique_id,
     get_current_timestamp,
@@ -474,6 +474,14 @@ class PipelineManager:
             pipeline_name = spec.pipeline_name
             base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
+            # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
+            if base_graph.has_decodebin3():
+                codec = base_graph.determine_input_codec()
+                target_device = base_graph.get_target_device()
+                base_graph = base_graph.apply_decodebin3_replacement(
+                    codec, target_device
+                )
+
             # Apply looping modifications if needed
             if needs_looping:
                 base_graph = base_graph.apply_looping_modifications()
@@ -488,15 +496,15 @@ class PipelineManager:
 
             # prepare main video output path if output is enabled (file or live stream)
             if output_mode != InternalOutputMode.DISABLED:
-                # Retrieve input video filenames and recommended encoder device
-                input_video_filenames = base_graph.get_input_video_filenames()
+                # Retrieve input sources and recommended encoder device
+                input_sources = base_graph.get_input_sources()
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline, output_path = (
                         video_encoder.create_video_output_subpipeline(
-                            pipeline_id, encoder_device, input_video_filenames, job_id
+                            pipeline_id, encoder_device, input_sources, job_id
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
@@ -505,7 +513,7 @@ class PipelineManager:
                         video_encoder.create_live_stream_output_subpipeline(
                             pipeline_id,
                             encoder_device,
-                            input_video_filenames,
+                            input_sources,
                             job_id,
                         )
                     )

@@ -2,7 +2,7 @@ import { Trash2 } from "lucide-react";
 import { useDeletePipelineMutation } from "@/api/api.generated";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 
 interface DeletePipelineButtonProps {
   pipelineId: string;
@@ -28,10 +28,7 @@ const DeletePipelineButton = ({
       toast.success(`Pipeline "${pipelineName}" deleted successfully`);
       navigate("/");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Failed to delete pipeline";
-      toast.error(errorMessage);
+      handleApiError(error, "Failed to delete pipeline");
     }
   };
 
