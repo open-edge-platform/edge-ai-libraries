@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,7 +18,11 @@ import {
   useValidatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError, isAsyncJobError } from "@/lib/apiUtils.ts";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
@@ -30,11 +35,10 @@ import {
 import { Separator } from "@/components/ui/separator.tsx";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import {
-  createPipelineSchema,
   type CreatePipelineFormData,
+  createPipelineSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
-import type { ReactNode } from "react";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -131,23 +135,9 @@ export const CreatePipelineDialog = ({
       }
     } catch (error) {
       if (isAsyncJobError(error)) {
-        if (error.state === "ERROR") {
-          const errors = error.error_message?.join(", ") ?? "Validation error";
-          toast.error("Pipeline validation error", {
-            description: errors,
-          });
-        } else if (error.state === "ABORTED") {
-          const errors =
-            error.error_message?.join(", ") ?? "Validation aborted";
-          toast.error("Pipeline validation aborted", {
-            description: errors,
-          });
-        }
+        handleAsyncJobError(error, "Pipeline validation");
       } else {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error(`Failed to process pipeline: ${errorMessage}`);
+        handleApiError(error, "Failed to process pipeline");
       }
       console.error("Failed to process pipeline:", error);
     }

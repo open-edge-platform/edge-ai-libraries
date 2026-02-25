@@ -9,37 +9,38 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { type Pipeline, useDeletePipelineMutation } from "@/api/api.generated";
+import { useDeleteVariantMutation } from "@/api/api.generated";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/apiUtils";
 import { Trash2 } from "lucide-react";
 
-type DeletePipelineDialogProps = {
+type DeletePipelineVariantDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  pipeline: Pipeline | null;
+  pipelineId: string;
+  variantId: string;
+  variantName: string;
   onSuccess?: () => void;
 };
 
-export const DeletePipelineDialog = ({
+export const DeletePipelineVariantDialog = ({
   open,
   onOpenChange,
-  pipeline,
+  pipelineId,
+  variantId,
+  variantName,
   onSuccess,
-}: DeletePipelineDialogProps) => {
-  const [deletePipeline, { isLoading: isDeleting }] =
-    useDeletePipelineMutation();
+}: DeletePipelineVariantDialogProps) => {
+  const [deleteVariant, { isLoading: isDeleting }] = useDeleteVariantMutation();
 
   const handleDeleteConfirm = async () => {
-    if (!pipeline) return;
-
     try {
-      await deletePipeline({ pipelineId: pipeline.id }).unwrap();
-      toast.success(`Pipeline "${pipeline.name}" deleted successfully`);
+      await deleteVariant({ pipelineId, variantId }).unwrap();
+      toast.success(`Variant "${variantName}" deleted successfully`);
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      handleApiError(error, "Failed to delete pipeline");
+      handleApiError(error, "Failed to delete variant");
     }
   };
 
@@ -50,23 +51,11 @@ export const DeletePipelineDialog = ({
           <AlertDialogMedia>
             <Trash2 className="text-destructive" />
           </AlertDialogMedia>
-          <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
+          <AlertDialogTitle>Delete Variant?</AlertDialogTitle>
           <AlertDialogDescription className="text-justify">
             <p>
-              Are you sure you want to delete <b>{pipeline?.name}</b> pipeline?
+              Are you sure you want to delete variant <b>{variantName}</b>?
             </p>
-            {pipeline && pipeline.variants.length > 0 && (
-              <p>
-                This will also delete{" "}
-                <b>
-                  {pipeline.variants.length !== 1
-                    ? "all"
-                    : pipeline.variants[0].name}
-                </b>{" "}
-                variant
-                {pipeline.variants.length !== 1 ? "s" : ""}.
-              </p>
-            )}
             <p>This action cannot be undone!</p>
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -1,0 +1,62 @@
+name: Detect Only
+definition: >
+  Template pipeline with a single object detection model.
+  Configure the input source and detection model to get started.
+tags:
+  - template
+  - detection
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      queue !
+      gvadetect
+        device=CPU
+        model=""
+        pre-process-backend=opencv
+        batch-size=1
+        inference-interval=3
+        threshold=0.5
+        model-instance-id=detect-cpu !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      queue !
+      gvadetect
+        device=GPU
+        model=""
+        pre-process-backend=va-surface-sharing
+        nireq=2
+        ie-config=NUM_STREAMS=2
+        batch-size=1
+        inference-interval=3
+        threshold=0.5
+        model-instance-id=detect-gpu !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      fakesink name=default_output_sink sync=false async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location="" !
+      decodebin3 !
+      queue !
+      gvadetect
+        device=NPU
+        model=""
+        pre-process-backend=opencv
+        nireq=4
+        batch-size=1
+        inference-interval=3
+        threshold=0.5
+        model-instance-id=detect-npu !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      fakesink name=default_output_sink sync=false async=false
