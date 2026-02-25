@@ -20,7 +20,7 @@ logger = logging.getLogger("api.routes.health")
     "/health",
     operation_id="get_health",
     summary="Health Check",
-    response_model=HealthResponse
+    response_model=HealthResponse,
 )
 def get_health() -> HealthResponse:
     """
@@ -60,7 +60,7 @@ def get_health() -> HealthResponse:
     "/status",
     operation_id="get_status",
     summary="Application Status",
-    response_model=StatusResponse
+    response_model=StatusResponse,
 )
 def get_status() -> StatusResponse:
     """

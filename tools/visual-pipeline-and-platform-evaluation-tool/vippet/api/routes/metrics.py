@@ -22,13 +22,13 @@ async def collector_websocket(websocket: WebSocket):
     **WebSocket endpoint for a single metrics collector.**
 
     ## Operation
-    
+
     1. Accepts exactly one collector connection at a time
     2. Receives metric batches from the collector as JSON (mode="binary")
     3. Broadcasts every received payload to all connected client websockets at /ws/clients as JSON (mode="text")
 
     ## Protocol
-    
+
     - Client opens WebSocket handshake
     - On success, server replies with HTTP 101 (Switching Protocols)
     - If another collector is already connected:
@@ -37,18 +37,18 @@ async def collector_websocket(websocket: WebSocket):
       - Then closed with code 1008 (Policy Violation)
 
     ## Conditions
-    
+
     ### ✅ Success
     - Single collector connected and sending JSON messages
     - All messages are forwarded to currently connected clients
-    
+
     ### ❌ Failure
     - Second collector connection attempt → connection closed with 1008
     - Network/protocol error → WebSocketDisconnect, logged and cleaned up
     - Unexpected exception → logged; collector slot is released
 
     ## Example Message
-    
+
     Collector request (JSON):
     ```json
     [
@@ -66,7 +66,7 @@ async def collector_websocket(websocket: WebSocket):
       }
     ]
     ```
-    
+
     Forwarded to /ws/clients: Same JSON payload as received.
     """
     global collector_ws
@@ -119,29 +119,29 @@ async def clients_websocket(websocket: WebSocket):
     **WebSocket endpoint for clients that receive live metrics.**
 
     ## Operation
-    
+
     1. Accepts any number of client connections
     2. Keeps connection open and pushes every metrics payload received from /ws/collector as JSON to each client
     3. Messages sent from clients are ignored and only logged
 
     ## Protocol
-    
+
     - Client opens WebSocket handshake
     - On success, server replies with HTTP 101 (Switching Protocols)
     - Client should keep connection alive (e.g. via ping/pong)
     - Text messages sent by the client are read but not processed
 
     ## Conditions
-    
+
     ### ✅ Success
     - Client connection stays open and receives broadcast metrics
-    
+
     ### ❌ Failure
     - Network/protocol error → WebSocketDisconnect, connection removed
     - Unexpected exception → logged; connection removed from the set
 
     ## Example Message
-    
+
     Message received by client:
     ```json
     [

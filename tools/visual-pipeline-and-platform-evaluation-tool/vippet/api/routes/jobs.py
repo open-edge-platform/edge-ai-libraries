@@ -81,31 +81,31 @@ def get_performance_statuses():
     **List statuses of all performance test jobs.**
 
     ## Operation
-    
+
     Reads current state and metrics for every performance test job created via the performance test API.
 
     ## Parameters
-    
+
     None
 
     ## Response Format
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | JSON array of PerformanceJobStatus objects |
     | 500  | Unexpected internal error |
 
     ## Conditions
-    
+
     ### ✅ Success
     - TestsManager is initialized
     - Zero or more jobs may be present
-    
+
     ### ❌ Failure
     - Internal errors → 500
 
     ## Example Response
-    
+
     ```json
     [
       {
@@ -148,30 +148,30 @@ def get_performance_job_status(job_id: str):
     **Get detailed status of a single performance test job.**
 
     ## Operation
-    
+
     Retrieves current state, timings, FPS metrics, and output paths for a specific performance test job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the performance job to inspect
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | PerformanceJobStatus with current state, timings, FPS and output paths |
     | 404  | Job with given id does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job with given id exists in TestsManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Examples
-    
+
     Success (200):
     ```json
     {
@@ -192,7 +192,7 @@ def get_performance_job_status(job_id: str):
       "error_message": null
     }
     ```
-    
+
     Error (404):
     ```json
     {
@@ -220,30 +220,30 @@ def get_performance_job_summary(job_id: str):
     **Get a short summary of a performance test job.**
 
     ## Operation
-    
+
     Retrieves the job id and original PerformanceTestSpec for a specific job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the performance job created earlier
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | PerformanceJobSummary with job id and original request |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job exists in TestsManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Example Response
-    
+
     ```json
     {
       "id": "job123",
@@ -299,15 +299,15 @@ def stop_performance_test_job(job_id: str):
     **Stop a running performance test job.**
 
     ## Operation
-    
+
     Requests cancellation of a RUNNING performance test job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the performance test job to stop
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | Job was RUNNING and cancellation was successfully requested |
@@ -316,25 +316,25 @@ def stop_performance_test_job(job_id: str):
     | 500  | Unexpected error occurs while stopping |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job exists and state == RUNNING
     - TestsManager.stop_job() returns success
-    
+
     ### ❌ Failure
     - TestsManager.stop_job() returns "not found" / "no active runner" → 404
     - TestsManager.stop_job() returns "not running" → 409
     - Any other error from stop_job() → 500
 
     ## Examples
-    
+
     Success (200):
     ```json
     {
       "message": "Job job123 stopped"
     }
     ```
-    
+
     Conflict (409):
     ```json
     {
@@ -356,26 +356,26 @@ def get_density_statuses():
     **List statuses of all density test jobs.**
 
     ## Operation
-    
+
     Reads current state and metrics for every density test job.
 
     ## Parameters
-    
+
     None
 
     ## Response Format
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | JSON array of DensityJobStatus objects |
 
     ## Conditions
-    
+
     ### ✅ Success
     - TestsManager is initialized
 
     ## Example Response
-    
+
     ```json
     [
       {
@@ -418,30 +418,30 @@ def get_density_job_status(job_id: str):
     **Get detailed status of a single density test job.**
 
     ## Operation
-    
+
     Retrieves current state, timings, and FPS metrics for a specific density test job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the density job to inspect
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | DensityJobStatus for the given job |
     | 404  | Job id is unknown |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job with given id exists in TestsManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Error Example
-    
+
     ```json
     {
       "message": "Density job job456 not found"
@@ -468,30 +468,30 @@ def get_density_job_summary(job_id: str):
     **Get a short summary of a density test job.**
 
     ## Operation
-    
+
     Retrieves the job id and original DensityTestSpec for a specific job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the density job created earlier
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | DensityJobSummary with job id and original request |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job exists in TestsManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Example Response
-    
+
     ```json
     {
       "id": "job456",
@@ -549,15 +549,15 @@ def stop_density_test_job(job_id: str):
     **Stop a running density test job.**
 
     ## Operation
-    
+
     Requests cancellation of a RUNNING density test job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the density test job to stop
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | Job was RUNNING and cancellation was successfully requested |
@@ -566,7 +566,7 @@ def stop_density_test_job(job_id: str):
     | 500  | Unexpected error |
 
     ## Conditions
-    
+
     Same status mapping logic as stop_performance_test_job.
     """
     return stop_test_job_handler(job_id)
@@ -583,26 +583,26 @@ def get_optimization_statuses():
     **List statuses of all optimization jobs.**
 
     ## Operation
-    
+
     Reads current state and results for every optimization job.
 
     ## Parameters
-    
+
     None
 
     ## Response Format
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | JSON array of OptimizationJobStatus objects |
 
     ## Conditions
-    
+
     ### ✅ Success
     - OptimizationManager is initialized
 
     ## Example Response
-    
+
     ```json
     [
       {
@@ -646,30 +646,30 @@ def get_optimization_job_summary(job_id: str):
     **Get a short summary of an optimization job.**
 
     ## Operation
-    
+
     Retrieves the job id and original optimization request for a specific job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the optimization job created earlier
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | OptimizationJobSummary with job id and original request |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job exists in OptimizationManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Error Example
-    
+
     ```json
     {
       "message": "Optimization job opt789 not found"
@@ -713,25 +713,25 @@ def get_optimization_job_status(job_id: str):
     **Get detailed status of a single optimization job.**
 
     ## Operation
-    
+
     Retrieves timings, state, graphs, descriptions and total_fps (for OPTIMIZE) for a specific optimization job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the optimization job to inspect
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | OptimizationJobStatus containing timings, state, graphs and descriptions |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job with given id exists in OptimizationManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
     """
@@ -760,26 +760,26 @@ def get_validation_statuses():
     **List statuses of all validation jobs.**
 
     ## Operation
-    
+
     Reads current state and validation result for all validation jobs.
 
     ## Parameters
-    
+
     None
 
     ## Response Format
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | JSON array of ValidationJobStatus objects |
 
     ## Conditions
-    
+
     ### ✅ Success
     - ValidationManager is initialized
 
     ## Example Response
-    
+
     ```json
     [
       {
@@ -816,25 +816,25 @@ def get_validation_job_summary(job_id: str):
     **Get a short summary of a validation job.**
 
     ## Operation
-    
+
     Retrieves the job id and original validation request for a specific job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the validation job created earlier
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | ValidationJobSummary with job id and original request |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job exists in ValidationManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
     """
@@ -870,30 +870,30 @@ def get_validation_job_status(job_id: str):
     **Get detailed status of a single validation job.**
 
     ## Operation
-    
+
     Retrieves timings, state, is_valid flag and error_message list for a specific validation job.
 
     ## Path Parameters
-    
+
     - `job_id`: Identifier of the validation job to inspect
 
     ## Response Codes
-    
+
     | Code | Description |
     |------|-------------|
     | 200  | ValidationJobStatus with timings, state, is_valid flag and error_message |
     | 404  | Job does not exist |
 
     ## Conditions
-    
+
     ### ✅ Success
     - Job with given id exists in ValidationManager
-    
+
     ### ❌ Failure
     - Unknown job id → 404
 
     ## Error Example
-    
+
     ```json
     {
       "message": "Validation job val001 not found"

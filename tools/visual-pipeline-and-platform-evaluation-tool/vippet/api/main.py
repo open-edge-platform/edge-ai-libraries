@@ -159,6 +159,7 @@ static_dir = BASE_DIR / "static"
 logger.info(f"Mounting static files from: {static_dir}")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+
 # Custom Swagger UI endpoint with custom CSS
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
@@ -192,8 +193,8 @@ async def custom_swagger_ui_html():
         </script>
     </body>
     </html>
-    """
-)
+    """)
+
 
 # Custom ReDoc endpoint
 @app.get("/redoc", include_in_schema=False)
@@ -215,8 +216,8 @@ async def redoc_html():
         <script src="https://cdn.jsdelivr.net/npm/redoc@2.0.0/bundles/redoc.standalone.js"></script>
     </body>
     </html>
-    """
-)
+    """)
+
 
 # Add middleware to block requests during initialization
 app.add_middleware(InitializationMiddleware)

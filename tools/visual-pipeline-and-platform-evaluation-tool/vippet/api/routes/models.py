@@ -16,7 +16,7 @@ logger = logging.getLogger("api.routes.models")
     operation_id="get_models",
     summary="List All Models",
     response_model=List[schemas.Model],
-    response_description="List of all installed and available models"
+    response_description="List of all installed and available models",
 )
 def get_models():
     """
