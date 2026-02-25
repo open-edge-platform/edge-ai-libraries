@@ -94,7 +94,7 @@ export STORAGE_BACKEND=<new_value>    # local or minio
 
     ```bash
     export PUB_REGISTRY=intel/
-    export PUB_TAG=latest
+    export PUB_TAG=1.3.2-rc1
     ```
 2. Pull public image for Audio Analyzer Microservice:
 
