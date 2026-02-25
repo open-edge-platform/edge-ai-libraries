@@ -53,3 +53,5 @@ spec:
               value: {{ .Values.global.MINIO_ROOT_USER }}
             - name: MINIO_SECRET_KEY
               value: {{ .Values.global.MINIO_ROOT_PASSWORD }}
+            - name: ALLOWED_HOSTS
+              value: {{ .Values.dataprepPgvector.env.ALLOWED_HOSTS }}
