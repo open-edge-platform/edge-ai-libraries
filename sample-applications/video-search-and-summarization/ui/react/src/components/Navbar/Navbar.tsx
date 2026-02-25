@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { Button } from '@carbon/react';
 import PromptInputModal from '../Modals/PromptInputModal.tsx';
-import { FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config.ts';
+import { FEATURE_CAMERA_CONFIG, FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config.ts';
 import SummarizeModal from '../VideoActions/SummarizeModal';
 import VideoEmbeddingModal from '../VideoActions/VideoEmbeddingModal';
+import CameraConfigModal from '../VideoActions/CameraConfigModal';
 import { useAppDispatch } from '../../redux/store.ts';
 import { videosLoad } from '../../redux/video/videoSlice.ts';
 import { SearchModal } from '../PopupModal/SearchModal.tsx';
@@ -56,6 +57,7 @@ export const TitleContainer = styled.div`
 const Navbar: FC = () => {
   const [showSummarizeModal, setShowSummarizeModal] = useState(false);
   const [showEmbeddingModal, setShowEmbeddingModal] = useState(false);
+  const [showCameraConfigModal, setShowCameraConfigModal] = useState(false);
   const { t } = useTranslation();
 
   const dispatch = useAppDispatch();
@@ -111,6 +113,13 @@ const Navbar: FC = () => {
         />
       )}
 
+      {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_CAMERA_CONFIG == FEATURE_STATE.ON && (
+        <CameraConfigModal
+          open={showCameraConfigModal}
+          onClose={() => setShowCameraConfigModal(false)}
+        />
+      )}
+
       <StyledDiv>
         <Logo>{getBrandName()}</Logo>
         <span className='spacer'></span>
@@ -131,6 +140,18 @@ const Navbar: FC = () => {
             }}
           >
             {t('SearchVideo')}
+          </Button>
+        )}
+
+        {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_CAMERA_CONFIG == FEATURE_STATE.ON && (
+          <Button
+            kind='primary'
+            disabled={false}
+            onClick={() => {
+              setShowCameraConfigModal(true);
+            }}
+          >
+            {t('ConfigureCameras')}
           </Button>
         )}
 

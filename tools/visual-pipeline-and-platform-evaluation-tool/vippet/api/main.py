@@ -10,6 +10,7 @@ from api.middleware import InitializationMiddleware
 from api.routes import health, metrics
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
+from managers.pipeline_template_manager import PipelineTemplateManager
 from videos import VideosManager
 
 # Configure logging
@@ -54,7 +55,10 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize PipelineManager - loads predefined pipelines
         PipelineManager()
 
-        # Register remaining routers after VideosManager and PipelineManager are initialized
+        # Initialize PipelineTemplateManager - loads pipeline templates
+        PipelineTemplateManager()
+
+        # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
         register_routers(app)
 
         app_state_manager.set_status(AppStatus.READY)
@@ -78,6 +82,7 @@ def register_routers(app: FastAPI) -> None:
         devices,
         jobs,
         models,
+        pipeline_templates,
         pipelines,
         tests,
         videos,
@@ -89,6 +94,11 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(devices.router, prefix="/devices", tags=["devices"])
     app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
     app.include_router(models.router, prefix="/models", tags=["models"])
+    app.include_router(
+        pipeline_templates.router,
+        prefix="/pipeline-templates",
+        tags=["pipeline-templates"],
+    )
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
