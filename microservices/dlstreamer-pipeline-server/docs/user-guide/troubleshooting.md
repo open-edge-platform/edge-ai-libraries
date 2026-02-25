@@ -4,7 +4,7 @@ This article contains troubleshooting steps for known issues. If you encounter a
 with the application not addressed here, check the [GitHub Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues)
 board. Feel free to file new tickets there.
 
-## Known Issues
+## Solutions
 
 ### Using REST API in Image Ingestor mode has low first inference latency
 
