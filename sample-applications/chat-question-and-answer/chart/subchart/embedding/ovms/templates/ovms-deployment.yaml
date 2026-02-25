@@ -46,10 +46,8 @@ spec:
               value: "{{ .Values.ovms.env.WEIGHT_FORMAT }}"
             - name: GPU_ENABLED
               value: "{{ .Values.global.ovmsEmbeddinggpuService.enabled }}"
-
             - name: HF_TOKEN
               value: "{{ .Values.global.huggingface.apiToken }}"
-
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
             - name: https_proxy
