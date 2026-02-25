@@ -1,28 +1,27 @@
 # System Requirements
-This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
 
-## Supported Platforms
-This microservice currently supports CPU, GPU and NPU -based runs. This microservice is intended to run as a prerequisite to a GenAI Sample application. Hence, supported platform, OS configuration, etc. are as per the documentation in the sample application. The documentation here, therefore, does not provide separate requirements.
+This section shows the hardware, software, and platform requirements to help you set up and run Model Download efficiently.
 
-**Operating Systems**
-- As per sample application documentation.
+Model Download currently supports CPU-, GPU-, and NPU-based runs, and is a prerequisite to the Gen AI sample application. Hence, the system requirements is as per the documentation in the sample application.
 
-**Hardware Platforms**
-- As per sample application documentation.
+## Supported Operating Systems
 
-## Minimum Requirements
-- As per sample application documentation.
+- As per the sample application documentation.
+
+## Hardware Requirements
+
+- As per the sample application documentation.
 
 ## Software Requirements
 
-**Required Software**:
-- Docker 24.0
-- Python 3.11
-- Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
+- Docker Engine version 24.0 or later
+- Python programming language version 3.10 or later
+- Docker Compose tool: [Installation Guide](https://docs.docker.com/compose/install/).
 
 ## Validation
+
 - Ensure all required software is installed and configured before proceeding to [Get Started](./get-started.md).
 
-## Supporting Resources
+## Learn More
 
 * [README](../../README.md)
