@@ -15,6 +15,13 @@ Below are the necessary configuration to be aware of (or modify accordingly base
 WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which an open MediaMTX container is running.
 WHIP_SERVER_PORT=8889 # It is the port which is configured for the MediaMTX server. Default port is 8889.
 ```
+
+To run it on GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
+
+    ```sh
+        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+    ```
+
 After setting all the above information, we can start the WebRTC streaming:
 - Start the services
     ```sh

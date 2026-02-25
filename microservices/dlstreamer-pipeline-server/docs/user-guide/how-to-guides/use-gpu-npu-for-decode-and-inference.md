@@ -1,57 +1,59 @@
-# Use GPU for Decoding and Inference
+# Use GPU or NPU for Decoding and Inference
 
 In order to benefit from hardware acceleration devices, pipelines can be constructed in a
 manner that different stages such as decoding, inference etc., can make use of them.
 
 ## Pre-requisites
 
-### Ensure you have a GPU
+### Ensure you have a GPU or NPU
 
 To determine which graphics processor you have, refer to the [Hardware table](https://dgpu-docs.intel.com/devices/hardware-table.html) document.
 
-### Provide GPU access to the container
+### Provide GPU or NPU access to the container
 
-For containerized application such as the Deep Learning Streamer Pipeline Server (DL Streamer
-Pipeline server), first we need to provide GPU device(s) access to the container user. This
-can be done by making the following changes to the docker compose file.
+For containerized applications such as the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server), you must first grant the container user access to GPU/NPU device(s).
 
-```yaml
-services:
-  dlstreamer-pipeline-server:
-    group_add:
-      # render group ID for ubuntu 22.04 host OS
-      - "110"
-      # render group ID for ubuntu 24.04 host OS
-      - "992"
-    devices:
-      # you can add specific devices in case you don't want to provide access to all like below.
-      - "/dev:/dev"
-```
-The changes above adds the container user to the `render` group and provides access to the GPU devices.
+Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
+
+    ```sh
+        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+    ```
 
 ### Hardware specific encoder/decoders
 Unlike the changes done for the container above, the following requires a modification to the media pipeline itself.
 
 Gstreamer has a variety of hardware specific encoders and decoders elements such as Intel specific VA-API elements that you can benefit from by adding them into your media pipeline. Examples of such elements are `vah264dec`, `vah264enc`, `vajpegdec`, `vajpegdec`, etc.
 
-Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete).
+Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete) or NPU devices.
 
 Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/gpu_device_selection.md) for more information on GPU selection.
 
-### GPU specific element properties
-DL Streamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
+### GPU/NPU specific element properties
+DL Streamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` or `pre-process-backend=va`and `device=GPU` or `device=NPU` to pre-process and infer on GPU/NPU. Read the DL Streamer [docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
 
-## Tutorial on how to use GPU specific pipelines
+## Tutorial on how to use GPU/NPU specific pipelines
 
 > **Note:** - DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
-> file that includes the necessary GPU access to the container.
+> file that includes the necessary GPU/NPU access to the container.
 
-- A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json`. We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
+- A sample config for GPU has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json`. 
+- A sample config for NPU has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_npu_decode_and_inference/config.json`.
 
+We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
+
+- GPU:
     ```sh
         volumes:
         # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json to config file that DL Streamer Pipeline Server container loads.
         - "../configs/sample_gpu_decode_and_inference/config.json:/home/pipeline-server/config.json"
+    ```
+
+- NPU:
+
+    ```sh
+        volumes:
+        # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_npu_decode_and_inference/config.json to config file that DL Streamer Pipeline Server container loads.
+        - "../configs/sample_npu_decode_and_inference/config.json:/home/pipeline-server/config.json"
     ```
 
 - Restart DL Streamer pipeline server
@@ -62,7 +64,7 @@ DL Streamer inference elements also provides property such as `pre-process-backe
         docker compose up
     ```
 
-- In the pipeline string in the above config file, we have added GPU specific elements/properties for decoding and inferencing on GPU backend. We will now start the pipeline with a curl request
+- In the pipeline string in the above config files, we have added GPU/NPU specific elements/properties for decoding and inferencing on GPU/NPU backend. We will now start the pipeline with a curl request
 
     ```sh
     curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{

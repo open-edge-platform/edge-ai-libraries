@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import type { Pipeline } from "@/api/api.generated";
 import {
+  useGetOptimizationJobStatusQuery,
+  useGetValidationJobStatusQuery,
+  useOptimizeVariantMutation,
   useToDescriptionMutation,
   useToGraphMutation,
+  useUpdateVariantMutation,
   useValidatePipelineMutation,
-  useOptimizeVariantMutation,
-  useGetValidationJobStatusQuery,
-  useGetOptimizationJobStatusQuery,
-  useUpdatePipelineMutation,
 } from "@/api/api.generated";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -16,7 +18,9 @@ import {
 import {
   Download,
   FileJson,
+  Lock,
   MoreVertical,
+  PencilLine,
   Save,
   Terminal,
   Trash2,
@@ -24,7 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,16 +45,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NewVariantDialog } from "@/features/pipelines/NewVariantDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { EditVariantDialog } from "@/features/pipelines/EditVariantDialog";
+import { DeletePipelineVariantDialog } from "@/features/pipelines/DeletePipelineVariantDialog";
+import { DeletePipelineDialog } from "@/features/pipelines/DeletePipelineDialog";
+import { formatErrorMessage } from "@/lib/utils.ts";
 
 interface PipelineActionsMenuProps {
-  pipelineId: string;
-  variant: string;
+  pipeline: Pipeline;
+  variantId: string;
   currentNodes: ReactFlowNode[];
   currentEdges: ReactFlowEdge[];
   currentViewport?: Viewport;
-  pipelineName: string;
   isSimpleMode: boolean;
+  isReadOnly: boolean;
   performanceTestJobId: string | null;
   onGraphUpdate: (
     nodes: ReactFlowNode[],
@@ -58,59 +70,56 @@ interface PipelineActionsMenuProps {
     viewport: Viewport,
     shouldFitView: boolean,
   ) => void;
+  onVariantDeleted?: () => void;
+  onVariantRenamed?: () => void;
 }
 
 export const PipelineActionsMenu = ({
-  pipelineId,
-  variant,
+  pipeline,
+  variantId,
   currentNodes,
   currentEdges,
   currentViewport,
-  pipelineName,
   isSimpleMode,
+  isReadOnly,
   performanceTestJobId,
   onGraphUpdate,
+  onVariantDeleted,
+  onVariantRenamed,
 }: PipelineActionsMenuProps) => {
+  const pipelineId = pipeline.id;
+  const pipelineName = pipeline.name;
+  const variantName =
+    pipeline.variants.find((v) => v.id === variantId)?.name ?? "";
+  const variantsCount = pipeline.variants.length;
+
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [saveVariantDialogOpen, setSaveVariantDialogOpen] = useState(false);
+  const [editVariantDialogOpen, setEditVariantDialogOpen] = useState(false);
+  const [editVariantMode, setEditVariantMode] = useState<"create" | "edit">(
+    "create",
+  );
+  const [deleteVariantDialogOpen, setDeleteVariantDialogOpen] = useState(false);
+  const [deletePipelineDialogOpen, setDeletePipelineDialogOpen] =
+    useState(false);
   const [pipelineDescription, setPipelineDescription] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [validationJobId, setValidationJobId] = useState<string | null>(null);
-  const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
-    null,
-  );
-  const [pendingOptimizationNodes, setPendingOptimizationNodes] = useState<
-    ReactFlowNode[]
-  >([]);
-  const [pendingOptimizationEdges, setPendingOptimizationEdges] = useState<
-    ReactFlowEdge[]
-  >([]);
 
   const [toDescription, { isLoading: isExportingDescription }] =
     useToDescriptionMutation();
   const [toGraph] = useToGraphMutation();
-  const [validatePipeline] = useValidatePipelineMutation();
-  const [optimizePipeline] = useOptimizeVariantMutation();
-  const [updatePipeline] = useUpdatePipelineMutation();
+  const [updateVariant] = useUpdateVariantMutation();
 
-  const { data: validationStatus, error: validationError } =
-    useGetValidationJobStatusQuery(
-      { jobId: validationJobId! },
-      {
-        skip: !validationJobId,
-        pollingInterval: 1000,
-      },
-    );
+  const { execute: executeValidation, isLoading: isValidating } = useAsyncJob({
+    asyncJobHook: useValidatePipelineMutation,
+    statusCheckHook: useGetValidationJobStatusQuery,
+  });
 
-  const { data: optimizationStatus, error: optimizationError } =
-    useGetOptimizationJobStatusQuery(
-      { jobId: optimizationJobId! },
-      {
-        skip: !optimizationJobId,
-        pollingInterval: 1000,
-      },
-    );
+  const { execute: executeOptimization, isLoading: isOptimizing } = useAsyncJob(
+    {
+      asyncJobHook: useOptimizeVariantMutation,
+      statusCheckHook: useGetOptimizationJobStatusQuery,
+    },
+  );
 
   const handleImportJson = () => {
     document.getElementById("import-pipeline-input")?.click();
@@ -172,12 +181,7 @@ export const PipelineActionsMenu = ({
       URL.revokeObjectURL(url);
       toast.success("Pipeline description downloaded");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to generate pipeline description", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to generate pipeline description");
       console.error("Failed to generate description:", error);
     }
   };
@@ -227,12 +231,7 @@ export const PipelineActionsMenu = ({
       setImportDialogOpen(false);
       setPipelineDescription("");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to import pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to import pipeline");
       console.error("Failed to import pipeline:", error);
     } finally {
       setIsImporting(false);
@@ -240,10 +239,6 @@ export const PipelineActionsMenu = ({
   };
 
   const handleOptimizePipeline = async () => {
-    setIsOptimizing(true);
-    setPendingOptimizationNodes(currentNodes);
-    setPendingOptimizationEdges(currentEdges);
-
     try {
       const pipelineGraph = {
         nodes: currentNodes.map((node) => ({
@@ -258,221 +253,104 @@ export const PipelineActionsMenu = ({
         })),
       };
 
-      const validationResponse = await validatePipeline({
+      toast.info("Validating pipeline...");
+
+      const validationStatus = await executeValidation({
         pipelineValidationInput: {
+          pipeline_graph: pipelineGraph,
+        },
+      });
+
+      if (!validationStatus.is_valid) {
+        toast.error("Pipeline validation failed", {
+          description: formatErrorMessage(validationStatus.error_message),
+        });
+        return;
+      }
+
+      await updateVariant({
+        pipelineId,
+        variantId,
+        variantUpdate: {
           pipeline_graph: pipelineGraph,
         },
       }).unwrap();
 
-      if (validationResponse && "job_id" in validationResponse) {
-        setValidationJobId(validationResponse.job_id);
-        toast.info("Validating pipeline...");
-      }
-    } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to start validation", {
-        description: errorMessage,
-      });
-      setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      console.error("Failed to start validation:", error);
-    }
-  };
+      toast.info("Optimizing pipeline...");
 
-  // Handle validation errors
-  useEffect(() => {
-    if (validationError && validationJobId) {
-      toast.error("Failed to get validation status", {
-        description: "An error occurred while checking validation status",
-      });
-      setIsOptimizing(false);
-      setValidationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-    }
-  }, [validationError, validationJobId]);
-
-  // Handle optimization errors
-  useEffect(() => {
-    if (optimizationError && optimizationJobId) {
-      toast.error("Failed to get optimization status", {
-        description: "An error occurred while checking optimization status",
-      });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-    }
-  }, [optimizationError, optimizationJobId]);
-
-  // Handle validation completion
-  useEffect(() => {
-    if (!validationJobId) return;
-
-    const handleOptimizeAfterValidation = async () => {
-      try {
-        await updatePipeline({
-          pipelineId,
-          pipelineUpdate: {
-            pipeline_graph: {
-              nodes: pendingOptimizationNodes.map((node) => ({
-                id: node.id,
-                type: node.type ?? "",
-                data: node.data as { [key: string]: string },
-              })),
-              edges: pendingOptimizationEdges.map((edge) => ({
-                id: edge.id,
-                source: edge.source,
-                target: edge.target,
-              })),
-            },
+      const optimizationStatus = await executeOptimization({
+        pipelineId,
+        variantId,
+        pipelineRequestOptimize: {
+          type: "optimize",
+          parameters: {
+            search_duration: 300,
+            sample_duration: 10,
           },
-        }).unwrap();
-
-        const optimizationResponse = await optimizePipeline({
-          pipelineId,
-          pipelineRequestOptimize: {
-            type: "optimize",
-            parameters: {
-              search_duration: 300,
-              sample_duration: 10,
-            },
-          },
-        }).unwrap();
-
-        if (optimizationResponse && "job_id" in optimizationResponse) {
-          setOptimizationJobId(optimizationResponse.job_id);
-          toast.info("Optimizing pipeline...");
-        }
-      } catch (error) {
-        const errorMessage = isApiError(error)
-          ? error.data.message
-          : "Unknown error";
-        toast.error("Failed to start optimization", {
-          description: errorMessage,
-        });
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-        console.error("Failed to start optimization:", error);
-      }
-    };
-
-    if (validationStatus?.state === "COMPLETED") {
-      if (validationStatus.is_valid) {
-        handleOptimizeAfterValidation();
-      } else {
-        toast.error("Pipeline validation failed", {
-          description:
-            validationStatus.error_message?.join(", ") || "Unknown error",
-        });
-        setIsOptimizing(false);
-        setPendingOptimizationNodes([]);
-        setPendingOptimizationEdges([]);
-      }
-      setValidationJobId(null);
-    } else if (
-      validationStatus?.state === "ERROR" ||
-      validationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Validation job failed", {
-        description:
-          validationStatus.error_message?.join(", ") || "Unknown error",
+        },
       });
-      setIsOptimizing(false);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      setValidationJobId(null);
-    }
-  }, [
-    validationStatus,
-    validationJobId,
-    pipelineId,
-    pendingOptimizationNodes,
-    pendingOptimizationEdges,
-    updatePipeline,
-    optimizePipeline,
-  ]);
 
-  // Handle optimization completion
-  useEffect(() => {
-    const applyOptimizedPipeline = (optimizedGraph: {
-      nodes: { id: string; type: string; data: { [key: string]: string } }[];
-      edges: { id: string; source: string; target: string }[];
-    }) => {
-      toast.dismiss();
-
-      const newNodes: ReactFlowNode[] = optimizedGraph.nodes.map(
-        (node, index) => ({
-          id: node.id,
-          type: node.type,
-          data: node.data,
-          position: { x: 250 * index, y: 100 },
-        }),
-      );
-
-      const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-      }));
-
-      const viewport: Viewport = {
-        x: 0,
-        y: 0,
-        zoom: 1,
-      };
-
-      onGraphUpdate(newNodes, newEdges, viewport, true);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
-      toast.success("Optimized pipeline applied");
-    };
-
-    if (optimizationStatus?.state === "COMPLETED") {
       const optimizedGraph = optimizationStatus.optimized_pipeline_graph;
 
-      if (optimizedGraph) {
-        toast.success("Pipeline optimization completed", {
-          duration: Infinity,
-          description: "Would you like to apply the optimized pipeline?",
-          action: {
-            label: "Apply",
-            onClick: () => {
-              applyOptimizedPipeline(optimizedGraph);
-            },
-          },
-          cancel: {
-            label: "Cancel",
-            onClick: () => {
-              toast.dismiss();
-              setPendingOptimizationNodes([]);
-              setPendingOptimizationEdges([]);
-            },
-          },
-        });
-      } else {
+      if (!optimizedGraph) {
         toast.error("Optimization completed but no optimized graph available");
+        return;
       }
 
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-    } else if (
-      optimizationStatus?.state === "ERROR" ||
-      optimizationStatus?.state === "ABORTED"
-    ) {
-      toast.error("Optimization job failed", {
-        description: optimizationStatus.error_message || "Unknown error",
+      const applyOptimizedPipeline = async () => {
+        toast.dismiss();
+
+        const { createGraphLayout } = await import(
+          "@/features/pipeline-editor/utils/graphLayout"
+        );
+
+        const nodesWithPositions = createGraphLayout(
+          optimizedGraph.nodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            data: node.data,
+            position: { x: 0, y: 0 },
+          })),
+          optimizedGraph.edges,
+        );
+
+        const newEdges: ReactFlowEdge[] = optimizedGraph.edges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        }));
+
+        const viewport: Viewport = {
+          x: 0,
+          y: 0,
+          zoom: 1,
+        };
+
+        onGraphUpdate(nodesWithPositions, newEdges, viewport, true);
+        toast.success("Optimized pipeline applied");
+      };
+
+      toast.success("Pipeline optimization completed", {
+        duration: Infinity,
+        description: "Would you like to apply the optimized pipeline?",
+        action: {
+          label: "Apply",
+          onClick: () => {
+            applyOptimizedPipeline();
+          },
+        },
+        cancel: {
+          label: "Cancel",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
       });
-      setIsOptimizing(false);
-      setOptimizationJobId(null);
-      setPendingOptimizationNodes([]);
-      setPendingOptimizationEdges([]);
+    } catch (error) {
+      handleApiError(error, "Failed to optimize pipeline");
+      console.error("Failed to optimize pipeline:", error);
     }
-  }, [optimizationStatus, onGraphUpdate]);
+  };
 
   return (
     <>
@@ -496,7 +374,7 @@ export const PipelineActionsMenu = ({
                   true,
                 );
                 toast.success("Pipeline imported successfully");
-              } catch (error) {
+              } catch {
                 toast.error("Failed to import pipeline", {
                   description: "Invalid file format",
                 });
@@ -515,69 +393,184 @@ export const PipelineActionsMenu = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            onClick={handleOptimizePipeline}
-            disabled={isOptimizing || performanceTestJobId != null}
+            disabled={isReadOnly}
+            className="flex items-center justify-between gap-2"
+            onClick={() => {
+              setEditVariantMode("edit");
+              setEditVariantDialogOpen(true);
+            }}
           >
-            <Zap className="w-4 h-4" />
-            Optimize pipeline
+            <div className="flex items-center gap-2">
+              <PencilLine className="w-4 h-4" />
+              Rename variant
+            </div>
+            {isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Read-only variant cannot be renamed.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              setSaveVariantDialogOpen(true);
+              setEditVariantMode("create");
+              setEditVariantDialogOpen(true);
             }}
           >
             <Save className="w-4 h-4" />
             Save as new variant
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Upload className="w-4 h-4" />
-              Import pipeline
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleImportJson}>
-                <FileJson className="w-4 h-4" />
-                Import JSON File
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setImportDialogOpen(true);
-                }}
-              >
-                <Terminal className="w-4 h-4" />
-                Import GST Description
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Download className="w-4 h-4" />
-              Export pipeline
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={handleExportJson}>
-                <FileJson className="w-4 h-4" />
-                Export as JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleExportDescription}
-                disabled={isExportingDescription}
-              >
-                <Terminal className="w-4 h-4" />
-                {isExportingDescription
-                  ? "Generating..."
-                  : "Export as GST Description"}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <DropdownMenuItem
+            onClick={handleOptimizePipeline}
+            disabled={
+              isSimpleMode ||
+              isReadOnly ||
+              isValidating ||
+              isOptimizing ||
+              performanceTestJobId != null
+            }
+            className="flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Optimize pipeline
+            </div>
+            {(isSimpleMode || isReadOnly) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isReadOnly
+                    ? "Read-only variant cannot be modified."
+                    : "Only available in advanced mode."}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </DropdownMenuItem>
+          {isSimpleMode || isReadOnly ? (
+            <DropdownMenuItem
+              disabled
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Import pipeline
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isReadOnly
+                    ? "Read-only variant cannot be modified."
+                    : "Only available in advanced mode."}
+                </TooltipContent>
+              </Tooltip>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Upload className="w-4 h-4" />
+                Import pipeline
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={handleImportJson}>
+                  <FileJson className="w-4 h-4" />
+                  Import JSON File
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setImportDialogOpen(true);
+                  }}
+                >
+                  <Terminal className="w-4 h-4" />
+                  Import GST Description
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          {isSimpleMode ? (
+            <DropdownMenuItem
+              disabled
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Export pipeline
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Only available in advanced mode.
+                </TooltipContent>
+              </Tooltip>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Download className="w-4 h-4" />
+                Export pipeline
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={handleExportJson}>
+                  <FileJson className="w-4 h-4" />
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExportDescription}
+                  disabled={isExportingDescription}
+                >
+                  <Terminal className="w-4 h-4" />
+                  {isExportingDescription
+                    ? "Generating..."
+                    : "Export as GST Description"}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           <DropdownMenuItem
             variant="destructive"
+            disabled={isReadOnly}
+            className="flex items-center justify-between gap-2"
             onClick={() => {
-              toast.info("Delete variant - Not yet implemented");
+              if (variantsCount === 1) {
+                setDeletePipelineDialogOpen(true);
+              } else {
+                setDeleteVariantDialogOpen(true);
+              }
             }}
           >
-            <Trash2 className="w-4 h-4" />
-            Delete variant
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              {variantsCount === 1 ? "Delete pipeline" : "Delete variant"}
+            </div>
+            {isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="pointer-events-auto">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Read-only variant cannot be deleted.
+                </TooltipContent>
+              </Tooltip>
+            )}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -651,14 +644,37 @@ export const PipelineActionsMenu = ({
         </DialogContent>
       </Dialog>
 
-      <NewVariantDialog
+      <EditVariantDialog
+        mode={editVariantMode}
         pipelineId={pipelineId}
-        variantId={variant}
+        variantId={variantId}
+        currentVariantName={variantName}
         currentNodes={currentNodes}
         currentEdges={currentEdges}
         isSimpleMode={isSimpleMode}
-        open={saveVariantDialogOpen}
-        onOpenChange={setSaveVariantDialogOpen}
+        open={editVariantDialogOpen}
+        onOpenChange={setEditVariantDialogOpen}
+        onSuccess={() => {
+          if (editVariantMode === "edit") {
+            onVariantRenamed?.();
+          }
+        }}
+      />
+
+      <DeletePipelineVariantDialog
+        open={deleteVariantDialogOpen}
+        onOpenChange={setDeleteVariantDialogOpen}
+        pipelineId={pipelineId}
+        variantId={variantId}
+        variantName={variantName}
+        onSuccess={onVariantDeleted}
+      />
+
+      <DeletePipelineDialog
+        open={deletePipelineDialogOpen}
+        onOpenChange={setDeletePipelineDialogOpen}
+        pipeline={pipeline}
+        onSuccess={onVariantDeleted}
       />
     </>
   );
