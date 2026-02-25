@@ -156,7 +156,7 @@ app = FastAPI(
 
 # Mount static files directory with absolute path
 static_dir = BASE_DIR / "static"
-logger.info(f"Mounting static files from: {static_dir}")
+logger.debug(f"Mounting static files from: {static_dir}")
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
