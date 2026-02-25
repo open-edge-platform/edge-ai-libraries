@@ -471,7 +471,7 @@ export const Pipelines = () => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">
                           <Film className="h-4 w-4 text-muted-foreground" />
-                          <span>Save output</span>
+                          <span>Keep pipeline output</span>
                         </div>
                         <Switch
                           disabled={(loopingEnabled || livePreviewEnabled) && !videoOutputEnabled}
@@ -489,7 +489,7 @@ export const Pipelines = () => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">
                           <Infinity className="h-4 w-4 text-muted-foreground" />
-                          <span>Looping</span>
+                          <span>Run pipeline in loop</span>
                         </div>
                         <Switch
                           disabled={(videoOutputEnabled || livePreviewEnabled) && !loopingEnabled}
@@ -544,7 +544,7 @@ export const Pipelines = () => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">
                           <Eye className="h-4 w-4 text-muted-foreground" />
-                          <span>Live preview</span>
+                          <span>Enable live preview</span>
                         </div>
                         <Switch
                           disabled={
