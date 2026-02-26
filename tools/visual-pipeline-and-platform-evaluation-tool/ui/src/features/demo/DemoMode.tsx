@@ -280,8 +280,156 @@ const DemoMode = () => {
   const [nodeDataEdits, setNodeDataEdits] = useState<
     Record<string, Record<string, unknown>>
   >({});
-  const getNodeEditKey = (pipelineId: string, nodeId: string) =>
-    `${pipelineId}::${nodeId}`;
+  const [selectedVariantByPipelineId, setSelectedVariantByPipelineId] =
+    useState<Record<string, string>>({});
+  const getNodeEditKey = (
+    pipelineId: string,
+    variantId: string,
+    nodeId: string,
+  ) => `${pipelineId}::${variantId}::${nodeId}`;
+  const getSelectedVariantForPipeline = (pipelineId: string) => {
+    const pipeline = pipelines.find((p) => p.id === pipelineId);
+    if (!pipeline || pipeline.variants.length === 0) return null;
+
+    const selectedVariantId = selectedVariantByPipelineId[pipelineId];
+    return (
+      pipeline.variants.find((variant) => variant.id === selectedVariantId) ??
+      pipeline.variants[0]
+    );
+  };
+  const logVariantDiff = (
+    pipeline: Pipeline,
+    fromVariantId: string | null,
+    toVariantId: string,
+  ) => {
+    const fromVariant = fromVariantId
+      ? pipeline.variants.find((variant) => variant.id === fromVariantId)
+      : null;
+    const toVariant = pipeline.variants.find((variant) => variant.id === toVariantId);
+
+    if (!toVariant) {
+      console.warn("[DemoMode][variant-diff] next variant not found", {
+        pipelineId: pipeline.id,
+        pipelineName: pipeline.name,
+        fromVariantId,
+        toVariantId,
+      });
+      return;
+    }
+
+    const normalizeValue = (value: unknown) =>
+      value === null || value === undefined ? "" : String(value);
+
+    const getNodeLabel = (node: {
+      id: string;
+      type: string;
+      data: Record<string, unknown>;
+    }) => {
+      const label = node.data?.label;
+      return typeof label === "string" && label.trim()
+        ? label.trim()
+        : `${node.type}:${node.id}`;
+    };
+
+    const buildNodeMap = (variant: Pipeline["variants"][number] | null) => {
+      const map = new Map<
+        string,
+        {
+          id: string;
+          type: string;
+          label: string;
+          data: Record<string, unknown>;
+        }
+      >();
+      if (!variant) return map;
+
+      variant.pipeline_graph.nodes.forEach((node) => {
+        map.set(node.id, {
+          id: node.id,
+          type: node.type,
+          label: getNodeLabel(node),
+          data: (node.data ?? {}) as Record<string, unknown>,
+        });
+      });
+
+      return map;
+    };
+
+    const fromNodes = buildNodeMap(fromVariant ?? null);
+    const toNodes = buildNodeMap(toVariant ?? null);
+
+    const addedNodes = Array.from(toNodes.values())
+      .filter((node) => !fromNodes.has(node.id))
+      .map((node) => ({ id: node.id, type: node.type, label: node.label }));
+
+    const removedNodes = Array.from(fromNodes.values())
+      .filter((node) => !toNodes.has(node.id))
+      .map((node) => ({ id: node.id, type: node.type, label: node.label }));
+
+    const changedParams: Array<{
+      nodeId: string;
+      nodeType: string;
+      nodeLabel: string;
+      key: string;
+      from: string;
+      to: string;
+    }> = [];
+
+    Array.from(toNodes.entries()).forEach(([nodeId, nextNode]) => {
+      const prevNode = fromNodes.get(nodeId);
+      if (!prevNode) return;
+
+      const dataKeys = new Set([
+        ...Object.keys(prevNode.data),
+        ...Object.keys(nextNode.data),
+      ]);
+
+      dataKeys.forEach((key) => {
+        if (key === "label") return;
+
+        const fromValue = normalizeValue(prevNode.data[key]);
+        const toValue = normalizeValue(nextNode.data[key]);
+        if (fromValue !== toValue) {
+          changedParams.push({
+            nodeId,
+            nodeType: nextNode.type,
+            nodeLabel: nextNode.label,
+            key,
+            from: fromValue,
+            to: toValue,
+          });
+        }
+      });
+    });
+
+    const title = `[DemoMode][variant-diff] ${pipeline.name}: ${fromVariant?.name ?? fromVariantId ?? "(none)"} -> ${toVariant.name}`;
+    console.groupCollapsed(title);
+    console.log("Summary", {
+      pipelineId: pipeline.id,
+      fromVariantId,
+      toVariantId,
+      fromNodes: fromNodes.size,
+      toNodes: toNodes.size,
+      addedNodes: addedNodes.length,
+      removedNodes: removedNodes.length,
+      changedParams: changedParams.length,
+    });
+
+    if (addedNodes.length > 0) {
+      console.log("Added nodes", addedNodes);
+    }
+    if (removedNodes.length > 0) {
+      console.log("Removed nodes", removedNodes);
+    }
+    if (changedParams.length > 0) {
+      console.log(
+        "Changed params (first 120)",
+        changedParams.slice(0, 120),
+      );
+    }
+
+    console.groupEnd();
+  };
   const inferenceNodeTypes = new Set([
     "gvadetect",
     "gvaclassify",
@@ -889,6 +1037,43 @@ const DemoMode = () => {
     });
   }, [pipelineSelections]);
 
+  useEffect(() => {
+    if (pipelineSelections.length === 0) return;
+
+    setSelectedVariantByPipelineId((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      const validIds = new Set(
+        pipelineSelections.map((selection) => selection.pipelineId),
+      );
+
+      pipelineSelections.forEach((selection) => {
+        const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+        const fallbackVariantId = pipeline?.variants?.[0]?.id;
+        if (!pipeline || !fallbackVariantId) return;
+
+        const currentVariantId = next[selection.pipelineId];
+        const hasCurrentVariant =
+          !!currentVariantId &&
+          pipeline.variants.some((variant) => variant.id === currentVariantId);
+
+        if (!hasCurrentVariant) {
+          next[selection.pipelineId] = fallbackVariantId;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((pipelineId) => {
+        if (!validIds.has(pipelineId)) {
+          delete next[pipelineId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [pipelineSelections, pipelines]);
+
   const handleStreamRateChange = (pipelineId: string, newRate: number) => {
     setPipelineSelections((prev) => {
       // Jeśli jest tylko jeden pipeline, zawsze ustaw na 100%
@@ -1016,50 +1201,26 @@ const DemoMode = () => {
       return match ? (match.display_name ?? match.name) : null;
     };
 
-    const getPipelineVariantForRun = (pipelineId: string) => {
-      const pipeline = pipelines.find((p) => p.id === pipelineId);
-      const defaultVariant = pipeline?.variants?.[0];
-      if (!pipeline || !defaultVariant?.pipeline_graph) return null;
-
-      const classifyNode = defaultVariant.pipeline_graph.nodes.find(
-        (node) => node.type === "gvaclassify",
-      );
-
-      const editedDeviceValue = classifyNode
-        ? nodeDataEdits[getNodeEditKey(pipeline.id, classifyNode.id)]?.device
-        : undefined;
-
-      const deviceValueRaw =
-        editedDeviceValue ?? classifyNode?.data?.device ?? defaultVariant.id;
-      const normalizedDeviceValue = String(deviceValueRaw ?? "")
-        .trim()
-        .toUpperCase();
-
-      const targetVariantId =
-        normalizedDeviceValue === "GPU"
-          ? "gpu"
-          : normalizedDeviceValue === "NPU"
-            ? "gpu-npu"
-            : null;
-
-      if (!targetVariantId) {
-        return defaultVariant;
-      }
-
-      const matchedVariant = pipeline.variants?.find(
-        (variant) => variant.id.toLowerCase() === targetVariantId,
-      );
-
-      return matchedVariant ?? defaultVariant;
-    };
+    const getPipelineVariantForRun = (pipelineId: string) =>
+      getSelectedVariantForPipeline(pipelineId);
 
     const preparePipelineGraph = (pipelineId: string) => {
       const pipeline = pipelines.find((p) => p.id === pipelineId);
-      const variant = pipeline?.variants?.[0];
+      const variant = getPipelineVariantForRun(pipelineId);
       if (!pipeline || !variant?.pipeline_graph) return null;
 
+      console.log("[DemoMode][preparePipelineGraph]", {
+        pipelineId,
+        pipelineName: pipeline.name,
+        variantId: variant.id,
+        variantName: variant.name,
+        nodeCount: variant.pipeline_graph.nodes.length,
+        nodeTypes: variant.pipeline_graph.nodes.map((node) => node.type),
+      });
+
       const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
-        const edits = nodeDataEdits[getNodeEditKey(pipeline.id, node.id)];
+        const edits =
+          nodeDataEdits[getNodeEditKey(pipeline.id, variant.id, node.id)];
         const mergedData = {
           ...node.data,
           ...(edits ?? {}),
@@ -1120,8 +1281,22 @@ const DemoMode = () => {
         const maxRuntime =
           performanceLivePreviewEnabled || performanceLoopingEnabled ? 1800 : 0;
 
+        console.log("[DemoMode][runPerformanceTest][variants]", {
+          pipelines: pipelineSelections.map((selection) => {
+            const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+            const variant = getPipelineVariantForRun(selection.pipelineId);
+            return {
+              pipelineId: selection.pipelineId,
+              pipelineName: pipeline?.name,
+              variantId: variant?.id,
+              variantName: variant?.name,
+              streams: performanceStreams[selection.pipelineId] ?? 1,
+            };
+          }),
+        });
+
         const result = await runPerformanceTest({
-          performanceTestSpecInput: {
+          performanceTestSpec: {
             execution_config: {
               output_mode: outputMode,
               max_runtime: maxRuntime,
@@ -1160,8 +1335,22 @@ const DemoMode = () => {
     // Track what options were enabled for this test
     setLastDensityTestHadSaveOutput(videoOutputEnabled);
     try {
+      console.log("[DemoMode][runDensityTest][variants]", {
+        pipelines: pipelineSelections.map((selection) => {
+          const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+          const variant = getPipelineVariantForRun(selection.pipelineId);
+          return {
+            pipelineId: selection.pipelineId,
+            pipelineName: pipeline?.name,
+            variantId: variant?.id,
+            variantName: variant?.name,
+            streamRate: selection.stream_rate,
+          };
+        }),
+      });
+
       const result = await runDensityTest({
-        densityTestSpecInput: {
+        densityTestSpec: {
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
             max_runtime: densityLoopingEnabled ? 1800 : 0,
@@ -1454,7 +1643,7 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`flex w-full max-h-[190px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`relative flex w-full max-h-[190px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
@@ -1467,11 +1656,60 @@ const DemoMode = () => {
                               className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
                             />
                           </div>
-                          <CardHeader className="p-2 pt-0 pb-0">
+                          <CardHeader className="p-2 pt-0 pb-9">
                             <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
                           </CardHeader>
+                          <div className="absolute left-2 right-2 bottom-4">
+                            <select
+                              value={
+                                getSelectedVariantForPipeline(
+                                  selection.pipelineId,
+                                )?.id ?? ""
+                              }
+                              onChange={(e) =>
+                                setSelectedVariantByPipelineId((prev) => {
+                                  const previousVariantId =
+                                    prev[selection.pipelineId] ??
+                                    pipeline.variants[0]?.id ??
+                                    null;
+                                  const nextVariantId = e.target.value;
+                                  const nextVariant = pipeline.variants.find(
+                                    (variant) => variant.id === nextVariantId,
+                                  );
+
+                                  console.log("[DemoMode][variant-change]", {
+                                    pipelineId: selection.pipelineId,
+                                    pipelineName: pipeline.name,
+                                    previousVariantId,
+                                    nextVariantId,
+                                    nextVariantName:
+                                      nextVariant?.name ?? nextVariantId,
+                                  });
+                                  logVariantDiff(
+                                    pipeline,
+                                    previousVariantId,
+                                    nextVariantId,
+                                  );
+
+                                  return {
+                                    ...prev,
+                                    [selection.pipelineId]: nextVariantId,
+                                  };
+                                })
+                              }
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={isReadOnly || pipeline.variants.length < 1}
+                              className={`w-full px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                            >
+                              {pipeline.variants.map((variant) => (
+                                <option key={variant.id} value={variant.id}>
+                                  {variant.name || variant.id}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </Card>
                       );
                     })}
@@ -1962,17 +2200,21 @@ const DemoMode = () => {
                                 const pipeline = pipelines.find(
                                   (p) => p.id === selectedConfigPipelineId,
                                 );
-                                if (!pipeline) return null;
+                                const selectedVariant = pipeline
+                                  ? getSelectedVariantForPipeline(pipeline.id)
+                                  : null;
+                                if (!pipeline || !selectedVariant) return null;
 
                                 return (
                                   <>
                                     <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                                       <Accordion
+                                        key={selectedVariant.id}
                                         type="single"
                                         collapsible
                                         className="w-full space-y-2"
                                       >
-                                        {pipeline.variants?.[0]?.pipeline_graph?.nodes
+                                        {selectedVariant.pipeline_graph?.nodes
                                           ?.filter((node) => {
                                             const nodeTag =
                                               nodeTypeToTag[node.type] || null;
@@ -2003,7 +2245,12 @@ const DemoMode = () => {
                                               [];
 
                                             const dataEntries = nodeConfig
-                                              ? editableProperties.map(
+                                              ? editableProperties
+                                                  .filter(
+                                                    (prop) =>
+                                                      prop.key !== "device",
+                                                  )
+                                                  .map(
                                                   (prop) => [
                                                     prop.key,
                                                     node.data[prop.key] ??
@@ -2014,6 +2261,7 @@ const DemoMode = () => {
                                               : Object.entries(node.data ?? {})
                                                   .filter(
                                                     ([key]) =>
+                                                      key !== "device" &&
                                                       !["label"].includes(
                                                         key,
                                                       ) &&
@@ -2034,6 +2282,7 @@ const DemoMode = () => {
                                                 nodeDataEdits[
                                                   getNodeEditKey(
                                                     pipeline.id,
+                                                    selectedVariant.id,
                                                     nodeId,
                                                   )
                                                 ]?.[key] ?? originalValue
@@ -2047,6 +2296,7 @@ const DemoMode = () => {
                                             ) => {
                                               const editKey = getNodeEditKey(
                                                 pipeline.id,
+                                                selectedVariant.id,
                                                 nodeId,
                                               );
                                               setNodeDataEdits((prev) => {
