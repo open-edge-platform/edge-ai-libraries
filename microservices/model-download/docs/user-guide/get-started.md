@@ -277,7 +277,7 @@ Volumes:
 
 ## Run in Kubernetes Cluster
 
-See [Deploy with Helm Chart](./deploy-with-helm.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
+See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
 
 
 ## Learn More
