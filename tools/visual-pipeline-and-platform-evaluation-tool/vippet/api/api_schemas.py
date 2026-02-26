@@ -7,6 +7,20 @@ from pydantic import BaseModel, Field, model_validator
 
 # # Enums based on OpenAPI schema
 class PipelineSource(str, Enum):
+    """
+    **Source of a pipeline definition.**
+
+    ## Values
+    - `PREDEFINED` - Pipeline is predefined by the system
+    - `USER_CREATED` - Pipeline was created by the user
+    - `TEMPLATE` - Pipeline is a template
+
+    ### Example
+    ```json
+    "USER_CREATED"
+    ```
+    """
+
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
     TEMPLATE = "TEMPLATE"
@@ -14,13 +28,18 @@ class PipelineSource(str, Enum):
 
 class AppStatus(str, Enum):
     """
-    Application status enum for tracking initialization progress.
+    **Application status enum for tracking initialization progress.**
 
-    Values:
-        STARTING: Application is starting, no initialization yet.
-        INITIALIZING: Application is initializing resources (e.g., loading videos).
-        READY: Application is fully initialized and ready to serve requests.
-        SHUTDOWN: Application is shutting down.
+    ## Values
+    - `STARTING` - Application is starting, no initialization yet
+    - `INITIALIZING` - Application is initializing resources (e.g., loading videos)
+    - `READY` - Application is fully initialized and ready to serve requests
+    - `SHUTDOWN` - Application is shutting down
+
+    ### Example
+    ```json
+    "ready"
+    ```
     """
 
     STARTING = "starting"
@@ -31,13 +50,18 @@ class AppStatus(str, Enum):
 
 class TestJobState(str, Enum):
     """
-    Generic state of a long-running test job (performance or density).
+    **Generic state of a long-running test job (performance or density).**
 
-    Values:
-        RUNNING: Job is still executing.
-        COMPLETED: Job finished successfully.
-        ERROR: Job failed with an error_message.
-        ABORTED: Job was cancelled by the user.
+    ## Values
+    - `RUNNING` - Job is still executing
+    - `COMPLETED` - Job finished successfully
+    - `ERROR` - Job failed with an error_message
+    - `ABORTED` - Job was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -48,13 +72,18 @@ class TestJobState(str, Enum):
 
 class OptimizationJobState(str, Enum):
     """
-    Generic state of an optimization job.
+    **Generic state of an optimization job.**
 
-    Values:
-        RUNNING: Optimization is in progress.
-        COMPLETED: Optimization finished successfully.
-        ERROR: Optimization failed with an error_message.
-        ABORTED: Optimization was cancelled by the user.
+    ## Values
+    - `RUNNING` - Optimization is in progress
+    - `COMPLETED` - Optimization finished successfully
+    - `ERROR` - Optimization failed with an error_message
+    - `ABORTED` - Optimization was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -65,13 +94,18 @@ class OptimizationJobState(str, Enum):
 
 class ValidationJobState(str, Enum):
     """
-    Generic state of a validation job.
+    **Generic state of a validation job.**
 
-    Values:
-        RUNNING: Validation is in progress.
-        COMPLETED: Validation finished.
-        ERROR: Validation failed with a technical error.
-        ABORTED: Validation was cancelled by the user.
+    ## Values
+    - `RUNNING` - Validation is in progress
+    - `COMPLETED` - Validation finished
+    - `ERROR` - Validation failed with a technical error
+    - `ABORTED` - Validation was cancelled by the user
+
+    ### Example
+    ```json
+    "RUNNING"
+    ```
     """
 
     RUNNING = "RUNNING"
@@ -82,11 +116,16 @@ class ValidationJobState(str, Enum):
 
 class DeviceType(str, Enum):
     """
-    High level type of hardware device.
+    **High level type of hardware device.**
 
-    Values:
-        DISCRETE: Standalone accelerator board (for example a dedicated GPU).
-        INTEGRATED: Device integrated into CPU or SoC.
+    ## Values
+    - `DISCRETE` - Standalone accelerator board (for example a dedicated GPU)
+    - `INTEGRATED` - Device integrated into CPU or SoC
+
+    ### Example
+    ```json
+    "DISCRETE"
+    ```
     """
 
     DISCRETE = "DISCRETE"
@@ -95,12 +134,17 @@ class DeviceType(str, Enum):
 
 class DeviceFamily(str, Enum):
     """
-    Hardware family of a device used for inference.
+    **Hardware family of a device used for inference.**
 
-    Values:
-        CPU: Central Processing Unit.
-        GPU: Graphics Processing Unit.
-        NPU: Neural Processing Unit / AI accelerator.
+    ## Values
+    - `CPU` - Central Processing Unit
+    - `GPU` - Graphics Processing Unit
+    - `NPU` - Neural Processing Unit / AI accelerator
+
+    ### Example
+    ```json
+    "CPU"
+    ```
     """
 
     CPU = "CPU"
@@ -109,48 +153,116 @@ class DeviceFamily(str, Enum):
 
 
 class ModelCategory(str, Enum):
+    """
+    **Model category for classification or detection tasks.**
+
+    ## Values
+    - `CLASSIFICATION` - Classification model
+    - `DETECTION` - Detection model
+
+    ### Example
+    ```json
+    "detection"
+    ```
+    """
+
     CLASSIFICATION = "classification"
     DETECTION = "detection"
 
 
 class OptimizationType(str, Enum):
+    """
+    **Type of optimization operation.**
+
+    ## Values
+    - `PREPROCESS` - Run only preprocessing
+    - `OPTIMIZE` - Run full optimization with search/sampling
+
+    ### Example
+    ```json
+    "optimize"
+    ```
+    """
+
     PREPROCESS = "preprocess"
     OPTIMIZE = "optimize"
 
 
 class CameraType(str, Enum):
     """
-    Type of camera device.
+    **Type of camera device.**
 
-    Values:
-        USB: USB camera connected directly to the system.
-        NETWORK: Network camera accessible via IP protocols.
+    ## Values
+    - `USB` - USB camera connected directly to the system
+    - `NETWORK` - Network camera accessible via IP protocols
+
+    ### Example
+    ```json
+    "USB"
+    ```
     """
 
     USB = "USB"
     NETWORK = "NETWORK"
 
 
+class HealthResponse(BaseModel):
+    """
+    **Response model for health endpoint.**
+
+    Used by Docker healthcheck and monitoring systems to verify
+    application health status.
+
+    ## Attributes
+    - `healthy` - True if application is healthy (not shutdown)
+
+    ### Example
+    ```json
+    {
+      "healthy": true
+    }
+    ```
+    """
+
+    healthy: bool
+
+
+class StatusResponse(BaseModel):
+    """
+    **Response model for status endpoint.**
+
+    Provides detailed information about application initialization state
+    and readiness to serve requests.
+
+    ## Attributes
+    - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
+    - `message` - Optional message describing current activity or initialization progress
+    - `ready` - True if application is ready to serve API requests
+
+    ### Example
+    ```json
+    {
+      "status": "ready",
+      "message": null,
+      "ready": true
+    }
+    ```
+    """
+
+    status: AppStatus
+    message: Optional[str]
+    ready: bool
+
+
 class Node(BaseModel):
     """
-    Single node in a generic pipeline graph.
+    **Single node in a generic pipeline graph.**
 
-    Attributes:
-        id: Node identifier, unique within a single graph.
-        type: Element type, usually a framework-specific element name
-            (for example a GStreamer element).
-        data: Key/value properties for the element (for example element
-            arguments or configuration).
-
-            Reserved keys:
-              * ``"__node_kind"`` – optional internal discriminator used by the
-                backend and UI to distinguish special node types. When present
-                and equal to ``"caps"``, the node represents a GStreamer caps
-                string (for example ``"video/x-raw,width=320,height=240"``)
-                instead of a regular element.
-
-                This field is stored inside ``data`` instead of being a
-                top-level attribute to avoid breaking existing API contracts.
+    ## Attributes
+    - `id` - Node identifier, unique within a single graph
+    - `type` - Element type, usually a framework-specific element name (e.g., GStreamer element)
+    - `data` - Key/value properties for the element (e.g., element arguments or configuration)
+      - Reserved key: `__node_kind__` - Optional internal discriminator for special node types. When equal to "caps", represents a GStreamer caps string (e.g., "video/x-raw,width=320,height=240") instead of a regular element. Stored in `data` to avoid breaking existing API contracts.
     """
 
     id: str
@@ -160,12 +272,12 @@ class Node(BaseModel):
 
 class Edge(BaseModel):
     """
-    Directed connection between two nodes in a generic pipeline graph.
+    **Directed connection between two nodes in a generic pipeline graph.**
 
-    Attributes:
-        id: Edge identifier, unique within a single graph.
-        source: ID of the source node.
-        target: ID of the target node.
+    ## Attributes
+    - `id` - Edge identifier, unique within a single graph
+    - `source` - ID of the source node
+    - `target` - ID of the target node
     """
 
     id: str
@@ -175,20 +287,20 @@ class Edge(BaseModel):
 
 class MessageResponse(BaseModel):
     """
-    Generic message payload used as a simple response body.
+    **Generic message payload used as a simple response body.**
 
     This model is used mainly for non-2xx responses to provide a plain
     English description of what happened (error or informational status).
 
-    Attributes:
-        message: Description of the error or status.
+    ## Attributes
+    - `message` - Human-readable error or status message
 
-    Example:
-        .. code-block:: json
-
-            {
-              "message": "Performance job job123 not found"
-            }
+    ### Example
+    ```json
+    {
+      "message": "Performance job job123 not found"
+    }
+    ```
     """
 
     message: str = Field(
@@ -203,17 +315,17 @@ class MessageResponse(BaseModel):
 
 class PipelineCreationResponse(BaseModel):
     """
-    Response body returned after a new pipeline is created.
+    **Response body returned after a new pipeline is created.**
 
-    Attributes:
-        id: Identifier of the created pipeline.
+    ## Attributes
+    - `id` - Identifier of the created pipeline
 
-    Example:
-        .. code-block:: json
-
-            {
-              "id": "pipeline-a3f5d9e1"
-            }
+    ### Example
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1"
+    }
+    ```
     """
 
     id: str
@@ -221,15 +333,20 @@ class PipelineCreationResponse(BaseModel):
 
 class PipelineDescription(BaseModel):
     """
-    Request or response body containing a GStreamer pipeline string.
+    **Request or response body containing a GStreamer pipeline string.**
 
     The pipeline_description field contains a complete GStreamer launch line
-    with elements separated by '!' symbols, for example:
-    "filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink"
+    with elements separated by '!' symbols.
 
-    Attributes:
-        pipeline_description: Complete GStreamer pipeline string to be converted
-            or executed.
+    ## Attributes
+    - `pipeline_description` - Complete GStreamer pipeline string to be converted or executed (elements separated by '!')
+
+    ### Example
+    ```json
+    {
+      "pipeline_description": "filesrc location=input.mp4 ! decodebin ! videoconvert ! autovideosink"
+    }
+    ```
     """
 
     pipeline_description: str = Field(
@@ -241,14 +358,14 @@ class PipelineDescription(BaseModel):
 
 class PipelineGraph(BaseModel):
     """
-    Request or response body containing the structured pipeline graph.
+    **Request or response body containing the structured pipeline graph.**
 
-    This is a generic representation and is used by multiple endpoints
+    This is a generic representation used by multiple endpoints
     (conversion, validation, optimization).
 
-    Attributes:
-        nodes: List of graph nodes.
-        edges: Directed connections between nodes.
+    ## Attributes
+    - `nodes` - List of graph nodes
+    - `edges` - Directed connections between nodes
     """
 
     nodes: List[Node] = Field(
@@ -276,20 +393,16 @@ class PipelineGraph(BaseModel):
 
 class Variant(BaseModel):
     """
-    Single variant of a pipeline for different hardware targets.
+    **Single variant of a pipeline for different hardware targets.**
 
-    Attributes:
-        id: Unique variant identifier generated by the backend.
-            Not used when creating or updating variants.
-        name: Variant name (e.g., "CPU", "GPU", "NPU").
-        read_only: Whether the variant is read-only. Defaults to false.
-            Can only be set to true for PREDEFINED or TEMPLATE pipeline variants.
-        pipeline_graph: Advanced graph representation for this variant.
-        pipeline_graph_simple: Simplified graph representation for this variant.
-        created_at: Creation timestamp as UTC datetime.
-            Set by backend only, not modifiable via API.
-        modified_at: Last modification timestamp as UTC datetime.
-            Updated when variant is modified. Set by backend only.
+    ## Attributes
+    - `id` - Unique variant identifier generated by the backend (not used when creating or updating variants)
+    - `name` - Variant name (e.g., "CPU", "GPU", "NPU")
+    - `read_only` - Whether the variant is read-only (defaults to false, can only be true for PREDEFINED pipeline variants)
+    - `pipeline_graph` - Advanced graph representation for this variant
+    - `pipeline_graph_simple` - Simplified graph representation for this variant
+    - `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)
+    - `modified_at` - Last modification timestamp as UTC datetime (updated when variant is modified, set by backend only)
     """
 
     id: str = Field(
@@ -326,15 +439,15 @@ class Variant(BaseModel):
 
 class VariantCreate(BaseModel):
     """
-    Input model for creating a new variant.
+    **Input model for creating a new variant.**
 
     The id and read_only fields are not included as they are
     generated/set by the backend.
 
-    Attributes:
-        name: Variant name (required, non-empty).
-        pipeline_graph: Advanced graph representation (required).
-        pipeline_graph_simple: Simplified graph representation (required).
+    ## Attributes
+    - `name` - Variant name (required, non-empty)
+    - `pipeline_graph` - Advanced graph representation (required)
+    - `pipeline_graph_simple` - Simplified graph representation (required)
     """
 
     name: str = Field(
@@ -355,7 +468,7 @@ class VariantCreate(BaseModel):
 
 class VariantUpdate(BaseModel):
     """
-    Input model for updating an existing variant.
+    **Input model for updating an existing variant.**
 
     All fields are optional, but at least one must be provided.
     Only one of pipeline_graph or pipeline_graph_simple can be provided per request.
@@ -363,10 +476,10 @@ class VariantUpdate(BaseModel):
 
     Validation is performed in model_validator to fail fast on invalid input.
 
-    Attributes:
-        name: Optional new variant name (non-empty after trim if provided).
-        pipeline_graph: Optional advanced graph (mutually exclusive with pipeline_graph_simple).
-        pipeline_graph_simple: Optional simplified graph (mutually exclusive with pipeline_graph).
+    ## Attributes
+    - `name` - Optional new variant name (non-empty after trim if provided)
+    - `pipeline_graph` - Optional advanced graph (mutually exclusive with pipeline_graph_simple)
+    - `pipeline_graph_simple` - Optional simplified graph (mutually exclusive with pipeline_graph)
     """
 
     name: Optional[str] = Field(
@@ -411,52 +524,46 @@ class VariantUpdate(BaseModel):
 
 class PipelineGraphResponse(BaseModel):
     """
-    Response body containing both advanced and simple views of a pipeline graph.
+    **Response body containing both advanced and simple views of a pipeline graph.**
 
     Used by the /convert/to-graph endpoint to return both representations
     at once.
 
-    Attributes:
-        pipeline_graph: Advanced view with all technical elements including
-            queues, converters, caps nodes, and other plumbing elements.
-            This view contains the complete pipeline structure as parsed
-            from the pipeline description.
-        pipeline_graph_simple: Simplified view showing only meaningful elements
-            such as sources, inference nodes (gva*), and sinks. Technical
-            plumbing elements are hidden and edges are reconnected to show
-            direct connections between visible nodes.
+    ## Attributes
+    - `pipeline_graph` - Advanced view with all technical elements including queues, converters, caps nodes, and other plumbing elements. Contains the complete pipeline structure as parsed from the pipeline description
+    - `pipeline_graph_simple` - Simplified view showing only meaningful elements such as sources, inference nodes (gva*), and sinks. Technical plumbing elements are hidden and edges are reconnected to show direct connections between visible nodes
 
-    Example:
-        .. code-block:: json
-
-            {
-              "pipeline_graph": {
-                "nodes": [
-                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
-                  {"id": "1", "type": "decodebin", "data": {}},
-                  {"id": "2", "type": "queue", "data": {}},
-                  {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
-                  {"id": "4", "type": "fakesink", "data": {}}
-                ],
-                "edges": [
-                  {"id": "0", "source": "0", "target": "1"},
-                  {"id": "1", "source": "1", "target": "2"},
-                  {"id": "2", "source": "2", "target": "3"},
-                  {"id": "3", "source": "3", "target": "4"}
-                ]
-              },
-              "pipeline_graph_simple": {
-                "nodes": [
-                  {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
-                  {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
-                  {"id": "4", "type": "fakesink", "data": {}}
-                ],
-                "edges": [
-                  {"id": "0", "source": "0", "target": "3"},
-                  {"id": "1", "source": "3", "target": "4"}
-                ]
-              }
-            }
+    ### Example
+    ```json
+    {
+      "pipeline_graph": {
+        "nodes": [
+          {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
+          {"id": "1", "type": "decodebin", "data": {}},
+          {"id": "2", "type": "queue", "data": {}},
+          {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
+          {"id": "4", "type": "fakesink", "data": {}}
+        ],
+        "edges": [
+          {"id": "0", "source": "0", "target": "1"},
+          {"id": "1", "source": "1", "target": "2"},
+          {"id": "2", "source": "2", "target": "3"},
+          {"id": "3", "source": "3", "target": "4"}
+        ]
+      },
+      "pipeline_graph_simple": {
+        "nodes": [
+          {"id": "0", "type": "filesrc", "data": {"location": "input.mp4"}},
+          {"id": "3", "type": "gvadetect", "data": {"model": "yolo"}},
+          {"id": "4", "type": "fakesink", "data": {}}
+        ],
+        "edges": [
+          {"id": "0", "source": "0", "target": "3"},
+          {"id": "1", "source": "3", "target": "4"}
+        ]
+      }
+    }
+    ```
     """
 
     pipeline_graph: PipelineGraph = Field(
@@ -471,24 +578,24 @@ class PipelineGraphResponse(BaseModel):
 
 class VariantReference(BaseModel):
     """
-    Reference to an existing pipeline variant by IDs.
+    **Reference to an existing pipeline variant by IDs.**
 
     Used when specifying a pipeline for tests by referencing an existing
     stored variant instead of providing an inline graph.
 
-    Attributes:
-        source: Discriminator field, always "variant" for this type.
-        pipeline_id: ID of the pipeline containing the variant.
-        variant_id: ID of the variant to use.
+    ## Attributes
+    - `source` - Discriminator field, always "variant" for this type
+    - `pipeline_id` - ID of the pipeline containing the variant
+    - `variant_id` - ID of the variant to use
 
-    Example:
-        .. code-block:: json
-
-            {
-              "source": "variant",
-              "pipeline_id": "pipeline-a3f5d9e1",
-              "variant_id": "variant-abc123"
-            }
+    ### Example
+    ```json
+    {
+      "source": "variant",
+      "pipeline_id": "pipeline-a3f5d9e1",
+      "variant_id": "variant-abc123"
+    }
+    ```
     """
 
     source: Literal["variant"] = "variant"
@@ -506,41 +613,38 @@ class VariantReference(BaseModel):
 
 class GraphInline(BaseModel):
     """
-    Inline pipeline graph definition.
+    **Inline pipeline graph definition.**
 
     Used when specifying a pipeline for tests by providing the graph
     directly instead of referencing an existing variant.
 
-    Attributes:
-        source: Discriminator field, always "graph" for this type.
-        pipeline_graph: Complete pipeline graph to use.
-        graph_id: Optional custom identifier for this inline graph.
-            If provided, this ID is used instead of generating a hash-based ID.
-            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
-            If not provided, a synthetic ID is generated from graph content hash.
+    ## Attributes
+    - `source` - Discriminator field, always "graph" for this type
+    - `pipeline_graph` - Complete pipeline graph to use
+    - `graph_id` - Optional custom identifier for this inline graph (if provided, used instead of generating a hash-based ID; must be URL-safe with only lowercase letters, numbers, and dashes; if not provided, synthetic ID generated from graph content hash)
 
-    Example (without graph_id - uses generated hash):
-        .. code-block:: json
+    ### Example (without graph_id - uses generated hash)
+    ```json
+    {
+      "source": "graph",
+      "pipeline_graph": {
+        "nodes": [...],
+        "edges": [...]
+      }
+    }
+    ```
 
-            {
-              "source": "graph",
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              }
-            }
-
-    Example (with custom graph_id):
-        .. code-block:: json
-
-            {
-              "source": "graph",
-              "graph_id": "my-custom-pipeline",
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              }
-            }
+    ### Example (with custom graph_id)
+    ```json
+    {
+      "source": "graph",
+      "graph_id": "my-custom-pipeline",
+      "pipeline_graph": {
+        "nodes": [...],
+        "edges": [...]
+      }
+    }
+    ```
     """
 
     source: Literal["graph"] = "graph"
@@ -557,36 +661,32 @@ class GraphInline(BaseModel):
 
 class PipelineDescriptionSource(BaseModel):
     """
-    Pipeline source from GStreamer pipeline description string.
+    **Pipeline source from GStreamer pipeline description string.**
 
     Used when specifying a pipeline for tests by providing a GStreamer
     pipeline description string that will be parsed into a graph.
 
-    Attributes:
-        source: Discriminator field, always "description" for this type.
-        pipeline_description: GStreamer pipeline string with elements separated by '!'.
-            Must be non-empty.
-        description_id: Optional custom identifier for this pipeline description.
-            If provided, this ID is used instead of generating a hash-based ID.
-            The ID must be URL-safe (only lowercase letters, numbers, and dashes).
-            If not provided, a synthetic ID is generated from description content hash.
+    ## Attributes
+    - `source` - Discriminator field, always "description" for this type
+    - `pipeline_description` - GStreamer pipeline string with elements separated by '!' (must be non-empty)
+    - `description_id` - Optional custom identifier for this pipeline description (if provided, used instead of generating a hash-based ID; must be URL-safe with only lowercase letters, numbers, and dashes; if not provided, synthetic ID generated from description content hash)
 
-    Example (without description_id - uses generated hash):
-        .. code-block:: json
+    ### Example (without description_id - uses generated hash)
+    ```json
+    {
+      "source": "description",
+      "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+    }
+    ```
 
-            {
-              "source": "description",
-              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
-            }
-
-    Example (with custom description_id):
-        .. code-block:: json
-
-            {
-              "source": "description",
-              "description_id": "my-test-pipeline",
-              "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
-            }
+    ### Example (with custom description_id)
+    ```json
+    {
+      "source": "description",
+      "description_id": "my-test-pipeline",
+      "pipeline_description": "videotestsrc ! videoconvert ! fakesink"
+    }
+    ```
     """
 
     source: Literal["description"] = "description"
@@ -609,35 +709,34 @@ GraphSource = Union[VariantReference, GraphInline, PipelineDescriptionSource]
 
 class PipelineStreamSpec(BaseModel):
     """
-    Simple representation of pipeline stream count with pipeline identifier.
+    **Simple representation of pipeline stream count with pipeline identifier.**
 
     Used in test job results to report which pipelines were executed and how many
     streams were allocated to each.
 
     The id field format depends on the pipeline source:
-    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-    * For inline graph: "__graph-{16-char-hash}"
+    - For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+    - For inline graph: "__graph-{16-char-hash}"
 
-    Attributes:
-        id: Pipeline identifier - either variant path or synthetic graph ID.
-        streams: Number of streams allocated to this pipeline.
+    ## Attributes
+    - `id` - Pipeline identifier (either variant path or synthetic graph ID)
+    - `streams` - Number of streams allocated to this pipeline
 
-    Examples:
-        Variant reference:
-            .. code-block:: json
+    ### Example (Variant reference)
+    ```json
+    {
+      "id": "/pipelines/pipeline-a3f5d9e1/variants/variant-abc123",
+      "streams": 4
+    }
+    ```
 
-                {
-                  "id": "/pipelines/pipeline-a3f5d9e1/variants/variant-abc123",
-                  "streams": 4
-                }
-
-        Inline graph:
-            .. code-block:: json
-
-                {
-                  "id": "__graph-1a2b3c4d5e6f7g8h",
-                  "streams": 2
-                }
+    ### Example (Inline graph)
+    ```json
+    {
+      "id": "__graph-1a2b3c4d5e6f7g8h",
+      "streams": 2
+    }
+    ```
     """
 
     id: str = Field(
@@ -658,43 +757,41 @@ class PipelineStreamSpec(BaseModel):
 
 class PipelinePerformanceSpec(BaseModel):
     """
-    Per-pipeline configuration for performance and density tests.
+    **Per-pipeline configuration for performance and density tests.**
 
     The pipeline can be specified in two ways:
-    * variant: Reference to an existing pipeline variant by pipeline_id and variant_id
-    * graph: Inline pipeline graph provided directly
+    - `variant` - Reference to an existing pipeline variant by pipeline_id and variant_id
+    - `graph` - Inline pipeline graph provided directly
 
-    Attributes:
-        pipeline: Graph source - either a reference to existing variant or inline graph.
-            Discriminated by 'source' field: "variant" or "graph".
-        streams: Number of parallel streams to run for this pipeline.
+    ## Attributes
+    - `pipeline` - Graph source (either a reference to existing variant or inline graph; discriminated by 'source' field: \"variant\" or \"graph\")
+    - `streams` - Number of parallel streams to run for this pipeline
 
-    Examples:
-        Variant reference:
-            .. code-block:: json
+    ### Example (Variant reference)
+    ```json
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "pipeline-a3f5d9e1",
+        "variant_id": "variant-abc123"
+      },
+      "streams": 4
+    }
+    ```
 
-                {
-                  "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": "pipeline-a3f5d9e1",
-                    "variant_id": "variant-abc123"
-                  },
-                  "streams": 4
-                }
-
-        Inline graph:
-            .. code-block:: json
-
-                {
-                  "pipeline": {
-                    "source": "graph",
-                    "pipeline_graph": {
-                      "nodes": [...],
-                      "edges": [...]
-                    }
-                  },
-                  "streams": 4
-                }
+    ### Example (Inline graph)
+    ```json
+    {
+      "pipeline": {
+        "source": "graph",
+        "pipeline_graph": {
+          "nodes": [...],
+          "edges": [...]
+        }
+      },
+      "streams": 4
+    }
+    ```
     """
 
     pipeline: GraphSource = Field(
@@ -712,48 +809,44 @@ class PipelinePerformanceSpec(BaseModel):
 
 class PipelineDensitySpec(BaseModel):
     """
-    Per-pipeline configuration for density tests.
+    **Per-pipeline configuration for density tests.**
 
     The pipeline can be specified in two ways:
-    * variant: Reference to an existing pipeline variant by pipeline_id and variant_id
-    * graph: Inline pipeline graph provided directly
+    - `variant` - Reference to an existing pipeline variant by pipeline_id and variant_id
+    - `graph` - Inline pipeline graph provided directly
 
     Used in DensityTestSpec to describe how total streams are split between
     pipelines based on relative ratios.
 
-    Attributes:
-        pipeline: Graph source - either a reference to existing variant or inline graph.
-            Discriminated by 'source' field: "variant" or "graph".
-        stream_rate: Relative share of total streams for this pipeline
-            expressed as percentage. All stream_rate values in the request
-            must sum to 100.
+    ## Attributes
+    - `pipeline` - Graph source (either a reference to existing variant or inline graph; discriminated by 'source' field: \"variant\" or \"graph\")
+    - `stream_rate` - Relative share of total streams for this pipeline expressed as percentage (all stream_rate values in the request must sum to 100)
 
-    Examples:
-        Variant reference:
-            .. code-block:: json
+    ### Example (Variant reference)
+    ```json
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "pipeline-a3f5d9e1",
+        "variant_id": "variant-abc123"
+      },
+      "stream_rate": 50
+    }
+    ```
 
-                {
-                  "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": "pipeline-a3f5d9e1",
-                    "variant_id": "variant-abc123"
-                  },
-                  "stream_rate": 50
-                }
-
-        Inline graph:
-            .. code-block:: json
-
-                {
-                  "pipeline": {
-                    "source": "graph",
-                    "pipeline_graph": {
-                      "nodes": [...],
-                      "edges": [...]
-                    }
-                  },
-                  "stream_rate": 50
-                }
+    ### Example (Inline graph)
+    ```json
+    {
+      "pipeline": {
+        "source": "graph",
+        "pipeline_graph": {
+          "nodes": [...],
+          "edges": [...]
+        }
+      },
+      "stream_rate": 50
+    }
+    ```
     """
 
     pipeline: GraphSource = Field(
@@ -771,47 +864,43 @@ class PipelineDensitySpec(BaseModel):
 
 class Pipeline(BaseModel):
     """
-    Full pipeline definition exposed by the pipelines API.
+    **Full pipeline definition exposed by the pipelines API.**
 
-    Attributes:
-        id: Unique pipeline identifier generated by the backend.
-        name: Logical pipeline name.
-        description: Human-readable text describing what the pipeline does.
-        source: Origin of the pipeline (PREDEFINED, USER_CREATED, TEMPLATE).
-        tags: List of tags for categorizing the pipeline.
-        variants: List of pipeline variants for different hardware targets.
-            Each variant has its own pipeline_graph and pipeline_graph_simple.
-        thumbnail: Base64-encoded image for pipeline preview. Only available for
-            PREDEFINED pipelines with valid thumbnail file. Redacted when printing.
-        created_at: Creation timestamp as UTC datetime.
-            Set by backend only, not modifiable via API.
-        modified_at: Last modification timestamp as UTC datetime.
-            Updated when pipeline or its variants are modified. Set by backend only.
+    ## Attributes
+    - `id` - Unique pipeline identifier generated by the backend
+    - `name` - Logical pipeline name
+    - `description` - Human-readable text describing what the pipeline does
+    - `source` - Origin of the pipeline (PREDEFINED or USER_CREATED)
+    - `tags` - List of tags for categorizing the pipeline
+    - `variants` - List of pipeline variants for different hardware targets (each variant has its own pipeline_graph and pipeline_graph_simple)
+    - `thumbnail` - Base64-encoded image for pipeline preview (only available for PREDEFINED pipelines with valid thumbnail file; redacted when printing)
+    - `created_at` - Creation timestamp as UTC datetime (set by backend only, not modifiable via API)
+    - `modified_at` - Last modification timestamp as UTC datetime (updated when pipeline or its variants are modified; set by backend only)
 
-    Example:
-        .. code-block:: json
-
-            {
-              "id": "pipeline-a3f5d9e1",
-              "name": "vehicle-detection",
-              "description": "Simple vehicle detection pipeline",
-              "source": "USER_CREATED",
-              "tags": ["detection", "vehicle"],
-              "variants": [
-                {
-                  "id": "variant-1",
-                  "name": "CPU",
-                  "read_only": false,
-                  "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...},
-                  "created_at": "2026-02-05T14:30:45.123000+00:00",
-                  "modified_at": "2026-02-05T14:30:45.123000+00:00"
-                }
-              ],
-              "thumbnail": null,
-              "created_at": "2026-02-05T14:30:45.123000+00:00",
-              "modified_at": "2026-02-05T14:30:45.123000+00:00"
-            }
+    ### Example
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1",
+      "name": "vehicle-detection",
+      "description": "Simple vehicle detection pipeline",
+      "source": "USER_CREATED",
+      "tags": ["detection", "vehicle"],
+      "variants": [
+        {
+          "id": "variant-1",
+          "name": "CPU",
+          "read_only": false,
+          "pipeline_graph": {...},
+          "pipeline_graph_simple": {...},
+          "created_at": "2026-02-05T14:30:45.123000+00:00",
+          "modified_at": "2026-02-05T14:30:45.123000+00:00"
+        }
+      ],
+      "thumbnail": null,
+      "created_at": "2026-02-05T14:30:45.123000+00:00",
+      "modified_at": "2026-02-05T14:30:45.123000+00:00"
+    }
+    ```
     """
 
     id: str
@@ -844,32 +933,30 @@ class Pipeline(BaseModel):
 
 class PipelineDefinition(BaseModel):
     """
-    Input model used to create a new pipeline via the API.
+    **Input model used to create a new pipeline via the API.**
 
-    Attributes:
-        name: Non-empty pipeline name.
-        description: Non-empty human-readable text describing what the pipeline does.
-        source: Pipeline source. For create endpoint this value is
-            overwritten to USER_CREATED.
-        tags: List of tags for categorizing the pipeline.
-        variants: List of pipeline variants for different hardware targets.
-            Each variant requires name, pipeline_graph, and pipeline_graph_simple.
+    ## Attributes
+    - `name` - Non-empty pipeline name
+    - `description` - Non-empty human-readable text describing what the pipeline does
+    - `source` - Pipeline source (for create endpoint this value is overwritten to USER_CREATED)
+    - `tags` - List of tags for categorizing the pipeline
+    - `variants` - List of pipeline variants for different hardware targets (each variant requires name, pipeline_graph, and pipeline_graph_simple)
 
-    Example:
-        .. code-block:: json
-
-            {
-              "name": "vehicle-detection",
-              "description": "Simple vehicle detection pipeline",
-              "tags": ["detection", "vehicle"],
-              "variants": [
-                {
-                  "name": "CPU",
-                  "pipeline_graph": {...},
-                  "pipeline_graph_simple": {...}
-                }
-              ]
-            }
+    ### Example
+    ```json
+    {
+      "name": "vehicle-detection",
+      "description": "Simple vehicle detection pipeline",
+      "tags": ["detection", "vehicle"],
+      "variants": [
+        {
+          "name": "CPU",
+          "pipeline_graph": {...},
+          "pipeline_graph_simple": {...}
+        }
+      ]
+    }
+    ```
     """
 
     name: str = Field(..., min_length=1, description="Non-empty pipeline name.")
@@ -892,7 +979,7 @@ class PipelineDefinition(BaseModel):
 
 class PipelineUpdate(BaseModel):
     """
-    Partial update model for an existing pipeline.
+    **Partial update model for an existing pipeline.**
 
     All fields are optional, but at least one must be provided when calling
     the update endpoint. String fields (name, description) must be non-empty
@@ -900,18 +987,18 @@ class PipelineUpdate(BaseModel):
 
     Validation is performed in model_validator to fail fast on invalid input.
 
-    Attributes:
-        name: Optional new pipeline name (non-empty after trim if provided).
-        description: Optional new human-readable text describing what the pipeline does (non-empty after trim if provided).
-        tags: Optional list of tags. If provided, can be empty.
+    ## Attributes
+    - `name` - Optional new pipeline name (non-empty after trim if provided)
+    - `description` - Optional new human-readable text describing what the pipeline does (non-empty after trim if provided)
+    - `tags` - Optional list of tags (if provided, can be empty)
 
-    Example:
-        .. code-block:: json
-
-            {
-              "description": "Updated pipeline with better preprocessing",
-              "tags": ["updated", "v2"]
-            }
+    ### Example
+    ```json
+    {
+      "description": "Updated pipeline with better preprocessing",
+      "tags": ["updated", "v2"]
+    }
+    ```
     """
 
     name: Optional[str] = None
@@ -939,25 +1026,24 @@ class PipelineUpdate(BaseModel):
 
 class PipelineValidation(BaseModel):
     """
-    Request body for pipeline validation.
+    **Request body for pipeline validation.**
 
-    Attributes:
-        pipeline_graph: Structured graph representation of the pipeline.
-        parameters: Optional parameter set for validation (for example
-            ``{"max-runtime": 10}``).
+    ## Attributes
+    - `pipeline_graph` - Structured graph representation of the pipeline
+    - `parameters` - Optional parameter set for validation (e.g., `{"max-runtime": 10}`)
 
-    Example:
-        .. code-block:: json
-
-            {
-              "pipeline_graph": {
-                "nodes": [...],
-                "edges": [...]
-              },
-              "parameters": {
-                "max-runtime": 10
-              }
-            }
+    ### Example
+    ```json
+    {
+      "pipeline_graph": {
+        "nodes": [...],
+        "edges": [...]
+      },
+      "parameters": {
+        "max-runtime": 10
+      }
+    }
+    ```
     """
 
     pipeline_graph: PipelineGraph
@@ -968,9 +1054,19 @@ class PipelineValidation(BaseModel):
 
 class ValidationJobResponse(BaseModel):
     """
-    Simple envelope with a new validation job identifier.
+    **Simple envelope with a new validation job identifier.**
 
     Used as response body when a validation job is created.
+
+    ## Attributes
+    - `job_id` - Identifier of the created validation job
+
+    ### Example
+    ```json
+    {
+      "job_id": "val001"
+    }
+    ```
     """
 
     job_id: str = Field(
@@ -982,24 +1078,22 @@ class ValidationJobResponse(BaseModel):
 
 class PipelineRequestOptimize(BaseModel):
     """
-    Request body for starting a pipeline optimization job.
+    **Request body for starting a pipeline optimization job.**
 
-    Attributes:
-        type: Optimization type:
-            * ``preprocess`` – run only preprocessing.
-            * ``optimize`` – run full optimization with search/sampling.
-        parameters: Optional dictionary with optimizer-specific settings.
+    ## Attributes
+    - `type` - Optimization type: `preprocess` (run only preprocessing) or `optimize` (run full optimization with search/sampling)
+    - `parameters` - Optional dictionary with optimizer-specific settings
 
-    Example:
-        .. code-block:: json
-
-            {
-              "type": "optimize",
-              "parameters": {
-                "search_duration": 300,
-                "sample_duration": 10
-              }
-            }
+    ### Example
+    ```json
+    {
+      "type": "optimize",
+      "parameters": {
+        "search_duration": 300,
+        "sample_duration": 10
+      }
+    }
+    ```
     """
 
     type: OptimizationType
@@ -1008,12 +1102,17 @@ class PipelineRequestOptimize(BaseModel):
 
 class OutputMode(str, Enum):
     """
-    Mode for pipeline output generation.
+    **Mode for pipeline output generation.**
 
-    Values:
-        DISABLED: No output generation (default).
-        FILE: Save output to file.
-        LIVE_STREAM: Stream output live to media server.
+    ## Values
+    - `DISABLED` - No output generation (default)
+    - `FILE` - Save output to file
+    - `LIVE_STREAM` - Stream output live to media server
+
+    ### Example
+    ```json
+    "disabled"
+    ```
     """
 
     DISABLED = "disabled"
@@ -1023,45 +1122,44 @@ class OutputMode(str, Enum):
 
 class ExecutionConfig(BaseModel):
     """
-    Configuration for pipeline execution behavior.
+    **Configuration for pipeline execution behavior.**
 
     This configuration controls both output generation and runtime limits
     for test pipelines.
 
-    Attributes:
-        output_mode: Mode for pipeline output generation.
-            - disabled: No output (fakesink remains, default)
-            - file: Save video to file (only allowed with max_runtime=0)
-            - live_stream: Stream output live to media server
-        max_runtime: Maximum runtime in seconds for the pipeline.
-            - 0: Run until natural completion (EOS), no time limit (default)
-            - >0: Stop pipeline after this duration, with looping if EOS comes early
-                  (only allowed with output_mode=disabled or output_mode=live_stream)
-            - <0: Not allowed (will be rejected)
+    ## Attributes
+    - `output_mode` - Mode for pipeline output generation:
+      - `disabled` - No output (fakesink remains, default)
+      - `file` - Save video to file (only allowed with max_runtime=0)
+      - `live_stream` - Stream output live to media server
+    - `max_runtime` - Maximum runtime in seconds for the pipeline:
+      - 0: Run until natural completion (EOS), no time limit (default)
+      - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)
+      - <0: Not allowed (will be rejected)
 
-    Example (disabled output, no runtime limit):
-        .. code-block:: json
+    ### Example (disabled output, no runtime limit)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0
+    }
+    ```
 
-            {
-              "output_mode": "disabled",
-              "max_runtime": 0
-            }
+    ### Example (save to file, run until EOS)
+    ```json
+    {
+      "output_mode": "file",
+      "max_runtime": 0
+    }
+    ```
 
-    Example (save to file, run until EOS):
-        .. code-block:: json
-
-            {
-              "output_mode": "file",
-              "max_runtime": 0
-            }
-
-    Example (live streaming with 60 second limit):
-        .. code-block:: json
-
-            {
-              "output_mode": "live_stream",
-              "max_runtime": 60
-            }
+    ### Example (live streaming with 60 second limit)
+    ```json
+    {
+      "output_mode": "live_stream",
+      "max_runtime": 60
+    }
+    ```
     """
 
     output_mode: OutputMode = Field(
@@ -1077,11 +1175,31 @@ class ExecutionConfig(BaseModel):
 
 class PerformanceTestSpec(BaseModel):
     """
-    Request body for starting a performance test.
+    **Request body for starting a performance test.**
 
-    Attributes:
-        pipeline_performance_specs: List of pipelines and their stream counts.
-        execution_config: Configuration for output generation and runtime limits.
+    ## Attributes
+    - `pipeline_performance_specs` - List of pipelines and their stream counts
+    - `execution_config` - Configuration for output generation and runtime limits
+
+    ### Example
+    ```json
+    {
+      "pipeline_performance_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "streams": 4
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
     """
 
     pipeline_performance_specs: list[PipelinePerformanceSpec] = Field(
@@ -1109,12 +1227,41 @@ class PerformanceTestSpec(BaseModel):
 
 class DensityTestSpec(BaseModel):
     """
-    Request body for starting a density test.
+    **Request body for starting a density test.**
 
-    Attributes:
-        fps_floor: Minimum acceptable FPS per stream.
-        pipeline_density_specs: List of pipelines with relative stream_rate ratios.
-        execution_config: Configuration for output generation and runtime limits.
+    ## Attributes
+    - `fps_floor` - Minimum acceptable FPS per stream
+    - `pipeline_density_specs` - List of pipelines with relative stream_rate ratios
+    - `execution_config` - Configuration for output generation and runtime limits
+
+    ### Example
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "stream_rate": 50
+        },
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-b4c6e2f8",
+            "variant_id": "variant-def456"
+          },
+          "stream_rate": 50
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
     """
 
     fps_floor: int = Field(
@@ -1155,9 +1302,19 @@ class DensityTestSpec(BaseModel):
 
 class TestJobResponse(BaseModel):
     """
-    Simple envelope with a new test job identifier.
+    **Simple envelope with a new test job identifier.**
 
     Used as response body when performance or density test job is created.
+
+    ## Attributes
+    - `job_id` - Identifier of the created test job
+
+    ### Example
+    ```json
+    {
+      "job_id": "job123"
+    }
+    ```
     """
 
     job_id: str = Field(
@@ -1169,26 +1326,22 @@ class TestJobResponse(BaseModel):
 
 class TestsJobStatus(BaseModel):
     """
-    Base status fields shared by performance and density jobs.
+    **Base status fields shared by performance and density jobs.**
 
-    Attributes:
-        id: Job identifier.
-        start_time: Start time in milliseconds since epoch.
-        elapsed_time: Elapsed time in milliseconds.
-        state: Current job state.
-        total_fps: Total FPS across all streams (may be null).
-        per_stream_fps: Average FPS per stream (may be null).
-        total_streams: Number of active streams (may be null).
-        streams_per_pipeline: List of pipeline IDs with stream counts.
-            Each entry contains:
-            - id: Pipeline identifier (variant path or synthetic graph ID)
-            - streams: Number of streams for this pipeline
-        video_output_paths: Mapping from pipeline id to list of output file paths.
-            Keys use the same id format as streams_per_pipeline entries.
-        error_message: Error description when state is ERROR or ABORTED.
+    ## Attributes
+    - `id` - Job identifier
+    - `start_time` - Start time in milliseconds since epoch
+    - `elapsed_time` - Elapsed time in milliseconds
+    - `state` - Current job state
+    - `total_fps` - Total FPS across all streams (may be null)
+    - `per_stream_fps` - Average FPS per stream (may be null)
+    - `total_streams` - Number of active streams (may be null)
+    - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
+    - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
+    - `error_message` - Error description when state is ERROR or ABORTED
 
-    Note: live_stream_urls is intentionally not included here because density tests
-    do not support live-streaming. PerformanceJobStatus adds this field separately.
+    > **Note:** live_stream_urls is intentionally not included here because density tests
+    > do not support live-streaming. PerformanceJobStatus adds this field separately.
     """
 
     id: str
@@ -1205,15 +1358,14 @@ class TestsJobStatus(BaseModel):
 
 class PerformanceJobStatus(TestsJobStatus):
     """
-    Status of a performance test job.
+    **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls
     for live-streaming output mode support.
 
-    Attributes:
-        live_stream_urls: Mapping from pipeline id to live stream URL
-            when using live_stream output mode. Keys use the same id format
-            as streams_per_pipeline entries. Only available for performance tests.
+    ## Attributes
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths, error_message
+    - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     """
 
     live_stream_urls: Optional[Dict[str, str]]
@@ -1221,11 +1373,14 @@ class PerformanceJobStatus(TestsJobStatus):
 
 class DensityJobStatus(TestsJobStatus):
     """
-    Status of a density test job.
+    **Status of a density test job.**
 
     Inherits all fields from TestsJobStatus without changes.
     Does not include live_stream_urls because density tests do not support
     live-streaming output mode (only disabled or file modes are allowed).
+
+    ## Attributes
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths, error_message
     """
 
     pass
@@ -1233,12 +1388,22 @@ class DensityJobStatus(TestsJobStatus):
 
 class PerformanceJobSummary(BaseModel):
     """
-    Short summary for a performance test job.
+    **Short summary for a performance test job.**
 
-    Attributes:
-        id: Job identifier.
-        request: Original PerformanceTestSpec used to start the job.
-            Stored as dict and validated on output.
+    ## Attributes
+    - `id` - Job identifier
+    - `request` - Original PerformanceTestSpec used to start the job (stored as dict and validated on output)
+
+    ### Example
+    ```json
+    {
+      "id": "job123",
+      "request": {
+        "pipeline_performance_specs": [...],
+        "execution_config": {...}
+      }
+    }
+    ```
     """
 
     id: str
@@ -1247,12 +1412,23 @@ class PerformanceJobSummary(BaseModel):
 
 class DensityJobSummary(BaseModel):
     """
-    Short summary for a density test job.
+    **Short summary for a density test job.**
 
-    Attributes:
-        id: Job identifier.
-        request: Original DensityTestSpec used to start the job.
-            Stored as dict and validated on output.
+    ## Attributes
+    - `id` - Job identifier
+    - `request` - Original DensityTestSpec used to start the job (stored as dict and validated on output)
+
+    ### Example
+    ```json
+    {
+      "id": "job456",
+      "request": {
+        "fps_floor": 30,
+        "pipeline_density_specs": [...],
+        "execution_config": {...}
+      }
+    }
+    ```
     """
 
     id: str
@@ -1261,9 +1437,19 @@ class DensityJobSummary(BaseModel):
 
 class OptimizationJobResponse(BaseModel):
     """
-    Simple envelope with a new optimization job identifier.
+    **Simple envelope with a new optimization job identifier.**
 
     Used as response body when an optimization job is created.
+
+    ## Attributes
+    - `job_id` - Identifier of the created optimization job
+
+    ### Example
+    ```json
+    {
+      "job_id": "opt789"
+    }
+    ```
     """
 
     job_id: str = Field(
@@ -1275,22 +1461,22 @@ class OptimizationJobResponse(BaseModel):
 
 class OptimizationJobStatus(BaseModel):
     """
-    Detailed status of an optimization job.
+    **Detailed status of an optimization job.**
 
-    Attributes:
-        id: Job identifier.
-        type: Optimization type (PREPROCESS or OPTIMIZE).
-        start_time: Start time in milliseconds since epoch.
-        elapsed_time: Elapsed time in milliseconds.
-        state: Current job state.
-        total_fps: Measured FPS for optimized pipeline (for OPTIMIZE).
-        original_pipeline_graph: Original pipeline graph (advanced view) before optimization.
-        original_pipeline_graph_simple: Original pipeline graph (simple view) before optimization.
-        optimized_pipeline_graph: Optimized pipeline graph (advanced view) if available.
-        optimized_pipeline_graph_simple: Optimized pipeline graph (simple view) if available.
-        original_pipeline_description: Original GStreamer pipeline string before optimization.
-        optimized_pipeline_description: Optimized GStreamer pipeline string after optimization (if any).
-        error_message: Error details when state is ERROR or ABORTED.
+    ## Attributes
+    - `id` - Job identifier
+    - `type` - Optimization type (PREPROCESS or OPTIMIZE)
+    - `start_time` - Start time in milliseconds since epoch
+    - `elapsed_time` - Elapsed time in milliseconds
+    - `state` - Current job state
+    - `total_fps` - Measured FPS for optimized pipeline (for OPTIMIZE)
+    - `original_pipeline_graph` - Original pipeline graph (advanced view) before optimization
+    - `original_pipeline_graph_simple` - Original pipeline graph (simple view) before optimization
+    - `optimized_pipeline_graph` - Optimized pipeline graph (advanced view) if available
+    - `optimized_pipeline_graph_simple` - Optimized pipeline graph (simple view) if available
+    - `original_pipeline_description` - Original GStreamer pipeline string before optimization
+    - `optimized_pipeline_description` - Optimized GStreamer pipeline string after optimization (if any)
+    - `error_message` - Error details when state is ERROR or ABORTED
     """
 
     id: str
@@ -1310,11 +1496,22 @@ class OptimizationJobStatus(BaseModel):
 
 class OptimizationJobSummary(BaseModel):
     """
-    Short summary for an optimization job.
+    **Short summary for an optimization job.**
 
-    Attributes:
-        id: Job identifier.
-        request: Original PipelineRequestOptimize used to start the job.
+    ## Attributes
+    - `id` - Job identifier
+    - `request` - Original PipelineRequestOptimize used to start the job
+
+    ### Example
+    ```json
+    {
+      "id": "opt789",
+      "request": {
+        "type": "optimize",
+        "parameters": {}
+      }
+    }
+    ```
     """
 
     id: str
@@ -1323,15 +1520,15 @@ class OptimizationJobSummary(BaseModel):
 
 class ValidationJobStatus(BaseModel):
     """
-    Detailed status of a validation job.
+    **Detailed status of a validation job.**
 
-    Attributes:
-        id: Job identifier.
-        start_time: Start time in milliseconds since epoch.
-        elapsed_time: Elapsed time in milliseconds.
-        state: Current validation job state.
-        is_valid: Final validation result (true/false) when completed.
-        error_message: Optional list of validation error descriptions.
+    ## Attributes
+    - `id` - Job identifier
+    - `start_time` - Start time in milliseconds since epoch
+    - `elapsed_time` - Elapsed time in milliseconds
+    - `state` - Current validation job state
+    - `is_valid` - Final validation result (true/false) when completed
+    - `error_message` - Optional list of validation error descriptions
     """
 
     id: str
@@ -1344,11 +1541,22 @@ class ValidationJobStatus(BaseModel):
 
 class ValidationJobSummary(BaseModel):
     """
-    Short summary for a validation job.
+    **Short summary for a validation job.**
 
-    Attributes:
-        id: Job identifier.
-        request: Original PipelineValidation request.
+    ## Attributes
+    - `id` - Job identifier
+    - `request` - Original PipelineValidation request
+
+    ### Example
+    ```json
+    {
+      "id": "val001",
+      "request": {
+        "pipeline_graph": {...},
+        "parameters": {}
+      }
+    }
+    ```
     """
 
     id: str
@@ -1357,29 +1565,28 @@ class ValidationJobSummary(BaseModel):
 
 class Device(BaseModel):
     """
-    Hardware device description used by multiple APIs.
+    **Hardware device description used by multiple APIs.**
 
     This model is a simplified view of the device information returned
-    by the runtime (for example OpenVINO) and is suitable for UI consumption.
+    by the runtime (e.g., OpenVINO) and is suitable for UI consumption.
 
-    Attributes:
-        device_name: Short identifier used when selecting the device
-            (for example ``"CPU"``, ``"GPU"``, ``"GPU.0"``, ``"NPU"``).
-        full_device_name: Human readable device name (CPU/GPU/NPU model).
-        device_type: High level device type (``INTEGRATED`` or ``DISCRETE``).
-        device_family: Hardware family (``CPU``, ``GPU``, ``NPU``).
-        gpu_id: Optional GPU index when applicable; null for non-GPU devices.
+    ## Attributes
+    - `device_name` - Short identifier used when selecting the device (e.g., "CPU", "GPU", "GPU.0", "NPU")
+    - `full_device_name` - Human readable device name (CPU/GPU/NPU model)
+    - `device_type` - High level device type (INTEGRATED or DISCRETE)
+    - `device_family` - Hardware family (CPU, GPU, NPU)
+    - `gpu_id` - Optional GPU index when applicable; null for non-GPU devices
 
-    Example:
-        .. code-block:: json
-
-            {
-              "device_name": "GPU.0",
-              "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
-              "device_type": "INTEGRATED",
-              "device_family": "GPU",
-              "gpu_id": 0
-            }
+    ### Example
+    ```json
+    {
+      "device_name": "GPU.0",
+      "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
+      "device_type": "INTEGRATED",
+      "device_family": "GPU",
+      "gpu_id": 0
+    }
+    ```
     """
 
     device_name: str
@@ -1391,25 +1598,23 @@ class Device(BaseModel):
 
 class Model(BaseModel):
     """
-    Description of a single model exposed by the models API.
+    **Description of a single model exposed by the models API.**
 
-    Attributes:
-        name: Internal model identifier used by the backend.
-        display_name: Human readable model name suitable for UI.
-        category: Logical model category (classification, detection), or null
-            when the type from configuration is unknown or unsupported.
-        precision: Model precision string (for example "FP32", "INT8"), or null
-            when not specified.
+    ## Attributes
+    - `name` - Internal model identifier used by the backend
+    - `display_name` - Human readable model name suitable for UI
+    - `category` - Logical model category (classification, detection), or null when the type from configuration is unknown or unsupported
+    - `precision` - Model precision string (e.g., "FP32", "INT8"), or null when not specified
 
-    Example:
-        .. code-block:: json
-
-            {
-              "name": "vehicle-detection-0202",
-              "display_name": "Vehicle Detection",
-              "category": "detection",
-              "precision": "FP32"
-            }
+    ### Example
+    ```json
+    {
+      "name": "vehicle-detection-0202",
+      "display_name": "Vehicle Detection",
+      "category": "detection",
+      "precision": "FP32"
+    }
+    ```
     """
 
     name: str
@@ -1420,23 +1625,23 @@ class Model(BaseModel):
 
 class MetricSample(BaseModel):
     """
-    Single metric sample used in streaming metrics APIs.
+    **Single metric sample used in streaming metrics APIs.**
 
-    Attributes:
-        name: Metric name (for example ``"total_fps"`` or ``"cpu_usage"``).
-        description: Short human-readable description of the metric.
-        timestamp: Unix timestamp in milliseconds when the sample was taken.
-        value: Numeric value of the metric.
+    ## Attributes
+    - `name` - Metric name (e.g., "total_fps" or "cpu_usage")
+    - `description` - Short human-readable description of the metric
+    - `timestamp` - Unix timestamp in milliseconds when the sample was taken
+    - `value` - Numeric value of the metric
 
-    Example:
-        .. code-block:: json
-
-            {
-              "name": "total_fps",
-              "description": "Total FPS over all streams",
-              "timestamp": 1715000000000,
-              "value": 512.4
-            }
+    ### Example
+    ```json
+    {
+      "name": "total_fps",
+      "description": "Total FPS over all streams",
+      "timestamp": 1715000000000,
+      "value": 512.4
+    }
+    ```
     """
 
     name: str
@@ -1447,29 +1652,29 @@ class MetricSample(BaseModel):
 
 class Video(BaseModel):
     """
-    Metadata for a single input video file.
+    **Metadata for a single input video file.**
 
-    Attributes:
-        filename: Base name of the video file located under RECORDINGS_PATH.
-        width: Frame width in pixels.
-        height: Frame height in pixels.
-        fps: Frames per second for the stream.
-        frame_count: Total number of frames in the file.
-        codec: Normalized codec name (for example ``"h264"`` or ``"h265"``).
-        duration: Approximate duration in seconds.
+    ## Attributes
+    - `filename` - Base name of the video file located under RECORDINGS_PATH
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Frames per second for the stream
+    - `frame_count` - Total number of frames in the file
+    - `codec` - Normalized codec name (e.g., "h264" or "h265")
+    - `duration` - Approximate duration in seconds
 
-    Example:
-        .. code-block:: json
-
-            {
-              "filename": "traffic_1080p_h264.mp4",
-              "width": 1920,
-              "height": 1080,
-              "fps": 30.0,
-              "frame_count": 900,
-              "codec": "h264",
-              "duration": 30.0
-            }
+    ### Example
+    ```json
+    {
+      "filename": "traffic_1080p_h264.mp4",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30.0,
+      "frame_count": 900,
+      "codec": "h264",
+      "duration": 30.0
+    }
+    ```
     """
 
     filename: str
@@ -1482,13 +1687,25 @@ class Video(BaseModel):
 
 
 class CameraDetails(BaseModel):
-    """Base class for camera-specific details."""
+    """
+    **Base class for camera-specific details.**
+
+    This is an abstract base class. Use USBCameraDetails or NetworkCameraDetails
+    for specific camera types.
+    """
 
     pass
 
 
 class V4L2FormatSize(BaseModel):
-    """Single supported resolution with available frame rates for a V4L2 format."""
+    """
+    **Single supported resolution with available frame rates for a V4L2 format.**
+
+    ## Attributes
+    - `width` - Resolution width in pixels
+    - `height` - Resolution height in pixels
+    - `fps_list` - List of available frame rates for this resolution
+    """
 
     width: int
     height: int
@@ -1496,14 +1713,28 @@ class V4L2FormatSize(BaseModel):
 
 
 class V4L2Format(BaseModel):
-    """Single V4L2 pixel format with all supported resolutions and frame rates."""
+    """
+    **Single V4L2 pixel format with all supported resolutions and frame rates.**
+
+    ## Attributes
+    - `fourcc` - Four-character code identifying the pixel format (e.g., "YUYV", "MJPG")
+    - `sizes` - List of supported resolutions with their available frame rates
+    """
 
     fourcc: str
     sizes: List[V4L2FormatSize]
 
 
 class V4L2BestCapture(BaseModel):
-    """Best capture configuration selected from available V4L2 formats."""
+    """
+    **Best capture configuration selected from available V4L2 formats.**
+
+    ## Attributes
+    - `fourcc` - Selected pixel format four-character code
+    - `width` - Selected resolution width in pixels
+    - `height` - Selected resolution height in pixels
+    - `fps` - Selected frame rate
+    """
 
     fourcc: str
     width: int
@@ -1512,12 +1743,14 @@ class V4L2BestCapture(BaseModel):
 
 
 class USBCameraDetails(CameraDetails):
-    """USB camera details including the best capture configuration
-    selected by the scoring algorithm.
+    """
+    **USB camera details including the best capture configuration.**
 
-    Attributes:
-        device_path: System device path (e.g., /dev/video0).
-        best_capture: Best capture configuration selected by scoring algorithm.
+    Selected by the scoring algorithm from available V4L2 formats.
+
+    ## Attributes
+    - `device_path` - System device path (e.g., /dev/video0)
+    - `best_capture` - Best capture configuration selected by scoring algorithm (optional)
     """
 
     device_path: str
@@ -1525,14 +1758,16 @@ class USBCameraDetails(CameraDetails):
 
 
 class NetworkCameraDetails(CameraDetails):
-    """Network camera details including ONVIF profiles and the best
-    profile selected by the scoring algorithm.
+    """
+    **Network camera details including ONVIF profiles and best profile.**
 
-    Attributes:
-        ip: IP address of the camera.
-        port: Port number for ONVIF communication.
-        profiles: List of ONVIF profiles available on this camera (populated after authentication).
-        best_profile: Best profile selected by scoring algorithm.
+    The best profile is selected by the scoring algorithm.
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `port` - Port number for ONVIF communication
+    - `profiles` - List of ONVIF profiles available on this camera (populated after authentication)
+    - `best_profile` - Best profile selected by scoring algorithm (optional)
     """
 
     ip: str
@@ -1543,60 +1778,65 @@ class NetworkCameraDetails(CameraDetails):
 
 class Camera(BaseModel):
     """
-    Camera device information supporting both USB and network cameras.
+    **Camera device information supporting both USB and network cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
     in the details field which contains either USBCameraDetails or NetworkCameraDetails.
 
-    Attributes:
-        device_id: Unique identifier for the camera.
-        device_name: Human-readable camera name.
-        device_type: Type of camera (USB or NETWORK).
-        details: Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK).
+    ## Attributes
+    - `device_id` - Unique identifier for the camera
+    - `device_name` - Human-readable camera name
+    - `device_type` - Type of camera (USB or NETWORK)
+    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
 
-    Example (USB Camera):
-        .. code-block:: json
+    ### Example (USB Camera)
+    ```json
+    {
+      "device_id": "usb-camera-0",
+      "device_name": "Integrated Camera",
+      "device_type": "USB",
+      "details": {
+        "device_path": "/dev/video0",
+        "best_capture": {
+          "fourcc": "YUYV",
+          "width": 1920,
+          "height": 1080,
+          "fps": 30
+        }
+      }
+    }
+    ```
 
-            {
-              "device_id": "usb-camera-0",
-              "device_name": "Integrated Camera",
-              "device_type": "USB",
-              "details": {
-                "device_path": "/dev/video0",
-                "resolution": "1920x1080"
-              }
-            }
-
-    Example (Network Camera):
-        .. code-block:: json
-
-            {
-              "device_id": "network-camera-192.168.1.100-80",
-              "device_name": "ONVIF Camera 192.168.1.100",
-              "device_type": "NETWORK",
-              "details": {
-                "ip": "192.168.1.100",
-                "port": 80,
-                "profiles": [
-                  {
-                    "name": "Profile_1",
-                    "rtsp_url": "rtsp://192.168.1.100:554/stream1",
-                    "resolution": "1920x1080",
-                    "encoding": "H264",
-                    "framerate": 30,
-                    "bitrate": 4096
-                  },
-                  {
-                    "name": "Profile_2",
-                    "rtsp_url": "rtsp://192.168.1.100:554/stream2",
-                    "resolution": "1280x720",
-                    "encoding": "H264",
-                    "framerate": 15,
-                    "bitrate": 2048
-                  }
-                ]
-              }
-            }
+    ### Example (Network Camera)
+    ```json
+    {
+      "device_id": "network-camera-192.168.1.100-80",
+      "device_name": "ONVIF Camera 192.168.1.100",
+      "device_type": "NETWORK",
+      "details": {
+        "ip": "192.168.1.100",
+        "port": 80,
+        "profiles": [
+          {
+            "name": "Profile_1",
+            "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+            "resolution": "1920x1080",
+            "encoding": "H264",
+            "framerate": 30,
+            "bitrate": 4096
+          }
+        ],
+        "best_profile": {
+          "name": "Profile_1",
+          "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+          "resolution": "1920x1080",
+          "encoding": "H264",
+          "framerate": 30,
+          "bitrate": 4096
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
@@ -1607,19 +1847,21 @@ class Camera(BaseModel):
 
 class CameraProfilesRequest(BaseModel):
     """
-    Request model for camera profile retrieval (camera_id provided in path).
+    **Request model for camera profile retrieval.**
 
-    Attributes:
-        username: Username for ONVIF authentication.
-        password: Password for ONVIF authentication.
+    Camera ID is provided in the path parameter.
 
-    Example:
-        .. code-block:: json
+    ## Attributes
+    - `username` - Username for ONVIF authentication
+    - `password` - Password for ONVIF authentication
 
-            {
-              "username": "admin",
-              "password": "password123"
-            }
+    ### Example
+    ```json
+    {
+      "username": "admin",
+      "password": "password123"
+    }
+    ```
     """
 
     username: str
@@ -1628,27 +1870,27 @@ class CameraProfilesRequest(BaseModel):
 
 class CameraProfileInfo(BaseModel):
     """
-    Detailed ONVIF camera profile information.
+    **Detailed ONVIF camera profile information.**
 
-    Attributes:
-        name: Profile name.
-        rtsp_url: RTSP stream URL.
-        resolution: Video resolution (e.g., "1920x1080").
-        encoding: Video encoding format (e.g., "H264", "MPEG4").
-        framerate: Frame rate limit.
-        bitrate: Bitrate limit.
+    ## Attributes
+    - `name` - Profile name
+    - `rtsp_url` - RTSP stream URL
+    - `resolution` - Video resolution (e.g., "1920x1080")
+    - `encoding` - Video encoding format (e.g., "H264", "MPEG4")
+    - `framerate` - Frame rate limit
+    - `bitrate` - Bitrate limit
 
-    Example:
-        .. code-block:: json
-
-            {
-              "name": "Profile_1",
-              "rtsp_url": "rtsp://192.168.1.100:554/stream1",
-              "resolution": "1920x1080",
-              "encoding": "H264",
-              "framerate": 30,
-              "bitrate": 4096
-            }
+    ### Example
+    ```json
+    {
+      "name": "Profile_1",
+      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
+      "resolution": "1920x1080",
+      "encoding": "H264",
+      "framerate": 30,
+      "bitrate": 4096
+    }
+    ```
     """
 
     name: str
@@ -1661,39 +1903,30 @@ class CameraProfileInfo(BaseModel):
 
 class CameraAuthResponse(BaseModel):
     """
-    Response model for camera authentication attempt.
+    **Response model for camera authentication attempt.**
 
     Returns the authenticated camera with populated ONVIF profiles.
     After successful authentication, the camera's profile list is updated
     with all available ONVIF profiles from the device.
 
-    Attributes:
-        camera: Camera object with updated profile information.
+    ## Attributes
+    - `camera` - Camera object with updated profile list (includes all ONVIF profiles available on the device)
 
-    Example:
-        .. code-block:: json
-
-            {
-              "camera": {
-                "device_id": "network-camera-192.168.1.100-80",
-                "device_name": "ONVIF Camera 192.168.1.100",
-                "device_type": "NETWORK",
-                "details": {
-                  "ip": "192.168.1.100",
-                  "port": 80,
-                  "profiles": [
-                    {
-                      "name": "Profile_1",
-                      "rtsp_url": "rtsp://192.168.1.100:554/stream1",
-                      "resolution": "1920x1080",
-                      "encoding": "H264",
-                      "framerate": 30,
-                      "bitrate": 4096
-                    }
-                  ]
-                }
-              }
-            }
+    ### Example
+    ```json
+    {
+      "camera": {
+        "device_id": "network-camera-192.168.1.100-80",
+        "device_name": "ONVIF Camera 192.168.1.100",
+        "device_type": "NETWORK",
+        "details": {
+          "ip": "192.168.1.100",
+          "port": 80,
+          "profiles": [...]
+        }
+      }
+    }
+    ```
     """
 
     camera: Camera = Field(

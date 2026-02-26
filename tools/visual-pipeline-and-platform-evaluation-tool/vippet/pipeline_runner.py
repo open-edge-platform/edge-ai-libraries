@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import select
+import signal
 import subprocess
 import sys
 import time
@@ -171,6 +172,8 @@ class PipelineRunner:
             "validation",
             "--max-runtime",
             str(self.max_runtime),
+            "--log-level",
+            self._get_log_level(),
             pipeline_command,
         ]
 
@@ -198,7 +201,7 @@ class PipelineRunner:
                 "gst_runner.py timed out after %s seconds, killing process",
                 self.hard_timeout,
             )
-            proc.kill()
+            self._graceful_terminate(proc)
             stdout, stderr = proc.communicate()
             errors = self._parse_validation_stderr(stderr)
             errors.append(
@@ -286,6 +289,8 @@ class PipelineRunner:
             "normal",
             "--max-runtime",
             str(self.max_runtime),
+            "--log-level",
+            self._get_log_level(),
             pipeline_command,
         ]
 
@@ -317,8 +322,10 @@ class PipelineRunner:
             # Poll the process to check if it is still running
             while process.poll() is None:
                 if self.cancelled:
-                    process.terminate()
-                    self.logger.info("Process cancelled, terminating")
+                    self._graceful_terminate(process)
+                    self.logger.info(
+                        "Process cancelled, sent SIGINT for graceful shutdown"
+                    )
                     break
 
                 reads, _, _ = select.select(
@@ -385,15 +392,7 @@ class PipelineRunner:
                         "terminating pipeline as potentially hung",
                         self.inactivity_timeout,
                     )
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except Exception:
-                        self.logger.warning(
-                            "Process did not terminate gracefully after inactivity; killing it"
-                        )
-                        process.kill()
-                        process.wait()
+                    self._graceful_terminate(process, timeout=5.0)
 
                     raise RuntimeError(
                         f"Pipeline execution terminated due to inactivity timeout "
@@ -534,3 +533,31 @@ class PipelineRunner:
     def is_cancelled(self) -> bool:
         """Check if the pipeline run has been cancelled."""
         return self.cancelled
+
+    @staticmethod
+    def _get_log_level() -> str:
+        """Get the log level string from LOG_LEVEL env var, defaulting to INFO."""
+        level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        valid_levels = ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG")
+        if level not in valid_levels:
+            return "INFO"
+        return level
+
+    @staticmethod
+    def _graceful_terminate(proc: subprocess.Popen, timeout: float = 10.0) -> None:
+        """Send SIGINT for graceful shutdown, fall back to SIGKILL.
+
+        Args:
+            proc: The subprocess to terminate.
+            timeout: Seconds to wait after SIGINT before sending SIGKILL.
+        """
+        if proc.poll() is not None:
+            return
+        try:
+            proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        except OSError:
+            pass

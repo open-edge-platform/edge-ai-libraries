@@ -41,6 +41,12 @@ GRAFANA_USERNAME= # Provide username to be used to login to Grafana, ex: GRAFANA
 GRAFANA_PASSWORD= # Provide username to be used to login to Grafana, ex: GRAFANA_PASSWORD=dlsps123
 ```
 
+To run it on GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
+
+    ```sh
+        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+    ```
+
 ---
 
 ## Running the services
