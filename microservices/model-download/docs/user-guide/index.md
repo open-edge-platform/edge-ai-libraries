@@ -1,4 +1,4 @@
-## Model Download
+# Model Download
 
 The Model Download Microservice provides a unified solution for downloading AI/ML models from various model hubs while ensuring consistency and simplicity across applications. This service acts as a centralized model management system that handles model downloads, storage, and optional format conversions.
 
@@ -90,6 +90,21 @@ This service is not intended to replace full model registry solutions and has th
 - Limited model metadata management
 - No built-in model serving capabilities
 
-## Supporting Resources
+## Learn More
+
 - [**Get Started Guide**](./get-started.md)
 - [**API Reference**](./api-docs/openapi.yaml)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started
+system-requirements
+build-from-source
+deploy-with-helm-chart
+running-tests
+release-notes
+
+:::
+hide_directive-->
