@@ -2,25 +2,28 @@
 
 ## Current Release
 
-**Version**: 1.1.0-rc1
+## Version 1.1.0-rc1
+
 **Release Date**: WW08 2026
 - Updated OpenVINO plugin to support NPU for LLM models
 - Enabled OpenVINO plugin with VLM support.
 - Implemented component-based model conversion for models not supported by Optimum
 - Added new GETI plugin for downloading models from GETI
 
-## Known Issues/Behavior:
+**Known Issues or Behavior**:
 - EMF deployment is not supported right now
 
-**Version**: 1.0.1  
+## Version 1.0.1  
+
 **Release Date**: WW49 2025
 - Enhanced response structure consistency across all plugins
 
-## Known Issues/Behavior:
+**Known Issues or Behavior**:
 - EMF deployment is not supported right now
 
 
-**Version**: 1.0.0  
+## Version: 1.0.0
+
 **Release Date**: WW45 2025
 - Introduces a Model Download Microservice featuring a plugin-based architecture for extensibility.
 - Integrates pre-configured model hubs, enabling support for downloading models from sources such as Hugging Face, Ollama, and Ultralytics.
@@ -30,5 +33,5 @@
 - Highlights that dependencies for selected plugins are automatically installed when the container starts.
 - Streamlines the setup process for users and ensures that all necessary components are available for the chosen plugins.
 
-## Known Issues/Behavior:
+**Known Issues or Behavior**:
 - EMF deployment is not supported right now

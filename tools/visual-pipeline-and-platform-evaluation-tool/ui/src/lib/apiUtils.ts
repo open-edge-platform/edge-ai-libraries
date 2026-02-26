@@ -48,4 +48,6 @@ export const handleApiError = (error: unknown, title: string) => {
   toast.error(title, {
     description: errorMessage,
   });
+
+  return errorMessage;
 };

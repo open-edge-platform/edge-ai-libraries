@@ -6,9 +6,11 @@
 - [Known Issues](#known-issues)
 
 ## Pre-requisites
-Before proceeding, make sure you understand how to run pipelines that include the UDFLoader element. Refer to this [guide](../../../../how-to-run-udf-pipelines.md) for more information.
+
+Before proceeding, make sure you understand how to run pipelines that include the UDFLoader element. Refer to this [guide](../../../../how-to-guides/run-udf-pipelines.md) for more information.
 
 ## Object tracking
+
 Object tracking is supported by DL Streamer through `gvatrack` element which assigns IDs to
 each uniquely identified object. It is typically inserted into a video pipeline after
 `gvadetect` element.
@@ -18,7 +20,7 @@ There are several tracking types supported, for example `short-term-imageless`, 
 detection to be run on every frame.
 
 More details object tracking, tracking types, performance considerations, examples can be
-found [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/object_tracking.html).
+found in the DL Streamer [Object Tracking](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/object_tracking.html) guide.
 
 ## Usage
 
@@ -32,24 +34,25 @@ To enable object tracking in a video pipeline that has a UDFLoader element, two 
 To disable tracking, the above elements (if present) following the `udfloader` element need to be removed from the pipeline. When tracking is disabled, the metadata will include the object id as `None` for each detection.
 
 Here is an example for enabling tracking for Pallet Defect Detection pipeline that uses Geti UDF. In Geti UDF, `metadata_converter` should be set to `geti_to_dcaas`.
-  ```bash
-  "pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvapython class=AddDetectionRoi function=process module=/home/pipeline-server/gvapython/detection/add_roi.py name=add_roi ! gvatrack tracking-type=short-term-imageless ! appsink name=destination",
-  ```
 
-  ```bash
-     "udfs": {
-        "udfloader": [
-          {
-            "name": "python.geti_udf.geti_udf",
-            "type": "python",
-            "device": "CPU",
-            "visualize": "true",
-            "deployment": "./resources/models/geti/pallet_defect_detection/deployment",
-            "metadata_converter": "geti_to_dcaas"
-          }
-        ]
-      }
-  ```
+```bash
+"pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvapython class=AddDetectionRoi function=process module=/home/pipeline-server/gvapython/detection/add_roi.py name=add_roi ! gvatrack tracking-type=short-term-imageless ! appsink name=destination",
+```
+
+```bash
+   "udfs": {
+      "udfloader": [
+        {
+          "name": "python.geti_udf.geti_udf",
+          "type": "python",
+          "device": "CPU",
+          "visualize": "true",
+          "deployment": "./resources/models/geti/pallet_defect_detection/deployment",
+          "metadata_converter": "geti_to_dcaas"
+        }
+      ]
+    }
+```
 
 Specific metadata format is expected out of the UDF for it work with the gvapython that adds ROIs.
 
