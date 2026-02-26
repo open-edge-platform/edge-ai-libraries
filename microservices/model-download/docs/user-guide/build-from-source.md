@@ -55,7 +55,7 @@ This section shows how to build the Model Download microservice from source.
       ```bash
         source scripts/run_service.sh up --plugins all --model-path tmp/models
       ```
-    **Note**: Running the Docker container brings up the service and installs the dependencies for available plugins. For details of the options available, see [here](./get-started.md#options-available-with-the-script)
+> **Note:** Running the Docker container brings up the service and installs the dependencies for available plugins. See the [details of the available options](./get-started.md#options-available-with-the-script).
 
 6.  **Access the application**:
     - Open a browser and go to `http://<host-ip>:8200/api/v1/docs` to access the OpenAPI specification documentation for the application.
