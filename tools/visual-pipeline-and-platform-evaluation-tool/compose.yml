@@ -70,6 +70,7 @@ services:
       no_proxy: "${no_proxy:+${no_proxy},}mediamtx"
     volumes:
       - ./shared/videos/:/videos
+      - ./vippet/api/static:/usr/share/nginx/html/static
   models:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-models:${DOCKER_TAG}
