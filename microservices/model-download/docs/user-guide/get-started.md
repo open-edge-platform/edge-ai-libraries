@@ -57,7 +57,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
       ```bash
       source scripts/run_service.sh up --plugins all --model-path <host path>
       ```
-      **Note**: For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
+> **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
       
       **Note**: Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
