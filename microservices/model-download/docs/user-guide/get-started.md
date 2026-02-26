@@ -94,7 +94,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
         - Display usage information: `source scripts/run_service.sh --help`
 
 5. **Access the service**
-    - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the Swagger documentation for available APIs.
+    - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the Swagger documentation for the available APIs.
 
 ## Verification
 
