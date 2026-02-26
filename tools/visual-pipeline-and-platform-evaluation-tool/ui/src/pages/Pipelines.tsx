@@ -70,7 +70,7 @@ export const Pipelines = () => {
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
-    DEFAULT_LOOPING_RUNTIME_SECONDS.toString(),
+    DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -228,16 +228,12 @@ export const Pipelines = () => {
     setSelectedNode(null);
 
     try {
-      const parsedLoopingRuntimeSeconds = Number.parseInt(
-        loopingRuntimeSeconds,
-        10,
-      );
       const maxRuntimeSeconds = livePreviewEnabled
         ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
         : loopingEnabled
-          ? Number.isNaN(parsedLoopingRuntimeSeconds)
+          ? Number.isNaN(loopingRuntimeSeconds)
             ? DEFAULT_LOOPING_RUNTIME_SECONDS
-            : Math.max(1, parsedLoopingRuntimeSeconds)
+            : Math.max(1, loopingRuntimeSeconds)
           : 0;
 
       const outputMode: OutputMode = livePreviewEnabled
@@ -411,7 +407,7 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
-        <header className="flex min-h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b py-2">
+        <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
@@ -515,21 +511,18 @@ export const Pipelines = () => {
                             min={1}
                             step={1}
                             value={loopingRuntimeSeconds}
-                            onChange={(event) =>
-                              setLoopingRuntimeSeconds(event.target.value)
-                            }
-                            onBlur={() => {
-                              const parsedSeconds = Number.parseInt(
-                                loopingRuntimeSeconds,
-                                10,
+                            onChange={(event) => {
+                              const value = event.target.valueAsNumber;
+                              setLoopingRuntimeSeconds(
+                                Number.isNaN(value)
+                                  ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                                  : value,
                               );
-
-                              if (
-                                Number.isNaN(parsedSeconds) ||
-                                parsedSeconds < 1
-                              ) {
+                            }}
+                            onBlur={() => {
+                              if (loopingRuntimeSeconds < 1) {
                                 setLoopingRuntimeSeconds(
-                                  DEFAULT_LOOPING_RUNTIME_SECONDS.toString(),
+                                  DEFAULT_LOOPING_RUNTIME_SECONDS,
                                 );
                               }
                             }}

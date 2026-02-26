@@ -4,7 +4,6 @@ import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 type PerformanceTestPanelProps = {
   isRunning: boolean;
   completedVideoPath: string | null;
-  pipelineId?: string;
   livePreviewEnabled?: boolean;
   liveStreamUrl?: string | null;
 };
@@ -12,7 +11,6 @@ type PerformanceTestPanelProps = {
 const PerformanceTestPanel = ({
   isRunning,
   completedVideoPath,
-  pipelineId,
   livePreviewEnabled = false,
   liveStreamUrl,
 }: PerformanceTestPanelProps) => {
@@ -27,10 +25,7 @@ const PerformanceTestPanel = ({
               Live Preview
             </h3>
             {liveStreamUrl ? (
-              <WebRTCVideoPlayer
-                pipelineId={pipelineId}
-                liveStreamUrl={liveStreamUrl}
-              />
+              <WebRTCVideoPlayer liveStreamUrl={liveStreamUrl} />
             ) : (
               <p className="text-sm text-muted-foreground">
                 Waiting for live stream to be published...
