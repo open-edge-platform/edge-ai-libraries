@@ -29,6 +29,7 @@ logger = logging.getLogger("api.routes.tests")
 @router.post(
     "/performance",
     operation_id="run_performance_test",
+    summary="Start a performance test job",
     status_code=202,
     response_model=schemas.TestJobResponse,
     responses={
@@ -48,104 +49,102 @@ logger = logging.getLogger("api.routes.tests")
 )
 def run_performance_test(body: schemas.PerformanceTestSpec):
     """
-    Start an asynchronous performance test job.
+    **Start an asynchronous performance test job.**
 
-    Operation:
-        * Validate the performance test request.
-        * Create a PerformanceJob with RUNNING state.
-        * Spawn a background thread that runs the pipelines using
-          a GStreamer-based runner.
-        * Return the job identifier so the caller can poll status endpoints.
+    ## Operation
 
-    Request body:
-        body: PerformanceTestSpec
-            * pipeline_performance_specs – list of pipelines and number of
-              streams per pipeline. Each pipeline can be specified as:
-              - variant reference: {"source": "variant", "pipeline_id": "...", "variant_id": "..."}
-              - inline graph: {"source": "graph", "pipeline_graph": {...}}
-            * execution_config – configuration for output mode and runtime limits:
-              - output_mode: disabled (default), file, or live_stream
-              - max_runtime: maximum runtime in seconds (0 = run until EOS)
+    1. Validates the performance test request
+    2. Creates a PerformanceJob with RUNNING state
+    3. Spawns a background thread that runs the pipelines using a GStreamer-based runner
+    4. Returns the job identifier for status polling
 
-    Returns:
-        202 Accepted:
-            TestJobResponse with job_id of the created performance job.
-        400 Bad Request:
-            MessageResponse if the request is invalid, for example:
-            * pipeline_performance_specs is empty,
-            * duplicate pipeline_ids in request,
-            * all stream counts are zero,
-            * referenced variant does not exist,
-            * output_mode=file combined with max_runtime > 0.
-        500 Internal Server Error:
-            MessageResponse if an unexpected error occurs when creating the
-            job or starting the background thread.
+    ## Request Body
 
-    Success conditions:
-        * At least one stream is requested across all pipelines.
-        * All referenced variants exist.
-        * No duplicate pipeline_ids in request.
-        * TestsManager.test_performance() successfully enqueues the job.
+    - `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:
+      - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
+      - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
+      - Pipeline description: `{"source": "description", "pipeline_description": "..."}`
+    - `execution_config`: Configuration for output mode and runtime limits
+      - `output_mode`: disabled (default), file, or live_stream
+      - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
 
-    Failure conditions (high level):
-        * Validation or configuration error → 400.
-        * Any unhandled exception in job creation → 500.
+    ## Response Codes
 
-    Request example (variant reference):
-        .. code-block:: json
+    | Code | Description |
+    |------|-------------|
+    | 202  | TestJobResponse with job_id of the created performance job |
+    | 400  | Invalid request (empty specs, duplicate pipeline_ids, zero streams, missing variant, invalid output config) |
+    | 500  | Unexpected error when creating the job or starting background thread |
 
-            {
-              "pipeline_performance_specs": [
-                {
-                  "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": "pipeline-a3f5d9e1",
-                    "variant_id": "variant-abc123"
-                  },
-                  "streams": 8
-                }
-              ],
-              "execution_config": {
-                "output_mode": "disabled",
-                "max_runtime": 0
-              }
+    ## Conditions
+
+    ### ✅ Success
+    - At least one stream is requested across all pipelines
+    - All referenced variants exist
+    - No duplicate pipeline_ids in request
+    - TestsManager.test_performance() successfully enqueues the job
+
+    ### ❌ Failure
+    - Validation or configuration error → 400
+    - Unhandled exception in job creation → 500
+
+    ## Examples
+
+    Request (variant reference):
+    ```json
+    {
+      "pipeline_performance_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "streams": 8
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
+
+    Request (inline graph):
+    ```json
+    {
+      "pipeline_performance_specs": [
+        {
+          "pipeline": {
+            "source": "graph",
+            "pipeline_graph": {
+              "nodes": [...],
+              "edges": [...]
             }
+          },
+          "streams": 4
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
 
-    Request example (inline graph):
-        .. code-block:: json
+    Success (202):
+    ```json
+    {
+      "job_id": "job123"
+    }
+    ```
 
-            {
-              "pipeline_performance_specs": [
-                {
-                  "pipeline": {
-                    "source": "graph",
-                    "pipeline_graph": {
-                      "nodes": [...],
-                      "edges": [...]
-                    }
-                  },
-                  "streams": 4
-                }
-              ],
-              "execution_config": {
-                "output_mode": "disabled",
-                "max_runtime": 0
-              }
-            }
-
-    Successful response example (202):
-        .. code-block:: json
-
-            {
-              "job_id": "job123"
-            }
-
-    Error response example (400, invalid request):
-        .. code-block:: json
-
-            {
-              "message": "At least one stream must be specified to run the pipeline."
-            }
+    Error (400):
+    ```json
+    {
+      "message": "At least one stream must be specified to run the pipeline."
+    }
+    ```
     """
     try:
         # Convert and validate API types to internal types
@@ -175,6 +174,7 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
 @router.post(
     "/density",
     operation_id="run_density_test",
+    summary="Start a density test job",
     status_code=202,
     response_model=schemas.TestJobResponse,
     responses={
@@ -194,120 +194,115 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
 )
 def run_density_test(body: schemas.DensityTestSpec):
     """
-    Start an asynchronous density test job.
+    **Start an asynchronous density test job.**
 
-    Operation:
-        * Validate the density test request.
-        * Use requested fps_floor and per‑pipeline stream_rate ratios.
-        * Create a DensityJob with RUNNING state.
-        * Spawn a background thread that runs a Benchmark to determine the
-          maximum number of streams that still meets fps_floor.
-        * Return the job identifier so the caller can poll status endpoints.
+    ## Operation
 
-    Request body:
-        body: DensityTestSpec
-            * fps_floor – minimum acceptable FPS per stream.
-            * pipeline_density_specs – list of pipelines with stream_rate
-              percentages that must sum to 100. Each pipeline can be specified as:
-              - variant reference: {"source": "variant", "pipeline_id": "...", "variant_id": "..."}
-              - inline graph: {"source": "graph", "pipeline_graph": {...}}
-            * execution_config – configuration for output mode and runtime limits:
-              - output_mode: disabled (default) or file (live_stream not supported)
-              - max_runtime: maximum runtime in seconds (0 = run until EOS)
+    1. Validates the density test request
+    2. Uses requested fps_floor and per-pipeline stream_rate ratios
+    3. Creates a DensityJob with RUNNING state
+    4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor
+    5. Returns the job identifier for status polling
 
-    Returns:
-        202 Accepted:
-            TestJobResponse with job_id of the created density job.
-        400 Bad Request:
-            MessageResponse when:
-            * pipeline_density_specs is empty,
-            * duplicate pipeline_ids in request,
-            * pipeline_density_specs.stream_rate values do not sum to 100,
-            * referenced variant does not exist,
-            * output_mode is live_stream (not supported for density tests),
-            * output_mode=file combined with max_runtime > 0,
-            * other validation errors raised by Benchmark or TestsManager.
-        500 Internal Server Error:
-            MessageResponse for unexpected errors when creating or starting
-            the job.
+    ## Request Body
 
-    Success conditions:
-        * pipeline_density_specs is not empty.
-        * All referenced variants exist.
-        * No duplicate pipeline_ids in request.
-        * stream_rate ratios sum to 100%.
-        * DensityTestSpec is valid and Benchmark.run() can be started in a
-          background thread.
+    - `fps_floor`: Minimum acceptable FPS per stream
+    - `pipeline_density_specs`: List of pipelines with stream_rate percentages that must sum to 100. Each pipeline can be:
+      - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
+      - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
+      - Pipeline description: `{"source": "description", "pipeline_description": "..."}`
+    - `execution_config`: Configuration for output mode and runtime limits
+      - `output_mode`: disabled (default) or file (live_stream not supported)
+      - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
 
-    Failure conditions:
-        * Validation errors → 400.
-        * Any other unhandled exception → 500.
+    ## Response Codes
 
-    Request example (variant reference):
-        .. code-block:: json
+    | Code | Description |
+    |------|-------------|
+    | 202  | TestJobResponse with job_id of the created density job |
+    | 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100, missing variant, live_stream mode, invalid output config) |
+    | 500  | Unexpected error when creating or starting the job |
 
-            {
-              "fps_floor": 30,
-              "pipeline_density_specs": [
-                {
-                  "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": "pipeline-a3f5d9e1",
-                    "variant_id": "variant-abc123"
-                  },
-                  "stream_rate": 50
-                },
-                {
-                  "pipeline": {
-                    "source": "variant",
-                    "pipeline_id": "pipeline-b7c2e114",
-                    "variant_id": "variant-def456"
-                  },
-                  "stream_rate": 50
-                }
-              ],
-              "execution_config": {
-                "output_mode": "disabled",
-                "max_runtime": 0
-              }
+    ## Conditions
+
+    ### ✅ Success
+    - pipeline_density_specs is not empty
+    - All referenced variants exist
+    - No duplicate pipeline_ids in request
+    - stream_rate ratios sum to 100%
+    - DensityTestSpec is valid and Benchmark.run() can be started in background thread
+
+    ### ❌ Failure
+    - Validation errors → 400
+    - Unhandled exception → 500
+
+    ## Examples
+
+    Request (variant reference):
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "stream_rate": 50
+        },
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-b7c2e114",
+            "variant_id": "variant-def456"
+          },
+          "stream_rate": 50
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
+
+    Request (inline graph):
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "graph",
+            "pipeline_graph": {
+              "nodes": [...],
+              "edges": [...]
             }
+          },
+          "stream_rate": 100
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0
+      }
+    }
+    ```
 
-    Request example (inline graph):
-        .. code-block:: json
+    Success (202):
+    ```json
+    {
+      "job_id": "job456"
+    }
+    ```
 
-            {
-              "fps_floor": 30,
-              "pipeline_density_specs": [
-                {
-                  "pipeline": {
-                    "source": "graph",
-                    "pipeline_graph": {
-                      "nodes": [...],
-                      "edges": [...]
-                    }
-                  },
-                  "stream_rate": 100
-                }
-              ],
-              "execution_config": {
-                "output_mode": "disabled",
-                "max_runtime": 0
-              }
-            }
-
-    Successful response example (202):
-        .. code-block:: json
-
-            {
-              "job_id": "job456"
-            }
-
-    Error response example (400, bad ratios):
-        .. code-block:: json
-
-            {
-              "message": "Pipeline stream_rate ratios must sum to 100%, got 110%"
-            }
+    Error (400):
+    ```json
+    {
+      "message": "Pipeline stream_rate ratios must sum to 100%, got 110%"
+    }
+    ```
     """
     try:
         # Convert and validate API types to internal types
