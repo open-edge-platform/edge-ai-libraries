@@ -8,7 +8,7 @@ of AI inference pipelines (GStreamer + OpenVINO™ + DLStreamer), collecting har
 
 ## Repository Structure
 
-```
+```text
 tools/visual-pipeline-and-platform-evaluation-tool/
 ├── vippet/               # Backend: Python/FastAPI application
 │   ├── api/              # REST + WebSocket API (FastAPI, port 7860)
@@ -52,7 +52,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+| ----- | ---------- |
 | Backend | Python 3.12, FastAPI, uvicorn, Pydantic v2 |
 | AI Inference | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0 |
 | Frontend | React 18, TypeScript, Vite, Redux Toolkit, redux-persist, Tailwind CSS, next-themes |
@@ -110,7 +110,7 @@ make format      # Auto-format with ruff
 ### Individual Make Targets
 
 | Target | Description |
-|--------|-------------|
+| ------ | ----------- |
 | `make build` | Build all Docker images |
 | `make run` | Start all services via Docker Compose |
 | `make stop` | Stop all services |
@@ -135,7 +135,7 @@ make generate_openapi
 ## Docker Compose Services
 
 | Service | Description | Port |
-|---------|-------------|------|
+| ------- | ----------- | ---- |
 | `vippet` | Backend (FastAPI) | 7860 |
 | `vippet-ui` | Frontend (Nginx) | 80 |
 | `mediamtx` | RTSP server | 8554 |
@@ -147,6 +147,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 ## Coding Standards
 
 ### Python (backend)
+
 - Python 3.12, type hints everywhere
 - Pydantic v2 for all API schemas (use `model_dump()`, not `.dict()`)
 - `async`/`await` for all FastAPI route handlers
@@ -155,6 +156,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 - Tests use pytest; place in `vippet/tests/`
 
 ### TypeScript (frontend)
+
 - Strict TypeScript — no `any` types
 - Feature-based folder structure under `src/features/`
 - Redux Toolkit for global state; React Query for server state
@@ -162,6 +164,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 - Follow existing ESLint configuration
 
 ### General
+
 - License header required: `SPDX-License-Identifier: Apache-2.0`
 - All new Dockerfiles must follow the existing multi-stage pattern
 - Do not commit `.env` files or model files
@@ -169,7 +172,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 ## Key Environment Variables (vippet service)
 
 | Variable | Description | Default |
-|----------|-------------|---------|
+| -------- | ----------- | ------- |
 | `LOG_LEVEL` | Python logging level | `INFO` |
 | `MODELS_PATH` | Path to downloaded models | `/models/output` |
 | `SUPPORTED_MODELS_FILE` | Path to supported_models.yaml | `/models/supported_models.yaml` |
@@ -189,6 +192,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 ## Documentation Standards
 
 ### Docstrings (Python)
+
 - Use Google-style docstrings for all functions, classes, and modules
 - Include type information in docstrings even when type hints are present
 - Document all parameters, return values, and raised exceptions
@@ -216,11 +220,13 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
 ```
 
 ### API Documentation
+
 - All FastAPI endpoints automatically generate OpenAPI docs at `/docs`
 - Use Pydantic models with Field descriptions for request/response schemas
 - Add endpoint descriptions and examples in route decorators
 
 ### README Updates
+
 - Update relevant README files when adding new features or changing APIs
 - Keep installation and setup instructions current
 - Document any new environment variables or configuration options
