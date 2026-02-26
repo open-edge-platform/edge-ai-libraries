@@ -53,25 +53,34 @@ const WebRTCVideoPlayer = ({
 
     let playbackUrl = "";
 
-    const ensureWhepPath = (streamPath: string): string => {
-      const normalizedPath = streamPath.replace(/^\/+/, "");
-      return normalizedPath.endsWith("/whep")
-        ? normalizedPath
-        : `${normalizedPath}/whep`;
-    };
-
-    const getStreamPath = (streamUrl: string): string => {
-      try {
-        return new URL(streamUrl).pathname;
-      } catch {
-        return streamUrl;
-      }
-    };
-
     if (liveStreamUrl) {
-      const streamPath = getStreamPath(liveStreamUrl);
-      const whepPath = ensureWhepPath(streamPath);
-      playbackUrl = new URL(whepPath, appBaseUrl).toString();
+
+
+
+
+
+
+
+      try {
+        const streamUrl = new URL(liveStreamUrl);
+        const streamPath = streamUrl.pathname.replace(/^\/+/, "");
+        const whepPath = streamPath.endsWith("/whep")
+          ? streamPath
+          : `${streamPath}/whep`;
+        playbackUrl = new URL(whepPath, appBaseUrl).toString();
+      } catch {
+        const normalizedPath = liveStreamUrl.replace(/^\/+/, "");
+        const whepPath = normalizedPath.endsWith("/whep")
+          ? normalizedPath
+          : `${normalizedPath}/whep`;
+        playbackUrl = new URL(whepPath, appBaseUrl).toString();
+      }
+
+
+
+
+
+
     }
 
     if (!playbackUrl && pipelineId) {
