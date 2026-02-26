@@ -73,3 +73,11 @@ configurations and optimization of settings.
 - [How to Use ViPPET](docs/user-guide/use-vippet.md)
 - [How to Use Video Generator](docs/user-guide/how-to-guides/use-video-generator.md)
 - [Release Notes](docs/user-guide/release-notes.md)
+
+## Contribution Rules
+
+- Follow repository-wide Copilot guidance in [.github/copilot-instructions.md](.github/copilot-instructions.md).
+- Keep pull requests focused and avoid unrelated refactors.
+- Run `make lint` before opening or updating a PR.
+- Run `make test` (or targeted tests) for changed code paths.
+- Update docs and API artifacts when behavior or endpoints change.
