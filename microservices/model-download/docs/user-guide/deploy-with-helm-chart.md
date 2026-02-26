@@ -61,7 +61,7 @@ cd edge-ai-libraries/microservices/model-download/chart
 
 ## Common Steps
 
-#### Step 3: Configure the `values.yaml` File
+### Step 3: Configure the `values.yaml` File
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the proxy settings as required
 
