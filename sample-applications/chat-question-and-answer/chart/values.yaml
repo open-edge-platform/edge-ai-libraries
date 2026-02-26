@@ -68,13 +68,14 @@ Chatqna:
     SEED: 40
 
 dataprepPgvector:
-  name: document-ingestion
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
-  env:
-    ALLOWED_HOSTS: ""
+  dataprepPgvector:
+    name: document-ingestion
+    service:
+      type: ClusterIP
+      port: 8000
+      targetPort: 8000
+    env:
+      ALLOWED_HOSTS: ""
 
 tgiService:
   name: text-generation-service
