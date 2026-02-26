@@ -43,7 +43,7 @@ data:
         }
 
         location /v1/dataprep {
-            proxy_pass http://{{ .Values.dataprepPgvector.name }}:{{ index .Values "dataprepPgvector" "service" "port" }};
+            proxy_pass http://{{ .Values.dataprepPgvector.dataprepPgvector.name }}:{{ .Values.dataprepPgvector.dataprepPgvector.service.port }};
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
