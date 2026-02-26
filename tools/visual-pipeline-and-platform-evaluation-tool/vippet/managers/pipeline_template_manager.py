@@ -4,13 +4,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 
-from api.api_schemas import (
-    Pipeline,
-    PipelineGraph,
-    PipelineSource,
-    Variant,
-)
 from graph import Graph
+from internal_types import (
+    InternalPipeline,
+    InternalPipelineSource,
+    InternalVariant,
+)
 from pipelines.loader import PipelineLoader
 from utils import generate_unique_id, get_current_timestamp
 
@@ -54,23 +53,23 @@ class PipelineTemplateManager:
         # Shared lock protecting access to templates list
         self._templates_lock = threading.Lock()
         # list of templates – loaded once at startup, never mutated afterwards
-        self.templates: list[Pipeline] = self._load_templates()
+        self.templates: list[InternalPipeline] = self._load_templates()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def get_templates(self) -> list[Pipeline]:
+    def get_templates(self) -> list[InternalPipeline]:
         """
         Return all available pipeline templates.
 
         Returns:
-            List of deep-copied Pipeline objects with source=TEMPLATE.
+            List of deep-copied InternalPipeline objects with source=TEMPLATE.
         """
         with self._templates_lock:
             return [deepcopy(t) for t in self.templates]
 
-    def get_template_by_id(self, template_id: str) -> Pipeline:
+    def get_template_by_id(self, template_id: str) -> InternalPipeline:
         """
         Retrieve a single template by its ID.
 
@@ -78,7 +77,7 @@ class PipelineTemplateManager:
             template_id: Unique template identifier.
 
         Returns:
-            Deep-copied Pipeline object with source=TEMPLATE.
+            Deep-copied InternalPipeline object with source=TEMPLATE.
 
         Raises:
             ValueError: If template with given ID is not found.
@@ -93,7 +92,7 @@ class PipelineTemplateManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load_templates(self) -> list[Pipeline]:
+    def _load_templates(self) -> list[InternalPipeline]:
         """
         Load pipeline templates from YAML files in the templates subdirectory.
 
@@ -103,12 +102,12 @@ class PipelineTemplateManager:
             * fields that require user input are stored as empty strings
 
         Returns:
-            List of Pipeline template objects.
+            List of InternalPipeline template objects.
 
         Raises:
             ValueError: If a template YAML is missing required fields.
         """
-        templates: list[Pipeline] = []
+        templates: list[InternalPipeline] = []
         templates_dir = (
             Path(PipelineLoader.get_pipelines_directory()) / TEMPLATES_DIR_NAME
         )
@@ -140,10 +139,10 @@ class PipelineTemplateManager:
         self,
         config: dict,
         config_path: str,
-        existing_templates: list[Pipeline],
-    ) -> Pipeline:
+        existing_templates: list[InternalPipeline],
+    ) -> InternalPipeline:
         """
-        Build a Pipeline template object from a parsed YAML config.
+        Build an InternalPipeline template object from a parsed YAML config.
 
         Args:
             config: Parsed YAML configuration dictionary.
@@ -151,7 +150,7 @@ class PipelineTemplateManager:
             existing_templates: Already-built templates used for ID collision checks.
 
         Returns:
-            Pipeline object with source=TEMPLATE and read_only variants.
+            InternalPipeline object with source=TEMPLATE and read_only variants.
 
         Raises:
             ValueError: If required fields are missing or empty.
@@ -167,7 +166,7 @@ class PipelineTemplateManager:
 
         current_time = get_current_timestamp()
         existing_variant_ids: list[str] = []
-        variants: list[Variant] = []
+        variants: list[InternalVariant] = []
 
         for variant_config in config.get("variants", []):
             variant_name = variant_config.get("name", "").strip()
@@ -182,21 +181,18 @@ class PipelineTemplateManager:
                 )
 
             graph = Graph.from_pipeline_description(pipeline_desc)
-            pipeline_graph = PipelineGraph.model_validate(graph.to_dict())
-
             simple_graph = graph.to_simple_view()
-            pipeline_graph_simple = PipelineGraph.model_validate(simple_graph.to_dict())
 
             variant_id = generate_unique_id(variant_name, existing_variant_ids)
             existing_variant_ids.append(variant_id)
 
             variants.append(
-                Variant(
+                InternalVariant(
                     id=variant_id,
                     name=variant_name,
                     read_only=True,
-                    pipeline_graph=pipeline_graph,
-                    pipeline_graph_simple=pipeline_graph_simple,
+                    pipeline_graph=graph,
+                    pipeline_graph_simple=simple_graph,
                     created_at=current_time,
                     modified_at=current_time,
                 )
@@ -205,11 +201,11 @@ class PipelineTemplateManager:
         existing_ids = [t.id for t in existing_templates]
         template_id = generate_unique_id(name, existing_ids)
 
-        return Pipeline(
+        return InternalPipeline(
             id=template_id,
             name=name,
             description=description,
-            source=PipelineSource.TEMPLATE,
+            source=InternalPipelineSource.TEMPLATE,
             tags=tags,
             variants=variants,
             thumbnail=None,

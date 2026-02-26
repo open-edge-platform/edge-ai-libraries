@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
-from api.api_schemas import AppStatus
 from api.middleware import InitializationMiddleware
 from api.routes import health, metrics
+from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
@@ -50,7 +50,7 @@ def _initialize_in_background(app: FastAPI) -> None:
 
     try:
         app_state_manager.set_status(
-            AppStatus.INITIALIZING, "Downloading videos and loading metadata..."
+            InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
 
         # Initialize VideosManager - downloads videos, scans files,
@@ -66,12 +66,14 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
         register_routers(app)
 
-        app_state_manager.set_status(AppStatus.READY)
+        app_state_manager.set_status(InternalAppStatus.READY)
         logger.info("Application initialization complete")
 
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
-        app_state_manager.set_status(AppStatus.SHUTDOWN, f"Initialization failed: {e}")
+        app_state_manager.set_status(
+            InternalAppStatus.SHUTDOWN, f"Initialization failed: {e}"
+        )
 
 
 def register_routers(app: FastAPI) -> None:
@@ -120,7 +122,7 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Application starting...")
     app_state_manager = AppStateManager()
-    app_state_manager.set_status(AppStatus.STARTING)
+    app_state_manager.set_status(InternalAppStatus.STARTING)
 
     # Start initialization in background thread
     init_thread = threading.Thread(
@@ -135,7 +137,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
-    app_state_manager.set_status(AppStatus.SHUTDOWN)
+    app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 
 
 # Initialize FastAPI app with lifespan

@@ -1,3 +1,4 @@
+import time
 import unittest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -5,31 +6,36 @@ from fastapi.routing import APIRoute
 from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
+from graph import Graph
+from internal_types import (
+    InternalOptimizationJobStatus,
+    InternalOptimizationJobState,
+    InternalOptimizationJobSummary,
+    InternalOptimizationType,
+    InternalPipelineRequestOptimize,
+    InternalPipelineValidation,
+    InternalValidationJobState,
+    InternalValidationJobStatus,
+    InternalValidationJobSummary,
+)
 from api.routes.jobs import router as jobs_router
 
 
 class TestJobsAPI(unittest.TestCase):
     """
-    Integration-style unit tests for the optimization jobs HTTP API.
+    Integration-style unit tests for the jobs HTTP API.
 
     The tests use FastAPI's TestClient and patch the manager classes
     so we can precisely control the behavior of the underlying managers
     without touching their real implementation or any background threads.
+
+    Managers return internal types. The route layer converts them to API
+    types. Tests must mock managers to return internal types.
     """
 
     @classmethod
     def setUpClass(cls):
-        """
-        Build a minimal FastAPI app and mount the jobs router once for all tests.
-
-        This mirrors the approach used in ``pipelines_test.py`` in order to:
-        * exercise the actual path/operation configuration of the router,
-        * verify serialization / response models and HTTP codes,
-        * keep the tests fast and side-effect free by patching dependencies.
-        """
         app = FastAPI()
-        # All endpoints in jobs.py are mounted under the /jobs prefix.
-        # This prefix is baked into all request URLs used in this test suite.
         app.include_router(jobs_router, prefix="/jobs")
         cls.client = TestClient(app)
 
@@ -38,12 +44,7 @@ class TestJobsAPI(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def _make_minimal_graph(self) -> schemas.PipelineGraph:
-        """
-        Build a very small pipeline graph to be used in job status payloads.
-
-        Only the shape of the object matters for the tests; the actual
-        content of nodes and edges is irrelevant as long as it is valid.
-        """
+        """Build a very small pipeline graph for API-level assertions."""
         return schemas.PipelineGraph(
             nodes=[
                 schemas.Node(
@@ -54,6 +55,17 @@ class TestJobsAPI(unittest.TestCase):
             ],
             edges=[],
         )
+
+    def _make_mock_graph(self) -> MagicMock:
+        """Build a mock Graph object that can be converted to API PipelineGraph."""
+        mock = MagicMock(spec=Graph)
+        mock.to_dict.return_value = {
+            "nodes": [
+                {"id": "0", "type": "filesrc", "data": {"location": "/tmp/dummy.mp4"}},
+            ],
+            "edges": [],
+        }
+        return mock
 
     # ------------------------------------------------------------------
     # /jobs/optimization/status
@@ -67,44 +79,42 @@ class TestJobsAPI(unittest.TestCase):
         The /jobs/optimization/status endpoint should return a list of
         OptimizationJobStatus objects as JSON.
 
-        This test validates:
-        * HTTP 200 status,
-        * response shape (list of objects),
-        * selected field values are correctly serialized.
+        Manager returns InternalOptimizationJobStatus objects. Route layer
+        converts them to API OptimizationJobStatus.
         """
-        graph = self._make_minimal_graph()
+        mock_graph = self._make_mock_graph()
+        now = int(time.time() * 1000)
 
         mock_manager = MagicMock()
         mock_manager.get_all_job_statuses.return_value = [
-            schemas.OptimizationJobStatus(
+            InternalOptimizationJobStatus(
                 id="job-1",
-                type=schemas.OptimizationType.PREPROCESS,
-                start_time=1000,
-                elapsed_time=200,
-                state=schemas.OptimizationJobState.RUNNING,
-                total_fps=None,
-                original_pipeline_graph=graph,
-                original_pipeline_graph_simple=graph,
-                optimized_pipeline_graph=None,
-                optimized_pipeline_graph_simple=None,
+                original_pipeline_graph=mock_graph,
+                original_pipeline_graph_simple=mock_graph,
                 original_pipeline_description="filesrc ! decodebin ! sink",
-                optimized_pipeline_description=None,
-                error_message=None,
+                request=InternalPipelineRequestOptimize(
+                    type=InternalOptimizationType.PREPROCESS, parameters=None
+                ),
+                state=InternalOptimizationJobState.RUNNING,
+                start_time=now,
+                type=InternalOptimizationType.PREPROCESS,
             ),
-            schemas.OptimizationJobStatus(
+            InternalOptimizationJobStatus(
                 id="job-2",
-                type=schemas.OptimizationType.OPTIMIZE,
-                start_time=2000,
-                elapsed_time=500,
-                state=schemas.OptimizationJobState.COMPLETED,
-                total_fps=123.4,
-                original_pipeline_graph=graph,
-                original_pipeline_graph_simple=graph,
-                optimized_pipeline_graph=graph,
-                optimized_pipeline_graph_simple=graph,
+                original_pipeline_graph=mock_graph,
+                original_pipeline_graph_simple=mock_graph,
                 original_pipeline_description="filesrc ! decodebin ! sink",
+                request=InternalPipelineRequestOptimize(
+                    type=InternalOptimizationType.OPTIMIZE, parameters=None
+                ),
+                state=InternalOptimizationJobState.COMPLETED,
+                start_time=now - 500,
+                type=InternalOptimizationType.OPTIMIZE,
+                end_time=now,
+                total_fps=123.4,
+                optimized_pipeline_graph=mock_graph,
+                optimized_pipeline_graph_simple=mock_graph,
                 optimized_pipeline_description="optimized-pipeline",
-                error_message=None,
             ),
         ]
         mock_optimization_manager_cls.return_value = mock_manager
@@ -114,24 +124,23 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
-        # Basic shape: list with two entries
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 2)
 
         first, second = data[0], data[1]
 
-        # Spot-check first job
+        # Spot-check first job (converted to API types by route layer)
         self.assertEqual(first["id"], "job-1")
-        self.assertEqual(first["type"], schemas.OptimizationType.PREPROCESS)
-        self.assertEqual(first["state"], schemas.OptimizationJobState.RUNNING)
+        self.assertEqual(first["type"], "preprocess")
+        self.assertEqual(first["state"], "RUNNING")
         self.assertIsNone(first["total_fps"])
         self.assertIn("original_pipeline_graph", first)
         self.assertIsNone(first["optimized_pipeline_graph"])
 
         # Spot-check second job
         self.assertEqual(second["id"], "job-2")
-        self.assertEqual(second["type"], schemas.OptimizationType.OPTIMIZE)
-        self.assertEqual(second["state"], schemas.OptimizationJobState.COMPLETED)
+        self.assertEqual(second["type"], "optimize")
+        self.assertEqual(second["state"], "COMPLETED")
         self.assertEqual(second["total_fps"], 123.4)
         self.assertEqual(second["optimized_pipeline_description"], "optimized-pipeline")
 
@@ -142,21 +151,16 @@ class TestJobsAPI(unittest.TestCase):
     @patch("api.routes.jobs.OptimizationManager")
     def test_get_optimization_job_summary_found(self, mock_optimization_manager_cls):
         """
-        When the manager returns an OptimizationJobSummary, the endpoint
-        must respond with HTTP 200 and the serialized summary.
-
-        This exercises the "happy path" where a job with the given id
-        exists and demonstrates that the original request object is
-        correctly embedded in the response.
+        When the manager returns an InternalOptimizationJobSummary, the endpoint
+        converts it to API OptimizationJobSummary and responds with HTTP 200.
         """
-        request = schemas.PipelineRequestOptimize(
-            type=schemas.OptimizationType.PREPROCESS,
-            parameters={"foo": "bar"},
-        )
         mock_manager = MagicMock()
-        mock_manager.get_job_summary.return_value = schemas.OptimizationJobSummary(
+        mock_manager.get_job_summary.return_value = InternalOptimizationJobSummary(
             id="job-123",
-            request=request,
+            request=InternalPipelineRequestOptimize(
+                type=InternalOptimizationType.PREPROCESS,
+                parameters={"foo": "bar"},
+            ),
         )
         mock_optimization_manager_cls.return_value = mock_manager
 
@@ -166,9 +170,8 @@ class TestJobsAPI(unittest.TestCase):
         data = response.json()
 
         self.assertEqual(data["id"], "job-123")
-        # Ensure the request part of the summary is present and correct
         self.assertIn("request", data)
-        self.assertEqual(data["request"]["type"], schemas.OptimizationType.PREPROCESS)
+        self.assertEqual(data["request"]["type"], "preprocess")
         self.assertEqual(data["request"]["parameters"], {"foo": "bar"})
 
         mock_manager.get_job_summary.assert_called_once_with("job-123")
@@ -178,8 +181,7 @@ class TestJobsAPI(unittest.TestCase):
         self, mock_optimization_manager_cls
     ):
         """
-        When the manager returns None, the endpoint should return a 404
-        with a descriptive MessageResponse payload.
+        When the manager returns None, the endpoint should return a 404.
         """
         mock_manager = MagicMock()
         mock_manager.get_job_summary.return_value = None
@@ -205,23 +207,24 @@ class TestJobsAPI(unittest.TestCase):
         """
         When the job exists, /optimization/{job_id}/status must return the
         OptimizationJobStatus with HTTP 200.
+
+        Manager returns InternalOptimizationJobStatus. Route layer converts it.
         """
-        graph = self._make_minimal_graph()
+        mock_graph = self._make_mock_graph()
+        now = int(time.time() * 1000)
+
         mock_manager = MagicMock()
-        mock_manager.get_job_status.return_value = schemas.OptimizationJobStatus(
+        mock_manager.get_job_status.return_value = InternalOptimizationJobStatus(
             id="job-status-1",
-            type=schemas.OptimizationType.OPTIMIZE,
-            start_time=123456,
-            elapsed_time=1000,
-            state=schemas.OptimizationJobState.RUNNING,
-            total_fps=None,
-            original_pipeline_graph=graph,
-            original_pipeline_graph_simple=graph,
-            optimized_pipeline_graph=None,
-            optimized_pipeline_graph_simple=None,
+            original_pipeline_graph=mock_graph,
+            original_pipeline_graph_simple=mock_graph,
             original_pipeline_description="filesrc ! decodebin ! sink",
-            optimized_pipeline_description=None,
-            error_message=None,
+            request=InternalPipelineRequestOptimize(
+                type=InternalOptimizationType.OPTIMIZE, parameters=None
+            ),
+            state=InternalOptimizationJobState.RUNNING,
+            start_time=now,
+            type=InternalOptimizationType.OPTIMIZE,
         )
         mock_optimization_manager_cls.return_value = mock_manager
 
@@ -231,8 +234,8 @@ class TestJobsAPI(unittest.TestCase):
         data = response.json()
 
         self.assertEqual(data["id"], "job-status-1")
-        self.assertEqual(data["type"], schemas.OptimizationType.OPTIMIZE)
-        self.assertEqual(data["state"], schemas.OptimizationJobState.RUNNING)
+        self.assertEqual(data["type"], "optimize")
+        self.assertEqual(data["state"], "RUNNING")
         self.assertIn("original_pipeline_graph", data)
 
         mock_manager.get_job_status.assert_called_once_with("job-status-1")
@@ -241,7 +244,7 @@ class TestJobsAPI(unittest.TestCase):
     def test_get_optimization_job_status_not_found(self, mock_optimization_manager_cls):
         """
         When the job does not exist, /optimization/{job_id}/status must
-        respond with HTTP 404 and a MessageResponse.
+        respond with HTTP 404.
         """
         mock_manager = MagicMock()
         mock_manager.get_job_status.return_value = None
@@ -268,6 +271,9 @@ class TestJobsAPI(unittest.TestCase):
         The /jobs/validation/status endpoint should return a list of
         ValidationJobStatus objects as JSON.
 
+        Manager returns InternalValidationJobStatus objects. Route layer
+        converts them to API ValidationJobStatus.
+
         This test validates:
         * HTTP 200 status,
         * response shape (list of objects),
@@ -275,19 +281,19 @@ class TestJobsAPI(unittest.TestCase):
         """
         mock_manager = MagicMock()
         mock_manager.get_all_job_statuses.return_value = [
-            schemas.ValidationJobStatus(
+            InternalValidationJobStatus(
                 id="val-job-1",
                 start_time=1000,
                 elapsed_time=200,
-                state=schemas.ValidationJobState.RUNNING,
+                state=InternalValidationJobState.RUNNING,
                 is_valid=None,
                 error_message=None,
             ),
-            schemas.ValidationJobStatus(
+            InternalValidationJobStatus(
                 id="val-job-2",
                 start_time=2000,
                 elapsed_time=500,
-                state=schemas.ValidationJobState.ERROR,
+                state=InternalValidationJobState.ERROR,
                 is_valid=False,
                 error_message=["no element foo"],
             ),
@@ -299,21 +305,18 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
-        # Basic shape: list with two entries
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 2)
 
         first, second = data[0], data[1]
 
-        # Spot-check first job
         self.assertEqual(first["id"], "val-job-1")
-        self.assertEqual(first["state"], schemas.ValidationJobState.RUNNING)
+        self.assertEqual(first["state"], "RUNNING")
         self.assertIsNone(first["is_valid"])
         self.assertIsNone(first["error_message"])
 
-        # Spot-check second job
         self.assertEqual(second["id"], "val-job-2")
-        self.assertEqual(second["state"], schemas.ValidationJobState.ERROR)
+        self.assertEqual(second["state"], "ERROR")
         self.assertFalse(second["is_valid"])
         self.assertEqual(second["error_message"], ["no element foo"])
 
@@ -324,22 +327,18 @@ class TestJobsAPI(unittest.TestCase):
     @patch("api.routes.jobs.ValidationManager")
     def test_get_validation_job_summary_found(self, mock_validation_manager_cls):
         """
-        When the manager returns a ValidationJobSummary, the endpoint
-        must respond with HTTP 200 and the serialized summary.
-
-        This exercises the "happy path" where a job with the given id
-        exists and demonstrates that the original request object is
-        correctly embedded in the response.
+        When the manager returns an InternalValidationJobSummary, the endpoint
+        converts it to API ValidationJobSummary and responds with HTTP 200.
         """
-        graph = self._make_minimal_graph()
-        request = schemas.PipelineValidation(
-            pipeline_graph=graph,
+        mock_graph = self._make_mock_graph()
+        internal_request = InternalPipelineValidation(
+            pipeline_graph=mock_graph,
             parameters={"max-runtime": 10},
         )
         mock_manager = MagicMock()
-        mock_manager.get_job_summary.return_value = schemas.ValidationJobSummary(
+        mock_manager.get_job_summary.return_value = InternalValidationJobSummary(
             id="val-job-123",
-            request=request,
+            request=internal_request,
         )
         mock_validation_manager_cls.return_value = mock_manager
 
@@ -383,13 +382,15 @@ class TestJobsAPI(unittest.TestCase):
         """
         When the job exists, /validation/{job_id}/status must return the
         ValidationJobStatus with HTTP 200.
+
+        Manager returns InternalValidationJobStatus. Route layer converts it.
         """
         mock_manager = MagicMock()
-        mock_manager.get_job_status.return_value = schemas.ValidationJobStatus(
+        mock_manager.get_job_status.return_value = InternalValidationJobStatus(
             id="val-status-1",
             start_time=123456,
             elapsed_time=1000,
-            state=schemas.ValidationJobState.COMPLETED,
+            state=InternalValidationJobState.COMPLETED,
             is_valid=True,
             error_message=None,
         )
@@ -401,7 +402,7 @@ class TestJobsAPI(unittest.TestCase):
         data = response.json()
 
         self.assertEqual(data["id"], "val-status-1")
-        self.assertEqual(data["state"], schemas.ValidationJobState.COMPLETED)
+        self.assertEqual(data["state"], "COMPLETED")
         self.assertTrue(data["is_valid"])
         self.assertIsNone(data["error_message"])
 
@@ -557,8 +558,3 @@ class TestJobsAPI(unittest.TestCase):
         response = self.client.delete(f"/jobs/tests/density/{job_id}")
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json(), {"message": "Unexpected error occurred"})
-
-
-if __name__ == "__main__":
-    # Allow running this module directly for quick local verification.
-    unittest.main()
