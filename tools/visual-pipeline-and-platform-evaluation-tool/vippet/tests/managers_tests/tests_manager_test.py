@@ -337,7 +337,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id="test-job-id",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
             total_fps=120,
             per_stream_fps=30,
@@ -396,7 +396,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id="test-job-id",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job.id] = job
@@ -426,7 +426,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalDensityJobStatus(
             id="test-density-summary",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job.id] = job
@@ -451,7 +451,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -487,7 +487,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -514,7 +514,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.COMPLETED,
         )
         manager.jobs[job_id] = job
@@ -548,7 +548,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -595,7 +595,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -649,7 +649,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -689,7 +689,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -746,7 +746,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -799,7 +799,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -847,7 +847,7 @@ class TestTestsManager(unittest.TestCase):
         job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -1212,7 +1212,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id="test-job-live-stream",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
             live_stream_urls={
                 "/pipelines/pipeline-test/variants/variant-test": "rtsp://mediamtx:8554/stream_test"
@@ -1252,7 +1252,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         job = InternalDensityJobStatus(
             id="test-density-job",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job.id] = job
@@ -1294,7 +1294,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -1362,7 +1362,7 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -1489,7 +1489,7 @@ class TestInlineGraphSupport(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -1543,7 +1543,7 @@ class TestInlineGraphSupport(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
@@ -1608,7 +1608,7 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id="test-stream-spec",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.COMPLETED,
             total_fps=180.0,
             per_stream_fps=30.0,
@@ -1646,7 +1646,7 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         job = InternalPerformanceJobStatus(
             id="test-stream-spec-internal",
             request=original_request,
-            start_time=int(time.time()),
+            start_time=int(time.time() * 1000),
             state=InternalTestJobState.COMPLETED,
             total_fps=180.0,
             per_stream_fps=30.0,

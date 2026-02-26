@@ -26,7 +26,7 @@ router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
 
 
-def get_job_status_or_404(job_id: str, job_type: str):
+def get_test_job_status(job_id: str, job_type: str):
     internal_status = TestsManager().get_job_status(job_id)
     if internal_status is None:
         logger.warning("%s job %s not found", job_type, job_id)
@@ -41,7 +41,17 @@ def get_job_status_or_404(job_id: str, job_type: str):
         return _performance_job_to_api_status(internal_status)
     elif isinstance(internal_status, InternalDensityJobStatus):
         return _density_job_to_api_status(internal_status)
-    return internal_status
+    logger.error(
+        "Unexpected job status type %s for job %s",
+        type(internal_status).__name__,
+        job_id,
+    )
+    return JSONResponse(
+        content=schemas.MessageResponse(
+            message=f"Unexpected job status type for job {job_id}"
+        ).model_dump(),
+        status_code=500,
+    )
 
 
 def stop_test_job_handler(job_id: str):
@@ -166,6 +176,7 @@ def get_performance_statuses():
             "model": schemas.PerformanceJobStatus,
         },
         404: {"description": "Job not found", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def get_performance_job_status(job_id: str):
@@ -186,6 +197,7 @@ def get_performance_job_status(job_id: str):
     |------|-------------|
     | 200  | PerformanceJobStatus with current state, timings, FPS and output paths |
     | 404  | Job with given id does not exist |
+    | 500  | Unexpected internal error |
 
     ## Conditions
 
@@ -194,6 +206,7 @@ def get_performance_job_status(job_id: str):
 
     ### ❌ Failure
     - Unknown job id → 404
+    - Unexpected job status type → 500
 
     ## Examples
 
@@ -224,8 +237,15 @@ def get_performance_job_status(job_id: str):
       "message": "Performance job job123 not found"
     }
     ```
+
+    Error (500):
+    ```json
+    {
+      "message": "Unexpected job status type for job job123"
+    }
+    ```
     """
-    return get_job_status_or_404(job_id, "Performance")
+    return get_test_job_status(job_id, "Performance")
 
 
 @router.get(
@@ -443,6 +463,7 @@ def get_density_statuses():
             "model": schemas.DensityJobStatus,
         },
         404: {"description": "Job not found", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def get_density_job_status(job_id: str):
@@ -463,6 +484,7 @@ def get_density_job_status(job_id: str):
     |------|-------------|
     | 200  | DensityJobStatus for the given job |
     | 404  | Job id is unknown |
+    | 500  | Unexpected internal error |
 
     ## Conditions
 
@@ -471,16 +493,25 @@ def get_density_job_status(job_id: str):
 
     ### ❌ Failure
     - Unknown job id → 404
+    - Unexpected job status type → 500
 
-    ## Error Example
+    ## Examples
 
+    Error (404):
     ```json
     {
       "message": "Density job job456 not found"
     }
     ```
+
+    Error (500):
+    ```json
+    {
+      "message": "Unexpected job status type for job job456"
+    }
+    ```
     """
-    return get_job_status_or_404(job_id, "Density")
+    return get_test_job_status(job_id, "Density")
 
 
 @router.get(
