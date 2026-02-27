@@ -24,7 +24,7 @@ Following steps should be followed to deploy Document Summarization application 
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/document-summarization):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.4
+helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.5-rc2
 ```
 
 🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application.
