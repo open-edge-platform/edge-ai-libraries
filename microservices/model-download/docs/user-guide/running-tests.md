@@ -1,23 +1,23 @@
-# Running Unit Tests
+# Run Unit Tests
 
-This guide provides comprehensive instructions for running the unit test suite for the Model Download Microservice.
+This section shows how to run the unit test suite for Model Download.
 
 ## Prerequisites
 
 ### Environment Setup
 
-You can use either traditional pip/venv or the modern uv tool for dependency management:
+You can use either the pip installer, venv tool, or uv tool for dependency management.
 
-#### Using uv
+#### Uv Tool
 
 ```bash
-# Navigate to model-download service directory
+# Navigate to the model-download service directory
 cd microservices/model-download
 
-# Install uv if not already installed
+# Install uv tool if not already installed
 pip install uv
 
-# Create and activate virtual environment
+# Create and activate the virtual environment
 uv venv
 source .venv/bin/activate  # Linux/macOS
 # or
@@ -55,7 +55,7 @@ pytest tests/ -v
 ### Run Tests with Coverage Report
 
 ```bash
-# Generate coverage report in terminal and HTML
+# Generate coverage report in the terminal and HTML
 pytest tests/ --cov=src --cov-report=html --cov-report=term
 
 # Open the HTML coverage report
@@ -73,7 +73,7 @@ pytest tests/unit/test_api_main.py -v
 # All plugin tests
 pytest tests/unit/test_*_plugin.py -v
 
-# Specific plugin test
+# A specific plugin test
 pytest tests/unit/test_huggingface_plugin.py -v
 pytest tests/unit/test_ollama_plugin.py -v
 pytest tests/unit/test_openvino_plugin.py -v
