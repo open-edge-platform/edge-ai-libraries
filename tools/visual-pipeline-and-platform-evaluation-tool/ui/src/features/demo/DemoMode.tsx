@@ -36,7 +36,6 @@ import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
-import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useNavigate } from "react-router";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
@@ -211,28 +210,11 @@ const DemoMode = () => {
     video_output_paths: { [key: string]: string[] } | null;
     live_stream_urls: { [key: string]: string } | null;
   } | null>(null);
-  const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
-  const [densityLoopingEnabled, setDensityLoopingEnabled] = useState(false);
-  const [performanceVideoOutputEnabled, setPerformanceVideoOutputEnabled] =
-    useState(false);
   const [performanceLivePreviewEnabled, setPerformanceLivePreviewEnabled] =
     useState(true);
-  const [performanceLoopingEnabled, setPerformanceLoopingEnabled] =
-    useState(false);
   const [performanceStreams, setPerformanceStreams] = useState<
     Record<string, number>
   >({});
-  // Track what options were enabled when the test was started
-  const [
-    lastPerformanceTestHadSaveOutput,
-    setLastPerformanceTestHadSaveOutput,
-  ] = useState(false);
-  const [
-    lastPerformanceTestHadLivePreview,
-    setLastPerformanceTestHadLivePreview,
-  ] = useState(false);
-  const [lastDensityTestHadSaveOutput, setLastDensityTestHadSaveOutput] =
-    useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [performanceErrorMessage, setPerformanceErrorMessage] = useState<
     string | null
@@ -539,36 +521,16 @@ const DemoMode = () => {
     : "max-h-[44vh]";
   const runConfigMaxHeightClass = "max-h-[38vh]";
 
-  // Helper function to check if video output paths actually contain files
-  const hasVideoFiles = (
-    paths: { [key: string]: string[] } | null | undefined,
-  ): boolean => {
-    if (!paths) return false;
-    return Object.values(paths).some(
-      (arr) => Array.isArray(arr) && arr.length > 0,
-    );
-  };
-
   // Show preview panel only when there's actual content to display
   const hasLiveStreamContent =
     testStarted &&
     lastRunTest === "performance-test" &&
     !!performanceJobId &&
-    lastPerformanceTestHadLivePreview &&
+    performanceLivePreviewEnabled &&
     performanceResult?.live_stream_urls &&
     Object.keys(performanceResult.live_stream_urls).length > 0;
 
-  const hasSavedVideoContent =
-    (lastRunTest === "performance-test" &&
-      !performanceJobId &&
-      lastPerformanceTestHadSaveOutput &&
-      hasVideoFiles(performanceResult?.video_output_paths)) ||
-    (lastRunTest === "density-test" &&
-      !densityJobId &&
-      lastDensityTestHadSaveOutput &&
-      hasVideoFiles(testResult?.video_output_paths));
-
-  const showPreviewPanel = hasLiveStreamContent || hasSavedVideoContent;
+  const showPreviewPanel = hasLiveStreamContent;
 
   const showPreRunLayout = !testStarted;
   const gridColumnsStyle = {
@@ -1288,18 +1250,12 @@ const DemoMode = () => {
     if (activeTest === "performance-test") {
       setPerformanceResult(null);
       setPerformanceErrorMessage(null);
-      // Track what options were enabled for this test
-      setLastPerformanceTestHadSaveOutput(performanceVideoOutputEnabled);
-      setLastPerformanceTestHadLivePreview(performanceLivePreviewEnabled);
       try {
         const outputMode = performanceLivePreviewEnabled
           ? "live_stream"
-          : performanceVideoOutputEnabled
-            ? "file"
-            : "disabled";
+          : "disabled";
 
-        const maxRuntime =
-          performanceLivePreviewEnabled || performanceLoopingEnabled ? 1800 : 0;
+        const maxRuntime = 1800;
 
         console.log("[DemoMode][runPerformanceTest][variants]", {
           pipelines: pipelineSelections.map((selection) => {
@@ -1352,8 +1308,6 @@ const DemoMode = () => {
 
     setTestResult(null);
     setErrorMessage(null);
-    // Track what options were enabled for this test
-    setLastDensityTestHadSaveOutput(videoOutputEnabled);
     try {
       console.log("[DemoMode][runDensityTest][variants]", {
         pipelines: pipelineSelections.map((selection) => {
@@ -1372,8 +1326,8 @@ const DemoMode = () => {
       const result = await runDensityTest({
         densityTestSpec: {
           execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: densityLoopingEnabled ? 1800 : 0,
+            output_mode: "disabled",
+            max_runtime: 1800,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
@@ -1788,13 +1742,7 @@ const DemoMode = () => {
                   <p
                     className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
                   >
-                    {/* Show "Output" if test finished with video output, otherwise "Preview" */}
-                    {(lastRunTest === "performance-test" &&
-                      hasVideoFiles(performanceResult?.video_output_paths)) ||
-                    (lastRunTest === "density-test" &&
-                      hasVideoFiles(testResult?.video_output_paths))
-                      ? "Output"
-                      : "Preview"}
+                    Preview
                   </p>
                   <div className="flex-1 overflow-hidden relative">
                     {/* Show live preview during running test */}
@@ -1914,271 +1862,7 @@ const DemoMode = () => {
                             </div>
                           );
                         })()
-                      : /* Show saved video output after test completion */
-                        lastRunTest === "performance-test" &&
-                          performanceResult &&
-                          hasVideoFiles(performanceResult.video_output_paths)
-                        ? (() => {
-                            const previewsPerPage = 2;
-                            const totalPreviewPages = Math.ceil(
-                              pipelineSelections.length / previewsPerPage,
-                            );
-                            const startIdx =
-                              previewCarouselIndex * previewsPerPage;
-                            const endIdx = startIdx + previewsPerPage;
-                            const visiblePreviews = pipelineSelections.slice(
-                              startIdx,
-                              endIdx,
-                            );
-
-                            return (
-                              <div className="relative h-full">
-                                <div className="grid grid-cols-2 gap-3 h-full">
-                                  {visiblePreviews.map(
-                                    (selection, localIdx) => {
-                                      const pipeline = pipelines.find(
-                                        (p) => p.id === selection.pipelineId,
-                                      );
-                                      // Calculate global index
-                                      const globalIdx = startIdx + localIdx;
-                                      // Get video paths by index from video_output_paths
-                                      const allKeys =
-                                        performanceResult.video_output_paths
-                                          ? Object.keys(
-                                              performanceResult.video_output_paths,
-                                            )
-                                          : [];
-                                      const matchingKey = allKeys[globalIdx];
-                                      const paths = matchingKey
-                                        ? performanceResult
-                                            .video_output_paths?.[matchingKey]
-                                        : undefined;
-                                      const videoPath =
-                                        paths && paths.length > 0
-                                          ? [...paths].pop()
-                                          : null;
-
-                                      return (
-                                        <div
-                                          key={selection.pipelineId}
-                                          className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                        >
-                                          <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                            {pipeline?.name ||
-                                              "Unknown Pipeline"}
-                                          </p>
-                                          <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                            {videoPath ? (
-                                              <video
-                                                key={`performance-${selection.pipelineId}-${videoPath}`}
-                                                controls
-                                                preload="metadata"
-                                                className="w-full h-full object-cover"
-                                                src={`/assets${videoPath}`}
-                                              >
-                                                Your browser does not support
-                                                the video tag.
-                                              </video>
-                                            ) : (
-                                              <p className="text-xs text-slate-400">
-                                                No video output
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    },
-                                  )}
-                                </div>
-
-                                {/* Carousel navigation buttons */}
-                                {totalPreviewPages > 1 && (
-                                  <>
-                                    <button
-                                      onClick={() =>
-                                        setPreviewCarouselIndex((prev) =>
-                                          Math.max(0, prev - 1),
-                                        )
-                                      }
-                                      disabled={previewCarouselIndex === 0}
-                                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                    >
-                                      <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        setPreviewCarouselIndex((prev) =>
-                                          Math.min(
-                                            totalPreviewPages - 1,
-                                            prev + 1,
-                                          ),
-                                        )
-                                      }
-                                      disabled={
-                                        previewCarouselIndex >=
-                                        totalPreviewPages - 1
-                                      }
-                                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                    >
-                                      <ChevronRight className="w-5 h-5 text-slate-200" />
-                                    </button>
-
-                                    {/* Dots indicator */}
-                                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                      {Array.from({
-                                        length: totalPreviewPages,
-                                      }).map((_, idx) => (
-                                        <button
-                                          key={idx}
-                                          onClick={() =>
-                                            setPreviewCarouselIndex(idx)
-                                          }
-                                          className={`w-2 h-2 rounded-full transition-all ${
-                                            idx === previewCarouselIndex
-                                              ? "bg-blue-500 w-6"
-                                              : "bg-slate-600 hover:bg-slate-500"
-                                          }`}
-                                        />
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })()
-                        : lastRunTest === "density-test" &&
-                            testResult &&
-                            hasVideoFiles(testResult.video_output_paths)
-                          ? (() => {
-                              const previewsPerPage = 2;
-                              const totalPreviewPages = Math.ceil(
-                                pipelineSelections.length / previewsPerPage,
-                              );
-                              const startIdx =
-                                previewCarouselIndex * previewsPerPage;
-                              const endIdx = startIdx + previewsPerPage;
-                              const visiblePreviews = pipelineSelections.slice(
-                                startIdx,
-                                endIdx,
-                              );
-
-                              return (
-                                <div className="relative h-full">
-                                  <div className="grid grid-cols-2 gap-3 h-full">
-                                    {visiblePreviews.map(
-                                      (selection, localIdx) => {
-                                        const pipeline = pipelines.find(
-                                          (p) => p.id === selection.pipelineId,
-                                        );
-                                        // Calculate global index
-                                        const globalIdx = startIdx + localIdx;
-                                        // Get video paths by index from video_output_paths
-                                        const allKeys =
-                                          testResult.video_output_paths
-                                            ? Object.keys(
-                                                testResult.video_output_paths,
-                                              )
-                                            : [];
-                                        const matchingKey = allKeys[globalIdx];
-                                        const paths = matchingKey
-                                          ? testResult.video_output_paths?.[
-                                              matchingKey
-                                            ]
-                                          : undefined;
-                                        const videoPath =
-                                          paths && paths.length > 0
-                                            ? [...paths].pop()
-                                            : null;
-
-                                        return (
-                                          <div
-                                            key={selection.pipelineId}
-                                            className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                          >
-                                            <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                              {pipeline?.name ||
-                                                "Unknown Pipeline"}
-                                            </p>
-                                            <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                              {videoPath ? (
-                                                <video
-                                                  key={`density-${selection.pipelineId}-${videoPath}`}
-                                                  controls
-                                                  preload="metadata"
-                                                  className="w-full h-full object-cover"
-                                                  src={`/assets${videoPath}`}
-                                                >
-                                                  Your browser does not support
-                                                  the video tag.
-                                                </video>
-                                              ) : (
-                                                <p className="text-xs text-slate-400">
-                                                  No video output
-                                                </p>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      },
-                                    )}
-                                  </div>
-
-                                  {/* Carousel navigation buttons */}
-                                  {totalPreviewPages > 1 && (
-                                    <>
-                                      <button
-                                        onClick={() =>
-                                          setPreviewCarouselIndex((prev) =>
-                                            Math.max(0, prev - 1),
-                                          )
-                                        }
-                                        disabled={previewCarouselIndex === 0}
-                                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                      >
-                                        <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          setPreviewCarouselIndex((prev) =>
-                                            Math.min(
-                                              totalPreviewPages - 1,
-                                              prev + 1,
-                                            ),
-                                          )
-                                        }
-                                        disabled={
-                                          previewCarouselIndex >=
-                                          totalPreviewPages - 1
-                                        }
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                      >
-                                        <ChevronRight className="w-5 h-5 text-slate-200" />
-                                      </button>
-
-                                      {/* Dots indicator */}
-                                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                        {Array.from({
-                                          length: totalPreviewPages,
-                                        }).map((_, idx) => (
-                                          <button
-                                            key={idx}
-                                            onClick={() =>
-                                              setPreviewCarouselIndex(idx)
-                                            }
-                                            className={`w-2 h-2 rounded-full transition-all ${
-                                              idx === previewCarouselIndex
-                                                ? "bg-blue-500 w-6"
-                                                : "bg-slate-600 hover:bg-slate-500"
-                                            }`}
-                                          />
-                                        ))}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              );
-                            })()
-                          : null}
+                      : null}
                   </div>
                 </div>
               );
@@ -2756,7 +2440,7 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* Live Preview + Save Output + Looping */}
+                                    {/* Live Preview */}
                                     <div className="min-h-[120px]">
                                       <div className="flex flex-col gap-2">
                                         <div className="flex items-center gap-2">
@@ -2764,126 +2448,22 @@ const DemoMode = () => {
                                             checked={
                                               performanceLivePreviewEnabled
                                             }
-                                            onCheckedChange={(checked) => {
+                                            onCheckedChange={(checked) =>
                                               setPerformanceLivePreviewEnabled(
                                                 checked === true,
-                                              );
-                                              if (checked) {
-                                                setPerformanceLoopingEnabled(
-                                                  false,
-                                                );
-                                                setPerformanceVideoOutputEnabled(
-                                                  false,
-                                                );
-                                              }
-                                            }}
-                                            disabled={
-                                              isReadOnly ||
-                                              performanceLoopingEnabled ||
-                                              performanceVideoOutputEnabled
+                                              )
                                             }
+                                            disabled={isReadOnly}
                                             className={colors.checkbox}
                                           />
                                           <div className="flex items-center gap-1.5">
-                                            <label
-                                              className={`text-xs ${performanceLoopingEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                            >
+                                            <label className="text-xs text-slate-300">
                                               Show live preview
                                             </label>
                                             <CheckboxInfoHint
-                                              muted={
-                                                performanceLoopingEnabled ||
-                                                performanceVideoOutputEnabled
-                                              }
                                               description="Shows pipeline output in real time while it is running."
                                             />
                                           </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={performanceLoopingEnabled}
-                                            onCheckedChange={(checked) => {
-                                              setPerformanceLoopingEnabled(
-                                                checked === true,
-                                              );
-                                              if (checked) {
-                                                setPerformanceVideoOutputEnabled(
-                                                  false,
-                                                );
-                                                setPerformanceLivePreviewEnabled(
-                                                  false,
-                                                );
-                                              }
-                                            }}
-                                            disabled={
-                                              isReadOnly ||
-                                              performanceLivePreviewEnabled ||
-                                              performanceVideoOutputEnabled
-                                            }
-                                            className={colors.checkbox}
-                                          />
-                                          <div className="flex items-center gap-1.5">
-                                            <label
-                                              className={`text-xs ${performanceLivePreviewEnabled || performanceVideoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                            >
-                                              Continuous run
-                                            </label>
-                                            <CheckboxInfoHint
-                                              muted={
-                                                performanceLivePreviewEnabled ||
-                                                performanceVideoOutputEnabled
-                                              }
-                                              description="Automatically restarts the pipeline after it finishes."
-                                            />
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceVideoOutputEnabled
-                                            }
-                                            onCheckedChange={(checked) => {
-                                              setPerformanceVideoOutputEnabled(
-                                                checked === true,
-                                              );
-                                              if (checked) {
-                                                setPerformanceLoopingEnabled(
-                                                  false,
-                                                );
-                                                setPerformanceLivePreviewEnabled(
-                                                  false,
-                                                );
-                                              }
-                                            }}
-                                            disabled={
-                                              isReadOnly ||
-                                              performanceLivePreviewEnabled ||
-                                              performanceLoopingEnabled
-                                            }
-                                            className={colors.checkbox}
-                                          />
-                                          <div className="flex items-center gap-1.5">
-                                            <label
-                                              className={`text-xs ${performanceLivePreviewEnabled || performanceLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                            >
-                                              Show output after run
-                                            </label>
-                                            <CheckboxInfoHint
-                                              muted={
-                                                performanceLivePreviewEnabled ||
-                                                performanceLoopingEnabled
-                                              }
-                                              description="Retains the final output so you can view it after completion."
-                                            />
-                                          </div>
-                                        </div>
-
-                                        <div
-                                          className={`-mt-2 ${performanceVideoOutputEnabled && !performanceLivePreviewEnabled ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-200`}
-                                        >
-                                          <SaveOutputWarning />
                                         </div>
                                       </div>
                                     </div>
@@ -2933,7 +2513,7 @@ const DemoMode = () => {
                                       })}
                                     </div>
 
-                                    {/* FPS Floor + Looping + Video Output */}
+                                    {/* FPS Floor */}
                                     <div className="min-h-[120px]">
                                       <div className="flex gap-6">
                                         <div className="space-y-1 min-h-[72px]">
@@ -2953,75 +2533,6 @@ const DemoMode = () => {
                                             placeholder="Minimum FPS threshold"
                                             min={0}
                                           />
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={densityLoopingEnabled}
-                                              onCheckedChange={(checked) => {
-                                                setDensityLoopingEnabled(
-                                                  checked === true,
-                                                );
-                                                if (checked) {
-                                                  setVideoOutputEnabled(false);
-                                                }
-                                              }}
-                                              disabled={
-                                                isReadOnly || videoOutputEnabled
-                                              }
-                                              className={colors.checkbox}
-                                            />
-                                            <div className="flex items-center gap-1.5">
-                                              <label
-                                                className={`text-xs ${videoOutputEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                              >
-                                                Continuous run
-                                              </label>
-                                              <CheckboxInfoHint
-                                                muted={videoOutputEnabled}
-                                                description="Automatically restarts the pipeline after it finishes."
-                                              />
-                                            </div>
-                                          </div>
-
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              checked={videoOutputEnabled}
-                                              onCheckedChange={(checked) => {
-                                                setVideoOutputEnabled(
-                                                  checked === true,
-                                                );
-                                                if (checked) {
-                                                  setDensityLoopingEnabled(
-                                                    false,
-                                                  );
-                                                }
-                                              }}
-                                              disabled={
-                                                isReadOnly ||
-                                                densityLoopingEnabled
-                                              }
-                                              className={colors.checkbox}
-                                            />
-                                            <div className="flex items-center gap-1.5">
-                                              <label
-                                                className={`text-xs ${densityLoopingEnabled ? "text-slate-500" : "text-slate-300"}`}
-                                              >
-                                                Show output after run
-                                              </label>
-                                              <CheckboxInfoHint
-                                                muted={densityLoopingEnabled}
-                                                description="Retains the final output so you can view it after completion."
-                                              />
-                                            </div>
-                                          </div>
-
-                                          <div
-                                            className={`-mt-2 ${videoOutputEnabled ? "opacity-100" : "opacity-0 pointer-events-none"} transition-opacity duration-200`}
-                                          >
-                                            <SaveOutputWarning />
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
