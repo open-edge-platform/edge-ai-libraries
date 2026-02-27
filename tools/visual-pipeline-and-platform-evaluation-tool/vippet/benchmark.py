@@ -10,12 +10,12 @@ import math
 from typing import List
 
 from pipeline_runner import PipelineRunner, PipelineRunResult
-from api.api_schemas import PipelineStreamSpec
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
     InternalPipelineDensitySpec,
     InternalPipelinePerformanceSpec,
+    InternalPipelineStreamSpec,
 )
 from managers.pipeline_manager import PipelineManager
 
@@ -27,8 +27,8 @@ class BenchmarkResult:
 
     Attributes:
         n_streams: Total number of streams across all pipelines.
-        streams_per_pipeline: List of pipeline IDs with their stream counts.
-            Pipeline IDs follow the format:
+        streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs
+            and their stream counts. Pipeline IDs follow the format:
             * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
             * For inline graph: "__graph-{16-char-hash}"
         per_stream_fps: Average FPS per stream achieved.
@@ -37,7 +37,7 @@ class BenchmarkResult:
     """
 
     n_streams: int
-    streams_per_pipeline: List[PipelineStreamSpec]
+    streams_per_pipeline: List[InternalPipelineStreamSpec]
     per_stream_fps: float
     video_output_paths: dict[str, List[str]]
 
@@ -120,7 +120,8 @@ class Benchmark:
 
         Returns:
             BenchmarkResult with optimal stream configuration. The streams_per_pipeline
-            field contains pipeline IDs already resolved in internal specs.
+            field contains InternalPipelineStreamSpec with pipeline IDs already resolved
+            in internal specs.
 
         Raises:
             ValueError: If output_mode is live_stream (not supported for density tests).
@@ -141,7 +142,7 @@ class Benchmark:
         # We'll set this once we fall below the fps_floor
         higher_bound = -1
         best_config: tuple[
-            int, list[PipelineStreamSpec], float, dict[str, List[str]]
+            int, list[InternalPipelineStreamSpec], float, dict[str, List[str]]
         ] = (
             0,
             [],
@@ -213,7 +214,7 @@ class Benchmark:
 
             # Build streams_per_pipeline with pipeline IDs
             streams_per_pipeline_with_ids = [
-                PipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
+                InternalPipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
                 for spec, stream_count in zip(
                     pipeline_density_specs, streams_per_pipeline_counts
                 )
@@ -266,7 +267,7 @@ class Benchmark:
         else:
             # Fallback to last attempt - build streams_per_pipeline from last run
             streams_per_pipeline_with_ids = [
-                PipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
+                InternalPipelineStreamSpec(id=spec.pipeline_id, streams=stream_count)
                 for spec, stream_count in zip(
                     pipeline_density_specs, streams_per_pipeline_counts
                 )

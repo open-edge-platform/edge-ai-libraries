@@ -2,64 +2,43 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from api.api_schemas import (
-    Edge,
-    Node,
-    PipelineDefinition,
-    PipelineGraph,
-    PipelineSource,
-    Variant,
-    VariantCreate,
-)
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
+    InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
+    InternalPipelineSource,
+    InternalVariantCreate,
 )
 from managers.pipeline_manager import PipelineManager
-from utils import get_current_timestamp
 from videos import OUTPUT_VIDEO_DIR
 
 
-def create_simple_graph() -> PipelineGraph:
-    """Helper to create a simple valid pipeline graph."""
-    return PipelineGraph(
-        nodes=[
-            Node(id="0", type="fakesrc", data={}),
-            Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
-        ],
-        edges=[Edge(id="0", source="0", target="1")],
+def create_simple_graph() -> Graph:
+    """Helper to create a simple valid pipeline graph as Graph object."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "fakesrc", "data": {}},
+                {
+                    "id": "1",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
     )
 
 
-def create_simple_graph_object() -> Graph:
-    """Helper to create a simple valid Graph object."""
-    return Graph.from_dict(create_simple_graph().model_dump())
-
-
-def create_variant_create(name: str = "CPU") -> VariantCreate:
-    """Helper to create a valid VariantCreate for testing PipelineDefinition."""
+def create_variant_create(name: str = "CPU") -> InternalVariantCreate:
+    """Helper to create a valid InternalVariantCreate for testing."""
     graph = create_simple_graph()
-    return VariantCreate(
+    return InternalVariantCreate(
         name=name,
         pipeline_graph=graph,
         pipeline_graph_simple=graph,
-    )
-
-
-def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
-    """Helper to create a valid Variant for testing."""
-    graph = create_simple_graph()
-    timestamp = get_current_timestamp()
-    return Variant(
-        id="variant-test",
-        name=name,
-        read_only=read_only,
-        pipeline_graph=graph,
-        pipeline_graph_simple=graph,
-        created_at=timestamp,
-        modified_at=timestamp,
     )
 
 
@@ -82,12 +61,32 @@ def create_internal_performance_spec(
 ) -> InternalPipelinePerformanceSpec:
     """Helper to create InternalPipelinePerformanceSpec for testing."""
     if graph is None:
-        graph = create_simple_graph_object()
+        graph = create_simple_graph()
     return InternalPipelinePerformanceSpec(
         pipeline_id=pipeline_id,
         pipeline_name=pipeline_name,
         pipeline_graph=graph,
         streams=streams,
+    )
+
+
+def create_pipeline_definition(
+    name: str = "test-pipeline",
+    description: str = "A test pipeline",
+    tags: list[str] | None = None,
+    variants: list[InternalVariantCreate] | None = None,
+) -> InternalPipelineDefinition:
+    """Helper to create an InternalPipelineDefinition for testing."""
+    if tags is None:
+        tags = []
+    if variants is None:
+        variants = [create_variant_create()]
+    return InternalPipelineDefinition(
+        name=name,
+        description=description,
+        source=InternalPipelineSource.USER_CREATED,
+        tags=tags,
+        variants=variants,
     )
 
 
@@ -102,10 +101,9 @@ class TestPipelineManager(unittest.TestCase):
         manager.pipelines = []
         initial_count = len(manager.get_pipelines())
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="user-defined-pipelines",
             description="A test pipeline",
-            source=PipelineSource.USER_CREATED,
             tags=["test"],
             variants=[create_variant_create()],
         )
@@ -151,10 +149,9 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="multi-variant-pipeline",
             description="Pipeline with CPU and GPU variants",
-            source=PipelineSource.USER_CREATED,
             tags=["multi", "test"],
             variants=[
                 create_variant_create(name="CPU"),
@@ -194,11 +191,9 @@ class TestPipelineManager(unittest.TestCase):
         manager.pipelines = []
 
         # Add a test pipeline with a variant
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-variant-lookup",
             description="Test pipeline for variant lookup",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -229,12 +224,9 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-variant-lookup",
             description="Test pipeline",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -251,11 +243,9 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-variant-copy",
             description="Test pipeline",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -277,7 +267,7 @@ class TestPipelineManager(unittest.TestCase):
 
         # Check that predefined pipelines have variants
         for pipeline in pipelines:
-            if pipeline.source == PipelineSource.PREDEFINED:
+            if pipeline.source == InternalPipelineSource.PREDEFINED:
                 self.assertGreater(len(pipeline.variants), 0)
                 for variant in pipeline.variants:
                     self.assertIsNotNone(variant.id)
@@ -347,24 +337,25 @@ class TestPipelineManager(unittest.TestCase):
         manager.pipelines = []
 
         # Create Graph object with tee element
-        tee_graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {"id": "1", "type": "tee", "data": {"name": "t"}},
-                {"id": "2", "type": "queue", "data": {}},
-                {
-                    "id": "3",
-                    "type": "fakesink",
-                    "data": {"name": "default_output_sink"},
-                },
-            ],
-            "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"},
-                {"id": "2", "source": "2", "target": "3"},
-            ],
-        }
-        tee_graph = Graph.from_dict(tee_graph_dict)
+        tee_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "tee", "data": {"name": "t"}},
+                    {"id": "2", "type": "queue", "data": {}},
+                    {
+                        "id": "3",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                    {"id": "2", "source": "2", "target": "3"},
+                ],
+            }
+        )
 
         # Build command with 3 streams
         pipeline_performance_specs = [
@@ -392,41 +383,45 @@ class TestPipelineManager(unittest.TestCase):
         manager.pipelines = []
 
         # Create two different Graph objects
-        graph1_dict = {
-            "nodes": [
-                {"id": "0", "type": "fakesrc", "data": {"name": "source1"}},
-                {
-                    "id": "1",
-                    "type": "fakesink",
-                    "data": {"name": "default_output_sink"},
-                },
-            ],
-            "edges": [{"id": "0", "source": "0", "target": "1"}],
-        }
-        graph2_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {"name": "source2"}},
-                {
-                    "id": "1",
-                    "type": "fakesink",
-                    "data": {"name": "default_output_sink"},
-                },
-            ],
-            "edges": [{"id": "0", "source": "0", "target": "1"}],
-        }
+        graph1 = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "fakesrc", "data": {"name": "source1"}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
+        graph2 = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {"name": "source2"}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
 
         # Build command with two pipelines
         pipeline_performance_specs = [
             InternalPipelinePerformanceSpec(
                 pipeline_id="/pipelines/pipeline-1/variants/cpu",
                 pipeline_name="pipeline-1",
-                pipeline_graph=Graph.from_dict(graph1_dict),
+                pipeline_graph=graph1,
                 streams=2,
             ),
             InternalPipelinePerformanceSpec(
                 pipeline_id="/pipelines/pipeline-2/variants/cpu",
                 pipeline_name="pipeline-2",
-                pipeline_graph=Graph.from_dict(graph2_dict),
+                pipeline_graph=graph2,
                 streams=3,
             ),
         ]
@@ -447,12 +442,10 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="original-name",
             description="Original description",
-            source=PipelineSource.USER_CREATED,
             tags=["original"],
-            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
@@ -484,12 +477,10 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-tags",
             description="Test",
-            source=PipelineSource.USER_CREATED,
             tags=["original"],
-            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
@@ -517,12 +508,9 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="to-delete",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -537,7 +525,7 @@ class TestPipelineManager(unittest.TestCase):
 
         predefined = None
         for p in manager.get_pipelines():
-            if p.source == PipelineSource.PREDEFINED:
+            if p.source == InternalPipelineSource.PREDEFINED:
                 predefined = p
                 break
 
@@ -553,24 +541,26 @@ class TestPipelineManager(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {
-                    "id": "1",
-                    "type": "fakesink",
-                    "data": {"name": "default_output_sink"},
-                },
-            ],
-            "edges": [{"id": "0", "source": "0", "target": "1"}],
-        }
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
 
         pipeline_id = "/pipelines/test-video-output/variants/cpu"
         pipeline_performance_specs = [
             InternalPipelinePerformanceSpec(
                 pipeline_id=pipeline_id,
                 pipeline_name="test-video-output",
-                pipeline_graph=Graph.from_dict(graph_dict),
+                pipeline_graph=graph,
                 streams=1,
             )
         ]
@@ -633,11 +623,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-add-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -648,12 +636,18 @@ class TestVariantCRUD(unittest.TestCase):
 
         time.sleep(0.01)
 
-        new_graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
-            ],
-            edges=[Edge(id="0", source="0", target="1")],
+        new_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
         )
 
         new_variant = manager.add_variant(
@@ -698,11 +692,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-delete-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[
                 create_variant_create(name="CPU"),
                 create_variant_create(name="GPU"),
@@ -732,12 +724,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-last-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -751,12 +740,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-nonexistent",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -770,11 +756,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-update-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -804,25 +788,28 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-update-graph",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
-        new_graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="videoconvert", data={}),
-                Node(id="2", type="fakesink", data={"name": "default_output_sink"}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="1"),
-                Edge(id="1", source="1", target="2"),
-            ],
+        new_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "videoconvert", "data": {}},
+                    {
+                        "id": "2",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
         )
 
         updated = manager.update_variant(
@@ -839,12 +826,9 @@ class TestVariantCRUD(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-both-graphs",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
 
@@ -872,29 +856,20 @@ class TestGraphConversionMethods(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        # Create a pipeline with a variant
-        new_pipeline = PipelineDefinition(
-            name="test-conversion",
-            description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
-        )
-        manager.add_pipeline(new_pipeline)
-
         # Create an advanced graph with some hidden elements (use videotestsrc, not filesrc)
-        advanced_graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {"id": "1", "type": "queue", "data": {}},
-                {"id": "2", "type": "fakesink", "data": {}},
-            ],
-            "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"},
-            ],
-        }
-        advanced_graph = Graph.from_dict(advanced_graph_dict)
+        advanced_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "queue", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
+        )
 
         # Convert to simple
         simple_graph = manager.validate_and_convert_advanced_to_simple(advanced_graph)
@@ -907,15 +882,6 @@ class TestGraphConversionMethods(unittest.TestCase):
         """Test that empty nodes in advanced graph raises error."""
         manager = PipelineManager()
         manager.pipelines = []
-
-        new_pipeline = PipelineDefinition(
-            name="test-conversion",
-            description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
-        )
-        manager.add_pipeline(new_pipeline)
 
         # Create empty graph
         empty_graph = Graph(nodes=[], edges=[])
@@ -930,35 +896,37 @@ class TestGraphConversionMethods(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        # Create a pipeline with variant that has both graphs (use videotestsrc, not filesrc)
-        graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
-                Node(id="1", type="queue", data={}),
-                Node(id="2", type="fakesink", data={}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="1"),
-                Edge(id="1", source="1", target="2"),
-            ],
+        # Create variant with both graphs (use videotestsrc, not filesrc)
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {"pattern": "0"}},
+                    {"id": "1", "type": "queue", "data": {}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                    {"id": "1", "source": "1", "target": "2"},
+                ],
+            }
         )
-        simple_graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
-                Node(id="2", type="fakesink", data={}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="2"),
-            ],
+        simple_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {"pattern": "0"}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "2"},
+                ],
+            }
         )
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-conversion",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[
-                VariantCreate(
+                InternalVariantCreate(
                     name="CPU",
                     pipeline_graph=graph,
                     pipeline_graph_simple=simple_graph,
@@ -969,16 +937,17 @@ class TestGraphConversionMethods(unittest.TestCase):
         variant = added.variants[0]
 
         # Modify simple graph (change property)
-        modified_simple_graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {"pattern": "1"}},
-                {"id": "2", "type": "fakesink", "data": {}},
-            ],
-            "edges": [
-                {"id": "0", "source": "0", "target": "2"},
-            ],
-        }
-        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
+        modified_simple_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {"pattern": "1"}},
+                    {"id": "2", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "2"},
+                ],
+            }
+        )
 
         # Convert to advanced
         advanced_graph = manager.validate_and_convert_simple_to_advanced(
@@ -999,23 +968,23 @@ class TestGraphConversionMethods(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="1"),
-            ],
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "fakesink", "data": {}},
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                ],
+            }
         )
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-conversion",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[
-                VariantCreate(
+                InternalVariantCreate(
                     name="CPU",
                     pipeline_graph=graph,
                     pipeline_graph_simple=graph,
@@ -1026,17 +995,18 @@ class TestGraphConversionMethods(unittest.TestCase):
         variant = added.variants[0]
 
         # Try to add a node in simple graph (structural change)
-        modified_simple_graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {"id": "1", "type": "fakesink", "data": {}},
-                {"id": "2", "type": "new_element", "data": {}},  # Added node
-            ],
-            "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-            ],
-        }
-        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
+        modified_simple_graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {"id": "1", "type": "fakesink", "data": {}},
+                    {"id": "2", "type": "new_element", "data": {}},  # Added node
+                ],
+                "edges": [
+                    {"id": "0", "source": "0", "target": "1"},
+                ],
+            }
+        )
 
         with self.assertRaises(ValueError) as context:
             manager.validate_and_convert_simple_to_advanced(
@@ -1050,12 +1020,9 @@ class TestGraphConversionMethods(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-conversion",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
-            variants=[create_variant_create()],
         )
         added = manager.add_pipeline(new_pipeline)
         variant = added.variants[0]
@@ -1206,22 +1173,24 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         self.job_id = "test-job-789"
 
         # Create internal specs for looping tests
-        graph_dict = {
-            "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {
-                    "id": "1",
-                    "type": "fakesink",
-                    "data": {"name": "default_output_sink"},
-                },
-            ],
-            "edges": [{"id": "0", "source": "0", "target": "1"}],
-        }
+        graph = Graph.from_dict(
+            {
+                "nodes": [
+                    {"id": "0", "type": "videotestsrc", "data": {}},
+                    {
+                        "id": "1",
+                        "type": "fakesink",
+                        "data": {"name": "default_output_sink"},
+                    },
+                ],
+                "edges": [{"id": "0", "source": "0", "target": "1"}],
+            }
+        )
         self.specs = [
             InternalPipelinePerformanceSpec(
                 pipeline_id="/pipelines/test-looping/variants/cpu",
                 pipeline_name="test-looping",
-                pipeline_graph=Graph.from_dict(graph_dict),
+                pipeline_graph=graph,
                 streams=1,
             )
         ]
@@ -1358,7 +1327,7 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
 
         predefined_count = 0
         for pipeline in pipelines:
-            if pipeline.source == PipelineSource.PREDEFINED:
+            if pipeline.source == InternalPipelineSource.PREDEFINED:
                 predefined_count += 1
 
                 self.assertIsNotNone(pipeline.id)
@@ -1404,7 +1373,7 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         multi_variant_count = 0
         predefined_count = 0
         for pipeline in pipelines:
-            if pipeline.source == PipelineSource.PREDEFINED:
+            if pipeline.source == InternalPipelineSource.PREDEFINED:
                 predefined_count += 1
                 if len(pipeline.variants) > 1:
                     multi_variant_count += 1
@@ -1435,7 +1404,7 @@ class TestDeletePredefinedPipeline(unittest.TestCase):
 
         predefined = None
         for p in manager.get_pipelines():
-            if p.source == PipelineSource.PREDEFINED:
+            if p.source == InternalPipelineSource.PREDEFINED:
                 predefined = p
                 break
 
@@ -1458,11 +1427,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-pipeline",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="  CPU  ")],
         )
 
@@ -1483,11 +1450,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager.pipelines = []
 
         # Use whitespace-only name (passes Pydantic min_length=1 but fails manager validation)
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-pipeline",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="   ")],
         )
 
@@ -1501,11 +1466,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-add-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -1527,11 +1490,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-add-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -1551,11 +1512,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-add-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -1575,11 +1534,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-update-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -1598,11 +1555,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-update-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
@@ -1621,11 +1576,9 @@ class TestNameTrimmingAndValidation(unittest.TestCase):
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
+        new_pipeline = create_pipeline_definition(
             name="test-update-variant",
             description="Test",
-            source=PipelineSource.USER_CREATED,
-            tags=[],
             variants=[create_variant_create(name="CPU")],
         )
         added = manager.add_pipeline(new_pipeline)
