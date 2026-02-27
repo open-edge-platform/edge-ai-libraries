@@ -74,7 +74,11 @@ For alternative ways to set up the sample application, refer to
    docker compose ps
    ```
 
-5. **Access the application API documentation**:
+5. **Access the application**:
+
+   - Open a browser and navigate to `http://localhost` to access the Visual Pipeline and Platform Evaluation Tool.
+   
+6. **Access the application API documentation**:
 
    - Open a browser and navigate to `http://localhost:7860/docs` to access the Swagger UI.
 
