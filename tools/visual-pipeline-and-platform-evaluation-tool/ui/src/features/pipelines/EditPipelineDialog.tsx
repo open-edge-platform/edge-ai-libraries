@@ -7,17 +7,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.tsx";
 import {
-  useUpdatePipelineMutation,
   type Pipeline,
+  useUpdatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils.ts";
+import { handleApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import {
-  pipelineMetadataSchema,
   type PipelineMetadataFormData,
+  pipelineMetadataSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 
@@ -72,10 +72,7 @@ export const EditPipelineDialog = ({
       toast.success("Pipeline updated successfully");
       onSuccess?.();
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error(`Failed to update pipeline: ${errorMessage}`);
+      handleApiError(error, "Failed to update pipeline");
       console.error("Failed to update pipeline:", error);
     }
   };
