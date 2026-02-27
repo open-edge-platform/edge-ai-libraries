@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir poetry==2.1.3
+    && pip install --no-cache-dir poetry==2.3.2
 
 WORKDIR /app
 
@@ -53,6 +53,10 @@ RUN groupadd -g 1001 appuser \
 COPY --from=builder /opt/share/nltk_data /opt/share/nltk_data
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Upgrade vulnerable build-time packages to patched versions
+RUN /usr/local/bin/pip install --upgrade \
+    pip setuptools wheel jaraco.context
 
 # Set working directoryAdd commentMore actions
 WORKDIR /app
