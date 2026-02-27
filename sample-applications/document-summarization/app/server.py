@@ -8,7 +8,6 @@ import logging
 import traceback
 import openlit
 import tempfile
-from typing import Any
 from openai import OpenAI
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -133,6 +132,23 @@ def is_file_supported(file):
     return file_extension in config.SUPPORTED_FILE_EXTENSIONS
 
 
+def safe_log(value: object, max_len: int = 255) -> str:
+    """Sanitize untrusted log fields.
+
+    Use 255 when logging filenames (common max filename length).
+    Use 512 for broader user text (for example query) to keep more context.
+
+    Args:
+        value (object): Untrusted value to be logged safely.
+        max_len (int): Maximum output length after sanitization/truncation.
+
+    Returns:
+        str: Log-safe string with CR(carriage return)/LF(line feed) escaped and optional truncation.
+    """
+    text = str(value).replace("\r", "\\r").replace("\n", "\\n")
+    return text if len(text) <= max_len else f"{text[:max_len]}..."
+
+
 def chunk_text_file(file_path, max_chars=2000):
     """Chunk a TXT file by full lines (no mid-line splits)."""
     with open(file_path, "r", encoding="utf-8") as f:
@@ -171,10 +187,10 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
     """
 
     try:
-        logger.info(f"Received file: {file.filename}, content-type: {file.content_type}, query: {query}")
+        logger.info("Received summarize request for file=%s", safe_log(file.filename))
 
         if not is_file_supported(file.filename):
-            logger.warning(f"Rejected file: {file.filename} - Only {', '.join(config.SUPPORTED_FILE_EXTENSIONS)} files are allowed to upload")
+            logger.warning("Rejected file upload: unsupported file type, file=%s", safe_log(file.filename))
             return JSONResponse(
                 status_code=400,
                 content={"message": f"Only {', '.join(config.SUPPORTED_FILE_EXTENSIONS)} files are allowed to upload."},
