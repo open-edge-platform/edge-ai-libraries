@@ -2592,6 +2592,7 @@ const DemoMode = () => {
                               <div>
                                 <TestProgressIndicator
                                   key={performanceJobId || testStartTimestamp}
+                                  forceDark={true}
                                 />
                               </div>
                             )}
@@ -2628,6 +2629,7 @@ const DemoMode = () => {
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
+                                forceDark={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2686,6 +2688,7 @@ const DemoMode = () => {
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
                                 className="mt-2"
+                                forceDark={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2719,6 +2722,7 @@ const DemoMode = () => {
                                 </div>
                                 <TestProgressIndicator
                                   key={densityJobId || testStartTimestamp}
+                                  forceDark={true}
                                 />
                               </div>
                             )}
@@ -2755,6 +2759,7 @@ const DemoMode = () => {
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
+                                forceDark={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2824,6 +2829,7 @@ const DemoMode = () => {
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
                                 className="mt-2"
+                                forceDark={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />

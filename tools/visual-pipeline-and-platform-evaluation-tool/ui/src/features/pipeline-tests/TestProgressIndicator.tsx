@@ -15,6 +15,7 @@ interface MetricCardProps {
   unit: string;
   icon: React.ReactNode;
   isSummary?: boolean;
+  forceDark?: boolean;
 }
 
 const MetricCard = ({
@@ -23,12 +24,15 @@ const MetricCard = ({
   unit,
   icon,
   isSummary = false,
+  forceDark = false,
 }: MetricCardProps) => (
   <div
-    className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 flex items-center space-x-4 transition-all ${
+    className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl p-6 flex items-center space-x-4 transition-all ${
       isSummary
         ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
-        : "border border-neutral-800/50"
+        : forceDark
+          ? "border border-neutral-800/50"
+          : "border border-border"
     }`}
   >
     <div
@@ -48,15 +52,11 @@ const MetricCard = ({
       >
         {title}
       </h3>
-      <p
-        className={`text-3xl font-bold ${
-          isSummary ? "text-white" : "text-white"
-        }`}
-      >
+      <p className={`text-3xl font-bold ${forceDark ? "text-white" : "text-foreground"}`}>
         {value.toFixed(2)}
         <span
           className={`text-sm ml-1.5 font-semibold ${
-            isSummary ? "text-energy-blue-tint-2" : "text-neutral-500"
+            isSummary ? "text-energy-blue-tint-2" : "text-muted-foreground"
           }`}
         >
           {unit}
@@ -68,6 +68,7 @@ const MetricCard = ({
 
 interface TestProgressIndicatorProps {
   className?: string;
+  forceDark?: boolean;
   historyOverride?: MetricHistoryPoint[];
   metricsOverride?: {
     fps: number;
@@ -80,6 +81,7 @@ interface TestProgressIndicatorProps {
 
 export const TestProgressIndicator = ({
   className = "",
+  forceDark = false,
   historyOverride,
   metricsOverride,
 }: TestProgressIndicatorProps) => {
@@ -223,6 +225,7 @@ export const TestProgressIndicator = ({
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <MetricChart
             title="Frame Rate Over Time"
@@ -235,6 +238,7 @@ export const TestProgressIndicator = ({
             labels={["Frame Rate"]}
             maxDataPoints={30}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <MetricChart
             title="Memory Utilization Over Time"
@@ -247,6 +251,7 @@ export const TestProgressIndicator = ({
             labels={["Memory"]}
             maxDataPoints={30}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
         </div>
 
@@ -257,6 +262,7 @@ export const TestProgressIndicator = ({
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <MetricChart
             title="CPU Usage Over Time"
@@ -269,6 +275,7 @@ export const TestProgressIndicator = ({
             labels={["CPU Usage"]}
             maxDataPoints={30}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <MetricChart
             title="CPU Temperature Over Time"
@@ -281,6 +288,7 @@ export const TestProgressIndicator = ({
             labels={["Temperature"]}
             maxDataPoints={30}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <MetricChart
             title="CPU Frequency Over Time"
@@ -296,6 +304,7 @@ export const TestProgressIndicator = ({
             labels={["Frequency"]}
             maxDataPoints={30}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
         </div>
 
@@ -317,12 +326,15 @@ export const TestProgressIndicator = ({
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
             isSummary={isSummary}
+            forceDark={forceDark}
           />
           <div
-            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+            className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl p-6 ${
               isSummary
                 ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-                : "border border-neutral-800/50"
+                : forceDark
+                  ? "border border-neutral-800/50"
+                  : "border border-border"
             }`}
           >
             <h3
@@ -374,15 +386,18 @@ export const TestProgressIndicator = ({
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
+                  forceDark={forceDark}
                 />
               </div>
             </div>
           </div>
           <div
-            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+            className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl p-6 ${
               isSummary
                 ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-                : "border border-neutral-800/50"
+                : forceDark
+                  ? "border border-neutral-800/50"
+                  : "border border-border"
             }`}
           >
             <h3
@@ -426,15 +441,18 @@ export const TestProgressIndicator = ({
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
+                  forceDark={forceDark}
                 />
               </div>
             </div>
           </div>
           <div
-            className={`bg-neutral-950/50 rounded-xl shadow-2xl p-6 ${
+            className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl p-6 ${
               isSummary
                 ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-                : "border border-neutral-800/50"
+                : forceDark
+                  ? "border border-neutral-800/50"
+                  : "border border-border"
             }`}
           >
             <h3
@@ -474,6 +492,7 @@ export const TestProgressIndicator = ({
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
+                  forceDark={forceDark}
                 />
               </div>
             </div>

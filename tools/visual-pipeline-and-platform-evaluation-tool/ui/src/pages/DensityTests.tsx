@@ -75,7 +75,7 @@ export const DensityTests = () => {
       setPipelineSelections([
         {
           pipelineId: pipelines[0].id,
-          stream_rate: 50,
+          stream_rate: 100,
           isNew: false,
         },
       ]);
@@ -88,14 +88,25 @@ export const DensityTests = () => {
       (pipeline) => !usedPipelineIds.includes(pipeline.id),
     );
     if (availablePipeline) {
-      setPipelineSelections((prev) => [
-        ...prev,
-        {
-          pipelineId: availablePipeline.id,
-          stream_rate: 50,
-          isNew: true,
-        },
-      ]);
+      setPipelineSelections((prev) => {
+        const next = [
+          ...prev,
+          {
+            pipelineId: availablePipeline.id,
+            stream_rate: 0,
+            isNew: true,
+          },
+        ];
+
+        const count = next.length;
+        const baseRate = Math.floor(100 / count);
+        const remainder = 100 - baseRate * count;
+
+        return next.map((selection, index) => ({
+          ...selection,
+          stream_rate: index === 0 ? baseRate + remainder : baseRate,
+        }));
+      });
       setTimeout(() => {
         setPipelineSelections((prev) =>
           prev.map((sel) =>
@@ -116,9 +127,20 @@ export const DensityTests = () => {
         ),
       );
       setTimeout(() => {
-        setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId),
-        );
+        setPipelineSelections((prev) => {
+          const filtered = prev.filter((sel) => sel.pipelineId !== pipelineId);
+
+          if (filtered.length === 0) return filtered;
+
+          const count = filtered.length;
+          const baseRate = Math.floor(100 / count);
+          const remainder = 100 - baseRate * count;
+
+          return filtered.map((selection, index) => ({
+            ...selection,
+            stream_rate: index === 0 ? baseRate + remainder : baseRate,
+          }));
+        });
       }, 300);
     }
   };
@@ -136,12 +158,85 @@ export const DensityTests = () => {
     );
   };
 
-  const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
-      ),
-    );
+  const handleStreamRateChange = (pipelineId: string, newRate: number) => {
+    setPipelineSelections((prev) => {
+      if (prev.length === 1) {
+        return [{ ...prev[0], stream_rate: 100 }];
+      }
+
+      const changedIndex = prev.findIndex(
+        (selection) => selection.pipelineId === pipelineId,
+      );
+      if (changedIndex === -1) return prev;
+
+      const clampedRate = Math.max(0, Math.min(100, newRate));
+
+      let fixedSum = clampedRate;
+
+      if (changedIndex === prev.length - 1) {
+        for (let index = 1; index < prev.length - 1; index++) {
+          fixedSum += prev[index].stream_rate;
+        }
+      } else {
+        for (let index = 0; index < changedIndex; index++) {
+          fixedSum += prev[index].stream_rate;
+        }
+      }
+
+      const remainingRate = 100 - fixedSum;
+
+      const selectionsToAdjust =
+        changedIndex === prev.length - 1
+          ? [prev[0]]
+          : prev.slice(changedIndex + 1);
+
+      const adjustSum = selectionsToAdjust.reduce(
+        (sum, selection) => sum + selection.stream_rate,
+        0,
+      );
+
+      const adjusted = selectionsToAdjust.map((selection) => {
+        const proportion =
+          adjustSum > 0
+            ? selection.stream_rate / adjustSum
+            : 1 / selectionsToAdjust.length;
+        const newValue = proportion * remainingRate;
+
+        return {
+          ...selection,
+          stream_rate: Math.round(newValue),
+        };
+      });
+
+      const sumAdjusted = adjusted.reduce(
+        (sum, selection) => sum + selection.stream_rate,
+        0,
+      );
+      const diff = remainingRate - sumAdjusted;
+      if (diff !== 0 && adjusted.length > 0) {
+        adjusted[0] = {
+          ...adjusted[0],
+          stream_rate: adjusted[0].stream_rate + diff,
+        };
+      }
+
+      return prev.map((selection, index) => {
+        if (index === changedIndex) {
+          return { ...selection, stream_rate: clampedRate };
+        }
+
+        if (changedIndex === prev.length - 1 && index === 0) {
+          return adjusted[0];
+        }
+
+        if (changedIndex !== prev.length - 1 && index > changedIndex) {
+          const adjustedIndex = index - changedIndex - 1;
+          return adjusted[adjustedIndex];
+        }
+
+        return selection;
+      });
+    });
   };
 
   const handleRunTest = async () => {
@@ -151,7 +246,7 @@ export const DensityTests = () => {
     setErrorMessage(null);
     try {
       const result = await runDensityTest({
-        densityTestSpecInput: {
+        densityTestSpec: {
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
             max_runtime: 0,

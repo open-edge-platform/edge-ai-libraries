@@ -29,6 +29,7 @@ export interface MetricChartProps {
   maxDataPoints?: number;
   isSummary?: boolean;
   hideSummaryBorder?: boolean;
+  forceDark?: boolean;
 }
 
 export const MetricChart = ({
@@ -44,6 +45,7 @@ export const MetricChart = ({
   maxDataPoints = 60,
   isSummary = false,
   hideSummaryBorder = false,
+  forceDark = false,
 }: MetricChartProps) => {
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
@@ -113,10 +115,12 @@ export const MetricChart = ({
 
   return (
     <div
-      className={`bg-neutral-950/50 rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
+      className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
         isSummary && !hideSummaryBorder
           ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-          : "border border-neutral-800/50"
+          : forceDark
+            ? "border border-neutral-800/50"
+            : "border border-border"
       } ${className}`}
     >
       <h3
@@ -170,7 +174,11 @@ export const MetricChart = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className="bg-neutral-900 border-neutral-700 text-white"
+                  className={
+                    forceDark
+                      ? "bg-neutral-900 border-neutral-700 text-white"
+                      : "bg-popover border-border text-popover-foreground"
+                  }
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
@@ -186,7 +194,9 @@ export const MetricChart = ({
             {showLegend && (
               <ChartLegend
                 content={
-                  <ChartLegendContent className="text-white text-[8px]" />
+                  <ChartLegendContent
+                    className={`${forceDark ? "text-white" : "text-foreground"} text-[8px]`}
+                  />
                 }
               />
             )}
