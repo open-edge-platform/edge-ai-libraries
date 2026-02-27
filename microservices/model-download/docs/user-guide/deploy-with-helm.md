@@ -91,6 +91,8 @@ Deploy the Model-Download Helm chart:
 helm install model-download . -n <your-namespace>
 ```
 
+> **Note:** `model-download` creates and manages a shared PVC that can be used by dependent applications such as ChatQnA.
+
 ### Step 5: Verify the Deployment
 
 Check the status of the deployed resources to ensure everything is running correctly
@@ -131,6 +133,9 @@ helm uninstall <name> -n <your-namespace>
   # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
+
+**Note:**
+  Delete the shared PVC only after confirming no other workload or application (for example, ChatQnA) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
 
 ## Related links
 
