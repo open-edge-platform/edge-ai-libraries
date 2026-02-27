@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/tooltip";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 
-// Mapowanie typów węzłów na ich kategorie/tagi (z rzeczywistych definicji węzłów)
 const nodeTypeToTag: Record<string, string> = {
   // Sources
   filesrc: "Source",
@@ -2245,7 +2244,6 @@ const DemoMode = () => {
                                             const hiddenTags = [
                                               "Counter",
                                               "Converter",
-                                              "Caps",
                                               "Splitter",
                                               "Sink",
                                             ];
