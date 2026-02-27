@@ -7,7 +7,6 @@ import {
   useRunPerformanceTestMutation,
   useStopDensityTestJobMutation,
   useStopPerformanceTestJobMutation,
-  useUpdateVariantMutation,
 } from "@/api/api.generated.ts";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -191,7 +190,6 @@ const DemoMode = () => {
     useRunPerformanceTestMutation();
   const [stopDensityTestJob] = useStopDensityTestJobMutation();
   const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
-  const [updateVariant] = useUpdateVariantMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
@@ -278,139 +276,6 @@ const DemoMode = () => {
       pipeline.variants[0]
     );
   };
-  const logVariantDiff = (
-    pipeline: Pipeline,
-    fromVariantId: string | null,
-    toVariantId: string,
-  ) => {
-    const fromVariant = fromVariantId
-      ? pipeline.variants.find((variant) => variant.id === fromVariantId)
-      : null;
-    const toVariant = pipeline.variants.find((variant) => variant.id === toVariantId);
-
-    if (!toVariant) {
-      console.warn("[DemoMode][variant-diff] next variant not found", {
-        pipelineId: pipeline.id,
-        pipelineName: pipeline.name,
-        fromVariantId,
-        toVariantId,
-      });
-      return;
-    }
-
-    const normalizeValue = (value: unknown) =>
-      value === null || value === undefined ? "" : String(value);
-
-    const getNodeLabel = (node: {
-      id: string;
-      type: string;
-      data: Record<string, unknown>;
-    }) => {
-      const label = node.data?.label;
-      return typeof label === "string" && label.trim()
-        ? label.trim()
-        : `${node.type}:${node.id}`;
-    };
-
-    const buildNodeMap = (variant: Pipeline["variants"][number] | null) => {
-      const map = new Map<
-        string,
-        {
-          id: string;
-          type: string;
-          label: string;
-          data: Record<string, unknown>;
-        }
-      >();
-      if (!variant) return map;
-
-      variant.pipeline_graph.nodes.forEach((node) => {
-        map.set(node.id, {
-          id: node.id,
-          type: node.type,
-          label: getNodeLabel(node),
-          data: (node.data ?? {}) as Record<string, unknown>,
-        });
-      });
-
-      return map;
-    };
-
-    const fromNodes = buildNodeMap(fromVariant ?? null);
-    const toNodes = buildNodeMap(toVariant ?? null);
-
-    const addedNodes = Array.from(toNodes.values())
-      .filter((node) => !fromNodes.has(node.id))
-      .map((node) => ({ id: node.id, type: node.type, label: node.label }));
-
-    const removedNodes = Array.from(fromNodes.values())
-      .filter((node) => !toNodes.has(node.id))
-      .map((node) => ({ id: node.id, type: node.type, label: node.label }));
-
-    const changedParams: Array<{
-      nodeId: string;
-      nodeType: string;
-      nodeLabel: string;
-      key: string;
-      from: string;
-      to: string;
-    }> = [];
-
-    Array.from(toNodes.entries()).forEach(([nodeId, nextNode]) => {
-      const prevNode = fromNodes.get(nodeId);
-      if (!prevNode) return;
-
-      const dataKeys = new Set([
-        ...Object.keys(prevNode.data),
-        ...Object.keys(nextNode.data),
-      ]);
-
-      dataKeys.forEach((key) => {
-        if (key === "label") return;
-
-        const fromValue = normalizeValue(prevNode.data[key]);
-        const toValue = normalizeValue(nextNode.data[key]);
-        if (fromValue !== toValue) {
-          changedParams.push({
-            nodeId,
-            nodeType: nextNode.type,
-            nodeLabel: nextNode.label,
-            key,
-            from: fromValue,
-            to: toValue,
-          });
-        }
-      });
-    });
-
-    const title = `[DemoMode][variant-diff] ${pipeline.name}: ${fromVariant?.name ?? fromVariantId ?? "(none)"} -> ${toVariant.name}`;
-    console.groupCollapsed(title);
-    console.log("Summary", {
-      pipelineId: pipeline.id,
-      fromVariantId,
-      toVariantId,
-      fromNodes: fromNodes.size,
-      toNodes: toNodes.size,
-      addedNodes: addedNodes.length,
-      removedNodes: removedNodes.length,
-      changedParams: changedParams.length,
-    });
-
-    if (addedNodes.length > 0) {
-      console.log("Added nodes", addedNodes);
-    }
-    if (removedNodes.length > 0) {
-      console.log("Removed nodes", removedNodes);
-    }
-    if (changedParams.length > 0) {
-      console.log(
-        "Changed params (first 120)",
-        changedParams.slice(0, 120),
-      );
-    }
-
-    console.groupEnd();
-  };
   const inferenceNodeTypes = new Set([
     "gvadetect",
     "gvaclassify",
@@ -433,25 +298,6 @@ const DemoMode = () => {
     "threshold",
     "object-class",
   ]);
-  const sanitizeIeConfig = (value: unknown) => {
-    if (value === null || value === undefined) return undefined;
-
-    const raw = String(value).trim();
-    if (!raw) return undefined;
-
-    const unsupportedParams = new Set(["CPU_THROUGHPUT_STREAMS"]);
-    const segments = raw
-      .split(/[;,]/)
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    const filtered = segments.filter((segment) => {
-      const [key] = segment.split("=", 1);
-      return !unsupportedParams.has(key.trim().toUpperCase());
-    });
-
-    return filtered.length > 0 ? filtered.join(",") : undefined;
-  };
   const sanitizeNodeData = (
     nodeType: string,
     data: Record<string, unknown>,
@@ -486,28 +332,6 @@ const DemoMode = () => {
     }
 
     return sanitized;
-  };
-  const hasNodeDataChanged = (
-    original: Record<string, unknown> | undefined,
-    next: Record<string, unknown>,
-  ) => {
-    const originalData = original ?? {};
-    const originalKeys = Object.keys(originalData);
-    const nextKeys = Object.keys(next);
-    if (originalKeys.length !== nextKeys.length) return true;
-    for (const key of nextKeys) {
-      if (!Object.prototype.hasOwnProperty.call(originalData, key)) return true;
-      const originalValue = originalData[key];
-      const nextValue = next[key];
-      const normalizedOriginal =
-        originalValue === null || originalValue === undefined
-          ? ""
-          : String(originalValue);
-      const normalizedNext =
-        nextValue === null || nextValue === undefined ? "" : String(nextValue);
-      if (normalizedOriginal !== normalizedNext) return true;
-    }
-    return false;
   };
   const showResultsPanel = testStarted;
   const isTestFinished =
@@ -1058,53 +882,40 @@ const DemoMode = () => {
 
   const handleStreamRateChange = (pipelineId: string, newRate: number) => {
     setPipelineSelections((prev) => {
-      // Jeśli jest tylko jeden pipeline, zawsze ustaw na 100%
       if (prev.length === 1) {
         return [{ ...prev[0], stream_rate: 100 }];
       }
 
-      // Znajdź indeks zmienianego pipeline
       const changedIndex = prev.findIndex(
         (sel) => sel.pipelineId === pipelineId,
       );
       if (changedIndex === -1) return prev;
 
-      // Ogranicz wartość do zakresu 0-100
       const clampedRate = Math.max(0, Math.min(100, newRate));
 
-      // Oblicz sumę tych, które nie będą dostosowywane
-      let fixedSum = clampedRate; // zmieniany suwak
+      let fixedSum = clampedRate;
 
-      // Jeśli to ostatni suwak, dostosowujemy pierwszy, więc dodaj sumy środkowych
       if (changedIndex === prev.length - 1) {
-        // Dla ostatniego: suma środkowych (od 1 do length-2)
         for (let i = 1; i < prev.length - 1; i++) {
           fixedSum += prev[i].stream_rate;
         }
       } else {
-        // Dla innych: suma tych przed zmienionym
         for (let i = 0; i < changedIndex; i++) {
           fixedSum += prev[i].stream_rate;
         }
       }
 
-      // Oblicz pozostałą wartość do rozdzielenia
       const remainingRate = 100 - fixedSum;
 
-      // Wybierz suwaki do dostosowania
       let toAdjust: typeof prev;
       if (changedIndex === prev.length - 1) {
-        // Dla ostatniego - dostosuj tylko pierwszy
         toAdjust = [prev[0]];
       } else {
-        // Dla pozostałych - dostosuj wszystkie poniżej
         toAdjust = prev.slice(changedIndex + 1);
       }
 
-      // Oblicz sumę tych do dostosowania
       const adjustSum = toAdjust.reduce((sum, sel) => sum + sel.stream_rate, 0);
 
-      // Rozdziel proporcjonalnie lub równo
       const adjusted = toAdjust.map((sel) => {
         const proportion =
           adjustSum > 0 ? sel.stream_rate / adjustSum : 1 / toAdjust.length;
@@ -1115,7 +926,6 @@ const DemoMode = () => {
         };
       });
 
-      // Korekta błędów zaokrągleń
       const sumAdjusted = adjusted.reduce(
         (sum, sel) => sum + sel.stream_rate,
         0,
@@ -1128,22 +938,19 @@ const DemoMode = () => {
         };
       }
 
-      // Złóż wynik
       return prev.map((sel, idx) => {
         if (idx === changedIndex) {
           return { ...sel, stream_rate: clampedRate };
         }
 
         if (changedIndex === prev.length - 1 && idx === 0) {
-          // Ostatni suwak - zwróć dostosowany pierwszy
           return adjusted[0];
         } else if (changedIndex !== prev.length - 1 && idx > changedIndex) {
-          // Nie ostatni - zwróć dostosowane poniżej
           const adjustedIdx = idx - changedIndex - 1;
           return adjusted[adjustedIdx];
         }
 
-        return sel; // Pozostaw bez zmian
+        return sel;
       });
     });
   };
@@ -1190,15 +997,6 @@ const DemoMode = () => {
       const pipeline = pipelines.find((p) => p.id === pipelineId);
       const variant = getPipelineVariantForRun(pipelineId);
       if (!pipeline || !variant?.pipeline_graph) return null;
-
-      console.log("[DemoMode][preparePipelineGraph]", {
-        pipelineId,
-        pipelineName: pipeline.name,
-        variantId: variant.id,
-        variantName: variant.name,
-        nodeCount: variant.pipeline_graph.nodes.length,
-        nodeTypes: variant.pipeline_graph.nodes.map((node) => node.type),
-      });
 
       const updatedNodes = variant.pipeline_graph.nodes.map((node) => {
         const edits =
@@ -1257,20 +1055,6 @@ const DemoMode = () => {
 
         const maxRuntime = 1800;
 
-        console.log("[DemoMode][runPerformanceTest][variants]", {
-          pipelines: pipelineSelections.map((selection) => {
-            const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
-            const variant = getPipelineVariantForRun(selection.pipelineId);
-            return {
-              pipelineId: selection.pipelineId,
-              pipelineName: pipeline?.name,
-              variantId: variant?.id,
-              variantName: variant?.name,
-              streams: performanceStreams[selection.pipelineId] ?? 1,
-            };
-          }),
-        });
-
         const result = await runPerformanceTest({
           performanceTestSpec: {
             execution_config: {
@@ -1309,20 +1093,6 @@ const DemoMode = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      console.log("[DemoMode][runDensityTest][variants]", {
-        pipelines: pipelineSelections.map((selection) => {
-          const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
-          const variant = getPipelineVariantForRun(selection.pipelineId);
-          return {
-            pipelineId: selection.pipelineId,
-            pipelineName: pipeline?.name,
-            variantId: variant?.id,
-            variantName: variant?.name,
-            streamRate: selection.stream_rate,
-          };
-        }),
-      });
-
       const result = await runDensityTest({
         densityTestSpec: {
           execution_config: {
@@ -1426,45 +1196,6 @@ const DemoMode = () => {
               {/* Pipeline Cards Grid */}
               <div className="flex-1 overflow-auto p-6 pt-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-20">
-                  {/* Debug info */}
-                  {groupedPipelines.length === 0 && (
-                    <div className="col-span-full text-center text-slate-400">
-                      <p>
-                        No pipelines found. Total pipelines: {pipelines.length}
-                      </p>
-                      {pipelines.length > 0 && (
-                        <p>
-                          Pipeline names:{" "}
-                          {pipelines.map((p) => p.name).join(", ")}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {groupedPipelines.length > 0 &&
-                    groupedPipelines.filter((group) => {
-                      const allowedPipelineNames = [
-                        "Goods Detection",
-                        "License Plate Recognition",
-                        "Simple NVR",
-                        "Smart NVR",
-                      ];
-                      return allowedPipelineNames.includes(group.baseName);
-                    }).length === 0 && (
-                      <div className="col-span-full text-center text-slate-400">
-                        <p>
-                          No matching pipelines after filter. Grouped pipelines
-                          ({groupedPipelines.length}):
-                        </p>
-                        <ul className="text-xs">
-                          {groupedPipelines.map((g, i) => (
-                            <li key={i}>
-                              "{g.baseName}" - devices:{" "}
-                              {Object.keys(g.pipelines).join(", ")}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   {groupedPipelines
                     .filter((group) => {
                       const allowedPipelineNames = [
@@ -1647,28 +1378,7 @@ const DemoMode = () => {
                               }
                               onChange={(e) =>
                                 setSelectedVariantByPipelineId((prev) => {
-                                  const previousVariantId =
-                                    prev[selection.pipelineId] ??
-                                    pipeline.variants[0]?.id ??
-                                    null;
                                   const nextVariantId = e.target.value;
-                                  const nextVariant = pipeline.variants.find(
-                                    (variant) => variant.id === nextVariantId,
-                                  );
-
-                                  console.log("[DemoMode][variant-change]", {
-                                    pipelineId: selection.pipelineId,
-                                    pipelineName: pipeline.name,
-                                    previousVariantId,
-                                    nextVariantId,
-                                    nextVariantName:
-                                      nextVariant?.name ?? nextVariantId,
-                                  });
-                                  logVariantDiff(
-                                    pipeline,
-                                    previousVariantId,
-                                    nextVariantId,
-                                  );
 
                                   return {
                                     ...prev,
@@ -2873,7 +2583,6 @@ const DemoMode = () => {
                       className="grid grid-cols-2 gap-6 h-full p-4"
                       style={gridColumnsStyle}
                     >
-                      {/* Lewa kolumna - stały layout */}
                       <div className="flex flex-col gap-4 h-full">
                         <div className="flex-shrink-0">
                           {pipelineCardsSection}
@@ -2886,7 +2595,6 @@ const DemoMode = () => {
                         </div>
                       </div>
 
-                      {/* Prawa kolumna - jeden kontener z preview i statusem */}
                       <div className="flex flex-col h-full overflow-hidden">
                         {resultsSection}
                       </div>
