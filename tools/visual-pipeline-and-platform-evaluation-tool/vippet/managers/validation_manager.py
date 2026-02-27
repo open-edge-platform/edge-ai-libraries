@@ -2,40 +2,18 @@ import logging
 import threading
 import time
 import uuid
-from dataclasses import dataclass
 from typing import Optional
 
-from api.api_schemas import (
-    PipelineValidation,
-    ValidationJobStatus,
-    ValidationJobSummary,
-    ValidationJobState,
+from internal_types import (
+    InternalPipelineValidation,
+    InternalValidationJob,
+    InternalValidationJobState,
+    InternalValidationJobStatus,
+    InternalValidationJobSummary,
 )
-from graph import Graph
 from pipeline_runner import PipelineRunner, PipelineValidationResult
 
 logger = logging.getLogger("validation_manager")
-
-
-@dataclass
-class ValidationJob:
-    """
-    Internal representation of a single validation job.
-
-    This mirrors what is exposed through :class:`ValidationJobStatus`
-    and :class:`ValidationJobSummary`, with a few runtime-only fields.
-    """
-
-    id: str
-    request: PipelineValidation
-    # Converted GStreamer launch string used for the actual validation.
-    # Keeping it here makes it visible in future summaries/debug logs.
-    pipeline_description: str
-    state: ValidationJobState
-    start_time: int
-    end_time: int | None = None
-    is_valid: bool | None = None
-    error_message: list[str] | None = None
 
 
 class ValidationManager:
@@ -47,10 +25,13 @@ class ValidationManager:
 
     Responsibilities:
 
-    * create and track :class:`ValidationJob` instances,
+    * create and track :class:`InternalValidationJob` instances,
     * run validations asynchronously in background threads,
     * use :class:`PipelineRunner` in validation mode to execute pipelines,
     * expose job status and summaries in a thread-safe manner.
+
+    All internal state uses Graph objects and internal types from internal_types.
+    Conversion to API types happens in the route layer.
     """
 
     _instance: Optional["ValidationManager"] = None
@@ -71,7 +52,7 @@ class ValidationManager:
         self._initialized = True
 
         # All known jobs keyed by job id
-        self.jobs: dict[str, ValidationJob] = {}
+        self.jobs: dict[str, InternalValidationJob] = {}
         # Shared lock protecting access to ``jobs``
         self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("ValidationManager")
@@ -85,17 +66,24 @@ class ValidationManager:
         """
         return uuid.uuid1().hex
 
-    def run_validation(self, validation_request: PipelineValidation) -> str:
+    def run_validation(self, validation_request: InternalPipelineValidation) -> str:
         """
         Start a validation job in the background and return its job id.
 
         The method:
 
-        * converts the pipeline graph to a pipeline description string,
+        * converts the internal Graph to a pipeline description string,
         * extracts and validates runtime parameters (e.g. ``max-runtime``),
-        * creates a new :class:`ValidationJob` with RUNNING state,
+        * creates a new :class:`InternalValidationJob` with RUNNING state,
         * spawns a background thread that executes the pipeline via
           :class:`PipelineRunner` in validation mode.
+
+        Args:
+            validation_request: Internal validation request with Graph object
+                and optional parameters.
+
+        Returns:
+            Job identifier string.
 
         Raises
         ------
@@ -103,10 +91,10 @@ class ValidationManager:
             If user-provided parameters are invalid (e.g. ``max-runtime``
             is less than 1).
         """
-        # Convert PipelineGraph to a launch string
-        pipeline_description = Graph.from_dict(
-            validation_request.pipeline_graph.model_dump()
-        ).to_pipeline_description()
+        # Get pipeline description from internal Graph
+        pipeline_description = (
+            validation_request.pipeline_graph.to_pipeline_description()
+        )
 
         params = validation_request.parameters or {}
         max_runtime = params.get("max-runtime", 10)
@@ -126,10 +114,10 @@ class ValidationManager:
         hard_timeout = max_runtime + 60
 
         job_id = self._generate_job_id()
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
             request=validation_request,
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=int(time.time() * 1000),  # milliseconds
             pipeline_description=pipeline_description,
         )
@@ -164,7 +152,7 @@ class ValidationManager:
         Execute the validation process in a background thread.
 
         The method uses :class:`PipelineRunner` in validation mode and updates
-        the corresponding :class:`ValidationJob` accordingly.
+        the corresponding :class:`InternalValidationJob` accordingly.
         """
         try:
             # Create PipelineRunner in validation mode
@@ -197,13 +185,13 @@ class ValidationManager:
                 job.error_message = result.errors if result.errors else None
 
                 if result.is_valid:
-                    job.state = ValidationJobState.COMPLETED
+                    job.state = InternalValidationJobState.COMPLETED
                     self.logger.info(
                         "Validation job %s completed successfully (pipeline is valid)",
                         job_id,
                     )
                 else:
-                    job.state = ValidationJobState.ERROR
+                    job.state = InternalValidationJobState.ERROR
                     self.logger.error(
                         "Validation job %s failed with errors: %s",
                         job_id,
@@ -223,7 +211,7 @@ class ValidationManager:
         with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is not None:
-                job.state = ValidationJobState.ERROR
+                job.state = InternalValidationJobState.ERROR
                 job.end_time = int(time.time() * 1000)
                 if job.error_message is None:
                     job.error_message = [error_message]
@@ -231,9 +219,11 @@ class ValidationManager:
                     job.error_message.append(error_message)
         self.logger.error("Validation job %s error: %s", job_id, error_message)
 
-    def _build_job_status(self, job: ValidationJob) -> ValidationJobStatus:
+    def _build_job_status(
+        self, job: InternalValidationJob
+    ) -> InternalValidationJobStatus:
         """
-        Build a :class:`ValidationJobStatus` DTO from the internal job object.
+        Build an :class:`InternalValidationJobStatus` from the internal job object.
 
         Centralising this mapping ensures consistency between status
         queries for single jobs and for the list-all endpoint.
@@ -244,7 +234,7 @@ class ValidationManager:
             if job.end_time is not None
             else current_time - job.start_time
         )
-        return ValidationJobStatus(
+        return InternalValidationJobStatus(
             id=job.id,
             start_time=job.start_time,
             elapsed_time=elapsed_time,
@@ -253,7 +243,7 @@ class ValidationManager:
             error_message=job.error_message,
         )
 
-    def get_all_job_statuses(self) -> list[ValidationJobStatus]:
+    def get_all_job_statuses(self) -> list[InternalValidationJobStatus]:
         """
         Return statuses for all known validation jobs.
 
@@ -267,7 +257,7 @@ class ValidationManager:
             )
             return statuses
 
-    def get_job_status(self, job_id: str) -> ValidationJobStatus | None:
+    def get_job_status(self, job_id: str) -> InternalValidationJobStatus | None:
         """
         Return the status for a single validation job.
 
@@ -281,19 +271,19 @@ class ValidationManager:
             self.logger.debug("Validation job status for %s: %s", job_id, status)
             return status
 
-    def get_job_summary(self, job_id: str) -> ValidationJobSummary | None:
+    def get_job_summary(self, job_id: str) -> InternalValidationJobSummary | None:
         """
         Return a short summary for a single validation job.
 
-        The summary intentionally contains only the job id and the
-        original validation request.
+        The summary contains only the job id and the original
+        validation request as internal type.
         """
         with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None
 
-            summary = ValidationJobSummary(
+            summary = InternalValidationJobSummary(
                 id=job.id,
                 request=job.request,
             )

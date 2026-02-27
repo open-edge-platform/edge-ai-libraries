@@ -2,7 +2,11 @@ import logging
 import threading
 from typing import List, Optional
 
-from api.api_schemas import Camera, NetworkCameraDetails, USBCameraDetails
+from internal_types import (
+    InternalCamera,
+    InternalNetworkCameraDetails,
+    InternalUSBCameraDetails,
+)
 from camera import USBCameraDiscovery, ONVIFCameraDiscovery
 
 logger = logging.getLogger("camera_manager")
@@ -42,16 +46,18 @@ class CameraManager:
         self.onvif_discovery = ONVIFCameraDiscovery()
 
         # Cached camera lists
-        self._usb_cameras: List[Camera] = []
-        self._network_cameras: List[Camera] = []
+        self._usb_cameras: List[InternalCamera] = []
+        self._network_cameras: List[InternalCamera] = []
 
         # Shared lock protecting camera cache updates
         self._lock = threading.Lock()
         self.logger = logging.getLogger("CameraManager")
 
     def _update_camera_cache(
-        self, cached_cameras: List[Camera], discovered_cameras: List[Camera]
-    ) -> List[Camera]:
+        self,
+        cached_cameras: List[InternalCamera],
+        discovered_cameras: List[InternalCamera],
+    ) -> List[InternalCamera]:
         """Update cached camera list by adding new cameras and removing unavailable ones.
 
         Args:
@@ -84,7 +90,7 @@ class CameraManager:
 
         return updated_cameras
 
-    def discover_usb_cameras(self) -> List[Camera]:
+    def discover_usb_cameras(self) -> List[InternalCamera]:
         """Discover USB cameras and update the cache.
 
         Performs live discovery and intelligently updates the cached list by:
@@ -93,7 +99,7 @@ class CameraManager:
         - Keeping existing cameras that are still present
 
         Returns:
-            List[Camera]: Updated list of USB cameras.
+            List[InternalCamera]: Updated list of USB cameras.
         """
         try:
             self.logger.debug("Discovering USB cameras")
@@ -110,7 +116,7 @@ class CameraManager:
         with self._lock:
             return self._usb_cameras.copy()
 
-    def discover_network_cameras(self) -> List[Camera]:
+    def discover_network_cameras(self) -> List[InternalCamera]:
         """Discover network cameras and update the cache.
 
         Performs live discovery and intelligently updates the cached list by:
@@ -119,7 +125,7 @@ class CameraManager:
         - Keeping existing cameras that are still present
 
         Returns:
-            List[Camera]: Updated list of network cameras.
+            List[InternalCamera]: Updated list of network cameras.
         """
         try:
             self.logger.debug("Discovering network cameras")
@@ -138,13 +144,13 @@ class CameraManager:
         with self._lock:
             return self._network_cameras.copy()
 
-    def discover_all_cameras(self) -> List[Camera]:
+    def discover_all_cameras(self) -> List[InternalCamera]:
         """Discover all cameras (both USB and network) and update the cache.
 
         Performs live discovery for both USB and network cameras and updates their caches.
 
         Returns:
-            List[Camera]: Combined list of all discovered cameras.
+            List[InternalCamera]: Combined list of all discovered cameras.
         """
         # Discover USB cameras (updates cache)
         usb_cameras = self.discover_usb_cameras()
@@ -159,7 +165,7 @@ class CameraManager:
         )
         return all_cameras
 
-    def get_camera_by_id(self, camera_id: str) -> Optional[Camera]:
+    def get_camera_by_id(self, camera_id: str) -> Optional[InternalCamera]:
         """
         Get a specific camera by its ID from the cache.
 
@@ -170,7 +176,7 @@ class CameraManager:
             camera_id: Camera identifier (e.g., "usb-camera-0" or "network-camera-192.168.1.100-80").
 
         Returns:
-            Camera object if found, None otherwise.
+            InternalCamera object if found, None otherwise.
         """
         self.logger.debug(f"Looking for camera {camera_id}")
 
@@ -191,8 +197,10 @@ class CameraManager:
         self.logger.debug(f"Camera {camera_id} not found in cache")
         return None
 
-    def get_camera_by_device_path(self, device_path: str) -> Optional[Camera]:
-        """Get a USB camera by its device path from the cache.
+    def get_usb_camera_details_by_device_path(
+        self, device_path: str
+    ) -> Optional[InternalUSBCameraDetails]:
+        """Get USB camera details by device path from the cache.
 
         Searches cached USB cameras for one matching the given device path.
         Does not trigger new discovery.
@@ -201,7 +209,7 @@ class CameraManager:
             device_path: Device path (e.g., "/dev/video0").
 
         Returns:
-            Camera object if found, None otherwise.
+            InternalUSBCameraDetails if found, None otherwise.
         """
         if not device_path:
             return None
@@ -210,17 +218,19 @@ class CameraManager:
             for camera in self._usb_cameras:
                 if camera.details is None:
                     continue
-                if not isinstance(camera.details, USBCameraDetails):
+                if not isinstance(camera.details, InternalUSBCameraDetails):
                     continue
                 if camera.details.device_path == device_path:
                     self.logger.debug(f"Found USB camera for device path {device_path}")
-                    return camera
+                    return camera.details
 
         self.logger.debug(f"No USB camera found for device path {device_path}")
         return None
 
-    def get_camera_by_rtsp_url(self, rtsp_url: str) -> Optional[Camera]:
-        """Get a network camera that has a profile matching the given RTSP URL.
+    def get_network_camera_details_by_rtsp_url(
+        self, rtsp_url: str
+    ) -> Optional[InternalNetworkCameraDetails]:
+        """Get network camera details that has a profile matching the given RTSP URL.
 
         Searches cached network cameras for one with a profile whose rtsp_url
         matches. Does not trigger new discovery or authentication.
@@ -229,7 +239,7 @@ class CameraManager:
             rtsp_url: RTSP URL to search for (e.g., "rtsp://192.168.1.100:554/stream1").
 
         Returns:
-            Camera object if found, None otherwise.
+            InternalNetworkCameraDetails if found, None otherwise.
         """
         if not rtsp_url:
             return None
@@ -239,21 +249,21 @@ class CameraManager:
             for camera in self._network_cameras:
                 if camera.details is None:
                     continue
-                if not isinstance(camera.details, NetworkCameraDetails):
+                if not isinstance(camera.details, InternalNetworkCameraDetails):
                     continue
                 for profile in camera.details.profiles:
                     if profile.rtsp_url == normalized:
                         self.logger.debug(
                             f"Found network camera for RTSP URL {rtsp_url}"
                         )
-                        return camera
+                        return camera.details
 
         self.logger.debug(f"No network camera found for RTSP URL {rtsp_url}")
         return None
 
     def load_camera_profiles(
         self, camera_id: str, username: str, password: str
-    ) -> Camera:
+    ) -> InternalCamera:
         """
         Load ONVIF profiles from a network camera and update the cached camera.
 
@@ -266,7 +276,7 @@ class CameraManager:
             password: ONVIF password for authentication.
 
         Returns:
-            Camera: Updated Camera object with populated profiles in details.profiles.
+            InternalCamera: Updated camera object with populated profiles in details.profiles.
 
         Raises:
             ValueError: If camera_id is invalid or camera not found in cache.
@@ -326,7 +336,7 @@ class CameraManager:
             for camera in self._network_cameras:
                 if camera.details is None:
                     continue
-                if not isinstance(camera.details, NetworkCameraDetails):
+                if not isinstance(camera.details, InternalNetworkCameraDetails):
                     continue
                 for profile in camera.details.profiles:
                     if profile.rtsp_url == normalized:

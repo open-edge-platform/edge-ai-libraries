@@ -2,52 +2,51 @@ import time
 import unittest
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import (
-    DensityJobStatus,
-    PerformanceJobStatus,
-    PipelineStreamSpec,
-    PipelineGraph,
-    Node,
-    Edge,
-    TestJobState,
-)
 from benchmark import BenchmarkResult
 from graph import Graph
 from internal_types import (
+    InternalDensityJobStatus,
+    InternalDensityJobSummary,
     InternalExecutionConfig,
     InternalOutputMode,
+    InternalPerformanceJobStatus,
+    InternalPerformanceJobSummary,
     InternalPipelineDensitySpec,
     InternalPipelinePerformanceSpec,
+    InternalPipelineStreamSpec,
     InternalDensityTestSpec,
     InternalPerformanceTestSpec,
+    InternalTestJobState,
 )
-from managers.tests_manager import DensityJob, PerformanceJob, TestsManager
+from managers.tests_manager import TestsManager
 from managers.pipeline_manager import PipelineManager
 from pipeline_runner import PipelineRunner, PipelineRunResult
 
 
 def create_simple_graph() -> Graph:
-    """Helper to create a simple valid pipeline Graph object."""
-    pipeline_graph = PipelineGraph(
-        nodes=[
-            Node(id="0", type="fakesrc", data={}),
-            Node(id="1", type="fakesink", data={}),
-        ],
-        edges=[Edge(id="0", source="0", target="1")],
+    """Helper to create a simple valid pipeline Graph object from a dict."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "fakesrc", "data": {}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
     )
-    return Graph.from_dict(pipeline_graph.model_dump())
 
 
 def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
     """Helper to create a pipeline Graph object with USB camera source (v4l2src)."""
-    pipeline_graph = PipelineGraph(
-        nodes=[
-            Node(id="0", type="v4l2src", data={"device": device}),
-            Node(id="1", type="fakesink", data={}),
-        ],
-        edges=[Edge(id="0", source="0", target="1")],
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "v4l2src", "data": {"device": device}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
     )
-    return Graph.from_dict(pipeline_graph.model_dump())
 
 
 def create_internal_execution_config(
@@ -195,9 +194,9 @@ class TestTestsManager(unittest.TestCase):
         with patch.object(manager, "_execute_performance_test"):
             job_id = manager.test_performance(internal_spec)
             job = manager.jobs[job_id]
-            assert isinstance(job, PerformanceJob)
+            assert isinstance(job, InternalPerformanceJobStatus)
             self.assertEqual(job.request, original_request)
-            self.assertEqual(job.state, TestJobState.RUNNING)
+            self.assertEqual(job.state, InternalTestJobState.RUNNING)
             self.assertIsInstance(job.start_time, int)
             self.assertIsNone(job.end_time)
 
@@ -240,9 +239,9 @@ class TestTestsManager(unittest.TestCase):
             self.assertEqual(initial_count + 1, len(manager.jobs))
 
             job = manager.jobs[job_id]
-            assert isinstance(job, DensityJob)
+            assert isinstance(job, InternalDensityJobStatus)
             self.assertEqual(job.request, original_request)
-            self.assertEqual(job.state, TestJobState.RUNNING)
+            self.assertEqual(job.state, InternalTestJobState.RUNNING)
             self.assertIsInstance(job.start_time, int)
             self.assertIsNone(job.end_time)
 
@@ -280,10 +279,13 @@ class TestTestsManager(unittest.TestCase):
             job_id_performance = manager.test_performance(performance_spec)
             job_id_density = manager.test_density(density_spec)
 
-        performance_statuses = manager.get_job_statuses_by_type(PerformanceJob)
+        # get_job_statuses_by_type now returns internal types
+        performance_statuses = manager.get_job_statuses_by_type(
+            InternalPerformanceJobStatus
+        )
         self.assertEqual(len(performance_statuses), 1)
 
-        density_statuses = manager.get_job_statuses_by_type(DensityJob)
+        density_statuses = manager.get_job_statuses_by_type(InternalDensityJobStatus)
         self.assertEqual(len(density_statuses), 1)
 
         status_performance = next(
@@ -297,8 +299,11 @@ class TestTestsManager(unittest.TestCase):
         self.assertIsNotNone(status_density)
         assert status_performance is not None
         assert status_density is not None
-        self.assertEqual(status_performance.state, TestJobState.RUNNING)
-        self.assertEqual(status_density.state, TestJobState.RUNNING)
+        # Returned types are internal types with InternalTestJobState
+        self.assertIsInstance(status_performance, InternalPerformanceJobStatus)
+        self.assertIsInstance(status_density, InternalDensityJobStatus)
+        self.assertEqual(status_performance.state, InternalTestJobState.RUNNING)
+        self.assertEqual(status_density.state, InternalTestJobState.RUNNING)
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_status_returns_none_for_nonexistent_job(
@@ -322,19 +327,18 @@ class TestTestsManager(unittest.TestCase):
             "execution_config": {},
         }
 
-        # Create streams_per_pipeline using PipelineStreamSpec
         streams_per_pipeline = [
-            PipelineStreamSpec(
+            InternalPipelineStreamSpec(
                 id="/pipelines/pipeline-abc123/variants/variant-abc",
                 streams=1,
             )
         ]
 
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id="test-job-id",
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
             total_fps=120,
             per_stream_fps=30,
             total_streams=1,
@@ -345,12 +349,18 @@ class TestTestsManager(unittest.TestCase):
         status = manager.get_job_status(job.id)
         self.assertIsNotNone(status)
         assert status is not None
+        # get_job_status now returns internal types
+        self.assertIsInstance(status, InternalPerformanceJobStatus)
         self.assertEqual(status.id, job.id)
-        self.assertEqual(status.state, job.state)
+        self.assertEqual(status.state, InternalTestJobState.RUNNING)
         self.assertEqual(status.total_fps, job.total_fps)
         self.assertEqual(status.per_stream_fps, job.per_stream_fps)
         self.assertEqual(status.total_streams, job.total_streams)
-        self.assertEqual(status.streams_per_pipeline, job.streams_per_pipeline)
+
+        # Internal status contains InternalPipelineStreamSpec
+        self.assertIsNotNone(status.streams_per_pipeline)
+        for spec in status.streams_per_pipeline or []:
+            self.assertIsInstance(spec, InternalPipelineStreamSpec)
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_summary_returns_none_for_nonexistent_job(
@@ -383,17 +393,48 @@ class TestTestsManager(unittest.TestCase):
             "execution_config": {"output_mode": "disabled", "max_runtime": 0},
         }
 
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id="test-job-id",
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job.id] = job
 
         summary = manager.get_job_summary(job.id)
         self.assertIsNotNone(summary)
         assert summary is not None
+        # get_job_summary now returns internal types
+        self.assertIsInstance(summary, InternalPerformanceJobSummary)
+        self.assertEqual(summary.id, job.id)
+        self.assertEqual(summary.request, job.request)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_summary_returns_density_summary_for_density_job(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        original_request = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [],
+            "execution_config": {},
+        }
+
+        job = InternalDensityJobStatus(
+            id="test-density-summary",
+            request=original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs[job.id] = job
+
+        summary = manager.get_job_summary(job.id)
+        self.assertIsNotNone(summary)
+        assert summary is not None
+        self.assertIsInstance(summary, InternalDensityJobSummary)
         self.assertEqual(summary.id, job.id)
         self.assertEqual(summary.request, job.request)
 
@@ -407,11 +448,11 @@ class TestTestsManager(unittest.TestCase):
         original_request = {"pipeline_performance_specs": [], "execution_config": {}}
 
         job_id = "test-job-id"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
         manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
@@ -443,11 +484,11 @@ class TestTestsManager(unittest.TestCase):
         original_request = {"pipeline_performance_specs": [], "execution_config": {}}
 
         job_id = "test-job-id"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -470,11 +511,11 @@ class TestTestsManager(unittest.TestCase):
         original_request = {"pipeline_performance_specs": [], "execution_config": {}}
 
         job_id = "test-job-id"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.COMPLETED,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.COMPLETED,
         )
         manager.jobs[job_id] = job
         manager.runners[job_id] = PipelineRunner(mode="normal", max_runtime=0)
@@ -504,11 +545,11 @@ class TestTestsManager(unittest.TestCase):
         )
 
         job_id = "test-job-start"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -551,11 +592,11 @@ class TestTestsManager(unittest.TestCase):
         )
 
         job_id = "test-job-metrics"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -572,17 +613,17 @@ class TestTestsManager(unittest.TestCase):
             manager._execute_performance_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.COMPLETED)
+        self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
         self.assertEqual(updated.total_fps, 300.0)
         self.assertEqual(updated.per_stream_fps, 100.0)
         self.assertEqual(updated.total_streams, 3)
         self.assertIsNotNone(updated.streams_per_pipeline)
         self.assertEqual(len(updated.streams_per_pipeline or []), 2)
 
-        # Verify streams_per_pipeline has correct format
+        # Verify streams_per_pipeline uses InternalPipelineStreamSpec internally
         if updated.streams_per_pipeline:
             for spec in updated.streams_per_pipeline:
-                self.assertIsInstance(spec, PipelineStreamSpec)
+                self.assertIsInstance(spec, InternalPipelineStreamSpec)
                 self.assertTrue(spec.id.startswith("/pipelines/"))
                 self.assertIn("/variants/", spec.id)
 
@@ -605,11 +646,11 @@ class TestTestsManager(unittest.TestCase):
         internal_spec = create_internal_performance_test_spec()
 
         job_id = "test-job-cancel"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -626,7 +667,7 @@ class TestTestsManager(unittest.TestCase):
             manager._execute_performance_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.ABORTED)
+        self.assertEqual(updated.state, InternalTestJobState.ABORTED)
         self.assertEqual(updated.error_message, "Cancelled by user")
         self.assertNotIn(job_id, manager.runners)
 
@@ -645,18 +686,18 @@ class TestTestsManager(unittest.TestCase):
         internal_spec = create_internal_performance_test_spec()
 
         job_id = "test-job-exception"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
         manager._execute_performance_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.ERROR)
+        self.assertEqual(updated.state, InternalTestJobState.ERROR)
         self.assertIn("boom", updated.error_message or "")
         self.assertNotIn(job_id, manager.runners)
 
@@ -671,11 +712,11 @@ class TestTestsManager(unittest.TestCase):
         mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test/variants/variant-1",
                     streams=2,
                 ),
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test/variants/variant-2",
                     streams=1,
                 ),
@@ -702,11 +743,11 @@ class TestTestsManager(unittest.TestCase):
         )
 
         job_id = "test-density-success"
-        job = DensityJob(
+        job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -718,7 +759,7 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(call_kwargs["job_id"], job_id)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.COMPLETED)
+        self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
         self.assertEqual(updated.per_stream_fps, 90.0)
         self.assertEqual(len(updated.streams_per_pipeline or []), 2)
         self.assertEqual(updated.total_streams, 3)
@@ -735,11 +776,11 @@ class TestTestsManager(unittest.TestCase):
         mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test/variants/variant-1",
                     streams=2,
                 ),
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test/variants/variant-2",
                     streams=1,
                 ),
@@ -755,11 +796,11 @@ class TestTestsManager(unittest.TestCase):
         internal_spec = create_internal_density_test_spec()
 
         job_id = "test-density-cancel"
-        job = DensityJob(
+        job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -768,7 +809,7 @@ class TestTestsManager(unittest.TestCase):
             mock_benchmark_job.run.return_value = BenchmarkResult(
                 n_streams=3,
                 streams_per_pipeline=[
-                    PipelineStreamSpec(
+                    InternalPipelineStreamSpec(
                         id="/pipelines/pipeline-test/variants/variant-test",
                         streams=3,
                     ),
@@ -781,7 +822,7 @@ class TestTestsManager(unittest.TestCase):
             manager._execute_density_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.ABORTED)
+        self.assertEqual(updated.state, InternalTestJobState.ABORTED)
         self.assertEqual(updated.error_message, "Cancelled by user")
         self.assertIsNone(updated.per_stream_fps)
         self.assertIsNone(updated.streams_per_pipeline)
@@ -803,18 +844,18 @@ class TestTestsManager(unittest.TestCase):
         internal_spec = create_internal_density_test_spec()
 
         job_id = "test-density-exception"
-        job = DensityJob(
+        job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
         manager._execute_density_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, TestJobState.ERROR)
+        self.assertEqual(updated.state, InternalTestJobState.ERROR)
         self.assertIn("density test failed", updated.error_message or "")
         self.assertNotIn(job_id, manager.runners)
 
@@ -1161,18 +1202,18 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
     def test_performance_job_status_includes_live_stream_urls(
         self, mock_pipeline_manager_cls
     ):
-        """Test that PerformanceJobStatus includes live_stream_urls field."""
+        """Test that InternalPerformanceJobStatus includes live_stream_urls field."""
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         manager = TestsManager()
 
         original_request = {"pipeline_performance_specs": [], "execution_config": {}}
 
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id="test-job-live-stream",
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
             live_stream_urls={
                 "/pipelines/pipeline-test/variants/variant-test": "rtsp://mediamtx:8554/stream_test"
             },
@@ -1183,8 +1224,9 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         self.assertIsNotNone(status)
         assert status is not None
 
-        self.assertIsInstance(status, PerformanceJobStatus)
-        assert isinstance(status, PerformanceJobStatus)
+        # get_job_status returns internal type
+        self.assertIsInstance(status, InternalPerformanceJobStatus)
+        assert isinstance(status, InternalPerformanceJobStatus)
         self.assertEqual(
             status.live_stream_urls,
             {
@@ -1196,7 +1238,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
     def test_density_job_status_does_not_include_live_stream_urls(
         self, mock_pipeline_manager_cls
     ):
-        """Test that DensityJobStatus does not include live_stream_urls field."""
+        """Test that InternalDensityJobStatus does not include live_stream_urls field."""
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         manager = TestsManager()
@@ -1207,11 +1249,11 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
             "execution_config": {},
         }
 
-        job = DensityJob(
+        job = InternalDensityJobStatus(
             id="test-density-job",
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job.id] = job
 
@@ -1219,7 +1261,8 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         self.assertIsNotNone(status)
         assert status is not None
 
-        self.assertIsInstance(status, DensityJobStatus)
+        # get_job_status returns internal type
+        self.assertIsInstance(status, InternalDensityJobStatus)
         self.assertFalse(hasattr(status, "live_stream_urls"))
 
     @patch("managers.tests_manager.PipelineManager")
@@ -1248,11 +1291,11 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         )
 
         job_id = "test-job-live-urls"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -1269,7 +1312,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
             manager._execute_performance_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
-        assert isinstance(updated, PerformanceJob)
+        assert isinstance(updated, InternalPerformanceJobStatus)
         self.assertEqual(updated.live_stream_urls, expected_urls)
 
 
@@ -1316,11 +1359,11 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         )
 
         job_id = "test-job-max-runtime"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -1443,11 +1486,11 @@ class TestInlineGraphSupport(unittest.TestCase):
         )
 
         job_id = "test-job-inline-id"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -1467,6 +1510,7 @@ class TestInlineGraphSupport(unittest.TestCase):
         self.assertIsNotNone(updated.streams_per_pipeline)
         if updated.streams_per_pipeline:
             spec = updated.streams_per_pipeline[0]
+            self.assertIsInstance(spec, InternalPipelineStreamSpec)
             # ID should follow __graph-{hash} format for inline graphs
             self.assertTrue(spec.id.startswith("__graph-"))
             self.assertEqual(len(spec.id), len("__graph-") + 16)
@@ -1496,11 +1540,11 @@ class TestInlineGraphSupport(unittest.TestCase):
         )
 
         job_id = "test-job-variant-id"
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            start_time=int(time.time()),
-            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
 
@@ -1520,12 +1564,13 @@ class TestInlineGraphSupport(unittest.TestCase):
         self.assertIsNotNone(updated.streams_per_pipeline)
         if updated.streams_per_pipeline:
             spec = updated.streams_per_pipeline[0]
+            self.assertIsInstance(spec, InternalPipelineStreamSpec)
             # ID should follow variant path format
             self.assertEqual(spec.id, "/pipelines/my-pipeline/variants/my-variant")
 
 
 class TestPipelineStreamSpecInResults(unittest.TestCase):
-    """Test cases for PipelineStreamSpec format in job results."""
+    """Test cases for InternalPipelineStreamSpec format in job results."""
 
     def setUp(self):
         """Reset singleton state before each test."""
@@ -1538,33 +1583,33 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         PipelineManager._instance = None
 
     @patch("managers.tests_manager.PipelineManager")
-    def test_streams_per_pipeline_uses_pipeline_stream_spec(
+    def test_streams_per_pipeline_uses_internal_type_in_job(
         self, mock_pipeline_manager_cls
     ):
-        """Test that streams_per_pipeline uses PipelineStreamSpec type."""
+        """Test that internal job stores InternalPipelineStreamSpec."""
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         manager = TestsManager()
 
-        # Create a completed job with streams_per_pipeline
+        # Create a completed job with streams_per_pipeline using internal type
         original_request = {"pipeline_performance_specs": [], "execution_config": {}}
 
         streams_per_pipeline = [
-            PipelineStreamSpec(
+            InternalPipelineStreamSpec(
                 id="/pipelines/pipeline-a/variants/variant-a",
                 streams=4,
             ),
-            PipelineStreamSpec(
+            InternalPipelineStreamSpec(
                 id="/pipelines/pipeline-b/variants/variant-b",
                 streams=2,
             ),
         ]
 
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id="test-stream-spec",
             request=original_request,
-            start_time=int(time.time()),
-            state=TestJobState.COMPLETED,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.COMPLETED,
             total_fps=180.0,
             per_stream_fps=30.0,
             total_streams=6,
@@ -1572,19 +1617,59 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         )
         manager.jobs[job.id] = job
 
+        # Verify internal job uses InternalPipelineStreamSpec
+        for spec in job.streams_per_pipeline or []:
+            self.assertIsInstance(spec, InternalPipelineStreamSpec)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_get_job_status_returns_internal_type_with_stream_specs(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that get_job_status returns internal type with InternalPipelineStreamSpec."""
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+
+        original_request = {"pipeline_performance_specs": [], "execution_config": {}}
+
+        streams_per_pipeline = [
+            InternalPipelineStreamSpec(
+                id="/pipelines/pipeline-a/variants/variant-a",
+                streams=4,
+            ),
+            InternalPipelineStreamSpec(
+                id="/pipelines/pipeline-b/variants/variant-b",
+                streams=2,
+            ),
+        ]
+
+        job = InternalPerformanceJobStatus(
+            id="test-stream-spec-internal",
+            request=original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.COMPLETED,
+            total_fps=180.0,
+            per_stream_fps=30.0,
+            total_streams=6,
+            streams_per_pipeline=streams_per_pipeline,
+        )
+        manager.jobs[job.id] = job
+
+        # get_job_status returns internal type
         status = manager.get_job_status(job.id)
         self.assertIsNotNone(status)
         assert status is not None
+        self.assertIsInstance(status, InternalPerformanceJobStatus)
         self.assertIsNotNone(status.streams_per_pipeline)
 
         for spec in status.streams_per_pipeline or []:
-            self.assertIsInstance(spec, PipelineStreamSpec)
+            self.assertIsInstance(spec, InternalPipelineStreamSpec)
             self.assertIsInstance(spec.id, str)
             self.assertIsInstance(spec.streams, int)
 
-    def test_pipeline_stream_spec_id_format_for_variant(self):
-        """Test that PipelineStreamSpec.id follows correct format for variants."""
-        spec = PipelineStreamSpec(
+    def test_internal_pipeline_stream_spec_id_format_for_variant(self):
+        """Test that InternalPipelineStreamSpec.id follows correct format for variants."""
+        spec = InternalPipelineStreamSpec(
             id="/pipelines/test-pipeline/variants/test-variant",
             streams=5,
         )
@@ -1593,9 +1678,9 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         self.assertIn("/variants/", spec.id)
         self.assertEqual(spec.streams, 5)
 
-    def test_pipeline_stream_spec_id_format_for_inline_graph(self):
-        """Test that PipelineStreamSpec.id follows correct format for inline graphs."""
-        spec = PipelineStreamSpec(
+    def test_internal_pipeline_stream_spec_id_format_for_inline_graph(self):
+        """Test that InternalPipelineStreamSpec.id follows correct format for inline graphs."""
+        spec = InternalPipelineStreamSpec(
             id="__graph-1234567890abcdef",
             streams=3,
         )

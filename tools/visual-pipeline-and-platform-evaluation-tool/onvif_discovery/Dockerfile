@@ -14,7 +14,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.14.2-slim
+FROM python:3.14.3-slim
 
 WORKDIR /app
 

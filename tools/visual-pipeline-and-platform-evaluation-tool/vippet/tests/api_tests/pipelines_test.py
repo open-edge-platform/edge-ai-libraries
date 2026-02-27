@@ -7,11 +7,35 @@ from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
 from api.routes.pipelines import router as pipelines_router
+from graph import Graph
+from internal_types import (
+    InternalPipeline,
+    InternalPipelineSource,
+    InternalPipelineValidation,
+    InternalVariant,
+)
 
 
 # Helper to generate test timestamp as datetime
 def _get_test_timestamp() -> datetime:
     return datetime(2026, 2, 5, 14, 30, 45, 123000, tzinfo=timezone.utc)
+
+
+def _create_test_graph() -> Graph:
+    """Helper to create a simple test Graph object."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {
+                    "id": "0",
+                    "type": "filesrc",
+                    "data": {"location": "/tmp/license-plate-detection.mp4"},
+                },
+                {"id": "1", "type": "autovideosink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+    )
 
 
 class TestPipelinesAPI(unittest.TestCase):
@@ -48,43 +72,42 @@ class TestPipelinesAPI(unittest.TestCase):
         app.include_router(pipelines_router, prefix="/pipelines")
         cls.client = TestClient(app)
 
-    def _create_test_variant(
+    def _create_internal_variant(
         self,
         variant_id: str = "variant-abc123",
         name: str = "CPU",
         read_only: bool = False,
-    ) -> schemas.Variant:
-        """Helper to create a test variant with standard graph."""
+    ) -> InternalVariant:
+        """Helper to create an InternalVariant with a standard Graph."""
         timestamp = _get_test_timestamp()
-        return schemas.Variant(
+        graph = _create_test_graph()
+        return InternalVariant(
             id=variant_id,
             name=name,
             read_only=read_only,
-            pipeline_graph=schemas.PipelineGraph.model_validate_json(self.test_graph),
-            pipeline_graph_simple=schemas.PipelineGraph.model_validate_json(
-                self.test_graph
-            ),
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph,
             created_at=timestamp,
             modified_at=timestamp,
         )
 
-    def _create_test_pipeline(
+    def _create_internal_pipeline(
         self,
         pipeline_id: str = "pipeline-abc123",
         name: str = "test-pipeline",
         description: str = "Test Pipeline Description",
-        source: schemas.PipelineSource = schemas.PipelineSource.USER_CREATED,
+        source: InternalPipelineSource = InternalPipelineSource.USER_CREATED,
         tags: Optional[list] = None,
         variants: Optional[list] = None,
         thumbnail: Optional[str] = None,
-    ) -> schemas.Pipeline:
-        """Helper to create a test pipeline with standard structure."""
+    ) -> InternalPipeline:
+        """Helper to create an InternalPipeline with standard structure."""
         if tags is None:
             tags = []
         if variants is None:
-            variants = [self._create_test_variant()]
+            variants = [self._create_internal_variant()]
         timestamp = _get_test_timestamp()
-        return schemas.Pipeline(
+        return InternalPipeline(
             id=pipeline_id,
             name=name,
             description=description,
@@ -100,18 +123,18 @@ class TestPipelinesAPI(unittest.TestCase):
     def test_get_pipelines_returns_list(self, mock_pipeline_manager_cls):
         mock_manager = MagicMock()
         mock_manager.get_pipelines.return_value = [
-            self._create_test_pipeline(
+            self._create_internal_pipeline(
                 pipeline_id="pipeline-abc123",
                 name="predefined-pipelines",
                 description="Smart Network Video Recorder (NVR) Proxy Pipeline",
-                source=schemas.PipelineSource.PREDEFINED,
-                variants=[self._create_test_variant(read_only=True)],
+                source=InternalPipelineSource.PREDEFINED,
+                variants=[self._create_internal_variant(read_only=True)],
             ),
-            self._create_test_pipeline(
+            self._create_internal_pipeline(
                 pipeline_id="pipeline-def456",
                 name="user-defined-pipelines",
                 description="Test Pipeline Description",
-                source=schemas.PipelineSource.USER_CREATED,
+                source=InternalPipelineSource.USER_CREATED,
             ),
         ]
         mock_pipeline_manager_cls.return_value = mock_manager
@@ -152,7 +175,7 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_create_pipeline_valid(self, mock_pipeline_manager_cls):
         # Mock the return value to include the pipeline with ID
-        mock_pipeline = self._create_test_pipeline(
+        mock_pipeline = self._create_internal_pipeline(
             pipeline_id="pipeline-newtest",
             name="user-defined-pipelines",
             description="A custom test pipeline",
@@ -268,7 +291,7 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_get_pipeline_by_id_found(self, mock_pipeline_manager_cls):
         mock_manager = MagicMock()
-        mock_manager.get_pipeline_by_id.return_value = self._create_test_pipeline(
+        mock_manager.get_pipeline_by_id.return_value = self._create_internal_pipeline(
             pipeline_id="pipeline-ghi789",
             name="user-defined-pipelines",
             description="A custom test pipeline",
@@ -325,7 +348,7 @@ class TestPipelinesAPI(unittest.TestCase):
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_description(self, mock_pipeline_manager_cls):
-        updated_pipeline = self._create_test_pipeline(
+        updated_pipeline = self._create_internal_pipeline(
             pipeline_id="pipeline-ghi789",
             name="updated-name",
             description="Updated description",
@@ -351,7 +374,7 @@ class TestPipelinesAPI(unittest.TestCase):
 
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_pipeline_pipeline_graph(self, mock_pipeline_manager_cls):
-        updated_pipeline = self._create_test_pipeline(
+        updated_pipeline = self._create_internal_pipeline(
             pipeline_id="pipeline-ghi789",
             name="test-pipeline",
             description="Test description",
@@ -473,7 +496,9 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_create_variant_success(self, mock_pipeline_manager_cls):
         """Test successful variant creation."""
-        new_variant = self._create_test_variant(variant_id="variant-new123", name="GPU")
+        new_variant = self._create_internal_variant(
+            variant_id="variant-new123", name="GPU"
+        )
         mock_pipeline_manager_cls.return_value.add_variant.return_value = new_variant
 
         payload = {
@@ -572,7 +597,7 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_variant_name_success(self, mock_pipeline_manager_cls):
         """Test successful variant name update."""
-        updated_variant = self._create_test_variant(
+        updated_variant = self._create_internal_variant(
             variant_id="variant-123", name="GPU-optimized"
         )
         mock_pipeline_manager_cls.return_value.update_variant.return_value = (
@@ -599,7 +624,7 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_update_variant_pipeline_graph_success(self, mock_pipeline_manager_cls):
         """Test successful variant pipeline_graph update."""
-        updated_variant = self._create_test_variant(variant_id="variant-123")
+        updated_variant = self._create_internal_variant(variant_id="variant-123")
         mock_pipeline_manager_cls.return_value.update_variant.return_value = (
             updated_variant
         )
@@ -682,7 +707,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls, mock_optimization_manager_cls
     ):
         """Test successful variant optimization."""
-        mock_variant = self._create_test_variant(variant_id="variant-123")
+        mock_variant = self._create_internal_variant(variant_id="variant-123")
         mock_pipeline_manager_cls.return_value.get_variant_by_ids.return_value = (
             mock_variant
         )
@@ -779,11 +804,11 @@ class TestPipelinesAPI(unittest.TestCase):
             schemas.ValidationJobResponse(job_id="val-job-123").model_dump(),
         )
 
-        # Ensure the manager was called exactly once with a PipelineValidation object.
+        # Ensure the manager was called exactly once with an InternalPipelineValidation object.
         args, kwargs = mock_manager.run_validation.call_args
         self.assertEqual(len(args), 1)
         validation_request = args[0]
-        self.assertIsInstance(validation_request, schemas.PipelineValidation)
+        self.assertIsInstance(validation_request, InternalPipelineValidation)
 
     @patch("api.routes.pipelines.ValidationManager")
     def test_validate_pipeline_returns_400_on_value_error(
@@ -853,13 +878,13 @@ class TestPipelinesAPI(unittest.TestCase):
     def test_get_pipelines_includes_variants(self, mock_pipeline_manager_cls):
         """Test that GET /pipelines returns pipelines with variants."""
         mock_pipeline_manager_cls.return_value.get_pipelines.return_value = [
-            self._create_test_pipeline(
+            self._create_internal_pipeline(
                 pipeline_id="pipeline-abc123",
                 name="test-pipeline",
                 description="Test pipeline with variants",
                 variants=[
-                    self._create_test_variant(variant_id="variant-1", name="CPU"),
-                    self._create_test_variant(variant_id="variant-2", name="GPU"),
+                    self._create_internal_variant(variant_id="variant-1", name="CPU"),
+                    self._create_internal_variant(variant_id="variant-2", name="GPU"),
                 ],
             ),
         ]
@@ -887,12 +912,12 @@ class TestPipelinesAPI(unittest.TestCase):
     def test_get_pipeline_by_id_includes_variants(self, mock_pipeline_manager_cls):
         """Test that GET /pipelines/{id} returns pipeline with variants."""
         mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
-            self._create_test_pipeline(
+            self._create_internal_pipeline(
                 pipeline_id="pipeline-ghi789",
                 name="test-pipeline",
                 description="Test pipeline with variants",
                 variants=[
-                    self._create_test_variant(variant_id="variant-1", name="CPU"),
+                    self._create_internal_variant(variant_id="variant-1", name="CPU"),
                 ],
             )
         )
@@ -918,8 +943,6 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_convert_advanced_to_simple_success(self, mock_pipeline_manager_cls):
         """Test successful conversion from advanced to simple graph."""
-        from graph import Graph
-
         mock_manager = MagicMock()
 
         # Mock the conversion method to return a simple graph
@@ -999,9 +1022,7 @@ class TestPipelinesAPI(unittest.TestCase):
     @patch("api.routes.pipelines.PipelineManager")
     def test_convert_simple_to_advanced_success(self, mock_pipeline_manager_cls):
         """Test successful conversion from simple to advanced graph."""
-        from graph import Graph
-
-        mock_variant = self._create_test_variant()
+        mock_variant = self._create_internal_variant()
         mock_manager = MagicMock()
         mock_manager.get_variant_by_ids.return_value = mock_variant
 
@@ -1069,7 +1090,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self, mock_pipeline_manager_cls
     ):
         """Test conversion with structural changes is rejected."""
-        mock_variant = self._create_test_variant()
+        mock_variant = self._create_internal_variant()
         mock_manager = MagicMock()
         mock_manager.get_variant_by_ids.return_value = mock_variant
         mock_manager.validate_and_convert_simple_to_advanced.side_effect = ValueError(

@@ -9,8 +9,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from api.api_schemas import USBCameraDetails, NetworkCameraDetails
-from managers.camera_manager import CameraManager
 from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
@@ -19,7 +17,6 @@ from resources import (
 )
 from utils import generate_unique_filename, slugify_text
 from video_decoder import VideoDecoder
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
@@ -740,6 +737,9 @@ class Graph:
                  ENCODER_DEVICE_CPU for standard video/x-raw or when no video/x-raw
                  node exists in the pipeline.
         """
+        from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         for node in reversed(self.nodes):
             if not node.type.startswith("video/x-raw"):
                 continue
@@ -1156,6 +1156,9 @@ class Graph:
         Returns:
             Codec string (e.g., "h264", "MJPG"), or None if codec cannot be determined.
         """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         for node in self.nodes:
             if node.type == "filesrc":
                 location = node.data.get("location")
@@ -1175,15 +1178,13 @@ class Graph:
                 device_path = node.data.get("device")
                 if not device_path:
                     continue
-                camera = CameraManager().get_camera_by_device_path(device_path)
-                if camera is None:
+                details = CameraManager().get_usb_camera_details_by_device_path(
+                    device_path
+                )
+                if details is None:
                     logger.debug(f"No camera found for device path '{device_path}'")
                     return None
-                if camera.details is None or not isinstance(
-                    camera.details, USBCameraDetails
-                ):
-                    return None
-                best_capture = camera.details.best_capture
+                best_capture = details.best_capture
                 if best_capture is not None and best_capture.fourcc:
                     logger.debug(
                         f"Determined codec '{best_capture.fourcc}' from v4l2src device '{device_path}'"
@@ -1195,8 +1196,10 @@ class Graph:
                 location = node.data.get("location")
                 if not location:
                     continue
-                camera = CameraManager().get_camera_by_rtsp_url(location)
-                if camera is None:
+                details = CameraManager().get_network_camera_details_by_rtsp_url(
+                    location
+                )
+                if details is None:
                     # Fall back to encoding lookup
                     encoding = CameraManager().get_encoding_for_rtsp_url(location)
                     if encoding:
@@ -1206,11 +1209,7 @@ class Graph:
                         return encoding
                     logger.debug(f"No camera found for RTSP URL '{location}'")
                     return None
-                if camera.details is None or not isinstance(
-                    camera.details, NetworkCameraDetails
-                ):
-                    return None
-                best_profile = camera.details.best_profile
+                best_profile = details.best_profile
                 if best_profile is not None and best_profile.encoding:
                     logger.debug(
                         f"Determined codec '{best_profile.encoding}' from rtspsrc URL '{location}'"
@@ -1500,6 +1499,9 @@ class Graph:
             The caps_data_dict includes the NODE_KIND_KEY marker and all
             caps properties.
         """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         video_decoder = VideoDecoder()
 
         for node in nodes:
@@ -1510,15 +1512,8 @@ class Graph:
             if not device_path:
                 continue
 
-            camera = CameraManager().get_camera_by_device_path(device_path)
-            if camera is None:
-                continue
-
-            details = camera.details
+            details = CameraManager().get_usb_camera_details_by_device_path(device_path)
             if details is None:
-                continue
-
-            if not isinstance(details, USBCameraDetails):
                 continue
 
             best_capture = details.best_capture

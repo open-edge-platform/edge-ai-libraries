@@ -5,16 +5,15 @@ import uuid
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from api.api_schemas import (
-    PipelineRequestOptimize,
-    OptimizationType,
-    OptimizationJobStatus,
-    OptimizationJobSummary,
-    OptimizationJobState,
-    PipelineGraph,
-    Variant,
-)
 from graph import Graph
+from internal_types import (
+    InternalOptimizationJobStatus,
+    InternalOptimizationJobState,
+    InternalOptimizationJobSummary,
+    InternalOptimizationType,
+    InternalPipelineRequestOptimize,
+    InternalVariant,
+)
 
 DEFAULT_SEARCH_DURATION = 300  # seconds
 DEFAULT_SAMPLE_DURATION = 10  # seconds
@@ -23,51 +22,12 @@ logger = logging.getLogger("optimization_manager")
 
 
 @dataclass
-class OptimizationJob:
-    """
-    Internal representation of a single optimization job.
-
-    This mirrors what is exposed through :class:`OptimizationJobStatus`
-    and :class:`OptimizationJobSummary`, with a few runtime-only fields.
-
-    Attributes:
-        id: Job identifier.
-        original_pipeline_graph: Original advanced view of the pipeline.
-        original_pipeline_graph_simple: Original simple view of the pipeline.
-        original_pipeline_description: Original GStreamer pipeline string before optimization.
-        request: Original optimization request parameters.
-        state: Current job state (RUNNING, COMPLETED, ERROR, ABORTED).
-        start_time: Job start time in milliseconds since epoch.
-        end_time: Job end time in milliseconds since epoch (None if still running).
-        optimized_pipeline_graph: Optimized advanced view (None until completed).
-        optimized_pipeline_graph_simple: Optimized simple view (None until completed).
-        optimized_pipeline_description: Optimized GStreamer pipeline string (None until completed).
-        total_fps: Measured FPS for optimized pipeline (None for PREPROCESS type).
-        error_message: Error description (None unless state is ERROR or ABORTED).
-    """
-
-    id: str
-    original_pipeline_graph: PipelineGraph
-    original_pipeline_graph_simple: PipelineGraph
-    original_pipeline_description: str
-    request: PipelineRequestOptimize
-    state: OptimizationJobState
-    start_time: int
-    end_time: Optional[int] = None
-    optimized_pipeline_graph: Optional[PipelineGraph] = None
-    optimized_pipeline_graph_simple: Optional[PipelineGraph] = None
-    optimized_pipeline_description: Optional[str] = None
-    total_fps: Optional[float] = None
-    error_message: Optional[str] = None
-
-
-@dataclass
 class PipelineOptimizationResult:
     """
     Lightweight result object returned by :class:`OptimizationRunner`.
 
     It is intentionally minimal: the manager is responsible for converting
-    the optimized GStreamer pipeline string back into :class:`PipelineGraph`.
+    the optimized GStreamer pipeline string back into :class:`Graph`.
 
     Attributes:
         optimized_pipeline_description: Optimized GStreamer pipeline string produced by the optimizer.
@@ -169,7 +129,7 @@ class OptimizationManager:
 
     Responsibilities:
 
-    * create and track :class:`OptimizationJob` instances,
+    * create and track :class:`InternalOptimizationJobStatus` instances,
     * run optimizations asynchronously in background threads on specific variants,
     * expose job status and summaries in a thread-safe manner,
     * maintain both advanced and simple views of variant graphs throughout optimization,
@@ -194,7 +154,7 @@ class OptimizationManager:
         self._initialized = True
 
         # All known jobs keyed by job id
-        self.jobs: Dict[str, OptimizationJob] = {}
+        self.jobs: Dict[str, InternalOptimizationJobStatus] = {}
         # Currently running OptimizationRunner instances keyed by job id
         self.runners: Dict[str, OptimizationRunner] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
@@ -210,46 +170,41 @@ class OptimizationManager:
 
     def run_optimization(
         self,
-        variant: Variant,
-        optimization_request: PipelineRequestOptimize,
+        variant: InternalVariant,
+        optimization_request: InternalPipelineRequestOptimize,
     ) -> str:
         """
         Start an optimization job in the background and return its job id.
 
         The method:
 
-        * uses the variant's pipeline_graph,
+        * uses the variant's pipeline graphs (already as Graph objects),
         * converts the pipeline graph to a GStreamer pipeline string,
-        * extracts both advanced and simple views from the variant,
-        * creates a new :class:`OptimizationJob` with RUNNING state,
+        * creates a new :class:`InternalOptimizationJobStatus` with RUNNING state,
         * spawns a background thread that executes the optimization.
 
         Args:
-            variant: Variant object containing graph views to optimize.
-            optimization_request: Optimization parameters (type and optional settings).
+            variant: InternalVariant with Graph objects to optimize.
+            optimization_request: Internal optimization parameters (type and settings).
 
         Returns:
             str: Unique job identifier for tracking the optimization.
-
-        Raises:
-            ValueError: If pipeline has no variants.
         """
         job_id = self._generate_job_id()
 
-        # Convert PipelineGraph to pipeline description string once and reuse.
-        pipeline_description = Graph.from_dict(
-            variant.pipeline_graph.model_dump()
-        ).to_pipeline_description()
+        # Get pipeline description from the variant's advanced graph
+        pipeline_description = variant.pipeline_graph.to_pipeline_description()
 
-        # Create job record with both views from variant
-        job = OptimizationJob(
+        # Create job record with Graph objects from the variant
+        job = InternalOptimizationJobStatus(
             id=job_id,
             original_pipeline_graph=variant.pipeline_graph,
             original_pipeline_graph_simple=variant.pipeline_graph_simple,
             original_pipeline_description=pipeline_description,
             request=optimization_request,
-            state=OptimizationJobState.RUNNING,
+            state=InternalOptimizationJobState.RUNNING,
             start_time=int(time.time() * 1000),  # milliseconds
+            type=optimization_request.type,
         )
 
         with self._jobs_lock:
@@ -265,92 +220,54 @@ class OptimizationManager:
 
         return job_id
 
-    def _build_job_status(self, job: OptimizationJob) -> OptimizationJobStatus:
+    def get_all_job_statuses(self) -> list[InternalOptimizationJobStatus]:
         """
-        Build a :class:`OptimizationJobStatus` DTO from the internal job object.
-
-        This method centralises the mapping to ensure consistency between
-        status queries. It includes both advanced and simple views of the
-        original and optimized pipelines.
-
-        Args:
-            job: Internal OptimizationJob object.
-
-        Returns:
-            OptimizationJobStatus: Status object ready for API response.
-        """
-        current_time = int(time.time() * 1000)
-        elapsed_time = (
-            job.end_time - job.start_time
-            if job.end_time
-            else current_time - job.start_time
-        )
-        return OptimizationJobStatus(
-            id=job.id,
-            type=job.request.type,
-            start_time=job.start_time,
-            elapsed_time=elapsed_time,
-            state=job.state,
-            total_fps=job.total_fps,
-            original_pipeline_graph=job.original_pipeline_graph,
-            original_pipeline_graph_simple=job.original_pipeline_graph_simple,
-            optimized_pipeline_graph=job.optimized_pipeline_graph,
-            optimized_pipeline_graph_simple=job.optimized_pipeline_graph_simple,
-            original_pipeline_description=job.original_pipeline_description,
-            optimized_pipeline_description=job.optimized_pipeline_description,
-            error_message=job.error_message,
-        )
-
-    def get_all_job_statuses(self) -> list[OptimizationJobStatus]:
-        """
-        Return statuses for all known optimization jobs.
+        Return internal status objects for all known optimization jobs.
 
         Access is protected by a lock to avoid reading partial updates.
+        The route layer is responsible for converting these to API DTOs.
         """
         with self._jobs_lock:
-            statuses = [self._build_job_status(job) for job in self.jobs.values()]
+            statuses = list(self.jobs.values())
             self.logger.debug(f"Current pipeline optimization job statuses: {statuses}")
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[OptimizationJobStatus]:
+    def get_job_status(self, job_id: str) -> Optional[InternalOptimizationJobStatus]:
         """
-        Return the status for a single job.
+        Return the internal status for a single job.
 
         ``None`` is returned when the job id is unknown.
+        The route layer is responsible for converting to API DTO.
         """
         with self._jobs_lock:
-            if job_id not in self.jobs:
+            job = self.jobs.get(job_id)
+            if job is None:
                 return None
-            job = self.jobs[job_id]
-            job_status = self._build_job_status(job)
-            self.logger.debug(
-                f"Pipeline optimization job status for {job_id}: {job_status}"
-            )
-            return job_status
+            self.logger.debug(f"Pipeline optimization job status for {job_id}: {job}")
+            return job
 
-    def get_job_summary(self, job_id: str) -> Optional[OptimizationJobSummary]:
+    def get_job_summary(self, job_id: str) -> Optional[InternalOptimizationJobSummary]:
         """
-        Return a short summary for a single job.
+        Return a short internal summary for a single job.
 
-        The summary intentionally contains only the job id and the original
-        optimization request.
+        The summary contains only the job id and the original optimization
+        request as internal types. The route layer converts to API DTO.
         """
         with self._jobs_lock:
-            if job_id not in self.jobs:
+            job = self.jobs.get(job_id)
+            if job is None:
                 return None
 
-            job = self.jobs[job_id]
-
-            pipeline_job_summary = OptimizationJobSummary(
+            summary = InternalOptimizationJobSummary(
                 id=job.id,
                 request=job.request,
             )
 
             self.logger.debug(
-                f"Pipeline optimization job summary for {job_id}: {pipeline_job_summary}"
+                f"Pipeline optimization job summary for {job_id}: {summary}"
             )
 
-            return pipeline_job_summary
+            return summary
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """
@@ -361,7 +278,7 @@ class OptimizationManager:
         with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
-                job.state = OptimizationJobState.ERROR
+                job.state = InternalOptimizationJobState.ERROR
                 job.end_time = int(time.time() * 1000)
                 job.error_message = error_message
         self.logger.error(f"Pipeline optimization {job_id} error: {error_message}")
@@ -370,29 +287,30 @@ class OptimizationManager:
         self,
         job_id: str,
         pipeline_description: str,
-        optimization_request: PipelineRequestOptimize,
+        optimization_request: InternalPipelineRequestOptimize,
     ) -> None:
         """
         Execute the optimization process in a background thread.
 
         The method chooses between preprocessing or full optimization,
         delegates work to :class:`OptimizationRunner` and then updates
-        the corresponding :class:`OptimizationJob` accordingly.
+        the corresponding :class:`InternalOptimizationJobStatus` accordingly.
 
         After successful optimization, both advanced and simple views
-        are generated from the optimized GStreamer pipeline string.
+        are generated from the optimized GStreamer pipeline string as
+        internal Graph objects.
 
         Args:
             job_id: Unique identifier of the optimization job.
             pipeline_description: GStreamer pipeline string to optimize.
-            optimization_request: Optimization parameters and type.
+            optimization_request: Internal optimization parameters and type.
 
         Returns:
             None (updates job status in place via self.jobs[job_id])
 
         Side effects:
             - Updates job state to COMPLETED, ERROR, or ABORTED
-            - Stores optimized pipeline graphs (both views) on success
+            - Stores optimized pipeline Graph objects (both views) on success
             - Stores optimized GStreamer pipeline string on success
             - Stores error_message on failure
             - Removes runner from self.runners when done
@@ -410,8 +328,8 @@ class OptimizationManager:
                 self.runners[job_id] = runner
 
             if optimization_request.type not in [
-                OptimizationType.PREPROCESS,
-                OptimizationType.OPTIMIZE,
+                InternalOptimizationType.PREPROCESS,
+                InternalOptimizationType.OPTIMIZE,
             ]:
                 # Unsupported type; this is considered a user error.
                 raise ValueError(
@@ -419,11 +337,11 @@ class OptimizationManager:
                 )
 
             # Run the pipeline
-            if optimization_request.type == OptimizationType.PREPROCESS:
+            if optimization_request.type == InternalOptimizationType.PREPROCESS:
                 results = runner.run_preprocessing(
                     pipeline_description=pipeline_description,
                 )
-            else:  # OptimizationType.OPTIMIZE
+            else:  # InternalOptimizationType.OPTIMIZE
                 params = optimization_request.parameters or {}
                 results = runner.run_optimization(
                     pipeline_description=pipeline_description,
@@ -445,12 +363,12 @@ class OptimizationManager:
                         self.logger.info(
                             f"Pipeline optimization {job_id} was cancelled, updating state to ABORTED"
                         )
-                        job.state = OptimizationJobState.ABORTED
+                        job.state = InternalOptimizationJobState.ABORTED
                         job.end_time = int(time.time() * 1000)
                         job.error_message = "Cancelled by user"
                     else:
                         # Normal completion
-                        job.state = OptimizationJobState.COMPLETED
+                        job.state = InternalOptimizationJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
                         if results is not None:
@@ -460,19 +378,14 @@ class OptimizationManager:
                                 results.optimized_pipeline_description
                             )
 
-                            # Build advanced graph from the optimized pipeline description
+                            # Build advanced Graph from the optimized pipeline description
                             graph = Graph.from_pipeline_description(
                                 results.optimized_pipeline_description
                             )
-                            job.optimized_pipeline_graph = PipelineGraph.model_validate(
-                                graph.to_dict()
-                            )
+                            job.optimized_pipeline_graph = graph
 
-                            # Generate simple view from the optimized advanced graph
-                            simple_graph = graph.to_simple_view()
-                            job.optimized_pipeline_graph_simple = (
-                                PipelineGraph.model_validate(simple_graph.to_dict())
-                            )
+                            # Generate simple view Graph from the optimized advanced graph
+                            job.optimized_pipeline_graph_simple = graph.to_simple_view()
 
                         self.logger.info(
                             f"Pipeline optimization {job_id} completed successfully, optimized pipeline: {job.optimized_pipeline_description}"
