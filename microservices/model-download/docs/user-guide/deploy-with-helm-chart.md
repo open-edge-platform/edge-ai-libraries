@@ -10,7 +10,7 @@ Before you begin, ensure that you have the following prerequisites:
 - Install `kubectl` on your system. See [Kubernetes Documentation on Tool Installation](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm chart installed on your system: See [Installing Helm](https://helm.sh/docs/intro/install/).
 
-## Deploy with Helm Chart
+## Install Helm Chart from Docker Hub or from Source
 
 To deploy with Helm chart, you can either install the chart from Docker hub or from source.
 
