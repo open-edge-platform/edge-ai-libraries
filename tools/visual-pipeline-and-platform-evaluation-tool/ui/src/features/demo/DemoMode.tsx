@@ -517,9 +517,9 @@ const DemoMode = () => {
   const isPipelineConfigOpen = openConfigSection === "pipeline-config";
   const pipelineConfigContainerMaxHeightClass = "max-h-[58vh]";
   const pipelineConfigMaxHeightClass = isPipelineConfigOpen
-    ? "max-h-[40vh]"
+    ? "max-h-[32vh]"
     : "max-h-[44vh]";
-  const runConfigMaxHeightClass = "max-h-[38vh]";
+  const runConfigMaxHeightClass = "max-h-[31vh]";
 
   // Show preview panel only when there's actual content to display
   const hasLiveStreamContent =
@@ -1601,7 +1601,7 @@ const DemoMode = () => {
               );
 
               const pipelineCardsSection = (
-                <div className="relative h-[190px]">
+                <div className="relative h-[215px]">
                   <div className="grid grid-cols-4 gap-2 h-full">
                     {visiblePipelines.map((selection) => {
                       const pipeline = pipelines.find(
@@ -1617,14 +1617,14 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`relative flex w-full max-h-[200px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`relative flex w-full max-h-[215px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
                           } ${isReadOnly ? "opacity-70" : ""}`}
                         >
                           <CardHeader className="pl-2 pr-2 pt-0 pb-0 -mt-2">
-                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[2rem]">
+                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[3rem]">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
                           </CardHeader>
@@ -1860,7 +1860,7 @@ const DemoMode = () => {
                       value="pipeline-config"
                       className="border border-slate-400/30 rounded-lg bg-slate-950/60"
                     >
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
                           className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
                         >
@@ -1885,7 +1885,7 @@ const DemoMode = () => {
 
                                 return (
                                   <>
-                                    <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
                                       <Accordion
                                         key={selectedVariant.id}
                                         type="single"
@@ -2318,7 +2318,7 @@ const DemoMode = () => {
                       value="run-config"
                       className="border border-slate-400/30 rounded-lg bg-slate-950/60"
                     >
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
                           className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
                         >
@@ -2412,29 +2412,27 @@ const DemoMode = () => {
                                     </div>
 
                                     {/* Live Preview */}
-                                    <div className="min-h-[120px]">
-                                      <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={
-                                              performanceLivePreviewEnabled
-                                            }
-                                            onCheckedChange={(checked) =>
-                                              setPerformanceLivePreviewEnabled(
-                                                checked === true,
-                                              )
-                                            }
-                                            disabled={isReadOnly}
-                                            className={colors.checkbox}
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={
+                                            performanceLivePreviewEnabled
+                                          }
+                                          onCheckedChange={(checked) =>
+                                            setPerformanceLivePreviewEnabled(
+                                              checked === true,
+                                            )
+                                          }
+                                          disabled={isReadOnly}
+                                          className={colors.checkbox}
+                                        />
+                                        <div className="flex items-center gap-1.5">
+                                          <label className="text-xs text-slate-300 py-5">
+                                            Show live preview
+                                          </label>
+                                          <CheckboxInfoHint
+                                            description="Shows pipeline output in real time while it is running."
                                           />
-                                          <div className="flex items-center gap-1.5">
-                                            <label className="text-xs text-slate-300">
-                                              Show live preview
-                                            </label>
-                                            <CheckboxInfoHint
-                                              description="Shows pipeline output in real time while it is running."
-                                            />
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -2485,26 +2483,24 @@ const DemoMode = () => {
                                     </div>
 
                                     {/* FPS Floor */}
-                                    <div className="min-h-[120px]">
-                                      <div className="flex gap-6">
-                                        <div className="space-y-1 min-h-[72px]">
-                                          <label className="text-xs font-medium text-slate-300 block">
-                                            Target FPS
-                                          </label>
-                                          <input
-                                            type="number"
-                                            value={fpsFloor}
-                                            onChange={(e) =>
-                                              setFpsFloor(
-                                                parseFloat(e.target.value) || 0,
-                                              )
-                                            }
-                                            disabled={isReadOnly}
-                                            className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-                                            placeholder="Minimum FPS threshold"
-                                            min={0}
-                                          />
-                                        </div>
+                                    <div className="flex gap-6">
+                                      <div className="space-y-2 py-2">
+                                        <label className="text-xs font-medium text-slate-300 block">
+                                          Target FPS
+                                        </label>
+                                        <input
+                                          type="number"
+                                          value={fpsFloor}
+                                          onChange={(e) =>
+                                            setFpsFloor(
+                                              parseFloat(e.target.value) || 0,
+                                            )
+                                          }
+                                          disabled={isReadOnly}
+                                          className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                          placeholder="Minimum FPS threshold"
+                                          min={0}
+                                        />
                                       </div>
                                     </div>
                                   </div>
