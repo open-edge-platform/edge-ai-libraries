@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -746,7 +746,15 @@ class GStreamerPipeline(Pipeline):
     def source_probe_callback(unused_pad, info, self):
         buffer = info.get_buffer()
         pts = buffer.pts
-        self.latency_times[pts] = time.time()
+        current_time = time.time()
+        self.latency_times[pts] = current_time
+        stale_threshold = current_time - 30
+        while self.latency_times:
+            k, v = next(iter(self.latency_times.items()))
+            if v < stale_threshold:
+                del self.latency_times[k]
+            else:
+                break
         return Gst.PadProbeReturn.OK
 
     def source_setup_callback(self, unused_bin, src_element, unused_udata):
