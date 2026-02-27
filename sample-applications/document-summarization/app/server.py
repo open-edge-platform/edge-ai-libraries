@@ -214,7 +214,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             logger.info(f"Loaded {len(documents)} document(s) from {file_location}")
         except Exception as e:
             logger.error(f"Error loading documents: {str(e)}")
-            return JSONResponse(status_code=500, content={"message": f"Failed to load document: {str(e)}"})
+            return JSONResponse(status_code=500, content={"message": "Failed to load document."})
 
         try:
             logger.info("Initializing SimpleSummaryPack")
@@ -262,12 +262,12 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
         except Exception as e:
             logger.error(f"Error in processing: {str(e)}")
             logger.error(traceback.format_exc())
-            return JSONResponse(status_code=500, content={"message": f"Error processing document: {str(e)}"})
+            return JSONResponse(status_code=500, content={"message": "Error processing document."})
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         logger.error(traceback.format_exc())
-        return JSONResponse(status_code=500, content={"message": f"An error occurred: {str(e)}"})
+        return JSONResponse(status_code=500, content={"message": "An internal server error occurred."})
     finally:
         try:
             if os.path.exists(tmp_docs_dir):
