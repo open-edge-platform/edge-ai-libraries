@@ -105,7 +105,7 @@ def save_uploaded_file(uploaded_file: UploadFile, destination: str):
             # Reset file pointer for potential reuse
             uploaded_file.file.seek(0)
     except Exception as e:
-        logger.error(f"Error saving file: {str(e)}")
+        logger.error("Error saving file: %s", safe_log(str(e), max_len=512))
         raise
 
 
@@ -229,7 +229,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
 
             logger.info(f"Loaded {len(documents)} document(s) from {file_location}")
         except Exception as e:
-            logger.error(f"Error loading documents: {str(e)}")
+            logger.error("Error loading documents: %s", safe_log(str(e), max_len=512))
             return JSONResponse(status_code=500, content={"message": "Failed to load document."})
 
         try:
@@ -250,7 +250,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
                         summary = '\n'.join([s for s in summary])
                     all_summaries.append(summary)
                 except Exception as e:
-                    logger.error(f"Error summarizing chunk {doc_id}: {str(e)}")
+                    logger.error("Error summarizing chunk %s: %s", safe_log(doc_id), safe_log(str(e), max_len=512))
             combined_summary = '\n\n'.join(all_summaries)
             logger.info("Successfully generated combined summary")
 
@@ -268,7 +268,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             try:
                 final_summary = final_summary_pack.run(final_doc_id)
             except Exception as e:
-                logger.error(f"Error generating final summary: {str(e)}")
+                logger.error("Error generating final summary: %s", safe_log(str(e), max_len=512))
                 # fallback: yield the combined summary as a single chunk
                 def fallback_gen():
                     yield combined_summary
@@ -276,12 +276,12 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             logger.info("Successfully generated distilled summary")
             return StreamingResponse(final_summary, media_type="text/event-stream")
         except Exception as e:
-            logger.error(f"Error in processing: {str(e)}")
+            logger.error("Error in processing: %s", safe_log(str(e), max_len=512))
             logger.error(traceback.format_exc())
             return JSONResponse(status_code=500, content={"message": "Error processing document."})
 
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error("Unexpected error: %s", safe_log(str(e), max_len=512))
         logger.error(traceback.format_exc())
         return JSONResponse(status_code=500, content={"message": "An internal server error occurred."})
     finally:
@@ -291,7 +291,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
                 clean_directory(tmp_docs_dir)
                 logger.info("Directory cleaned successfully")
         except Exception as e:
-            logger.error(f"Error cleaning directory: {str(e)}")
+            logger.error("Error cleaning directory: %s", safe_log(str(e), max_len=512))
 
 FastAPIInstrumentor.instrument_app(app)
 
@@ -303,4 +303,3 @@ if __name__ == "__main__":
     # Start FastAPI with Uvicorn
     logger.info(f"Starting Document Summarization API on {host}:{port}")
     uvicorn.run("server:app", host=host, port=port, reload=False)
-    

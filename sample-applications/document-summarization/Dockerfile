@@ -55,10 +55,9 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Upgrade vulnerable build-time packages to patched versions
-RUN /usr/local/bin/pip install --upgrade \
-    pip setuptools wheel jaraco.context
+RUN /usr/local/bin/pip install --upgrade pip setuptools wheel jaraco.context
 
-# Set working directoryAdd commentMore actions
+# Set working directory
 WORKDIR /app
 
 # Copy application code
@@ -68,7 +67,7 @@ COPY --chown=appuser:appuser ui ./ui
 # Set ownership for nltk_data
 RUN chown -R appuser:appuser /opt/share/nltk_data
 
-# Switch to non-root userAdd commentMore actions
+# Switch to non-root user
 USER appuser
 
 # Expose the port the app runs on
