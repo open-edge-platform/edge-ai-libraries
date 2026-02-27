@@ -1,4 +1,4 @@
-iglobal:
+global:
   huggingface:
     apiToken:  # Set this during installation
   proxy:
