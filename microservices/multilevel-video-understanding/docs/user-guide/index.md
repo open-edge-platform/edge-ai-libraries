@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multilevel-video-understanding">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices/multilevel-video-understanding">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/multilevel-video-understanding/README.md">
      Readme
   </a>
 </div>
@@ -22,7 +22,7 @@ Figure 1: Multi-level Video Understanding High-level Design
 
 Among all the components, `Multi-level Video Understanding` refers to this microservice.
 `Video Chunking` is a library implemented in this Open Edge Platform (OEP) suite:
-[video-chunking-utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils).
+[video-chunking-utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/libraries/video-chunking-utils).
 `Vision-Language Model Serving` and `Large Language Model Serving` are dependent
 services required by this microservice, running on OpenAI-compatible APIs.
 

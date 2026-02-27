@@ -8,7 +8,7 @@ Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images
 > **Note:** As an optional recommendation, coturn server can be used to facilitate NAT traversal
 > and ensure that the WebRTC stream is accessible on a non-native browser client and helps in
 > cases where firewall is enabled. See example usage of coturn server in WebRTC streaming
-> [here](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-vision)
+> [here](https://github.com/open-edge-platform/edge-ai-suites/tree/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-vision)
 
 Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
 ```sh

@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/sample-applications/chat-question-and-answer">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/sample-applications/chat-question-and-answer/README.md">
      Readme
   </a>
 </div>
@@ -31,7 +31,7 @@ Key features include:
 [optimized](./benchmarks) to run efficiently on Intel® Edge AI systems hardware, ensuring
 high performance and reliability.
 - **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI
-[inference microservices](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices)
+[inference microservices](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices)
 allow developers to customize and adapt specific parts of the application to suit their
 deployment and usage needs. For example, developers can customize the data ingestion process
 for specific document types without altering the rest of the RAG pipeline. Intel's inference
@@ -64,7 +64,7 @@ microservice are the options provided to run embedding models efficiently on tar
 hardware. OVMS is the default option due to performance benefits on Intel hardware.
 - **Reranking inference microservice**: Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference)
 microservice is the model serving choice available.
-- **Document ingestion microservice**: The sample [document ingestion](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/document-ingestion/pgvector)
+- **Document ingestion microservice**: The sample [document ingestion](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices/document-ingestion/pgvector)
 microservice allows ingestion of common document formats like PDF and DOC, and contents from
 web links. It supports a REST endpoint to ingest the documents. The ingestion process creates
 embeddings of the documents and stores them in the preferred vector database. The modular

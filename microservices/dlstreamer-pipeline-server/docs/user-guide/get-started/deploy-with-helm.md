@@ -23,7 +23,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 ### Pull the helm chart (Optional)
 
 > **Note:** The helm chart should be downloaded when you are not using the helm chart provided
-> the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server/helm).
+> the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices/dlstreamer-pipeline-server/helm).
 
 - Download helm chart with the following command
 
@@ -130,7 +130,7 @@ Now you have successfully run the DL Streamer Pipeline Server container, sent a 
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](../index.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](../advanced-guide.md)
--   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html).
+-   For more details on Deep Learning Streamer (DL Streamer) visit [its page](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/index.html).
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.

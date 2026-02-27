@@ -43,7 +43,7 @@ also for naming the image that gets built.
     ```
 
 > **Note:** If you do not have access to the above mentioned `BASE_IMAGE`, then you can build
-> [DL Streamer docker image from source](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/advanced_install/advanced_build_docker_image.html)
+> [DL Streamer docker image from source](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/dev_guide/advanced_install/advanced_build_docker_image.html)
 > and use it as `BASE_IMAGE` in the above mentioned `.env` file.
 
 ### Build DL Streamer Pipeline Server image and start container

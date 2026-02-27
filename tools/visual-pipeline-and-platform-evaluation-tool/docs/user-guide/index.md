@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/README.md">
      Readme
   </a>
 </div>
@@ -52,9 +52,9 @@ performance under controlled conditions.
 
 - [System Requirements](./get-started/system-requirements)
 - [Get Started](./get-started)
-- [How to Build Source](./get-started/how-to-build-source)
+- [Build from Source](./get-started/build-from-source)
 - [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
-- [How to use Video Generator](./how-to-guides/how-to-use-video-generator)
+- [How to use Video Generator](./how-to-guides/use-video-generator)
 - [Release Notes](./release-notes)
 
 <!--hide_directive

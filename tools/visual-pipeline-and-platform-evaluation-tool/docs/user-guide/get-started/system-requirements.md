@@ -61,4 +61,4 @@ script, which detects available devices and installs the required drivers. Follo
 
 ## Validation
 
-- Ensure all dependencies are installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all dependencies are installed and configured before proceeding to [Get Started](../get-started.md).

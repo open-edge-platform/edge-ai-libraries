@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/fieldbus/robotmctask">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md">
      Readme
   </a>
 </div>
@@ -15,7 +15,7 @@ hide_directive-->
 
 **Robotmctask** is a comprehensive C++ library designed for robot motion control task development. It provides APIs that enable robot developers to build sophisticated robot applications with integrated AI inference engines and EtherCAT protocol support.
 
-# Key Features:
+## Key Features
 
 - **PLCOpen Compliance:** Support for PLCOpen motion control function blocks
 - **Multi-Task Support:** Concurrent handling of multiple motion control tasks
@@ -27,7 +27,7 @@ hide_directive-->
 
 The architecture is as following:
 
-![Robot Motion Control Architecture](images/arch.png)
+![Robot Motion Control Architecture](./images/arch.png)
 
 Two key blocks have been introduced to support the core architecture:
 
@@ -48,7 +48,7 @@ Two key blocks have been introduced to support the core architecture:
 
 The following diagram illustrates a typical fieldbus topology for humanoid robot applications:
 
-![Humanoid Robot Network Topology](images/Humanoid_Robot_Topology.png)
+![Humanoid Robot Network Topology](./images/Humanoid_Robot_Topology.png)
 
 
 ## Getting Started
@@ -58,13 +58,13 @@ The software runs on standard PCs or servers. Since it is primarily developed in
 
 ### Running
 
-Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
+Please check [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/fieldbus/robotmctask/README.md) file for details.
 
 ### Examples
 
 One example using Robot Motion Control Task is provided.
 
-* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
+* [mc_rl_sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/libraries/edge-control-libraries/fieldbus/robotmctask/examples):
 A comprehensive demonstration showcasing:
 
     - **Multi-Topology Configuration:** Robot task setup with multiple topologies using different ENI files
@@ -74,8 +74,8 @@ A comprehensive demonstration showcasing:
     - **Dual Arm Integration:** Joint state publishing via shared memory for VLA(Vision-Language-Action) models or simulator integration
     - **Custom Motion Algorithms:** Leg control with registered callbacks for customized motion algorithms and inference pipelines
 
-![robot_rviz](images/robot_rviz.gif)
+![robot_rviz](./images/robot_rviz.gif)
 
 ## License
 
-The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details.
+The source code is licensed under Apache License . See [LICENSE](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/fieldbus/robotmctask/LICENSE) file for details.

@@ -23,7 +23,7 @@ cameras and multi-threaded processing.
 
 ### System Requirements
 
-Prepare the target system following the [official documentation](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/gsg_robot/prepare-system.html).
+Prepare the target system following the [official documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html).
 
 **Intel oneAPI Requirements:**
 - Intel oneAPI 2025.3 with SYCL compiler support
@@ -122,11 +122,11 @@ tests                Run tests inside Docker container. Be aware that some of th
 
 The GPU ORB Extractor library provides tutorials and usage guides supporting both OpenCV-based and OpenCV-free workflows.
 
-For detailed usage instructions and pre-requisites, refer to the [ORB Extractor Overview](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/package-use.html).
+For detailed usage instructions and pre-requisites, refer to the [ORB Extractor Overview](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/package-use.html).
 
 ## Documentation
 
-- [API Usage](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/api-use.html)
-- [OpenCV-free Usage](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/orbocvfree-use.html)
-- [Limitations](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/limitation.html)
-For more details, see the GPU ORB Extractor [index page](https://docs.openedgeplatform.intel.com/edge-ai-suites/robotics-ai-suite/main/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html).
+- [API Usage](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/api-use.html)
+- [OpenCV-free Usage](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/orbocvfree-use.html)
+- [Limitations](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/limitation.html)
+For more details, see the GPU ORB Extractor [index page](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html).

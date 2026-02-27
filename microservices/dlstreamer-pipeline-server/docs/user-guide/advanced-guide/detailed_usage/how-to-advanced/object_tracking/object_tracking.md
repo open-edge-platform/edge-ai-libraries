@@ -20,7 +20,7 @@ There are several tracking types supported, for example `short-term-imageless`, 
 detection to be run on every frame.
 
 More details object tracking, tracking types, performance considerations, examples can be
-found in the DL Streamer [Object Tracking](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/object_tracking.html) guide.
+found in the DL Streamer [Object Tracking](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/dev_guide/object_tracking.html) guide.
 
 ## Usage
 

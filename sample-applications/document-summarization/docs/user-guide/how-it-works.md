@@ -73,5 +73,5 @@ The following figure shows the data flow:
 
 ## References
 
-- [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/README.md)
-- [config.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/app/config.py) - for environment/config management
+- [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/sample-applications/document-summarization/README.md)
+- [config.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/sample-applications/document-summarization/app/config.py) - for environment/config management
