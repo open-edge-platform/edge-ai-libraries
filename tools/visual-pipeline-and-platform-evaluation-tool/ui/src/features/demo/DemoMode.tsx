@@ -2247,6 +2247,7 @@ const DemoMode = () => {
                                               "Converter",
                                               "Caps",
                                               "Splitter",
+                                              "Sink",
                                             ];
                                             return !hiddenTags.includes(
                                               nodeTag ?? "",
