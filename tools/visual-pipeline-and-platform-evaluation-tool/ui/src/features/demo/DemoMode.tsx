@@ -1735,137 +1735,108 @@ const DemoMode = () => {
                 </div>
               );
 
-              const previewSection = (
-                <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col h-full max-h-[600px] overflow-hidden ${colors.gridPreviewBorder}`}
-                >
-                  <p
-                    className={`text-sm uppercase font-bold tracking-wider mb-3 ${colors.gridPreviewTitle}`}
-                  >
-                    Preview
-                  </p>
-                  <div className="flex-1 overflow-hidden relative">
-                    {/* Show live preview during running test */}
-                    {performanceJobId &&
-                    performanceResult?.live_stream_urls &&
-                    Object.keys(performanceResult.live_stream_urls).length > 0
-                      ? (() => {
-                          const previewsPerPage = 2;
-                          const totalPreviewPages = Math.ceil(
-                            pipelineSelections.length / previewsPerPage,
-                          );
-                          const startIdx =
-                            previewCarouselIndex * previewsPerPage;
-                          const endIdx = startIdx + previewsPerPage;
-                          const visiblePreviews = pipelineSelections.slice(
-                            startIdx,
-                            endIdx,
-                          );
+              const livePreviewContent =
+                performanceJobId &&
+                performanceResult?.live_stream_urls &&
+                Object.keys(performanceResult.live_stream_urls).length > 0 ? (
+                  (() => {
+                    const previewsPerPage = 2;
+                    const totalPreviewPages = Math.ceil(
+                      pipelineSelections.length / previewsPerPage,
+                    );
+                    const startIdx = previewCarouselIndex * previewsPerPage;
+                    const endIdx = startIdx + previewsPerPage;
+                    const visiblePreviews = pipelineSelections.slice(
+                      startIdx,
+                      endIdx,
+                    );
 
-                          return (
-                            <div className="relative h-full">
-                              <div className="grid grid-cols-2 gap-3 h-full">
-                                {visiblePreviews.map((selection, localIdx) => {
-                                  const pipeline = pipelines.find(
-                                    (p) => p.id === selection.pipelineId,
-                                  );
-                                  // Calculate global index in pipelineSelections
-                                  const globalIdx = startIdx + localIdx;
-                                  // Get stream spec by index (API returns them in order)
-                                  const streamSpec =
-                                    performanceJobStatus
-                                      ?.streams_per_pipeline?.[globalIdx];
-                                  const streamUrl = streamSpec?.id
-                                    ? performanceResult?.live_stream_urls?.[
-                                        streamSpec.id
-                                      ]
-                                    : null;
+                    return (
+                      <div className="relative rounded-lg border border-slate-400/30 p-3 bg-slate-950/30 mb-3">
+                        <div className="grid grid-cols-2 gap-3 min-h-[280px]">
+                          {visiblePreviews.map((selection, localIdx) => {
+                            const pipeline = pipelines.find(
+                              (p) => p.id === selection.pipelineId,
+                            );
+                            const globalIdx = startIdx + localIdx;
+                            const streamSpec =
+                              performanceJobStatus?.streams_per_pipeline?.[
+                                globalIdx
+                              ];
+                            const streamUrl = streamSpec?.id
+                              ? performanceResult?.live_stream_urls?.[
+                                  streamSpec.id
+                                ]
+                              : null;
 
-                                  return (
-                                    <div
-                                      key={selection.pipelineId}
-                                      className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col h-full"
-                                    >
-                                      <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                        {pipeline?.name || "Unknown Pipeline"}
-                                      </p>
-                                      <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden">
-                                        <div className="w-full h-full">
-                                          {streamUrl ? (
-                                            <WebRTCVideoPlayer
-                                              streamUrl={streamUrl}
-                                            />
-                                          ) : (
-                                            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                                              Waiting for stream...
-                                            </div>
-                                          )}
-                                        </div>
+                            return (
+                              <div
+                                key={selection.pipelineId}
+                                className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col"
+                              >
+                                <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                  {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
+                                </p>
+                                <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[220px]">
+                                  <div className="w-full h-full">
+                                    {streamUrl ? (
+                                      <WebRTCVideoPlayer streamUrl={streamUrl} />
+                                    ) : (
+                                      <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                                        Waiting for stream...
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Carousel navigation buttons */}
-                              {totalPreviewPages > 1 && (
-                                <>
-                                  <button
-                                    onClick={() =>
-                                      setPreviewCarouselIndex((prev) =>
-                                        Math.max(0, prev - 1),
-                                      )
-                                    }
-                                    disabled={previewCarouselIndex === 0}
-                                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                  >
-                                    <ChevronLeft className="w-5 h-5 text-slate-200" />
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      setPreviewCarouselIndex((prev) =>
-                                        Math.min(
-                                          totalPreviewPages - 1,
-                                          prev + 1,
-                                        ),
-                                      )
-                                    }
-                                    disabled={
-                                      previewCarouselIndex >=
-                                      totalPreviewPages - 1
-                                    }
-                                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                                  >
-                                    <ChevronRight className="w-5 h-5 text-slate-200" />
-                                  </button>
-
-                                  {/* Dots indicator */}
-                                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                    {Array.from({
-                                      length: totalPreviewPages,
-                                    }).map((_, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() =>
-                                          setPreviewCarouselIndex(idx)
-                                        }
-                                        className={`w-2 h-2 rounded-full transition-all ${
-                                          idx === previewCarouselIndex
-                                            ? "bg-blue-500 w-6"
-                                            : "bg-slate-600 hover:bg-slate-500"
-                                        }`}
-                                      />
-                                    ))}
+                                    )}
                                   </div>
-                                </>
-                              )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {totalPreviewPages > 1 && (
+                          <>
+                            <button
+                              onClick={() =>
+                                setPreviewCarouselIndex((prev) =>
+                                  Math.max(0, prev - 1),
+                                )
+                              }
+                              disabled={previewCarouselIndex === 0}
+                              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                            >
+                              <ChevronLeft className="w-5 h-5 text-slate-200" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                setPreviewCarouselIndex((prev) =>
+                                  Math.min(totalPreviewPages - 1, prev + 1),
+                                )
+                              }
+                              disabled={previewCarouselIndex >= totalPreviewPages - 1}
+                              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                            >
+                              <ChevronRight className="w-5 h-5 text-slate-200" />
+                            </button>
+
+                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                              {Array.from({ length: totalPreviewPages }).map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => setPreviewCarouselIndex(idx)}
+                                  className={`w-2 h-2 rounded-full transition-all ${
+                                    idx === previewCarouselIndex
+                                      ? "bg-blue-500 w-6"
+                                      : "bg-slate-600 hover:bg-slate-500"
+                                  }`}
+                                />
+                              ))}
                             </div>
-                          );
-                        })()
-                      : null}
-                  </div>
-                </div>
-              );
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : null;
 
               const pipelineConfigSection = (
                 <div
@@ -2579,43 +2550,50 @@ const DemoMode = () => {
                 <div
                   className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
                 >
-                  <p
-                    className={`text-sm uppercase font-bold tracking-wider mb-3 flex-shrink-0 ${colors.gridResultsTitle}`}
-                  >
-                    {lastRunTest === "performance-test" &&
-                    performanceJobStatus?.state === "RUNNING"
-                      ? "Test Status: RUNNING"
-                      : lastRunTest === "density-test" &&
-                          jobStatus?.state === "RUNNING"
+                  <div className="mb-3 flex-shrink-0">
+                    <p
+                      className={`text-sm uppercase font-bold tracking-wider ${colors.gridResultsTitle}`}
+                    >
+                      {lastRunTest === "performance-test" &&
+                      performanceJobStatus?.state === "RUNNING"
                         ? "Test Status: RUNNING"
-                        : "Test Summary"}
-                  </p>
+                        : lastRunTest === "density-test" &&
+                            jobStatus?.state === "RUNNING"
+                          ? "Test Status: RUNNING"
+                          : "Test Summary"}
+                    </p>
+                    {lastRunTest === "performance-test" &&
+                      performanceJobStatus?.state === "RUNNING" && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div
+                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                            ></div>
+                            <div
+                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                              style={{ animationDelay: "0.1s" }}
+                            ></div>
+                            <div
+                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                              style={{ animationDelay: "0.2s" }}
+                            ></div>
+                          </div>
+                          <p className="text-xs text-neutral-300">
+                            Running throughput test...
+                          </p>
+                        </div>
+                      )}
+                  </div>
 
                   <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     {lastRunTest === "performance-test" ? (
                       <div className="space-y-3">
+                        {livePreviewContent}
+
                         {performanceJobId && performanceJobStatus && (
                           <div className="space-y-2">
                             {performanceJobStatus.state === "RUNNING" && (
                               <div>
-                                <div className="mb-2 flex items-center gap-2">
-                                  <div className="flex gap-1">
-                                    <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                    ></div>
-                                    <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                      style={{ animationDelay: "0.1s" }}
-                                    ></div>
-                                    <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
-                                      style={{ animationDelay: "0.2s" }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-neutral-300 text-xs">
-                                    Running throughput test...
-                                  </span>
-                                </div>
                                 <TestProgressIndicator
                                   key={performanceJobId || testStartTimestamp}
                                 />
@@ -2906,14 +2884,9 @@ const DemoMode = () => {
                         </div>
                       </div>
 
-                      {/* Prawa kolumna - preview większy, test niżej */}
-                      <div className="flex flex-col gap-6 h-full overflow-hidden">
-                        <div className="flex-[0.35] flex-shrink-0">
-                          {previewSection}
-                        </div>
-                        <div className="flex-[1.65] flex flex-col min-h-0 overflow-hidden">
-                          {resultsSection}
-                        </div>
+                      {/* Prawa kolumna - jeden kontener z preview i statusem */}
+                      <div className="flex flex-col h-full overflow-hidden">
+                        {resultsSection}
                       </div>
                     </div>
                   </div>
