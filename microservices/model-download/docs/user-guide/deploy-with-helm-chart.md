@@ -1,4 +1,4 @@
-# How to Deploy with Helm Chart
+# Deploy with Helm Chart
 
 This section shows how to deploy Model Download using Helm chart.
 
