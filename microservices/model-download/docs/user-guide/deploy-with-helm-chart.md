@@ -1,71 +1,66 @@
-# How to deploy with Helm
+# How to Deploy with Helm Chart
 
-This guide provides step-by-step instructions for deploying the Model-Download Microservice using Helm.
+This section shows how to deploy Model Download using Helm chart.
 
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
 - Kubernetes cluster set up and running.
-- The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
-- Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
-- Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
+- The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. See [Kubernetes Documentation on Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for details.
+- Install `kubectl` on your system. See [Kubernetes Documentation on Tool Installation](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
+- Helm chart installed on your system: See [Installing Helm](https://helm.sh/docs/intro/install/).
 
-## Steps to deploy with Helm
+## Deploy with Helm Chart
 
-Following steps should be followed to deploy Model-Download using Helm. You can install from source code or pull the chart from Docker hub.
-
-**_Steps 1 to 2 varies depending on if the user prefers to build or pull the Helm details._**
+To deploy with Helm chart, you can either install the chart from Docker hub or from source.
 
 ### Option 1: Install from Docker Hub
 
-#### Step 1: Pull the Specific Chart
+1. Pull the specific chart
 
-Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
+   Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
 
-```bash
-helm pull oci://registry-1.docker.io/intel/model-download-chart --version <version-no>
-```
+   ```bash
+   helm pull oci://registry-1.docker.io/intel/model-download-chart --version <version-no>
+   ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
+   See the [Docker hub's tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
 
-#### Step 2: Extract the `.tgz` File
+2. Extract the `.tgz` file
 
-After pulling the chart, extract the `.tgz` file:
-```bash
-tar -xvf model-download-chart-<version-no>.tgz
-```
+   Extract the `.tgz` file:
+   ```bash
+   tar -xvf model-download-chart-<version-no>.tgz
+   ```
 
-This will create a directory named `model-download-chart` containing the chart files. Navigate to the extracted directory.
-```bash
-cd model-download-chart
-```
+3. This will create a directory named `model-download-chart`, containing the chart files. Navigate to the extracted directory:
+   
+   ```bash
+   cd model-download-chart
+   ```
 
 ### Option 2: Install from Source
 
-#### Step 1: Clone the Repository
+1. Clone the repository containing the Helm chart:
 
-*Clone the repository containing the Helm chart*:
-```bash
-# Clone the latest on mainline
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-```
+   ```bash
+   # Clone the latest on the mainline
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, clone a specific release branch
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   ```
 
-#### Step 2: Change to the Chart Directory
+2. Navigate to the chart directory:
 
-Navigate to the chart directory:
-```bash
-cd edge-ai-libraries/microservices/model-download/chart
-```
+   ```bash
+   cd edge-ai-libraries/microservices/model-download/chart
+   ```
 
-## Common Steps
+## Configure the `values.yaml` File
 
-### Step 3: Configure the `values.yaml` File
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Set your proxy settings as required.
 
-Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the proxy settings as required
-
-Below is a summary of key configuration options available in the `values.yaml` file:
+The following is a summary of key configuration options available in the `values.yaml` file:
 
 | Parameter           | Description                                 | Example Value            | Required |
 |---------------------|---------------------------------------------|--------------------------|----------|
@@ -81,49 +76,48 @@ Below is a summary of key configuration options available in the `values.yaml` f
 | `image.tag`	        | latest image tag	    | latest            | Yes |
 
 
-> **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.
+> **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
 
-### Step 4: Deploy the Helm Chart
-
-Deploy the Model-Download Helm chart:
+## Deploy the Helm Chart
 
 ```bash
 helm install model-download . -n <your-namespace>
 ```
 
-### Step 5: Verify the Deployment
+## Verify the Deployment
 
-Check the status of the deployed resources to ensure everything is running correctly
+Check the status of the deployed resources to ensure everything is running correctly:
 
 ```bash
 kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 6: Access the Application
+## Access the Application
 
-Open the application swagger documentation in a browser at `http://<node-ip>:<node-port>/api/v1/docs`
+Open the application's Swagger documentation in a browser through `http://<node-ip>:<node-port>/api/v1/docs`.
 
-### Step 7: Uninstall Helm chart
-
-To uninstall helm charts deployed, use the following command:
+## Uninstall Helm chart
 
 ```bash
 helm uninstall <name> -n <your-namespace>
 ```
 
-## Verification
+## Verify the Application
 
-- Ensure that all pods are running and the services are accessible.
-- Access the application dashboard and verify that it is functioning as expected.
+1. Ensure that all pods are running and the services are accessible.
+
+2. Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
+
   ```bash
   kubectl logs <pod-name>
   ```
-- If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, it must be deleted manually using the following commands:
+- If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, delete it manually:
+
   ```bash
   # List the PVCs present in the given namespace
   kubectl get pvc -n <namespace>
@@ -132,6 +126,6 @@ helm uninstall <name> -n <your-namespace>
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 
-## Related links
+## Learn More
 
-- [How to Build from Source](./build-from-source.md)
+- [Build from Source](./build-from-source.md)
