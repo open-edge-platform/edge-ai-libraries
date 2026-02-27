@@ -152,17 +152,21 @@ class SupportedModelsManager:
                     return value
 
                 for idx, entry in enumerate(models_yaml):
-                    # Validate and extract required fields
+                    # Validate and extract top-level required fields
                     name = require_str_field(entry, "name", idx)
                     display_name = require_str_field(entry, "display_name", idx)
                     source = require_str_field(entry, "source", idx)
                     model_type = require_str_field(entry, "type", idx)
-                    model_path = require_str_field(entry, "model_path", idx)
-                    model_proc = entry.get("model_proc", None)
                     unsupported_devices = entry.get("unsupported_devices", None)
-                    precision = entry.get("precision", None)
                     default = entry.get("default", False)
                     extra_model_procs = entry.get("extra_model_procs", None)
+
+                    # Validate precisions list
+                    precisions = entry.get("precisions")
+                    if not isinstance(precisions, list) or len(precisions) == 0:
+                        raise ValueError(
+                            f"Missing or invalid required field 'precisions' in supported model entry at index {idx}."
+                        )
 
                     # Check if extra_model_procs exists and is a non-empty list
                     has_extra_procs = (
@@ -171,70 +175,75 @@ class SupportedModelsManager:
                         and len(extra_model_procs) > 0
                     )
 
-                    # Determine if we need to modify the name/display_name for variants
-                    should_modify_for_variant = (
-                        has_extra_procs and model_proc and model_proc.strip()
-                    )
+                    for prec_entry in precisions:
+                        precision = require_str_field(prec_entry, "precision", idx)
+                        model_path = require_str_field(prec_entry, "model_path", idx)
+                        model_proc = prec_entry.get("model_proc", None)
 
-                    # Set name and display_name based on whether this is a variant
-                    if should_modify_for_variant:
-                        proc_filename = os.path.splitext(os.path.basename(model_proc))[
-                            0
-                        ]
-                        model_name = f"{name}_{proc_filename}"
-                        model_display_name = (
-                            f"{display_name} [model-proc: {proc_filename}]"
+                        # Append precision suffix to display_name for clarity
+                        prec_display_name = f"{display_name} ({precision})"
+
+                        # Determine if we need to modify the name/display_name for variants
+                        should_modify_for_variant = (
+                            has_extra_procs and model_proc and model_proc.strip()
                         )
-                    else:
-                        model_name = name
-                        model_display_name = display_name
 
-                    # Add the base model
-                    self._models.append(
-                        SupportedModel(
-                            name=model_name,
-                            display_name=model_display_name,
-                            source=source,
-                            model_type=model_type,
-                            model_path=model_path,
-                            model_proc=model_proc,
-                            unsupported_devices=unsupported_devices,
-                            precision=precision,
-                            default=default,
+                        # Set name and display_name based on whether this is a variant
+                        if should_modify_for_variant:
+                            proc_filename = os.path.splitext(
+                                os.path.basename(model_proc)
+                            )[0]
+                            model_name = f"{name}_{proc_filename}"
+                            model_display_name = (
+                                f"{prec_display_name} [model-proc: {proc_filename}]"
+                            )
+                        else:
+                            model_name = name
+                            model_display_name = prec_display_name
+
+                        # Add the base model for this precision
+                        self._models.append(
+                            SupportedModel(
+                                name=model_name,
+                                display_name=model_display_name,
+                                source=source,
+                                model_type=model_type,
+                                model_path=model_path,
+                                model_proc=model_proc,
+                                unsupported_devices=unsupported_devices,
+                                precision=precision,
+                                default=default,
+                            )
                         )
-                    )
 
-                    # If extra_model_procs is provided and is a list, create duplicate entries
-                    if has_extra_procs:
-                        for extra_proc in extra_model_procs:
-                            if (
-                                extra_proc
-                                and isinstance(extra_proc, str)
-                                and extra_proc.strip()
-                            ):
-                                # Create a duplicate with modified model_proc and display_name
-                                # Note: extra_model_procs contains full absolute paths, not relative paths
-                                # Extract the filename without extension from the extra_proc path
-                                proc_filename = os.path.splitext(
-                                    os.path.basename(extra_proc)
-                                )[0]
-                                model_display_name = (
-                                    f"{display_name} [model-proc: {proc_filename}]"
-                                )
-                                self._models.append(
-                                    SupportedModel(
-                                        name=f"{name}_{proc_filename}",
-                                        display_name=model_display_name,
-                                        source=source,
-                                        model_type=model_type,
-                                        model_path=model_path,
-                                        model_proc=extra_proc,
-                                        unsupported_devices=unsupported_devices,
-                                        precision=precision,
-                                        default=False,  # Variants are not default
-                                        model_proc_is_full_path=True,  # extra_model_procs contains full paths
+                        # If extra_model_procs is provided, create additional entries for this precision
+                        if has_extra_procs:
+                            for extra_proc in extra_model_procs:
+                                if (
+                                    extra_proc
+                                    and isinstance(extra_proc, str)
+                                    and extra_proc.strip()
+                                ):
+                                    # Note: extra_model_procs contains full absolute paths, not relative paths
+                                    # Extract the filename without extension from the extra_proc path
+                                    proc_filename = os.path.splitext(
+                                        os.path.basename(extra_proc)
+                                    )[0]
+                                    extra_display_name = f"{prec_display_name} [model-proc: {proc_filename}]"
+                                    self._models.append(
+                                        SupportedModel(
+                                            name=f"{name}_{proc_filename}",
+                                            display_name=extra_display_name,
+                                            source=source,
+                                            model_type=model_type,
+                                            model_path=model_path,
+                                            model_proc=extra_proc,
+                                            unsupported_devices=unsupported_devices,
+                                            precision=precision,
+                                            default=False,  # Variants are not default
+                                            model_proc_is_full_path=True,  # extra_model_procs contains full paths
+                                        )
                                     )
-                                )
 
         except Exception as e:
             # Raise a descriptive error if the file cannot be read or parsed
@@ -399,21 +408,31 @@ class SupportedModelsManager:
         """
         Finds an installed model by its model path and, if provided, by its model_proc_path.
 
-        If model_proc_path is given and not empty, returns only a model variant that matches
-        both the model filename and the model-proc filename. If no such variant exists, returns None.
-        If model_proc_path is None or empty, returns the first model matching just the model filename.
+        Models are stored at paths with the structure:
+            {source}/{model_name}/{precision_dir}/{filename}.xml
+        where precision_dir is e.g. 'INT8', 'FP16', 'FP32', 'FP16-INT8'.
+
+        Matching is performed in two steps:
+        1. Match by filename (e.g. 'yolov10s.xml').
+        2. Narrow down by the precision directory (parent dir of the file, e.g. 'INT8').
+           If the precision directory extracted from model_path is non-empty and any candidates
+           match it, the result is restricted to those candidates.
+        3. Optionally match by model_proc filename if model_proc_path is provided.
 
         Args:
-            model_path (str): The path to the model file.
+            model_path (str): The path to the model file (full or relative).
             model_proc_path (Optional[str]): The path to the model-proc file, or None.
 
         Returns:
             Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
         """
-        # Extract the model filename from the provided path
+        # Extract the model filename and precision directory from the provided path.
+        # Model paths follow the pattern: .../precision_dir/filename.xml
+        # e.g. /models/output/public/yolov10s/INT8/yolov10s.xml  -> precision_dir = 'INT8'
         model_filename = os.path.basename(model_path)
+        model_precision_dir = os.path.basename(os.path.dirname(model_path))
 
-        # Find all models matching the model filename
+        # Step 1: find all installed models matching the filename
         matching_models = [
             model
             for model in self._models
@@ -424,7 +443,21 @@ class SupportedModelsManager:
         if not matching_models:
             return None
 
-        # If model_proc_path is specified, try to find a variant with matching model_proc filename
+        # Step 2: narrow down by precision directory name
+        if model_precision_dir:
+            precision_matching = [
+                model
+                for model in matching_models
+                if os.path.basename(os.path.dirname(model.model_path))
+                == model_precision_dir
+            ]
+            if precision_matching:
+                matching_models = precision_matching
+                logger.debug(
+                    f"Narrowed to {len(matching_models)} model(s) by precision dir '{model_precision_dir}'"
+                )
+
+        # Step 3: if model_proc_path is specified, find a variant with a matching proc filename
         if model_proc_path is not None and model_proc_path.strip():
             for model in matching_models:
                 if model.model_proc_full and os.path.basename(
@@ -436,5 +469,6 @@ class SupportedModelsManager:
                 f"No matching model variant found for model-proc: {model_proc_path}"
             )
             return None
-        # Return the first matching model
+
+        # Return the first (best) matching model
         return matching_models[0]

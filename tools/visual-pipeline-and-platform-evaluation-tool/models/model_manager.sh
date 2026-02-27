@@ -14,6 +14,9 @@ fi
 # Script to manage installation/removal of models using dialog.
 # Requires: dialog, yq, supported_models.yaml
 
+# Set QUANTIZE_DATASET from environment variable, fallback to coco128 if not set
+QUANTIZE_DATASET="${QUANTIZE_DATASET:-coco128}"
+
 # Set SUPPORTED_MODELS_FILE from environment variable, fallback to default if not set
 SUPPORTED_MODELS_FILE="${SUPPORTED_MODELS_FILE:-/models/supported_models.yaml}"
 MODEL_MANAGER_TMP_DIR="/tmp/model_manager"
@@ -79,7 +82,7 @@ function cleanup_and_exit {
 download_public_models() {
     local models="$1"
     echo "Installing public models: $models"
-    if ! bash /opt/intel/dlstreamer/samples/download_public_models.sh "$models"; then
+    if ! bash /opt/intel/dlstreamer/samples/download_public_models.sh "$models" "${QUANTIZE_DATASET}"; then
         echo "Error: Failed to download public models: $models"
         cleanup_and_exit 14
     fi
