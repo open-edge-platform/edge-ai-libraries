@@ -4932,7 +4932,7 @@ class TestUnifyModelInstanceIds(unittest.TestCase):
         self.assertEqual(len(unique_ids), 4)
 
 
-class TestStripWatermarkIfAllSinksAreFake:
+class TestStripWatermarkIfAllSinksAreFake(unittest.TestCase):
     """Tests for Graph.strip_watermark_if_all_sinks_are_fake()."""
 
     def test_removes_watermark_when_all_sinks_are_fakesink(self):
@@ -4953,13 +4953,13 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         # gvawatermark node should be removed
         result_types = {n.type for n in result.nodes}
-        assert "gvawatermark" not in result_types
-        assert len(result.nodes) == 2
+        self.assertNotIn("gvawatermark", result_types)
+        self.assertEqual(len(result.nodes), 2)
 
         # Edge should reconnect: filesrc -> fakesink
-        assert len(result.edges) == 1
-        assert result.edges[0].source == "0"
-        assert result.edges[0].target == "2"
+        self.assertEqual(len(result.edges), 1)
+        self.assertEqual(result.edges[0].source, "0")
+        self.assertEqual(result.edges[0].target, "2")
 
     def test_returns_self_when_not_all_sinks_are_fakesink(self):
         """Graph should be returned unchanged if any sink is not fakesink."""
@@ -4979,7 +4979,7 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert result is graph  # same object, not a copy
+        self.assertIs(result, graph)  # same object, not a copy
 
     def test_returns_self_when_no_sinks(self):
         """Graph should be returned unchanged if there are no sink nodes at all."""
@@ -4995,7 +4995,7 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert result is graph
+        self.assertIs(result, graph)
 
     def test_returns_self_when_output_placeholder_present(self):
         """Graph should be returned unchanged if OUTPUT_PLACEHOLDER node exists."""
@@ -5015,7 +5015,7 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert result is graph
+        self.assertIs(result, graph)
 
     def test_returns_self_when_no_watermark_nodes(self):
         """Graph should be returned unchanged if there are no gvawatermark nodes."""
@@ -5031,7 +5031,7 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert result is graph
+        self.assertIs(result, graph)
 
     def test_removes_multiple_watermark_nodes(self):
         """All gvawatermark nodes should be removed when every sink is fakesink."""
@@ -5054,13 +5054,13 @@ class TestStripWatermarkIfAllSinksAreFake:
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
         result_types = [n.type for n in result.nodes]
-        assert "gvawatermark" not in result_types
-        assert len(result.nodes) == 3  # filesrc, queue, fakesink
+        self.assertNotIn("gvawatermark", result_types)
+        self.assertEqual(len(result.nodes), 3)  # filesrc, queue, fakesink
 
         # Verify connectivity: filesrc -> queue -> fakesink
         edges_by_source = {e.source: e.target for e in result.edges}
-        assert edges_by_source["0"] == "2"  # filesrc -> queue
-        assert edges_by_source["2"] == "4"  # queue -> fakesink
+        self.assertEqual(edges_by_source["0"], "2")  # filesrc -> queue
+        self.assertEqual(edges_by_source["2"], "4")  # queue -> fakesink
 
     def test_reconnects_fan_out_edges(self):
         """Removing a watermark with multiple outgoing edges should reconnect all targets."""
@@ -5080,13 +5080,13 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert len(result.nodes) == 3
-        assert len(result.edges) == 2
+        self.assertEqual(len(result.nodes), 3)
+        self.assertEqual(len(result.edges), 2)
 
         targets = {e.target for e in result.edges}
         sources = {e.source for e in result.edges}
-        assert targets == {"2", "3"}
-        assert sources == {"0"}
+        self.assertEqual(targets, {"2", "3"})
+        self.assertEqual(sources, {"0"})
 
     def test_reconnects_fan_in_edges(self):
         """Removing a watermark with multiple incoming edges should reconnect all sources."""
@@ -5106,12 +5106,12 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert len(result.nodes) == 3
-        assert len(result.edges) == 2
+        self.assertEqual(len(result.nodes), 3)
+        self.assertEqual(len(result.edges), 2)
 
         sources = {e.source for e in result.edges}
-        assert sources == {"0", "1"}
-        assert all(e.target == "3" for e in result.edges)
+        self.assertEqual(sources, {"0", "1"})
+        self.assertTrue(all(e.target == "3" for e in result.edges))
 
     def test_does_not_modify_original_graph(self):
         """The original graph should not be modified when watermark is removed."""
@@ -5130,13 +5130,13 @@ class TestStripWatermarkIfAllSinksAreFake:
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
         # Original should still have gvawatermark
-        assert len(graph.nodes) == 3
-        assert any(n.type == "gvawatermark" for n in graph.nodes)
-        assert len(graph.edges) == 2
+        self.assertEqual(len(graph.nodes), 3)
+        self.assertTrue(any(n.type == "gvawatermark" for n in graph.nodes))
+        self.assertEqual(len(graph.edges), 2)
 
         # Result should not
-        assert len(result.nodes) == 2
-        assert not any(n.type == "gvawatermark" for n in result.nodes)
+        self.assertEqual(len(result.nodes), 2)
+        self.assertFalse(any(n.type == "gvawatermark" for n in result.nodes))
 
     def test_multiple_fakesinks_all_fake(self):
         """Watermark removed when there are multiple fakesinks and nothing else."""
@@ -5158,9 +5158,9 @@ class TestStripWatermarkIfAllSinksAreFake:
 
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
-        assert "gvawatermark" not in {n.type for n in result.nodes}
-        assert len(result.nodes) == 4
-        assert len(result.edges) == 3
+        self.assertNotIn("gvawatermark", {n.type for n in result.nodes})
+        self.assertEqual(len(result.nodes), 4)
+        self.assertEqual(len(result.edges), 3)
 
     def test_edge_ids_are_unique_after_reconnection(self):
         """All edge IDs in the result graph should be unique strings."""
@@ -5181,7 +5181,7 @@ class TestStripWatermarkIfAllSinksAreFake:
         result = graph.strip_watermark_if_all_sinks_are_fake()
 
         edge_ids = [e.id for e in result.edges]
-        assert len(edge_ids) == len(set(edge_ids)), "Edge IDs must be unique"
+        self.assertEqual(len(edge_ids), len(set(edge_ids)), "Edge IDs must be unique")
 
 
 class TestPrepareMainOutputPlaceholder(unittest.TestCase):

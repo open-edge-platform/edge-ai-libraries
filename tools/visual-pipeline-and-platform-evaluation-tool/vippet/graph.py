@@ -730,8 +730,8 @@ class Graph:
             logger.debug("Not all sinks are fakesink, skipping gvawatermark removal")
             return self
 
-        # Check if there are any gvawatermark nodes to remove
-        watermark_ids = {node.id for node in self.nodes if node.type == "gvawatermark"}
+        # Check if there are any gvawatermark nodes to remove.
+        watermark_ids = [node.id for node in self.nodes if node.type == "gvawatermark"]
         if not watermark_ids:
             return self
 
