@@ -5,21 +5,21 @@
 ## Version 1.1.0-rc1
 
 **Release Date**: WW08 2026
-- Updated OpenVINO plugin to support NPU for LLM models
-- Enabled OpenVINO plugin with VLM support.
-- Implemented component-based model conversion for models not supported by Optimum
-- Added new GETI plugin for downloading models from GETI
+- Updated the OpenVINO™ plugin to support NPU for LLM models.
+- Enabled the OpenVINO plugin with VLM support.
+- Implemented component-based model conversion for models not supported by Optimum library.
+- Added a new Geti™ plugin for downloading models from Geti software.
 
 **Known Issues or Behavior**:
-- EMF deployment is not supported right now
+- Intel does not support Edge Manageability Framework deployment currently.
 
 ## Version 1.0.1  
 
 **Release Date**: WW49 2025
-- Enhanced response structure consistency across all plugins
+- Enhanced response structure consistency across all plugins.
 
 **Known Issues or Behavior**:
-- EMF deployment is not supported right now
+- Intel does not support Edge Manageability Framework deployment currently.
 
 
 ## Version: 1.0.0
@@ -34,4 +34,4 @@
 - Streamlines the setup process for users and ensures that all necessary components are available for the chosen plugins.
 
 **Known Issues or Behavior**:
-- EMF deployment is not supported right now
+- Intel does not support Edge Manageability Framework deployment currently.

@@ -89,6 +89,7 @@ services:
     environment:
       - MODELS_PATH=/models/output
       - SUPPORTED_MODELS_FILE=/models/supported_models.yaml
+      - QUANTIZE_DATASET=coco128
       - MODEL_INSTALLATION=${MODEL_INSTALLATION:-once}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
