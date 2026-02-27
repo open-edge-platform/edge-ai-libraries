@@ -339,7 +339,7 @@ export const TestProgressIndicator = ({
                   </span>
                 </>
               )}{" "}
-              Usage Over Time
+              Power Usage Over Time
             </h3>
             <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
@@ -352,13 +352,25 @@ export const TestProgressIndicator = ({
               <div className="flex-1 min-w-0">
                 <MetricChart
                   title=""
-                  data={gpuChartData}
-                  dataKeys={availableEngines}
-                  colors={availableEngines.map((e) => engineColors[e])}
-                  unit="%"
-                  yAxisDomain={[0, 100]}
+                  data={gpuPowerData}
+                  dataKeys={["gpuPower", "pkgPower"]}
+                  colors={[
+                    "var(--color-red-chart)",
+                    "var(--color-yellow-chart)",
+                  ]}
+                  unit=" W"
+                  yAxisDomain={[
+                    0,
+                    Math.max(
+                      ...gpuPowerData.map((d) =>
+                        Math.max(d.gpuPower, d.pkgPower),
+                      ),
+                      50,
+                    ),
+                  ]}
+                  showLegend={true}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
-                  labels={availableEngines.map((e) => engineLabels[e])}
+                  labels={["GPU Power", "Package Power"]}
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
@@ -439,7 +451,7 @@ export const TestProgressIndicator = ({
                   </span>
                 </>
               )}{" "}
-              Power Usage Over Time
+              Usage Over Time
             </h3>
             <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
@@ -452,24 +464,12 @@ export const TestProgressIndicator = ({
               <div className="flex-1 min-w-0">
                 <MetricChart
                   title=""
-                  data={gpuPowerData}
-                  dataKeys={["gpuPower", "pkgPower"]}
-                  colors={[
-                    "var(--color-red-chart)",
-                    "var(--color-yellow-chart)",
-                  ]}
-                  unit=" W"
-                  yAxisDomain={[
-                    0,
-                    Math.max(
-                      ...gpuPowerData.map((d) =>
-                        Math.max(d.gpuPower, d.pkgPower),
-                      ),
-                      50,
-                    ),
-                  ]}
-                  showLegend={true}
-                  labels={["GPU Power", "Package Power"]}
+                  data={gpuChartData}
+                  dataKeys={availableEngines}
+                  colors={availableEngines.map((e) => engineColors[e])}
+                  unit="%"
+                  yAxisDomain={[0, 100]}
+                  labels={availableEngines.map((e) => engineLabels[e])}
                   className="!shadow-none !p-0 !bg-transparent !border-0"
                   maxDataPoints={30}
                   isSummary={isSummary}
