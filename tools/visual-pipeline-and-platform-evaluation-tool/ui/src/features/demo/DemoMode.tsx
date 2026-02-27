@@ -788,6 +788,27 @@ const DemoMode = () => {
     return match ? match[1].trim() : name;
   };
 
+  const formatVariantDisplayName = (variantName: string | undefined, variantId: string) => {
+    const rawName = (variantName ?? "").trim();
+    const source = rawName || variantId;
+    const normalized = source.toUpperCase();
+
+    if (normalized === "CPU") return "CPU only";
+    if (normalized === "GPU") return "GPU only";
+    if (normalized === "NPU") return "NPU only";
+
+    const deviceParts = normalized.split("_");
+    const allowedParts = new Set(["CPU", "GPU", "NPU"]);
+    if (
+      deviceParts.length > 1 &&
+      deviceParts.every((part) => allowedParts.has(part))
+    ) {
+      return `${deviceParts.join(" / ")} split`;
+    }
+
+    return source;
+  };
+
   // Group pipelines by base name
   const groupedPipelines = pipelines.reduce(
     (acc, pipeline) => {
@@ -1643,25 +1664,28 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`relative flex w-full max-h-[190px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`relative flex w-full max-h-[200px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
                           } ${isReadOnly ? "opacity-70" : ""}`}
                         >
-                          <div className="p-0 pb-0">
+                          <CardHeader className="pl-2 pr-2 pt-0 pb-0 -mt-2">
+                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[2rem]">
+                              {getBasePipelineName(pipeline.name)}
+                            </CardTitle>
+                          </CardHeader>
+                          <div className="p-0 pb-0 -mt-10">
                             <img
                               src={pipeline.thumbnail || thumbnailPlaceholder}
                               alt={pipeline.name}
                               className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
                             />
                           </div>
-                          <CardHeader className="p-2 pt-0 pb-9">
-                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold">
-                              {getBasePipelineName(pipeline.name)}
-                            </CardTitle>
-                          </CardHeader>
-                          <div className="absolute left-2 right-2 bottom-4">
+                          <div className="mt-auto px-1 pb-0">
+                            <p className="ml-3 -mt-2 mb-1 text-[8px] font-semibold uppercase tracking-wide text-slate-400">
+                              Best known configurations
+                            </p>
                             <select
                               value={
                                 getSelectedVariantForPipeline(
@@ -1701,11 +1725,11 @@ const DemoMode = () => {
                               }
                               onClick={(e) => e.stopPropagation()}
                               disabled={isReadOnly || pipeline.variants.length < 1}
-                              className={`w-full px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                              className={`block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               {pipeline.variants.map((variant) => (
                                 <option key={variant.id} value={variant.id}>
-                                  {variant.name || variant.id}
+                                  {formatVariantDisplayName(variant.name, variant.id)}
                                 </option>
                               ))}
                             </select>
