@@ -54,6 +54,10 @@ COPY --from=builder /opt/share/nltk_data /opt/share/nltk_data
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Upgrade vulnerable build-time packages to patched versions
+RUN pip install --no-cache-dir --upgrade wheel>=0.46.2 jaraco.context>=6.1.0 \
+    && pip cache purge
+
 # Set working directoryAdd commentMore actions
 WORKDIR /app
 
