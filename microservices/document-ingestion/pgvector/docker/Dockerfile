@@ -25,7 +25,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip setuptools
+RUN /usr/local/bin/pip install --upgrade pip setuptools wheel
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
