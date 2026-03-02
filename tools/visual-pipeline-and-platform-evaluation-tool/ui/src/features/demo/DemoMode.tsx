@@ -573,7 +573,10 @@ const DemoMode = () => {
     return match ? match[1].trim() : name;
   };
 
-  const formatVariantDisplayName = (variantName: string | undefined, variantId: string) => {
+  const formatVariantDisplayName = (
+    variantName: string | undefined,
+    variantId: string,
+  ) => {
     const rawName = (variantName ?? "").trim();
     const source = rawName || variantId;
     const normalized = source.toUpperCase();
@@ -1387,12 +1390,17 @@ const DemoMode = () => {
                                 })
                               }
                               onClick={(e) => e.stopPropagation()}
-                              disabled={isReadOnly || pipeline.variants.length < 1}
+                              disabled={
+                                isReadOnly || pipeline.variants.length < 1
+                              }
                               className={`block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               {pipeline.variants.map((variant) => (
                                 <option key={variant.id} value={variant.id}>
-                                  {formatVariantDisplayName(variant.name, variant.id)}
+                                  {formatVariantDisplayName(
+                                    variant.name,
+                                    variant.id,
+                                  )}
                                 </option>
                               ))}
                             </select>
@@ -1448,105 +1456,113 @@ const DemoMode = () => {
               const livePreviewContent =
                 performanceJobId &&
                 performanceResult?.live_stream_urls &&
-                Object.keys(performanceResult.live_stream_urls).length > 0 ? (
-                  (() => {
-                    const previewsPerPage = 2;
-                    const totalPreviewPages = Math.ceil(
-                      pipelineSelections.length / previewsPerPage,
-                    );
-                    const startIdx = previewCarouselIndex * previewsPerPage;
-                    const endIdx = startIdx + previewsPerPage;
-                    const visiblePreviews = pipelineSelections.slice(
-                      startIdx,
-                      endIdx,
-                    );
+                Object.keys(performanceResult.live_stream_urls).length > 0
+                  ? (() => {
+                      const previewsPerPage = 2;
+                      const totalPreviewPages = Math.ceil(
+                        pipelineSelections.length / previewsPerPage,
+                      );
+                      const startIdx = previewCarouselIndex * previewsPerPage;
+                      const endIdx = startIdx + previewsPerPage;
+                      const visiblePreviews = pipelineSelections.slice(
+                        startIdx,
+                        endIdx,
+                      );
 
-                    return (
-                      <div className="relative rounded-lg border border-slate-400/30 p-3 bg-slate-950/30 mb-3">
-                        <div className="grid grid-cols-2 gap-3 min-h-[280px]">
-                          {visiblePreviews.map((selection, localIdx) => {
-                            const pipeline = pipelines.find(
-                              (p) => p.id === selection.pipelineId,
-                            );
-                            const globalIdx = startIdx + localIdx;
-                            const streamSpec =
-                              performanceJobStatus?.streams_per_pipeline?.[
-                                globalIdx
-                              ];
-                            const streamUrl = streamSpec?.id
-                              ? performanceResult?.live_stream_urls?.[
-                                  streamSpec.id
-                                ]
-                              : null;
+                      return (
+                        <div className="relative rounded-lg border border-slate-400/30 p-3 bg-slate-950/30 mb-3">
+                          <div className="grid grid-cols-2 gap-3 min-h-[280px]">
+                            {visiblePreviews.map((selection, localIdx) => {
+                              const pipeline = pipelines.find(
+                                (p) => p.id === selection.pipelineId,
+                              );
+                              const globalIdx = startIdx + localIdx;
+                              const streamSpec =
+                                performanceJobStatus?.streams_per_pipeline?.[
+                                  globalIdx
+                                ];
+                              const streamUrl = streamSpec?.id
+                                ? performanceResult?.live_stream_urls?.[
+                                    streamSpec.id
+                                  ]
+                                : null;
 
-                            return (
-                              <div
-                                key={selection.pipelineId}
-                                className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col"
-                              >
-                                <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
-                                  {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
-                                </p>
-                                <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[220px]">
-                                  <div className="w-full h-full">
-                                    {streamUrl ? (
-                                      <WebRTCVideoPlayer streamUrl={streamUrl} />
-                                    ) : (
-                                      <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                                        Waiting for stream...
-                                      </div>
-                                    )}
+                              return (
+                                <div
+                                  key={selection.pipelineId}
+                                  className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col"
+                                >
+                                  <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
+                                    {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
+                                  </p>
+                                  <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[220px]">
+                                    <div className="w-full h-full">
+                                      {streamUrl ? (
+                                        <WebRTCVideoPlayer
+                                          streamUrl={streamUrl}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                                          Waiting for stream...
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
+                              );
+                            })}
+                          </div>
+
+                          {totalPreviewPages > 1 && (
+                            <>
+                              <button
+                                onClick={() =>
+                                  setPreviewCarouselIndex((prev) =>
+                                    Math.max(0, prev - 1),
+                                  )
+                                }
+                                disabled={previewCarouselIndex === 0}
+                                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                              >
+                                <ChevronLeft className="w-5 h-5 text-slate-200" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setPreviewCarouselIndex((prev) =>
+                                    Math.min(totalPreviewPages - 1, prev + 1),
+                                  )
+                                }
+                                disabled={
+                                  previewCarouselIndex >= totalPreviewPages - 1
+                                }
+                                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                              >
+                                <ChevronRight className="w-5 h-5 text-slate-200" />
+                              </button>
+
+                              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                {Array.from({ length: totalPreviewPages }).map(
+                                  (_, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() =>
+                                        setPreviewCarouselIndex(idx)
+                                      }
+                                      className={`w-2 h-2 rounded-full transition-all ${
+                                        idx === previewCarouselIndex
+                                          ? "bg-blue-500 w-6"
+                                          : "bg-slate-600 hover:bg-slate-500"
+                                      }`}
+                                    />
+                                  ),
+                                )}
                               </div>
-                            );
-                          })}
+                            </>
+                          )}
                         </div>
-
-                        {totalPreviewPages > 1 && (
-                          <>
-                            <button
-                              onClick={() =>
-                                setPreviewCarouselIndex((prev) =>
-                                  Math.max(0, prev - 1),
-                                )
-                              }
-                              disabled={previewCarouselIndex === 0}
-                              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                            >
-                              <ChevronLeft className="w-5 h-5 text-slate-200" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                setPreviewCarouselIndex((prev) =>
-                                  Math.min(totalPreviewPages - 1, prev + 1),
-                                )
-                              }
-                              disabled={previewCarouselIndex >= totalPreviewPages - 1}
-                              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
-                            >
-                              <ChevronRight className="w-5 h-5 text-slate-200" />
-                            </button>
-
-                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                              {Array.from({ length: totalPreviewPages }).map((_, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => setPreviewCarouselIndex(idx)}
-                                  className={`w-2 h-2 rounded-full transition-all ${
-                                    idx === previewCarouselIndex
-                                      ? "bg-blue-500 w-6"
-                                      : "bg-slate-600 hover:bg-slate-500"
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()
-                ) : null;
+                      );
+                    })()
+                  : null;
 
               const pipelineConfigSection = (
                 <div
@@ -1638,14 +1654,12 @@ const DemoMode = () => {
                                                     (prop) =>
                                                       prop.key !== "device",
                                                   )
-                                                  .map(
-                                                  (prop) => [
+                                                  .map((prop) => [
                                                     prop.key,
                                                     node.data[prop.key] ??
                                                       prop.defaultValue,
                                                     prop,
-                                                  ],
-                                                )
+                                                  ])
                                               : Object.entries(node.data ?? {})
                                                   .filter(
                                                     ([key]) =>
@@ -2140,9 +2154,7 @@ const DemoMode = () => {
                                           <label className="text-xs text-slate-300 py-5">
                                             Show live preview
                                           </label>
-                                          <CheckboxInfoHint
-                                            description="Shows pipeline output in real time while it is running."
-                                          />
+                                          <CheckboxInfoHint description="Shows pipeline output in real time while it is running." />
                                         </div>
                                       </div>
                                     </div>

@@ -94,10 +94,7 @@ const WebRTCVideoPlayer = ({
 
   return (
     <div className="relative h-full w-full">
-      <video
-        ref={videoRef}
-        className="h-full w-full object-cover"
-      />
+      <video ref={videoRef} className="h-full w-full object-cover" />
       {message && (
         <div className="absolute top-1.5 left-1.5 rounded bg-black/50 px-2 py-1 text-xs text-white">
           {message}

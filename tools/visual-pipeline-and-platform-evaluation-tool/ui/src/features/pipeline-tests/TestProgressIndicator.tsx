@@ -52,7 +52,9 @@ const MetricCard = ({
       >
         {title}
       </h3>
-      <p className={`text-3xl font-bold ${forceDark ? "text-white" : "text-foreground"}`}>
+      <p
+        className={`text-3xl font-bold ${forceDark ? "text-white" : "text-foreground"}`}
+      >
         {value.toFixed(2)}
         <span
           className={`text-sm ml-1.5 font-semibold ${
