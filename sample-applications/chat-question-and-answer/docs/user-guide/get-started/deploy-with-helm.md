@@ -29,7 +29,7 @@ As mentioned in the prerequisites, ensure that the `model-download` microservice
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <version-no>
+helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version 2.1.0-rc2
 ```
 
 🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
@@ -39,7 +39,7 @@ helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <v
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf chat-question-and-answer-<version-no>.tgz
+tar -xvf chat-question-and-answer-2.1.0-rc2.tgz
 ```
 
 This will create a directory named `chat-question-and-answer` containing the chart files. Navigate to the extracted directory.
@@ -105,7 +105,7 @@ Clone the repository containing the Helm chart:
 # Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 # Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
 ```
 
 #### Step 2: Verify the Model Download Service Is Up and Running

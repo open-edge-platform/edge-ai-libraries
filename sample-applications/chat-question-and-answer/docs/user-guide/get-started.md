@@ -81,7 +81,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
    ```
    Note: Adjust the repo link appropriately in case of forked repo.
 
@@ -136,7 +136,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
-    export TAG=2.1.0-rc1
+    export TAG=2.1.0-rc2
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
