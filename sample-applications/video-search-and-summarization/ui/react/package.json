@@ -43,7 +43,10 @@
     "glob": "^10.5.0",
     "mdast-util-to-hast": "^13.2.1",
     "js-yaml": "^4.1.1",
-    "@eslint/plugin-kit": "^0.6.0"
+    "@eslint/plugin-kit": "^0.6.0",
+    "rollup": "^4.59.0",
+    "minimatch": "^9.0.7",
+    "ajv": "^6.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
@@ -55,8 +58,8 @@
     "@types/react-dom": "^19.1.7",
     "@types/react-i18next": "^8.1.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "@vitest/coverage-istanbul": "^3.2.4",
-    "@vitest/ui": "^3.2.4",
+    "@vitest/coverage-istanbul": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -67,8 +70,8 @@
     "prettier": "^3.6.2",
     "sass": "^1.90.0",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.39.1",
+    "typescript-eslint": "^8.56.1",
     "vite": "^7.3.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.18"
   }
 }
