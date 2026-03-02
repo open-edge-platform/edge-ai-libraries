@@ -73,6 +73,26 @@ This enables immediate identification of bottlenecks and resource constraints.
 Optionally capture and save processed video outputs during performance testing to verify 
 that AI inference quality is maintained under load conditions.
 
+### Density Testing
+
+**Automated Stream Density Discovery**: 
+Determine the maximum number of concurrent streams your hardware can sustain while maintaining a minimum FPS threshold. 
+The density test automatically scales up stream counts until performance drops below the specified `fps_floor`, 
+providing precise hardware capacity measurements.
+
+**Multi-Pipeline Density Analysis**: 
+Test complex workload scenarios by running multiple different pipelines simultaneously with configurable stream rate ratios. 
+For example, allocate 70% of streams to object detection and 30% to license plate recognition to simulate real-world deployment conditions.
+
+**FPS Floor Validation**: 
+Set minimum acceptable performance thresholds (e.g., 30 FPS per stream) 
+and automatically discover the maximum sustainable workload. 
+This eliminates guesswork in capacity planning and ensures deployments meet performance requirements.
+
+**Capacity Planning Support**: 
+Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions. 
+Results show exactly how many concurrent video streams each hardware configuration can process while maintaining quality thresholds.
+
 ### **Workflow Overview**
 
 **Data Ingestion**: Video streams from live cameras or recorded files are provided and pipeline parameters are
