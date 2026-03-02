@@ -19,7 +19,7 @@ export const ParticipationSlider = ({
     <div
       className={`flex items-center gap-3 ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
     >
-      <span className="text-sm text-neutral-500 min-w-[2ch] text-center font-semibold">
+      <span className="text-sm text-neutral-500 min-w-[1rem] text-center font-semibold">
         {min}
       </span>
       <Slider
@@ -35,7 +35,7 @@ export const ParticipationSlider = ({
         className="flex-1"
         disabled={disabled}
       />
-      <span className="text-sm text-neutral-500 min-w-[3ch] text-center font-semibold">
+      <span className="text-sm text-neutral-500 min-w-[1.5rem] text-center font-semibold">
         {max}
       </span>
       <input

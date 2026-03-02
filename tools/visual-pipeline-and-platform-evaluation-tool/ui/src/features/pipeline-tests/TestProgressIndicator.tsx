@@ -346,7 +346,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span className="inline-block min-w-[1ch]">
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
@@ -409,7 +409,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span className="inline-block min-w-[1ch]">
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
@@ -464,7 +464,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span className="inline-block min-w-[1ch]">
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
