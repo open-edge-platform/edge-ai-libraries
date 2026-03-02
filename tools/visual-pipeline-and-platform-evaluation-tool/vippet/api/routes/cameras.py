@@ -5,6 +5,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from internal_types import (
+    InternalCamera,
+    InternalCameraProfileInfo,
+    InternalNetworkCameraDetails,
+    InternalUSBCameraDetails,
+)
 from managers.camera_manager import CameraManager
 
 router = APIRouter()
@@ -87,9 +93,9 @@ def get_cameras():
     ```
     """
     try:
-        cameras = CameraManager().discover_all_cameras()
-        logger.debug(f"Discovered total {len(cameras)} camera(s)")
-        return cameras
+        internal_cameras = CameraManager().discover_all_cameras()
+        logger.debug(f"Discovered total {len(internal_cameras)} camera(s)")
+        return [_internal_camera_to_api(cam) for cam in internal_cameras]
     except Exception:
         logger.error("Failed to discover cameras", exc_info=True)
         return JSONResponse(
@@ -166,14 +172,14 @@ def get_camera(camera_id: str):
     ```
     """
     try:
-        camera = CameraManager().get_camera_by_id(camera_id)
-        if camera is None:
+        internal_camera = CameraManager().get_camera_by_id(camera_id)
+        if internal_camera is None:
             logger.debug(f"Camera {camera_id} not found")
             raise HTTPException(
                 status_code=404, detail=f"Camera with ID '{camera_id}' not found"
             )
         logger.debug(f"Retrieved camera {camera_id}")
-        return camera
+        return _internal_camera_to_api(internal_camera)
     except HTTPException:
         raise
     except Exception:
@@ -293,12 +299,14 @@ def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest)
     ```
     """
     try:
-        authenticated_camera = CameraManager().load_camera_profiles(
+        internal_camera = CameraManager().load_camera_profiles(
             camera_id, request.username, request.password
         )
 
         logger.debug(f"Successfully loaded profiles for camera {camera_id}")
-        return schemas.CameraAuthResponse(camera=authenticated_camera)
+        return schemas.CameraAuthResponse(
+            camera=_internal_camera_to_api(internal_camera)
+        )
 
     except ValueError as e:
         logger.warning(f"Invalid camera_id: {e}")
@@ -324,3 +332,85 @@ def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest)
 
         logger.error(f"Failed to load camera profiles: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+# ------------------------------------------------------------------
+# Conversion helpers: internal types -> API types
+#
+# These functions convert internal types returned by CameraManager
+# into API schema types for HTTP responses. CameraManager works
+# exclusively with internal types; conversion to API types happens
+# only here in the route layer.
+# ------------------------------------------------------------------
+
+
+def _internal_profile_to_api(
+    profile: InternalCameraProfileInfo,
+) -> schemas.CameraProfileInfo:
+    """
+    Convert InternalCameraProfileInfo to API CameraProfileInfo.
+
+    Args:
+        profile: Internal camera profile.
+
+    Returns:
+        CameraProfileInfo ready for API response.
+    """
+    return schemas.CameraProfileInfo(
+        name=profile.name,
+        rtsp_url=profile.rtsp_url,
+        resolution=profile.resolution,
+        encoding=profile.encoding,
+        framerate=profile.framerate,
+        bitrate=profile.bitrate,
+    )
+
+
+def _internal_camera_to_api(camera: InternalCamera) -> schemas.Camera:
+    """
+    Convert InternalCamera to API Camera.
+
+    Converts internal camera details (USB or network) to the
+    corresponding API detail type.
+
+    Args:
+        camera: Internal camera object.
+
+    Returns:
+        Camera ready for API response.
+    """
+    if isinstance(camera.details, InternalUSBCameraDetails):
+        best_capture = None
+        if camera.details.best_capture is not None:
+            best_capture = schemas.V4L2BestCapture(
+                fourcc=camera.details.best_capture.fourcc,
+                width=camera.details.best_capture.width,
+                height=camera.details.best_capture.height,
+                fps=camera.details.best_capture.fps,
+            )
+        api_details: schemas.USBCameraDetails | schemas.NetworkCameraDetails = (
+            schemas.USBCameraDetails(
+                device_path=camera.details.device_path,
+                best_capture=best_capture,
+            )
+        )
+    elif isinstance(camera.details, InternalNetworkCameraDetails):
+        api_profiles = [_internal_profile_to_api(p) for p in camera.details.profiles]
+        best_profile = None
+        if camera.details.best_profile is not None:
+            best_profile = _internal_profile_to_api(camera.details.best_profile)
+        api_details = schemas.NetworkCameraDetails(
+            ip=camera.details.ip,
+            port=camera.details.port,
+            profiles=api_profiles,
+            best_profile=best_profile,
+        )
+    else:
+        raise ValueError(f"Unknown camera details type: {type(camera.details)}")
+
+    return schemas.Camera(
+        device_id=camera.device_id,
+        device_name=camera.device_name,
+        device_type=schemas.CameraType(camera.device_type.value),
+        details=api_details,
+    )

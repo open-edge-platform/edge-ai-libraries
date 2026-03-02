@@ -10,6 +10,16 @@ from managers.optimization_manager import OptimizationManager
 from managers.pipeline_manager import PipelineManager
 from managers.validation_manager import ValidationManager
 from graph import Graph
+from internal_types import (
+    InternalOptimizationType,
+    InternalPipeline,
+    InternalPipelineDefinition,
+    InternalPipelineRequestOptimize,
+    InternalPipelineSource,
+    InternalPipelineValidation,
+    InternalVariant,
+    InternalVariantCreate,
+)
 
 TEMP_DIR = tempfile.gettempdir()
 
@@ -116,7 +126,8 @@ def create_pipeline(body: schemas.PipelineDefinition):
         # Enforce USER_CREATED source for pipelines created via API
         body.source = schemas.PipelineSource.USER_CREATED
 
-        pipeline = PipelineManager().add_pipeline(body)
+        internal_def = _pipeline_definition_to_internal(body)
+        pipeline = PipelineManager().add_pipeline(internal_def)
 
         return JSONResponse(
             content=schemas.PipelineCreationResponse(id=pipeline.id).model_dump(),
@@ -227,7 +238,8 @@ def validate_pipeline(body: schemas.PipelineValidation):
     ```
     """
     try:
-        job_id = ValidationManager().run_validation(body)
+        internal_request = _pipeline_validation_to_internal(body)
+        job_id = ValidationManager().run_validation(internal_request)
         return JSONResponse(
             content=schemas.ValidationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
@@ -323,7 +335,8 @@ def get_pipelines():
     ]
     ```
     """
-    return PipelineManager().get_pipelines()
+    internal_pipelines = PipelineManager().get_pipelines()
+    return [_internal_pipeline_to_api(p) for p in internal_pipelines]
 
 
 @router.get(
@@ -410,7 +423,8 @@ def get_pipeline(pipeline_id: str):
     ```
     """
     try:
-        return PipelineManager().get_pipeline_by_id(pipeline_id)
+        internal_pipeline = PipelineManager().get_pipeline_by_id(pipeline_id)
+        return _internal_pipeline_to_api(internal_pipeline)
     except ValueError as e:
         logger.warning("Pipeline %s not found: %s", pipeline_id, e)
         return JSONResponse(
@@ -537,7 +551,7 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             description=body.description,
             tags=body.tags,
         )
-        return updated_pipeline
+        return _internal_pipeline_to_api(updated_pipeline)
     except ValueError as e:
         # ValueError is used both for "not found" and validation errors.
         # Check message to determine appropriate status code.
@@ -661,11 +675,14 @@ def optimize_variant(
     """
     try:
         # Use get_variant_by_ids to validate both pipeline and variant exist
-        variant_to_optimize = PipelineManager().get_variant_by_ids(
-            pipeline_id, variant_id
-        )
+        internal_variant = PipelineManager().get_variant_by_ids(pipeline_id, variant_id)
 
-        job_id = OptimizationManager().run_optimization(variant_to_optimize, body)
+        # Convert API request to internal type at the route boundary
+        internal_request = _optimize_request_to_internal(body)
+
+        job_id = OptimizationManager().run_optimization(
+            internal_variant, internal_request
+        )
         return JSONResponse(
             content=schemas.OptimizationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
@@ -895,16 +912,22 @@ def create_variant(pipeline_id: str, body: schemas.VariantCreate):
     ```
     """
     try:
+        # Convert API PipelineGraph to Graph objects
+        graph = Graph.from_dict(body.pipeline_graph.model_dump())
+        graph_simple = Graph.from_dict(body.pipeline_graph_simple.model_dump())
+
         new_variant = PipelineManager().add_variant(
             pipeline_id=pipeline_id,
             name=body.name,
-            pipeline_graph=body.pipeline_graph,
-            pipeline_graph_simple=body.pipeline_graph_simple,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph_simple,
         )
+
+        api_variant = _internal_variant_to_api(new_variant)
 
         logger.info(f"Created variant {new_variant.id} for pipeline {pipeline_id}")
         return JSONResponse(
-            content=new_variant.model_dump(mode="json"),
+            content=api_variant.model_dump(mode="json"),
             status_code=201,
         )
 
@@ -1165,16 +1188,30 @@ def update_variant(pipeline_id: str, variant_id: str, body: schemas.VariantUpdat
     ```
     """
     try:
+        # Convert API PipelineGraph to Graph objects if provided
+        graph = (
+            Graph.from_dict(body.pipeline_graph.model_dump())
+            if body.pipeline_graph is not None
+            else None
+        )
+        graph_simple = (
+            Graph.from_dict(body.pipeline_graph_simple.model_dump())
+            if body.pipeline_graph_simple is not None
+            else None
+        )
+
         updated_variant = PipelineManager().update_variant(
             pipeline_id=pipeline_id,
             variant_id=variant_id,
             name=body.name,
-            pipeline_graph=body.pipeline_graph,
-            pipeline_graph_simple=body.pipeline_graph_simple,
+            pipeline_graph=graph,
+            pipeline_graph_simple=graph_simple,
         )
 
+        api_variant = _internal_variant_to_api(updated_variant)
+
         logger.info(f"Updated variant {variant_id} in pipeline {pipeline_id}")
-        return updated_variant
+        return api_variant
 
     except ValueError as e:
         error_message = str(e)
@@ -1500,3 +1537,139 @@ def convert_simple_to_advanced(
             ).model_dump(),
             status_code=500,
         )
+
+
+# ------------------------------------------------------------------
+# Conversion helpers: API types <-> internal types
+#
+# These functions are used at the route boundary to convert between
+# API schema types (Pydantic models from api.api_schemas) and internal
+# types (dataclasses from internal_types). Managers work exclusively
+# with internal types.
+# ------------------------------------------------------------------
+
+
+def _internal_variant_to_api(variant: InternalVariant) -> schemas.Variant:
+    """
+    Convert InternalVariant to API Variant.
+
+    Converts Graph objects to PipelineGraph Pydantic models.
+
+    Args:
+        variant: InternalVariant from PipelineManager.
+
+    Returns:
+        API Variant Pydantic model.
+    """
+    return schemas.Variant(
+        id=variant.id,
+        name=variant.name,
+        read_only=variant.read_only,
+        pipeline_graph=schemas.PipelineGraph.model_validate(
+            variant.pipeline_graph.to_dict()
+        ),
+        pipeline_graph_simple=schemas.PipelineGraph.model_validate(
+            variant.pipeline_graph_simple.to_dict()
+        ),
+        created_at=variant.created_at,
+        modified_at=variant.modified_at,
+    )
+
+
+def _internal_pipeline_to_api(pipeline: InternalPipeline) -> schemas.Pipeline:
+    """
+    Convert InternalPipeline to API Pipeline.
+
+    Converts all variants and maps InternalPipelineSource to API PipelineSource.
+
+    Args:
+        pipeline: InternalPipeline from PipelineManager.
+
+    Returns:
+        API Pipeline Pydantic model.
+    """
+    return schemas.Pipeline(
+        id=pipeline.id,
+        name=pipeline.name,
+        description=pipeline.description,
+        source=schemas.PipelineSource(pipeline.source.value),
+        tags=pipeline.tags,
+        variants=[_internal_variant_to_api(v) for v in pipeline.variants],
+        thumbnail=pipeline.thumbnail,
+        created_at=pipeline.created_at,
+        modified_at=pipeline.modified_at,
+    )
+
+
+def _pipeline_definition_to_internal(
+    api_def: schemas.PipelineDefinition,
+) -> InternalPipelineDefinition:
+    """
+    Convert API PipelineDefinition to internal representation.
+
+    Converts PipelineGraph fields in each VariantCreate to Graph objects.
+
+    Args:
+        api_def: API PipelineDefinition from request body.
+
+    Returns:
+        InternalPipelineDefinition with Graph objects.
+    """
+    internal_variants = []
+    for vc in api_def.variants:
+        internal_variants.append(
+            InternalVariantCreate(
+                name=vc.name,
+                pipeline_graph=Graph.from_dict(vc.pipeline_graph.model_dump()),
+                pipeline_graph_simple=Graph.from_dict(
+                    vc.pipeline_graph_simple.model_dump()
+                ),
+            )
+        )
+
+    return InternalPipelineDefinition(
+        name=api_def.name,
+        description=api_def.description,
+        source=InternalPipelineSource(api_def.source.value),
+        tags=api_def.tags,
+        variants=internal_variants,
+    )
+
+
+def _optimize_request_to_internal(
+    api_request: schemas.PipelineRequestOptimize,
+) -> InternalPipelineRequestOptimize:
+    """
+    Convert API PipelineRequestOptimize to internal representation.
+
+    Args:
+        api_request: API optimization request.
+
+    Returns:
+        InternalPipelineRequestOptimize with mapped type and parameters.
+    """
+    return InternalPipelineRequestOptimize(
+        type=InternalOptimizationType(api_request.type.value),
+        parameters=api_request.parameters,
+    )
+
+
+def _pipeline_validation_to_internal(
+    api_request: schemas.PipelineValidation,
+) -> InternalPipelineValidation:
+    """
+    Convert API PipelineValidation to internal representation.
+
+    Converts the API PipelineGraph to internal Graph object.
+
+    Args:
+        api_request: API validation request.
+
+    Returns:
+        InternalPipelineValidation with Graph object and parameters.
+    """
+    graph = Graph.from_dict(api_request.pipeline_graph.model_dump())
+    return InternalPipelineValidation(
+        pipeline_graph=graph,
+        parameters=api_request.parameters,
+    )

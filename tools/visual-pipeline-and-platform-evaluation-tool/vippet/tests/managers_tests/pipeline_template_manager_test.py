@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from api.api_schemas import PipelineSource
+from internal_types import InternalPipelineSource
 from managers.pipeline_template_manager import (
     PipelineTemplateManager,
     TEMPLATES_DIR_NAME,
@@ -111,7 +111,7 @@ class TestPipelineTemplateManagerGetTemplates(unittest.TestCase):
     The tests focus on:
       * returning all templates,
       * returning deep copies so the internal state cannot be mutated,
-      * correct structure of returned Pipeline objects.
+      * correct structure of returned InternalPipeline objects.
     """
 
     def setUp(self):
@@ -185,7 +185,7 @@ class TestPipelineTemplateManagerGetTemplates(unittest.TestCase):
         ]
 
         for template in manager.get_templates():
-            self.assertEqual(template.source, PipelineSource.TEMPLATE)
+            self.assertEqual(template.source, InternalPipelineSource.TEMPLATE)
 
     @patch("managers.pipeline_template_manager.PipelineLoader")
     def test_get_templates_all_variants_are_read_only(self, mock_loader_cls):
@@ -291,7 +291,7 @@ class TestPipelineTemplateManagerGetTemplateById(unittest.TestCase):
         target_id = manager.templates[0].id
         result = manager.get_template_by_id(target_id)
 
-        self.assertEqual(result.source, PipelineSource.TEMPLATE)
+        self.assertEqual(result.source, InternalPipelineSource.TEMPLATE)
 
     @patch("managers.pipeline_template_manager.PipelineLoader")
     def test_get_template_by_id_all_variants_read_only(self, mock_loader_cls):
@@ -357,7 +357,7 @@ class TestLoadTemplates(unittest.TestCase):
 
     @patch("managers.pipeline_template_manager.PipelineLoader")
     def test_load_templates_loads_all_yaml_files(self, mock_loader_cls):
-        """_load_templates() loads one Pipeline per YAML file in the templates directory."""
+        """_load_templates() loads one InternalPipeline per YAML file in the templates directory."""
         self._make_template_yaml_stubs(len(MOCK_TEMPLATE_CONFIGS))
         mock_loader_cls.get_pipelines_directory.return_value = self.tmpdir
         mock_loader_cls.config.side_effect = _mock_config_for_path
@@ -376,7 +376,7 @@ class TestLoadTemplates(unittest.TestCase):
         manager = PipelineTemplateManager()
 
         for template in manager.templates:
-            self.assertEqual(template.source, PipelineSource.TEMPLATE)
+            self.assertEqual(template.source, InternalPipelineSource.TEMPLATE)
 
     @patch("managers.pipeline_template_manager.PipelineLoader")
     def test_load_templates_all_variants_read_only(self, mock_loader_cls):
@@ -468,7 +468,7 @@ class TestBuildTemplateFromConfig(unittest.TestCase):
     Unit tests for PipelineTemplateManager._build_template_from_config().
 
     The tests focus on:
-      * correct Pipeline construction from a valid config dict,
+      * correct InternalPipeline construction from a valid config dict,
       * validation of required fields (name, variant names, pipeline_description),
       * ID generation and uniqueness,
       * correct assignment of source, read_only, and thumbnail.
@@ -525,7 +525,7 @@ class TestBuildTemplateFromConfig(unittest.TestCase):
             MOCK_TEMPLATE_CONFIGS[0], "dummy.yaml", []
         )
 
-        self.assertEqual(template.source, PipelineSource.TEMPLATE)
+        self.assertEqual(template.source, InternalPipelineSource.TEMPLATE)
 
     def test_build_template_thumbnail_is_none(self):
         """_build_template_from_config() must set thumbnail=None."""

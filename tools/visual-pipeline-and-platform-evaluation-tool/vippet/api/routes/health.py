@@ -9,7 +9,8 @@ import logging
 
 from fastapi import APIRouter
 
-from api.api_schemas import HealthResponse, StatusResponse
+from api.api_schemas import AppStatus, HealthResponse, StatusResponse
+from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 
 router = APIRouter()
@@ -108,7 +109,25 @@ def get_status() -> StatusResponse:
     """
     app_state_manager = AppStateManager()
     return StatusResponse(
-        status=app_state_manager.status,
+        status=_internal_app_status_to_api(app_state_manager.status),
         message=app_state_manager.message,
         ready=app_state_manager.is_ready(),
     )
+
+
+# ------------------------------------------------------------------
+# Conversion helpers: internal types -> API types
+# ------------------------------------------------------------------
+
+
+def _internal_app_status_to_api(status: InternalAppStatus) -> AppStatus:
+    """
+    Convert InternalAppStatus to API AppStatus.
+
+    Args:
+        status: Internal application status.
+
+    Returns:
+        AppStatus ready for API response.
+    """
+    return AppStatus(status.value)
