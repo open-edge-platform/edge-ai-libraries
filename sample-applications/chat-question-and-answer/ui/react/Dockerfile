@@ -48,7 +48,11 @@ COPY ./nginx.conf /etc/nginx/nginx.conf
 
 # Ensure the entrypoint script is executable
 USER root
-RUN chmod +x /docker-entrypoint.d/env.sh
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends --only-upgrade libpng16-16t64 libssl3t64 openssl openssl-provider-legacy && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    chmod +x /docker-entrypoint.d/env.sh
 
 # Revert to the unprivileged nginx user (UID/GID 101)
 USER nginx
