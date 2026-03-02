@@ -92,26 +92,28 @@ real-time performance under target deployment conditions.
 
 Below table shows the end-to-end performance of processing 1080p videos with this sample application.
 
+TO DO: Add real values
 | Device | Number of streams | Batch Size | Total FPS |
 |---|---:|---:|---:|
-| Jetson Nano | 1 | 1 | 9.20 |
-| Jetson NX | 3 | 3 | 80.31 |
-| Jetson Xavier | 5 | 5 | 146.43 |
-| Jetson Orin | 5 | 5 | 341.65 |
-| T4 | 14 | 14 | 447.15 |
+| Device 1 | 1 | 1 | 9.20 |
+| Device 2 | 3 | 3 | 80.31 |
+| Device 3 | 5 | 5 | 146.43 |
+| Device 4 | 5 | 5 | 341.65 |
+| Device 5 | 14 | 14 | 447.15 |
 
 ### Density View (Derived from the same data, FPS floor = 30)
 
 This density-oriented view estimates how many streams can be sustained at a 30 FPS floor based on the measured
 Total FPS values above.
 
+TO DO: Add real values
 | Device | FPS Floor | Estimated Max Streams @ Floor | Estimated Per Stream FPS |
 |---|---:|---:|---:|
-| Jetson Nano | 30 | 0 | N/A |
-| Jetson NX | 30 | 2 | 40.16 |
-| Jetson Xavier | 30 | 4 | 36.61 |
-| Jetson Orin | 30 | 11 | 31.06 |
-| T4 | 30 | 14 | 31.94 |
+| Device 1 | 30 | 0 | N/A |
+| Device 2 | 30 | 2 | 40.16 |
+| Device 3 | 30 | 4 | 36.61 |
+| Device 4 | 30 | 11 | 31.06 |
+| Device 5 | 30 | 14 | 31.94 |
 
 For ViPPET, use the built-in **Density Test** to report measured (not estimated) stream density directly per platform.
 
