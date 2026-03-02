@@ -141,6 +141,7 @@ def get_performance_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 120000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": 480.0,
         "per_stream_fps": 30.0,
         "total_streams": 16,
@@ -150,8 +151,7 @@ def get_performance_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
@@ -217,6 +217,7 @@ def get_performance_job_status(job_id: str):
       "start_time": 1715000000000,
       "elapsed_time": 60000,
       "state": "COMPLETED",
+      "details": ["Pipeline completed successfully"],
       "total_fps": 480.0,
       "per_stream_fps": 30.0,
       "total_streams": 16,
@@ -226,8 +227,7 @@ def get_performance_job_status(job_id: str):
       ],
       "video_output_paths": {
         "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-      },
-      "error_message": null
+      }
     }
     ```
 
@@ -428,6 +428,7 @@ def get_density_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 45000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "per_stream_fps": 28.5,
         "total_streams": 32,
@@ -437,8 +438,7 @@ def get_density_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job456-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
@@ -674,12 +674,12 @@ def get_optimization_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 20000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "original_pipeline_graph": {"nodes": [], "edges": []},
         "optimized_pipeline_graph": null,
         "original_pipeline_description": "videotestsrc ! fakesink",
-        "optimized_pipeline_description": null,
-        "error_message": null
+        "optimized_pipeline_description": null
       }
     ]
     ```
@@ -842,8 +842,8 @@ def get_validation_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 10000,
         "state": "RUNNING",
-        "is_valid": null,
-        "error_message": null
+        "details": [],
+        "is_valid": null
       }
     ]
     ```
@@ -927,7 +927,7 @@ def get_validation_job_status(job_id: str):
 
     ## Operation
 
-    Retrieves timings, state, is_valid flag and error_message list for a specific validation job.
+    Retrieves timings, state, is_valid flag and details list for a specific validation job.
 
     ## Path Parameters
 
@@ -937,7 +937,7 @@ def get_validation_job_status(job_id: str):
 
     | Code | Description |
     |------|-------------|
-    | 200  | ValidationJobStatus with timings, state, is_valid flag and error_message |
+    | 200  | ValidationJobStatus with timings, state, is_valid flag and details |
     | 404  | Job does not exist |
 
     ## Conditions
@@ -1035,13 +1035,13 @@ def _performance_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
         live_stream_urls=job.live_stream_urls,
-        error_message=job.error_message,
     )
 
 
@@ -1072,12 +1072,12 @@ def _density_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
-        error_message=job.error_message,
     )
 
 
@@ -1130,6 +1130,7 @@ def _optimization_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.OptimizationJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         original_pipeline_graph=_graph_to_api(job.original_pipeline_graph),
         original_pipeline_graph_simple=_graph_to_api(
@@ -1147,7 +1148,6 @@ def _optimization_job_to_api_status(
         ),
         original_pipeline_description=job.original_pipeline_description,
         optimized_pipeline_description=job.optimized_pipeline_description,
-        error_message=job.error_message,
     )
 
 
@@ -1193,8 +1193,8 @@ def _validation_job_to_api_status(
         start_time=status.start_time,
         elapsed_time=status.elapsed_time,
         state=schemas.ValidationJobState(status.state.value),
+        details=list(status.details),
         is_valid=status.is_valid,
-        error_message=status.error_message,
     )
 
 

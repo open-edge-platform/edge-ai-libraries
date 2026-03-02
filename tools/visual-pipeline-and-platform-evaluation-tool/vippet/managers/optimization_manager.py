@@ -271,17 +271,20 @@ class OptimizationManager:
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """
-        Mark the job as failed and persist the error message.
+        Mark the job as failed, clear the details list, and append the failure message.
+
+        The details list is cleared when transitioning to FAILED state,
+        then the new failure message is appended.
 
         Used both for validation errors and unexpected exceptions.
         """
         with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
-                job.state = InternalOptimizationJobState.ERROR
+                job.state = InternalOptimizationJobState.FAILED
                 job.end_time = int(time.time() * 1000)
-                job.error_message = error_message
-        self.logger.error(f"Pipeline optimization {job_id} error: {error_message}")
+                job.details = [error_message]
+        self.logger.error(f"Pipeline optimization {job_id} failed: {error_message}")
 
     def _execute_optimization(
         self,
@@ -300,6 +303,14 @@ class OptimizationManager:
         are generated from the optimized GStreamer pipeline string as
         internal Graph objects.
 
+        When a job is cancelled, it is always marked as FAILED regardless
+        of exit code, because partial optimization results are not useful.
+        There is no cancel endpoint yet, but the runner infrastructure is
+        prepared to support it.
+
+        The details list is cleared when transitioning to a new state, then
+        new entries for that state are appended.
+
         Args:
             job_id: Unique identifier of the optimization job.
             pipeline_description: GStreamer pipeline string to optimize.
@@ -309,10 +320,10 @@ class OptimizationManager:
             None (updates job status in place via self.jobs[job_id])
 
         Side effects:
-            - Updates job state to COMPLETED, ERROR, or ABORTED
+            - Updates job state to COMPLETED or FAILED
             - Stores optimized pipeline Graph objects (both views) on success
             - Stores optimized GStreamer pipeline string on success
-            - Stores error_message on failure
+            - Stores details messages on completion or failure
             - Removes runner from self.runners when done
         """
         try:
@@ -323,7 +334,8 @@ class OptimizationManager:
             # Initialize OptimizationRunner
             runner = OptimizationRunner()
 
-            # Store runner for this job so that a future extension could cancel it.
+            # Store runner for this job. There is no cancel endpoint yet,
+            # but the infrastructure is prepared to support cancellation.
             with self._jobs_lock:
                 self.runners[job_id] = runner
 
@@ -358,18 +370,20 @@ class OptimizationManager:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
-                    # Check if job was cancelled while running
+                    # Cancelled optimization jobs are always FAILED because
+                    # partial optimization results are not useful
                     if runner.is_cancelled():
                         self.logger.info(
-                            f"Pipeline optimization {job_id} was cancelled, updating state to ABORTED"
+                            f"Pipeline optimization {job_id} was cancelled, marking as FAILED"
                         )
-                        job.state = InternalOptimizationJobState.ABORTED
+                        job.state = InternalOptimizationJobState.FAILED
                         job.end_time = int(time.time() * 1000)
-                        job.error_message = "Cancelled by user"
+                        job.details = ["Cancelled by user"]
                     else:
                         # Normal completion
                         job.state = InternalOptimizationJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
+                        job.details = ["Optimization completed successfully"]
 
                         if results is not None:
                             # Persist numeric metrics and optimized pipeline string

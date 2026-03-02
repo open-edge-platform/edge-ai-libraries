@@ -135,7 +135,7 @@ class TestOptimizationManager(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_update_job_error_sets_error_state(self):
-        """_update_job_error should set job state to ERROR and store error message."""
+        """_update_job_error should set job state to FAILED and store details as list."""
         manager = OptimizationManager()
         graph = _create_test_graph()
         request = self._make_internal_request()
@@ -156,8 +156,8 @@ class TestOptimizationManager(unittest.TestCase):
         manager._update_job_error(job_id, error_msg)
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ERROR)
-        self.assertEqual(updated.error_message, error_msg)
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, [error_msg])
         self.assertIsNotNone(updated.end_time)
 
     def test_update_job_error_unknown_job_does_nothing(self):
@@ -377,7 +377,8 @@ class TestOptimizationManager(unittest.TestCase):
         _execute_optimization should:
           * call OptimizationRunner.run_preprocessing,
           * update job state to COMPLETED,
-          * store optimized pipeline description and Graph objects.
+          * store optimized pipeline description and Graph objects,
+          * store details as list with success message.
         """
         manager = OptimizationManager()
 
@@ -419,6 +420,7 @@ class TestOptimizationManager(unittest.TestCase):
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
+        self.assertEqual(updated.details, ["Optimization completed successfully"])
         self.assertIsNotNone(updated.end_time)
         self.assertEqual(
             updated.optimized_pipeline_description,
@@ -533,7 +535,7 @@ class TestOptimizationManager(unittest.TestCase):
     def test_execute_optimization_graph_conversion_exception_sets_error(
         self, mock_runner_cls
     ):
-        """If Graph.from_pipeline_description fails, job should be marked as ERROR."""
+        """If Graph.from_pipeline_description fails, job should be marked as FAILED."""
         manager = OptimizationManager()
 
         graph = _create_test_graph()
@@ -571,10 +573,10 @@ class TestOptimizationManager(unittest.TestCase):
             )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ERROR)
-        self.assertIsNotNone(updated.error_message)
-        if updated.error_message:
-            self.assertIn("Graph conversion failed", updated.error_message)
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertIsNotNone(updated.details)
+        if updated.details:
+            self.assertIn("Graph conversion failed", updated.details)
 
     @patch("managers.optimization_manager.OptimizationRunner")
     def test_execute_optimization_validates_optimization_type(self, mock_runner_cls):
@@ -604,8 +606,8 @@ class TestOptimizationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ERROR)
-        self.assertIsNotNone(updated.error_message)
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertIsNotNone(updated.details)
 
     @patch("managers.optimization_manager.Graph")
     @patch("managers.optimization_manager.OptimizationRunner")
@@ -615,7 +617,8 @@ class TestOptimizationManager(unittest.TestCase):
         """
         For InternalOptimizationType.OPTIMIZE:
           * custom parameters must be forwarded to OptimizationRunner.run_optimization,
-          * resulting total_fps must be stored on the job.
+          * resulting total_fps must be stored on the job,
+          * details should be a list with success message.
         """
         manager = OptimizationManager()
 
@@ -658,6 +661,7 @@ class TestOptimizationManager(unittest.TestCase):
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalOptimizationJobState.COMPLETED)
+        self.assertEqual(updated.details, ["Optimization completed successfully"])
         self.assertEqual(updated.total_fps, 55.5)
         self.assertEqual(
             updated.optimized_pipeline_description, "optimized-pipeline ! sink"
@@ -670,8 +674,8 @@ class TestOptimizationManager(unittest.TestCase):
         )
 
     @patch("managers.optimization_manager.OptimizationRunner")
-    def test_execute_optimization_cancelled_job_marks_aborted(self, mock_runner_cls):
-        """If the runner reports cancellation, job state should become ABORTED."""
+    def test_execute_optimization_cancelled_job_marks_failed(self, mock_runner_cls):
+        """If the runner reports cancellation, job state should become FAILED with cancellation details as list."""
         manager = OptimizationManager()
 
         graph = _create_test_graph()
@@ -704,12 +708,12 @@ class TestOptimizationManager(unittest.TestCase):
             )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ABORTED)
-        self.assertEqual(updated.error_message, "Cancelled by user")
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertEqual(updated.details, ["Cancelled by user"])
         self.assertIsNotNone(updated.end_time)
 
     def test_execute_optimization_unknown_type_sets_error(self):
-        """Unsupported optimization type should result in ERROR state."""
+        """Unsupported optimization type should result in FAILED state."""
         manager = OptimizationManager()
         graph = _create_test_graph()
 
@@ -735,8 +739,8 @@ class TestOptimizationManager(unittest.TestCase):
             )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ERROR)
-        self.assertIsNotNone(updated.error_message)
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertIsNotNone(updated.details)
 
     @patch("managers.optimization_manager.OptimizationRunner")
     def test_execute_optimization_exception_sets_error_and_cleans_runner(
@@ -745,7 +749,7 @@ class TestOptimizationManager(unittest.TestCase):
         """
         Any unexpected exception from the runner should:
           * remove the runner from manager.runners,
-          * mark the job as ERROR with the exception message.
+          * mark the job as FAILED with the exception message in details list.
         """
         manager = OptimizationManager()
         graph = _create_test_graph()
@@ -775,10 +779,10 @@ class TestOptimizationManager(unittest.TestCase):
             )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalOptimizationJobState.ERROR)
-        self.assertIsNotNone(updated.error_message)
-        if updated.error_message is not None:
-            self.assertIn("boom", updated.error_message)
+        self.assertEqual(updated.state, InternalOptimizationJobState.FAILED)
+        self.assertIsInstance(updated.details, list)
+        self.assertTrue(len(updated.details) > 0)
+        self.assertIn("boom", updated.details[0])
         self.assertNotIn(job_id, manager.runners)
 
 
