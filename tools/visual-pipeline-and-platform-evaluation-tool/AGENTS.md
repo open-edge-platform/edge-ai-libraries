@@ -191,13 +191,15 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 
 ## Documentation Standards
 
-### Docstrings (Python)
+### Docstrings for API endpoints (Flask/FastAPI):
+Use markdown in docstrings
+Swagger/OpenAPI automatically renders markdown as beautiful documentation
 
-- Use Google-style docstrings for all functions, classes, and modules
-- Include type information in docstrings even when type hints are present
-- Document all parameters, return values, and raised exceptions
+Example:
+
 
 ```python
+@app.route('/pipelines', methods=['POST']) 
 def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     """Create a new user-defined pipeline.
 
@@ -219,6 +221,35 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     """
 ```
 
+### Docstrings for regular functions (utilities, helpers, classes):
+Use standard docstring format (Google/NumPy/Sphinx style)
+No markdown - better readability in IDE hover/tooltips
+
+Example:
+
+```python
+def calculate_total(items, tax_rate=0.23):
+    """
+    Calculate total price including tax for given items.
+    
+    Args:
+        items (list): List of dictionaries containing item data with 'price' key
+        tax_rate (float, optional): Tax rate as decimal. Defaults to 0.23.
+    
+    Returns:
+        float: Total price including tax, rounded to 2 decimal places
+    
+    Raises:
+        ValueError: If tax_rate is negative or items list is empty
+        KeyError: If any item missing 'price' key
+    
+    Example:
+        >>> items = [{'price': 10.0}, {'price': 20.0}]
+        >>> calculate_total(items, 0.20)
+        36.0
+    """
+```
+
 ### API Documentation
 
 - All FastAPI endpoints automatically generate OpenAPI docs at `/docs`
@@ -230,3 +261,5 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
 - Update relevant README files when adding new features or changing APIs
 - Keep installation and setup instructions current
 - Document any new environment variables or configuration options
+
+
