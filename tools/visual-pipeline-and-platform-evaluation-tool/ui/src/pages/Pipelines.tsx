@@ -428,14 +428,80 @@ export const Pipelines = () => {
               />
             )}
 
+          </div>
+          <div className="flex items-center gap-2 px-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={undo}
+                  disabled={!canUndo}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Undo"
+                >
+                  <Undo2 className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Undo (Ctrl+Z)</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={redo}
+                  disabled={!canRedo}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Redo"
+                >
+                  <Redo2 className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Redo (Ctrl+Y)</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleSave}
+                  disabled={isReadOnly || !canUndo}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Save"
+                >
+                  <Save className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  {isReadOnly
+                    ? "Read-only variant cannot be saved."
+                    : !canUndo
+                      ? "No changes to save"
+                      : "Save (Ctrl+S)"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
             {id && variant && (
               <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="ml-1">
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Pipeline options
-                  </Button>
-                </PopoverTrigger>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" aria-label="Pipeline options">
+                        <SlidersHorizontal className="h-5 w-5" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Pipeline options</p>
+                  </TooltipContent>
+                </Tooltip>
+
                 <PopoverContent align="start" className="w-[420px] p-4">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -518,8 +584,6 @@ export const Pipelines = () => {
                         />
                       </div>
 
-                      
-
                       {loopingEnabled && (
                         <div className="ml-6 flex items-center gap-2">
                           <Timer className="h-4 w-4 text-muted-foreground" />
@@ -575,64 +639,6 @@ export const Pipelines = () => {
                 </PopoverContent>
               </Popover>
             )}
-          </div>
-          <div className="flex items-center gap-2 px-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={undo}
-                  disabled={!canUndo}
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Undo"
-                >
-                  <Undo2 className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Undo (Ctrl+Z)</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={redo}
-                  disabled={!canRedo}
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Redo"
-                >
-                  <Redo2 className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>Redo (Ctrl+Y)</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={handleSave}
-                  disabled={isReadOnly || !canUndo}
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Save"
-                >
-                  <Save className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>
-                  {isReadOnly
-                    ? "Read-only variant cannot be saved."
-                    : !canUndo
-                      ? "No changes to save"
-                      : "Save (Ctrl+S)"}
-                </p>
-              </TooltipContent>
-            </Tooltip>
 
             <Separator orientation="vertical" className="h-6" />
 
