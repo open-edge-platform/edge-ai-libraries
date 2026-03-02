@@ -193,12 +193,12 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 
 ## Documentation Standards
 
-### Docstrings for API endpoints (Flask/FastAPI):
+### Docstrings for API endpoints (Flask/FastAPI)
+
 Use markdown in docstrings
 Swagger/OpenAPI automatically renders markdown as beautiful documentation
 
 Example:
-
 
 ```python
 @app.route('/pipelines', methods=['POST']) 
@@ -223,7 +223,8 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     """
 ```
 
-### Docstrings for regular functions (utilities, helpers, classes):
+### Docstrings for regular functions (utilities, helpers, classes)
+
 Use standard docstring format (Google/NumPy/Sphinx style)
 No markdown - better readability in IDE hover/tooltips
 
@@ -261,12 +262,14 @@ def calculate_total(items, tax_rate=0.23):
 ## Naming Conventions
 
 ### Python
+
 - Functions/variables: `snake_case`
 - Classes: `PascalCase`
 - Constants: `UPPER_SNAKE_CASE`
 - Private methods: `_leading_underscore`
 
 ### TypeScript
+
 - Functions/variables: `camelCase`
 - Components: `PascalCase`
 - Constants: `UPPER_SNAKE_CASE`
@@ -284,5 +287,3 @@ def calculate_total(items, tax_rate=0.23):
 - **Permission denied on /dev/video***: Add user to `video` group
 - **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
 - **Port conflicts**: Check if ports 80, 7860, 8554 are available
-
-
