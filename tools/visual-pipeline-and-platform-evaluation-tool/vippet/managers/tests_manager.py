@@ -1,116 +1,29 @@
 import logging
 import threading
 import time
-from dataclasses import dataclass
 import uuid
-from typing import Any, Dict, Optional
+from typing import Optional, Union
 from graph import Graph
 
-from api.api_schemas import (
-    DensityJobStatus,
-    DensityJobSummary,
-    PerformanceJobStatus,
-    PerformanceJobSummary,
-    PipelineStreamSpec,
-    TestJobState,
-    TestsJobStatus,
-)
 from internal_types import (
+    InternalDensityJobStatus,
+    InternalDensityJobSummary,
     InternalExecutionConfig,
     InternalOutputMode,
     InternalDensityTestSpec,
+    InternalPerformanceJobStatus,
+    InternalPerformanceJobSummary,
     InternalPerformanceTestSpec,
     InternalPipelinePerformanceSpec,
     InternalPipelineDensitySpec,
+    InternalPipelineStreamSpec,
+    InternalTestJobState,
 )
 from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
 
 logger = logging.getLogger("tests_manager")
-
-
-@dataclass
-class PerformanceJob:
-    """
-    Internal representation of a single performance test job.
-
-    This mirrors what is exposed through :class:`PerformanceJobStatus`
-    and :class:`PerformanceJobSummary`, with a few runtime-only fields.
-
-    The streams_per_pipeline field contains pipeline IDs in the format:
-    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-    * For inline graph: "__graph-{16-char-hash}"
-
-    Attributes:
-        id: Unique job identifier.
-        request: Original API request as serialized dict (for summary endpoint).
-        state: Current job state.
-        start_time: Job start time in milliseconds since epoch.
-        end_time: Job end time in milliseconds since epoch (None if running).
-        total_fps: Total FPS across all streams.
-        per_stream_fps: Average FPS per stream.
-        total_streams: Number of active streams.
-        streams_per_pipeline: List of pipeline IDs with stream counts.
-        video_output_paths: Mapping from pipeline ID to output file paths.
-        live_stream_urls: Mapping from pipeline ID to live stream URL.
-        error_message: Error description when state is ERROR or ABORTED.
-    """
-
-    id: str
-    request: Dict[str, Any]
-    state: TestJobState
-    start_time: int
-    end_time: int | None = None
-    total_fps: float | None = None
-    per_stream_fps: float | None = None
-    total_streams: int | None = None
-    streams_per_pipeline: list[PipelineStreamSpec] | None = None
-    video_output_paths: dict[str, list[str]] | None = None
-    live_stream_urls: dict[str, str] | None = None
-    error_message: str | None = None
-
-
-@dataclass
-class DensityJob:
-    """
-    Internal representation of a single density test job.
-
-    This mirrors what is exposed through :class:`DensityJobStatus`
-    and :class:`DensityJobSummary`, with a few runtime-only fields.
-
-    The streams_per_pipeline field contains pipeline IDs in the format:
-    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
-    * For inline graph: "__graph-{16-char-hash}"
-
-    Note: live_stream_urls is not included because density tests do not support
-    live-streaming output mode.
-
-    Attributes:
-        id: Unique job identifier.
-        request: Original API request as serialized dict (for summary endpoint).
-        state: Current job state.
-        start_time: Job start time in milliseconds since epoch.
-        end_time: Job end time in milliseconds since epoch (None if running).
-        total_fps: Total FPS across all streams.
-        per_stream_fps: Average FPS per stream.
-        total_streams: Number of active streams.
-        streams_per_pipeline: List of pipeline IDs with stream counts.
-        video_output_paths: Mapping from pipeline ID to output file paths.
-        error_message: Error description when state is ERROR or ABORTED.
-    """
-
-    id: str
-    request: Dict[str, Any]
-    state: TestJobState
-    start_time: int
-    end_time: int | None = None
-    total_fps: float | None = None
-    per_stream_fps: float | None = None
-    total_streams: int | None = None
-    streams_per_pipeline: list[PipelineStreamSpec] | None = None
-    video_output_paths: dict[str, list[str]] | None = None
-    error_message: str | None = None
 
 
 class TestsManager:
@@ -122,13 +35,12 @@ class TestsManager:
 
     Responsibilities:
 
-    * create and track :class:`PerformanceJob` and :class:`DensityJob` instances,
+    * create and track :class:`InternalPerformanceJobStatus` and :class:`InternalDensityJobStatus` instances,
     * run tests asynchronously in background threads,
     * expose job status and summaries in a thread-safe manner.
 
-    Note: This manager works with internal types (InternalPerformanceTestSpec,
-    InternalDensityTestSpec) for execution. Original API requests are stored
-    inside internal specs and extracted for summary endpoints.
+    This manager works exclusively with internal types. Conversion to API
+    types happens in the route layer.
     """
 
     _instance: Optional["TestsManager"] = None
@@ -149,7 +61,9 @@ class TestsManager:
         self._initialized = True
 
         # All known jobs keyed by job id
-        self.jobs: dict[str, PerformanceJob | DensityJob] = {}
+        self.jobs: dict[
+            str, InternalPerformanceJobStatus | InternalDensityJobStatus
+        ] = {}
         # Currently running PipelineRunner or Benchmark jobs keyed by job id
         self.runners: dict[str, PipelineRunner | Benchmark] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
@@ -172,7 +86,7 @@ class TestsManager:
         """
         Start a performance test job in the background and return its job id.
 
-        The method creates a new :class:`PerformanceJob` and spawns a
+        The method creates a new :class:`InternalPerformanceJobStatus` and spawns a
         background thread that executes the performance test.
 
         Args:
@@ -186,10 +100,10 @@ class TestsManager:
         job_id = self._generate_job_id()
 
         # Create job record with original request dict from internal spec
-        job = PerformanceJob(
+        job = InternalPerformanceJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            state=TestJobState.RUNNING,
+            state=InternalTestJobState.RUNNING,
             start_time=int(time.time() * 1000),  # milliseconds
         )
 
@@ -215,7 +129,7 @@ class TestsManager:
         """
         Start a density test job in the background and return its job id.
 
-        The method creates a new :class:`DensityJob` and spawns a
+        The method creates a new :class:`InternalDensityJobStatus` and spawns a
         background thread that executes the density test.
 
         Args:
@@ -229,10 +143,10 @@ class TestsManager:
         job_id = self._generate_job_id()
 
         # Create job record with original request dict from internal spec
-        job = DensityJob(
+        job = InternalDensityJobStatus(
             id=job_id,
             request=internal_spec.original_request,
-            state=TestJobState.RUNNING,
+            state=InternalTestJobState.RUNNING,
             start_time=int(time.time() * 1000),  # milliseconds
         )
 
@@ -386,7 +300,7 @@ class TestsManager:
 
         The method builds the pipeline command using internal types, executes it
         using :class:`PipelineRunner` and then updates the corresponding
-        :class:`PerformanceJob` accordingly.
+        :class:`InternalPerformanceJobStatus` accordingly.
 
         Args:
             job_id: Job identifier.
@@ -424,9 +338,9 @@ class TestsManager:
                 )
             )
 
-            # Build streams_per_pipeline from internal specs (pipeline_id already resolved)
+            # Build streams_per_pipeline using InternalPipelineStreamSpec
             streams_per_pipeline = [
-                PipelineStreamSpec(id=spec.pipeline_id, streams=spec.streams)
+                InternalPipelineStreamSpec(id=spec.pipeline_id, streams=spec.streams)
                 for spec in internal_spec.pipeline_performance_specs
             ]
 
@@ -436,10 +350,10 @@ class TestsManager:
                     job = self.jobs[job_id]
                     job.streams_per_pipeline = streams_per_pipeline
 
-                    # Type guard: ensure we have a PerformanceJob
-                    if not isinstance(job, PerformanceJob):
+                    # Type guard: ensure we have an InternalPerformanceJobStatus
+                    if not isinstance(job, InternalPerformanceJobStatus):
                         self.logger.error(
-                            f"Job {job_id} is not a PerformanceJob, skipping update"
+                            f"Job {job_id} is not an InternalPerformanceJobStatus, skipping update"
                         )
                     else:
                         job.live_stream_urls = live_stream_urls
@@ -481,12 +395,12 @@ class TestsManager:
                         self.logger.info(
                             f"Performance test {job_id} was cancelled, updating state to ABORTED"
                         )
-                        job.state = TestJobState.ABORTED
+                        job.state = InternalTestJobState.ABORTED
                         job.end_time = int(time.time() * 1000)
                         job.error_message = "Cancelled by user"
                     else:
                         # Normal completion
-                        job.state = TestJobState.COMPLETED
+                        job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
                         # Update performance metrics
@@ -520,7 +434,7 @@ class TestsManager:
         Execute the density test in a background thread.
 
         The method runs the benchmark using :class:`Benchmark` and then
-        updates the corresponding :class:`DensityJob` accordingly.
+        updates the corresponding :class:`InternalDensityJobStatus` accordingly.
 
         Note: Density tests do not support live-streaming output mode.
 
@@ -564,12 +478,12 @@ class TestsManager:
                         self.logger.info(
                             f"Density test {job_id} was cancelled, updating state to ABORTED"
                         )
-                        job.state = TestJobState.ABORTED
+                        job.state = InternalTestJobState.ABORTED
                         job.end_time = int(time.time() * 1000)
                         job.error_message = "Cancelled by user"
                     else:
                         # Normal completion
-                        job.state = TestJobState.COMPLETED
+                        job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
 
                         job.total_fps = None
@@ -603,112 +517,59 @@ class TestsManager:
         with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
-                job.state = TestJobState.ERROR
+                job.state = InternalTestJobState.ERROR
                 job.end_time = int(time.time() * 1000)
                 job.error_message = error_message
         self.logger.error(f"Test job {job_id} error: {error_message}")
 
-    def _build_performance_status(self, job: PerformanceJob) -> PerformanceJobStatus:
+    def get_job_statuses_by_type(
+        self, job_type: type
+    ) -> list[Union[InternalPerformanceJobStatus, InternalDensityJobStatus]]:
         """
-        Build a :class:`PerformanceJobStatus` DTO from the internal job object.
+        Return internal job status objects for all jobs of a specific type.
 
-        This method centralises the mapping to ensure consistency between
-        status queries.
-        """
-        current_time = int(time.time() * 1000)
-        elapsed_time = (
-            job.end_time - job.start_time
-            if job.end_time
-            else current_time - job.start_time
-        )
-        return PerformanceJobStatus(
-            id=job.id,
-            start_time=job.start_time,
-            elapsed_time=elapsed_time,
-            state=job.state,
-            total_fps=job.total_fps,
-            per_stream_fps=job.per_stream_fps,
-            total_streams=job.total_streams,
-            streams_per_pipeline=job.streams_per_pipeline,
-            video_output_paths=job.video_output_paths,
-            live_stream_urls=job.live_stream_urls,
-            error_message=job.error_message,
-        )
-
-    def _build_density_status(self, job: DensityJob) -> DensityJobStatus:
-        """
-        Build a :class:`DensityJobStatus` DTO from the internal job object.
-
-        This method centralises the mapping to ensure consistency between
-        status queries.
-
-        Note: DensityJobStatus does not include live_stream_urls because
-        density tests do not support live-streaming output mode.
-        """
-        current_time = int(time.time() * 1000)
-        elapsed_time = (
-            job.end_time - job.start_time
-            if job.end_time
-            else current_time - job.start_time
-        )
-        return DensityJobStatus(
-            id=job.id,
-            start_time=job.start_time,
-            elapsed_time=elapsed_time,
-            state=job.state,
-            total_fps=job.total_fps,
-            per_stream_fps=job.per_stream_fps,
-            total_streams=job.total_streams,
-            streams_per_pipeline=job.streams_per_pipeline,
-            video_output_paths=job.video_output_paths,
-            error_message=job.error_message,
-        )
-
-    def get_job_statuses_by_type(self, job_type) -> list[TestsJobStatus]:
-        """
-        Return statuses for all jobs of a specific type.
-
-        The ``job_type`` parameter should be either :class:`PerformanceJob`
-        or :class:`DensityJob`.  Access is protected by a lock to avoid
+        The ``job_type`` parameter should be either :class:`InternalPerformanceJobStatus`
+        or :class:`InternalDensityJobStatus`. Access is protected by a lock to avoid
         reading partial updates.
+
+        Returns internal types. Conversion to API types happens in the route layer.
         """
         with self._jobs_lock:
-            statuses: list[TestsJobStatus] = []
+            statuses: list[
+                Union[InternalPerformanceJobStatus, InternalDensityJobStatus]
+            ] = []
             for job in self.jobs.values():
-                if job_type == PerformanceJob and isinstance(job, PerformanceJob):
-                    statuses.append(self._build_performance_status(job))
-                elif job_type == DensityJob and isinstance(job, DensityJob):
-                    statuses.append(self._build_density_status(job))
+                if isinstance(job, job_type):
+                    statuses.append(job)
             self.logger.debug(f"Current job statuses for type {job_type}: {statuses}")
             return statuses
 
-    def get_job_status(self, job_id: str) -> TestsJobStatus | None:
+    def get_job_status(
+        self, job_id: str
+    ) -> Union[InternalPerformanceJobStatus, InternalDensityJobStatus, None]:
         """
-        Return the status for a single job.
+        Return the internal job status for a single job.
 
         ``None`` is returned when the job id is unknown.
+
+        Returns internal types. Conversion to API types happens in the route layer.
         """
         with self._jobs_lock:
             if job_id not in self.jobs:
                 return None
             job = self.jobs[job_id]
-            if isinstance(job, PerformanceJob):
-                job_status = self._build_performance_status(job)
-            elif isinstance(job, DensityJob):
-                job_status = self._build_density_status(job)
-            else:
-                job_status = None
-            self.logger.debug(f"Test job status for {job_id}: {job_status}")
-            return job_status
+            self.logger.debug(f"Test job status for {job_id}: {job}")
+            return job
 
     def get_job_summary(
         self, job_id: str
-    ) -> PerformanceJobSummary | DensityJobSummary | None:
+    ) -> Union[InternalPerformanceJobSummary, InternalDensityJobSummary, None]:
         """
         Return a short summary for a single job.
 
-        The summary intentionally contains only the job id and the original
-        test request.
+        The summary contains only the job id and the original test request.
+
+        Returns internal types. Conversion to API types happens in the route layer.
         """
         with self._jobs_lock:
             if job_id not in self.jobs:
@@ -716,13 +577,15 @@ class TestsManager:
 
             job = self.jobs[job_id]
 
-            if isinstance(job, PerformanceJob):
-                job_summary = PerformanceJobSummary(
+            if isinstance(job, InternalPerformanceJobStatus):
+                job_summary: Union[
+                    InternalPerformanceJobSummary, InternalDensityJobSummary
+                ] = InternalPerformanceJobSummary(
                     id=job.id,
                     request=job.request,
                 )
-            else:  # DensityJob
-                job_summary = DensityJobSummary(
+            else:  # InternalDensityJobStatus
+                job_summary = InternalDensityJobSummary(
                     id=job.id,
                     request=job.request,
                 )
@@ -751,7 +614,7 @@ class TestsManager:
 
             job = self.jobs[job_id]
 
-            if job.state != TestJobState.RUNNING:
+            if job.state != InternalTestJobState.RUNNING:
                 msg = f"Job {job_id} is not running (state: {job.state})"
                 self.logger.warning(msg)
                 return False, msg

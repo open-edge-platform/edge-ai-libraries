@@ -9,8 +9,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from api.api_schemas import USBCameraDetails, NetworkCameraDetails
-from managers.camera_manager import CameraManager
 from models import SupportedModelsManager
 from resources import (
     get_labels_manager,
@@ -19,7 +17,6 @@ from resources import (
 )
 from utils import generate_unique_filename, slugify_text
 from video_decoder import VideoDecoder
-from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
 from videos import OUTPUT_VIDEO_DIR, VideosManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
@@ -685,6 +682,107 @@ class Graph:
 
         return modified_graph
 
+    def strip_watermark_if_all_sinks_are_fake(self) -> "Graph":
+        """
+        Remove all gvawatermark nodes if every sink in the graph is a fakesink.
+
+        If the graph contains at least one OUTPUT_PLACEHOLDER node, it means
+        non-fakesink outputs will be added later, so the graph is returned
+        unchanged.
+
+        When all sink nodes (nodes whose type ends with "sink") are fakesink,
+        gvawatermark elements serve no purpose because there is no real video
+        output to render overlays on. Removing them avoids unnecessary
+        processing overhead.
+
+        For each removed gvawatermark node, incoming and outgoing edges are
+        reconnected so that the predecessor connects directly to the successor.
+
+        Returns:
+            Graph: New Graph instance with gvawatermark nodes removed, or self
+                if conditions are not met.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        # Early exit: if any OUTPUT_PLACEHOLDER exists, real sinks will be
+        # added later, so keep gvawatermark nodes intact.
+        for node in self.nodes:
+            if node.type == OUTPUT_PLACEHOLDER:
+                logger.debug(
+                    "Graph contains OUTPUT_PLACEHOLDER, skipping gvawatermark removal"
+                )
+                return self
+
+        # Collect all sink nodes (type ends with "sink")
+        sink_nodes = [node for node in self.nodes if node.type.endswith("sink")]
+
+        # If there are no sinks at all, nothing to decide — return unchanged.
+        if not sink_nodes:
+            return self
+
+        # Check if ALL sinks are fakesink
+        all_fakesink = all(node.type == "fakesink" for node in sink_nodes)
+        if not all_fakesink:
+            logger.debug("Not all sinks are fakesink, skipping gvawatermark removal")
+            return self
+
+        # Check if there are any gvawatermark nodes to remove.
+        watermark_ids = [node.id for node in self.nodes if node.type == "gvawatermark"]
+        if not watermark_ids:
+            return self
+
+        logger.debug(
+            f"All sinks are fakesink, removing {len(watermark_ids)} gvawatermark node(s)"
+        )
+
+        modified_graph = copy.deepcopy(self)
+
+        for wm_id in watermark_ids:
+            # Find incoming edges (edges targeting this watermark node)
+            incoming_edges = [e for e in modified_graph.edges if e.target == wm_id]
+            # Find outgoing edges (edges sourced from this watermark node)
+            outgoing_edges = [e for e in modified_graph.edges if e.source == wm_id]
+
+            # Collect source node IDs from incoming edges
+            source_ids = [e.source for e in incoming_edges]
+            # Collect target node IDs from outgoing edges
+            target_ids = [e.target for e in outgoing_edges]
+
+            # Remove all edges connected to the watermark node
+            modified_graph.edges = [
+                e
+                for e in modified_graph.edges
+                if e.source != wm_id and e.target != wm_id
+            ]
+
+            # Reconnect: create edges from each source to each target
+            # Find max edge ID for generating new unique IDs
+            max_edge_id = 0
+            for e in modified_graph.edges:
+                try:
+                    max_edge_id = max(max_edge_id, int(e.id))
+                except ValueError:
+                    pass
+
+            next_edge_id = max_edge_id + 1
+
+            for src in source_ids:
+                for tgt in target_ids:
+                    modified_graph.edges.append(
+                        Edge(id=str(next_edge_id), source=src, target=tgt)
+                    )
+                    logger.debug(
+                        f"Reconnected edge: {src} -> {tgt} (id={next_edge_id}) "
+                        f"after removing gvawatermark node {wm_id}"
+                    )
+                    next_edge_id += 1
+
+            # Remove the watermark node
+            modified_graph.nodes = [n for n in modified_graph.nodes if n.id != wm_id]
+
+        return modified_graph
+
     def unify_model_instance_ids(self) -> "Graph":
         """
         Unify model-instance-id for nodes with the same device and model.
@@ -740,6 +838,9 @@ class Graph:
                  ENCODER_DEVICE_CPU for standard video/x-raw or when no video/x-raw
                  node exists in the pipeline.
         """
+        from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         for node in reversed(self.nodes):
             if not node.type.startswith("video/x-raw"):
                 continue
@@ -1156,6 +1257,9 @@ class Graph:
         Returns:
             Codec string (e.g., "h264", "MJPG"), or None if codec cannot be determined.
         """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         for node in self.nodes:
             if node.type == "filesrc":
                 location = node.data.get("location")
@@ -1175,15 +1279,13 @@ class Graph:
                 device_path = node.data.get("device")
                 if not device_path:
                     continue
-                camera = CameraManager().get_camera_by_device_path(device_path)
-                if camera is None:
+                details = CameraManager().get_usb_camera_details_by_device_path(
+                    device_path
+                )
+                if details is None:
                     logger.debug(f"No camera found for device path '{device_path}'")
                     return None
-                if camera.details is None or not isinstance(
-                    camera.details, USBCameraDetails
-                ):
-                    return None
-                best_capture = camera.details.best_capture
+                best_capture = details.best_capture
                 if best_capture is not None and best_capture.fourcc:
                     logger.debug(
                         f"Determined codec '{best_capture.fourcc}' from v4l2src device '{device_path}'"
@@ -1195,8 +1297,10 @@ class Graph:
                 location = node.data.get("location")
                 if not location:
                     continue
-                camera = CameraManager().get_camera_by_rtsp_url(location)
-                if camera is None:
+                details = CameraManager().get_network_camera_details_by_rtsp_url(
+                    location
+                )
+                if details is None:
                     # Fall back to encoding lookup
                     encoding = CameraManager().get_encoding_for_rtsp_url(location)
                     if encoding:
@@ -1206,11 +1310,7 @@ class Graph:
                         return encoding
                     logger.debug(f"No camera found for RTSP URL '{location}'")
                     return None
-                if camera.details is None or not isinstance(
-                    camera.details, NetworkCameraDetails
-                ):
-                    return None
-                best_profile = camera.details.best_profile
+                best_profile = details.best_profile
                 if best_profile is not None and best_profile.encoding:
                     logger.debug(
                         f"Determined codec '{best_profile.encoding}' from rtspsrc URL '{location}'"
@@ -1500,6 +1600,9 @@ class Graph:
             The caps_data_dict includes the NODE_KIND_KEY marker and all
             caps properties.
         """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
         video_decoder = VideoDecoder()
 
         for node in nodes:
@@ -1510,15 +1613,8 @@ class Graph:
             if not device_path:
                 continue
 
-            camera = CameraManager().get_camera_by_device_path(device_path)
-            if camera is None:
-                continue
-
-            details = camera.details
+            details = CameraManager().get_usb_camera_details_by_device_path(device_path)
             if details is None:
-                continue
-
-            if not isinstance(details, USBCameraDetails):
                 continue
 
             best_capture = details.best_capture
