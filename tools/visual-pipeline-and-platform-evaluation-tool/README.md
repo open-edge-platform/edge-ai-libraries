@@ -65,6 +65,29 @@ configured to match evaluation needs.
 **Visualization & Analysis**: Real-time performance metrics are displayed on the dashboard to enable comparison of
 configurations and optimization of settings.
 
+## Example: Real-Time License Plate Recognition (ALPR)
+
+This example mirrors a common smart city workload and can be reproduced in ViPPET to compare Intel® platforms for
+license plate analytics.
+
+**Problem**: Detect vehicles, localize license plates, and read plate text from live or recorded video in real time.
+
+**ViPPET Pipeline Example**:
+
+1. **Vehicle Detection**: Run an object detection model to detect vehicles in each frame.
+2. **License Plate Detection**: Run a second model on vehicle regions to localize license plates.
+3. **Plate Recognition (OCR)**: Run an OCR/sequence recognition model on cropped plate images to decode text.
+
+**How to Evaluate in ViPPET**:
+
+- Configure input stream count and resolution (for example, 1080p single-stream vs multi-stream).
+- Select model variants and inference settings (FP16/INT8 where applicable).
+- Measure throughput, latency, CPU/GPU utilization, and power over the same test scenario.
+- Compare results across hardware targets to choose the best cost/performance configuration.
+
+**Expected Outcome**: A repeatable benchmark that shows whether a platform can sustain required ALPR accuracy and
+real-time performance under target deployment conditions.
+
 ## Learn More
 
 - [System Requirements](docs/user-guide/get-started/system-requirements.md)
