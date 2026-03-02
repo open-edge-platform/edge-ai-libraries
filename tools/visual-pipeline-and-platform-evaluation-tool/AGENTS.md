@@ -229,12 +229,27 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     - `tags` *(optional)* - List of categorization tags
     - `variants` *(required)* - List of `VariantCreate` objects
     
-    ## Returns
-    - **201**: `PipelineCreationResponse` with generated pipeline `id`
-    - **400**: `MessageResponse` - Invalid pipeline definition
-    - **500**: `MessageResponse` - Unexpected error
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 201 | `PipelineCreationResponse` with generated pipeline `id` |
+    | 400 | `MessageResponse` - Invalid pipeline definition |
+    | 500 | `MessageResponse` - Unexpected error |
+
+    ## Conditions
+
+    ### ✅ Success
+    - Valid PipelineDefinition
+    - PipelineManager successfully creates pipeline
+
+    ### ❌ Failure
+    - Invalid pipeline definition → 400
+    - Unhandled error → 500
     
-    ## Example Request
+    ## Examples
+
+    ### Request
     ```json
     {
       "name": "vehicle-detection",
@@ -250,10 +265,17 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     }
     ```
     
-    ## Example Response (201)
+    ### Success Response (201)
     ```json
     {
       "id": "pipeline-a3f5d9e1"
+    }
+    ```
+
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Pipeline name cannot be empty"
     }
     ```
     """
