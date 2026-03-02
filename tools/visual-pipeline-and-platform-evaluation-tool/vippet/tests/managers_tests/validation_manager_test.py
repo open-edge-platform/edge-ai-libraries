@@ -214,7 +214,6 @@ class TestValidationManager(unittest.TestCase):
         mock_runner.run.return_value = PipelineResult(
             exit_code=0, stderr=[], stdout=["Pipeline parsed successfully."]
         )
-        mock_runner._parse_validation_stderr.return_value = []
         mock_runner_cls.return_value = mock_runner
 
         manager._execute_validation(
