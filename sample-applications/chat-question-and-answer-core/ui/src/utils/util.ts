@@ -77,7 +77,7 @@ export const checkHealth = async () => {
   try {
     const response = await client.get(HEALTH_CHECK_URL);
     return { status: response.status };
-  } catch (error) {
+  } catch {
     return { status: 503 };
   }
 };

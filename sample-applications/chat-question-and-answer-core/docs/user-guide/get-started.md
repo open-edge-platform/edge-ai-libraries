@@ -24,7 +24,7 @@ By following this guide, you will learn how to:
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
    ```
 
    > **Note:** Adjust the repo link appropriately in case of forked repo.
@@ -43,17 +43,17 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_1.3.0
+   export UI_TAG=core_1.3.2-rc2
 
    # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_1.3.1
+   export BACKEND_TAG=core_1.3.2-rc2
 
    # If you want to utilize GPU device for inferencing, set the following:
    # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_1.3.1
+   export BACKEND_TAG=core_gpu_1.3.2-rc2
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_1.3.1
+   export BACKEND_TAG=core_ollama_1.3.2-rc2
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
