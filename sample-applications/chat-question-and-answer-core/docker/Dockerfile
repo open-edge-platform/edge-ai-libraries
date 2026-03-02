@@ -47,7 +47,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools wheel
 
 # Create a non-root user
 RUN groupadd -g ${GID} appuser && \

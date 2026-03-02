@@ -150,24 +150,21 @@ describe('DataSource Component test suite', () => {
     expect(screen.queryByTestId('file-container')).not.toBeInTheDocument();
   });
 
-  it('should handle file size exceeding limit', () => {
-    renderComponent();
+  it('should handle file size exceeding limit', async () => {
+    renderComponent()
+    const big = new File([new Uint8Array(MAX_FILE_SIZE * 1024 * 1024 + 1)], 'large.txt', { type: 'text/plain' })
+    const input = screen.getByTestId('file-input-field') as HTMLInputElement
 
-    const file = new File(
-      ['a'.repeat(MAX_FILE_SIZE * 1024 * 1024 + 1)],
-      'largefile.txt',
-      { type: 'text/plain' },
-    );
-    const input = screen.getByTestId('file-input-field') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [big] } })
 
-    fireEvent.change(input, { target: { files: [file] } });
-
-    expect(notify).toHaveBeenCalledWith(
-      i18n.t('fileSizeExceeded'),
-      NotificationSeverity.WARNING,
-    );
-    expect(screen.queryByTestId('file-container')).not.toBeInTheDocument();
-  });
+    await waitFor(() => {
+      expect(notify).toHaveBeenCalledWith(
+        i18n.t('fileSizeExceeded'),
+        NotificationSeverity.WARNING,
+      )
+    })
+    expect(screen.queryByTestId('file-container')).not.toBeInTheDocument()
+  })
 
   it('should clear file input when no file is selected', () => {
     renderComponent();
