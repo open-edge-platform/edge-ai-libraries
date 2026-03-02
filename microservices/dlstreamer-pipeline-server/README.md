@@ -24,7 +24,7 @@ Video analytics involves the conversion of video streams into valuable insights 
 
 
 > **Note:** Detailed documentation for Deep Learning Streamer Pipeline Server can be found on
-[the documentation website](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/index.html).
+[the documentation website](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/index.html).
 
 ## Architecture
 
@@ -154,6 +154,13 @@ Update the following lines in [.env file](./docker/.env) for choosing the right 
 
 Run the following commands:
 
+To enable GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
+To check the render ID group you can use below command:
+
+    ```sh
+     stat -c "%g" /dev/dri/render* | head -1
+   ```
+
    ```sh
      cd docker
      source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
@@ -168,7 +175,7 @@ Run the following commands:
 
 ---
 ### Run default sample
-Refer to the relevant [Get Started](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/get-started.html#run-default-sample) section to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+Refer to the relevant [Get Started](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/get-started.html#run-default-sample) section to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ---
 ## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
@@ -189,6 +196,6 @@ Refer to the relevant [Get Started](https://docs.openedgeplatform.intel.com/dev/
 ---
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/index.html)
--   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/advanced-guide/Overview.html).
--   For more tutorials refer [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer-pipeline-server/get-started.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/index.html)
+-   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/advanced-guide.html).
+-   For more tutorials refer [here](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/get-started.html)

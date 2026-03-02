@@ -3,7 +3,7 @@ docSumBackend:
   name: docsum-api
   image:
     repository: "intel/document-summary"
-    tag: "latest"
+    tag: "1.0.4"
     pullPolicy: "IfNotPresent"
   service:
     type: ClusterIP

@@ -8,7 +8,7 @@ This section collects guides for the Deep Learning Streamer Pipeline Server
 - [Run Configurable Pipelines](./how-to-guides/launch-configurable-pipelines.md)
 - [Run UDF Pipelines](./how-to-guides/run-udf-pipelines.md)
 - [Use CPU for Inference](./how-to-guides/use-cpu-for-decode-and-inference.md)
-- [Use GPU for Inference](./how-to-guides/use-gpu-for-decode-and-inference.md)
+- [Use GPU or NPU for Decoding and Inference](./how-to-guides/use-gpu-npu-for-decode-and-inference.md)
 - [Use Image File as Source over REST Payload](./how-to-guides/use-image-file-as-source-over-request-payload.md)
 - [Use RTSP Camera as Source](./how-to-guides/use-rtsp-camera-as-video-source.md)
 - [Download and Run YOLO Models](./how-to-guides/download-and-run-yolo-models.md)
@@ -29,7 +29,7 @@ Manage Pipeline <./how-to-guides/launch-and-manage-pipeline>
 ./how-to-guides/launch-configurable-pipelines
 Run UDF Pipelines <./how-to-guides/run-udf-pipelines>
 Use CPU for Inference <./how-to-guides/use-cpu-for-decode-and-inference>
-Use GPU for Inference <./how-to-guides/use-gpu-for-decode-and-inference>
+Use GPU or NPU for Inference <./how-to-guides/use-gpu-npu-for-decode-and-inference>
 ./how-to-guides/use-image-file-as-source-over-request-payload
 ./how-to-guides/use-rtsp-camera-as-video-source
 ./how-to-guides/download-and-run-yolo-models

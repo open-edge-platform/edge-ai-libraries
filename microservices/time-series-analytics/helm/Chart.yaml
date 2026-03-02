@@ -5,7 +5,7 @@
 #
 
 apiVersion: v2
-name: time-series-analytics-microservice
+name: ia-time-series-analytics-microservice
 description: Helm chart for deploying Time Series Analytics Microservice
 
 # A chart can be either an 'application' or a 'library' chart.
@@ -22,7 +22,7 @@ type: application
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
 #
-# Before pushing helm charts to a chart repository:
+# For weekly builds, before pushing helm charts to a chart repository:
 # 1. Update this version to format: 2026.0.0-<date>-weekly-helm where <date> is in yyyymmdd format
 # 2. Update the appVersion below with the same date
 # 3. Update the date in values.yaml file under images.weekly_build_date: "<date>"
@@ -30,17 +30,23 @@ type: application
 # Example: If the release date is February 2, 2026:
 #   version: 2026.0.0-20260202-weekly-helm
 #   values.yaml -> images.weekly_build_date: "20260202"
-version: 2026.0.0-helm
+#
+# For RC builds, before pushing helm charts to a chart repository:
+# 1. Update this version to format: 2026.0.0-rcX-helm where X is the RC number
+version: 2026.0.0-rc1-helm
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
 #
-# Before pushing helm charts to a chart repository:
+# For weekly builds, before pushing helm charts to a chart repository:
 # 1. Update this appVersion to match the chart version above (same date format)
 # 2. Ensure this matches the version field above: 2026.0.0-<date>-weekly-helm
 #
 # Example: If the release date is February 2, 2026:
 #   appVersion: "2026.0.0-20260202-weekly-helm"
-appVersion: "2026.0.0-helm"
+#
+# For RC builds, before pushing helm charts to a chart repository:
+# 1. Update this version same as Version field above
+appVersion: "2026.0.0-rc1-helm"

@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/sample-applications/chat-question-and-answer-core">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer-core/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/sample-applications/chat-question-and-answer-core/README.md">
      Readme
   </a>
 </div>
@@ -15,7 +15,7 @@ ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
 Compared to the
-[Chat Question-and-Answer](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
+[Chat Question-and-Answer](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/sample-applications/chat-question-and-answer)
 implementation, this implementation of Chat Question-and-Answer Core is optimized for
 memory footprint, as it is built as a single monolithic application with the entire RAG
 pipeline bundled in a single microservice. The microservice supports a bare metal

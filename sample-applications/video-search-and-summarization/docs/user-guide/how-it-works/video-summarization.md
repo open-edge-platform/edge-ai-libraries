@@ -52,7 +52,7 @@ The following are steps in the application flow:
 
 1. **Create the Video Summarization pipeline**
 
-   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
+   - **Configure the pipeline**: The Video Summarization UI microservice allows you to configure capabilities on the Video Summarization pipeline. You can see configuration examples for the Video Summarization pipeline [here](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/sample-applications/video-search-and-summarization/cli/config).
 
    - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 
