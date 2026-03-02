@@ -1,5 +1,5 @@
 x-nginx-common: &nginx-common
-  image: nginxinc/nginx-unprivileged:1.29.2
+  image: nginxinc/nginx-unprivileged:1.29.5
   container_name: chatqna-core-nginx
   ports:
     - "8102:8102"
@@ -7,7 +7,8 @@ x-nginx-common: &nginx-common
     - ../nginx_config/nginx.conf:/etc/nginx/nginx.conf:ro
 
 x-chatqna-core-common: &chatqna-core-common
-  image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
+  #image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
+  image: chatqna:ollama
   build:
     context: ../
     dockerfile: docker/Dockerfile

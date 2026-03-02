@@ -2,16 +2,37 @@ import time
 import unittest
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import (
-    PipelineValidation,
-    PipelineGraph,
-    ValidationJobState,
+from graph import Graph
+from internal_types import (
+    InternalPipelineValidation,
+    InternalValidationJob,
+    InternalValidationJobState,
+    InternalValidationJobStatus,
+    InternalValidationJobSummary,
 )
-from managers.validation_manager import (
-    ValidationManager,
-    ValidationJob,
-)
+from managers.validation_manager import ValidationManager
 from pipeline_runner import PipelineValidationResult
+
+
+# Helper to create an internal Graph from the standard test graph
+def _create_test_graph() -> Graph:
+    """Create an internal Graph object from the standard test graph."""
+    graph_dict = {
+        "nodes": [
+            {
+                "id": "0",
+                "type": "filesrc",
+                "data": {"location": "/tmp/dummy-video.mp4"},
+            },
+            {"id": "1", "type": "decodebin3", "data": {}},
+            {"id": "2", "type": "autovideosink", "data": {}},
+        ],
+        "edges": [
+            {"id": "0", "source": "0", "target": "1"},
+            {"id": "1", "source": "1", "target": "2"},
+        ],
+    }
+    return Graph.from_dict(graph_dict)
 
 
 class TestValidationManager(unittest.TestCase):
@@ -23,32 +44,9 @@ class TestValidationManager(unittest.TestCase):
       * status and summary retrieval,
       * interaction with PipelineRunner,
       * input validation and error paths.
-    """
 
-    test_graph_json = """
-    {
-        "nodes": [
-            {
-                "id": "0",
-                "type": "filesrc",
-                "data": {"location": "/tmp/dummy-video.mp4"}
-            },
-            {
-                "id": "1",
-                "type": "decodebin3",
-                "data": {}
-            },
-            {
-                "id": "2",
-                "type": "autovideosink",
-                "data": {}
-            }
-        ],
-        "edges": [
-            {"id": "0", "source": "0", "target": "1"},
-            {"id": "1", "source": "1", "target": "2"}
-        ]
-    }
+    All tests use internal types only. The manager does not depend on
+    API schema types.
     """
 
     def setUp(self):
@@ -59,12 +57,12 @@ class TestValidationManager(unittest.TestCase):
         """Reset singleton state after each test."""
         ValidationManager._instance = None
 
-    def _build_validation_request(
+    def _build_internal_validation(
         self, parameters: dict | None = None
-    ) -> PipelineValidation:
-        """Helper that constructs a minimal PipelineValidation instance."""
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        return PipelineValidation(
+    ) -> InternalPipelineValidation:
+        """Helper that constructs an InternalPipelineValidation with Graph object."""
+        graph = _create_test_graph()
+        return InternalPipelineValidation(
             pipeline_graph=graph,
             parameters=parameters,
         )
@@ -83,12 +81,12 @@ class TestValidationManager(unittest.TestCase):
     # Basic job creation
     # ------------------------------------------------------------------
 
-    @patch("managers.validation_manager.Graph")
-    def test_run_validation_creates_job_with_running_state(self, mock_graph_cls):
+    def test_run_validation_creates_job_with_running_state(self):
         """
         run_validation should:
-          * convert the graph to a pipeline description,
-          * create a new ValidationJob with RUNNING state,
+          * convert the internal Graph to a pipeline description,
+          * create a new InternalValidationJob with RUNNING state,
+          * store Graph object in internal state,
           * start a background worker thread that uses PipelineRunner.
         """
         manager = ValidationManager()
@@ -97,19 +95,22 @@ class TestValidationManager(unittest.TestCase):
         mock_graph.to_pipeline_description.return_value = (
             "filesrc ! decodebin3 ! autovideosink"
         )
-        mock_graph_cls.from_dict.return_value = mock_graph
 
-        request = self._build_validation_request(parameters=None)
+        internal_request = InternalPipelineValidation(
+            pipeline_graph=mock_graph,
+            parameters=None,
+        )
 
         with patch.object(manager, "_execute_validation") as mock_execute:
-            job_id = manager.run_validation(request)
+            job_id = manager.run_validation(internal_request)
 
         self.assertIsInstance(job_id, str)
         self.assertIn(job_id, manager.jobs)
 
         job = manager.jobs[job_id]
-        self.assertEqual(job.request, request)
-        self.assertEqual(job.state, ValidationJobState.RUNNING)
+        # Job stores internal request type with Graph object
+        self.assertIsInstance(job.request, InternalPipelineValidation)
+        self.assertEqual(job.state, InternalValidationJobState.RUNNING)
         self.assertIsInstance(job.start_time, int)
         self.assertIsNone(job.end_time)
         self.assertEqual(
@@ -129,57 +130,58 @@ class TestValidationManager(unittest.TestCase):
     # Parameter validation
     # ------------------------------------------------------------------
 
-    @patch("managers.validation_manager.Graph")
-    def test_run_validation_uses_default_max_runtime(self, mock_graph_cls):
+    def test_run_validation_uses_default_max_runtime(self):
         """When max-runtime not provided, should default to 10 seconds."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
         mock_graph.to_pipeline_description.return_value = "pipeline"
-        mock_graph_cls.from_dict.return_value = mock_graph
 
-        request = self._build_validation_request(parameters={})
+        internal_request = InternalPipelineValidation(
+            pipeline_graph=mock_graph,
+            parameters={},
+        )
 
         with patch.object(manager, "_execute_validation") as mock_execute:
-            manager.run_validation(request)
+            manager.run_validation(internal_request)
 
         _, _, max_rt, hard_timeout = mock_execute.call_args[0]
         self.assertEqual(max_rt, 10)
         self.assertEqual(hard_timeout, 70)
 
-    @patch("managers.validation_manager.Graph")
-    def test_run_validation_raises_error_for_non_int_max_runtime(self, mock_graph_cls):
+    def test_run_validation_raises_error_for_non_int_max_runtime(self):
         """Non-integer max-runtime should raise ValueError."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
         mock_graph.to_pipeline_description.return_value = "pipeline"
-        mock_graph_cls.from_dict.return_value = mock_graph
 
-        request = self._build_validation_request(parameters={"max-runtime": "abc"})
+        internal_request = InternalPipelineValidation(
+            pipeline_graph=mock_graph,
+            parameters={"max-runtime": "abc"},
+        )
 
         with patch.object(manager, "_execute_validation"):
             with self.assertRaises(ValueError) as ctx:
-                manager.run_validation(request)
+                manager.run_validation(internal_request)
 
         self.assertIn("must be an integer", str(ctx.exception))
 
-    @patch("managers.validation_manager.Graph")
-    def test_run_validation_raises_error_for_too_small_max_runtime(
-        self, mock_graph_cls
-    ):
+    def test_run_validation_raises_error_for_too_small_max_runtime(self):
         """max-runtime < 1 should raise ValueError."""
         manager = ValidationManager()
 
         mock_graph = MagicMock()
         mock_graph.to_pipeline_description.return_value = "pipeline"
-        mock_graph_cls.from_dict.return_value = mock_graph
 
-        request = self._build_validation_request(parameters={"max-runtime": 0})
+        internal_request = InternalPipelineValidation(
+            pipeline_graph=mock_graph,
+            parameters={"max-runtime": 0},
+        )
 
         with patch.object(manager, "_execute_validation"):
             with self.assertRaises(ValueError) as ctx:
-                manager.run_validation(request)
+                manager.run_validation(internal_request)
 
         self.assertIn("greater than or equal to 1", str(ctx.exception))
 
@@ -192,15 +194,14 @@ class TestValidationManager(unittest.TestCase):
         """On successful validation, job should be marked COMPLETED."""
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(pipeline_graph=graph, parameters=None)
+        internal_request = self._build_internal_validation()
 
         job_id = "job-success"
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
-            request=request,
+            request=internal_request,
             pipeline_description="filesrc ! decodebin3 ! autovideosink",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=int(time.time() * 1000),
         )
         manager.jobs[job_id] = job
@@ -220,7 +221,7 @@ class TestValidationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, ValidationJobState.COMPLETED)
+        self.assertEqual(updated.state, InternalValidationJobState.COMPLETED)
         self.assertTrue(updated.is_valid)
         self.assertIsNone(updated.error_message)
         self.assertIsNotNone(updated.end_time)
@@ -232,15 +233,14 @@ class TestValidationManager(unittest.TestCase):
         """When pipeline is invalid, job should be marked ERROR."""
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(pipeline_graph=graph, parameters=None)
+        internal_request = self._build_internal_validation()
 
         job_id = "job-invalid"
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
-            request=request,
+            request=internal_request,
             pipeline_description="invalid-pipeline",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=int(time.time() * 1000),
         )
         manager.jobs[job_id] = job
@@ -259,7 +259,7 @@ class TestValidationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, ValidationJobState.ERROR)
+        self.assertEqual(updated.state, InternalValidationJobState.ERROR)
         self.assertFalse(updated.is_valid)
         self.assertEqual(updated.error_message, ["no element foo", "some other error"])
 
@@ -268,15 +268,14 @@ class TestValidationManager(unittest.TestCase):
         """Unexpected exception should mark job as ERROR."""
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(pipeline_graph=graph, parameters=None)
+        internal_request = self._build_internal_validation()
 
         job_id = "job-exception"
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
-            request=request,
+            request=internal_request,
             pipeline_description="pipeline",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=int(time.time() * 1000),
         )
         manager.jobs[job_id] = job
@@ -293,7 +292,7 @@ class TestValidationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, ValidationJobState.ERROR)
+        self.assertEqual(updated.state, InternalValidationJobState.ERROR)
         self.assertIsNotNone(updated.error_message)
         self.assertIn("runner exploded", " ".join(updated.error_message or []))
 
@@ -302,26 +301,25 @@ class TestValidationManager(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_get_all_job_statuses_returns_correct_statuses(self):
-        """get_all_job_statuses should build statuses for all jobs."""
+        """get_all_job_statuses should return internal status objects for all jobs."""
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(pipeline_graph=graph, parameters=None)
+        internal_request = self._build_internal_validation()
 
         now = int(time.time() * 1000)
 
-        job1 = ValidationJob(
+        job1 = InternalValidationJob(
             id="job-1",
-            request=request,
+            request=internal_request,
             pipeline_description="pipeline-1",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=now,
         )
-        job2 = ValidationJob(
+        job2 = InternalValidationJob(
             id="job-2",
-            request=request,
+            request=internal_request,
             pipeline_description="pipeline-2",
-            state=ValidationJobState.COMPLETED,
+            state=InternalValidationJobState.COMPLETED,
             start_time=now - 1000,
             end_time=now,
             is_valid=True,
@@ -333,12 +331,16 @@ class TestValidationManager(unittest.TestCase):
         statuses = manager.get_all_job_statuses()
         self.assertEqual(len(statuses), 2)
 
+        # All returned statuses are internal types
+        for s in statuses:
+            self.assertIsInstance(s, InternalValidationJobStatus)
+
         ids = {s.id for s in statuses}
         self.assertIn("job-1", ids)
         self.assertIn("job-2", ids)
 
         status2 = next(s for s in statuses if s.id == "job-2")
-        self.assertEqual(status2.state, ValidationJobState.COMPLETED)
+        self.assertEqual(status2.state, InternalValidationJobState.COMPLETED)
         self.assertTrue(status2.is_valid)
 
     def test_get_job_status_unknown_returns_none(self):
@@ -348,20 +350,20 @@ class TestValidationManager(unittest.TestCase):
 
     def test_get_job_status_returns_correct_status(self):
         """
-        get_job_status should mirror the underlying ValidationJob fields.
+        get_job_status should return an InternalValidationJobStatus
+        mirroring the underlying InternalValidationJob fields.
         """
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(pipeline_graph=graph, parameters=None)
+        internal_request = self._build_internal_validation()
 
         job_id = "job-status"
         start = int(time.time() * 1000)
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
-            request=request,
+            request=internal_request,
             pipeline_description="pipeline-desc",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=start,
         )
         manager.jobs[job_id] = job
@@ -369,8 +371,9 @@ class TestValidationManager(unittest.TestCase):
         status = manager.get_job_status(job_id)
         self.assertIsNotNone(status)
         assert status is not None  # for type checkers
+        self.assertIsInstance(status, InternalValidationJobStatus)
         self.assertEqual(status.id, job_id)
-        self.assertEqual(status.state, ValidationJobState.RUNNING)
+        self.assertEqual(status.state, InternalValidationJobState.RUNNING)
         self.assertIsNone(status.is_valid)
 
     def test_get_job_summary_unknown_returns_none(self):
@@ -380,21 +383,21 @@ class TestValidationManager(unittest.TestCase):
 
     def test_get_job_summary_returns_correct_summary(self):
         """
-        get_job_summary should return the request used to create the job.
+        get_job_summary should return an InternalValidationJobSummary
+        with the original internal request (Graph object, not API type).
         """
         manager = ValidationManager()
 
-        graph = PipelineGraph.model_validate_json(self.test_graph_json)
-        request = PipelineValidation(
-            pipeline_graph=graph, parameters={"max-runtime": 5}
+        internal_request = self._build_internal_validation(
+            parameters={"max-runtime": 5}
         )
 
         job_id = "job-summary"
-        job = ValidationJob(
+        job = InternalValidationJob(
             id=job_id,
-            request=request,
+            request=internal_request,
             pipeline_description="pipeline-desc",
-            state=ValidationJobState.RUNNING,
+            state=InternalValidationJobState.RUNNING,
             start_time=int(time.time() * 1000),
         )
         manager.jobs[job_id] = job
@@ -402,8 +405,12 @@ class TestValidationManager(unittest.TestCase):
         summary = manager.get_job_summary(job_id)
         self.assertIsNotNone(summary)
         assert summary is not None  # for type checkers
+        self.assertIsInstance(summary, InternalValidationJobSummary)
         self.assertEqual(summary.id, job_id)
-        self.assertEqual(summary.request, request)
+        # Summary returns internal type with Graph object
+        self.assertIsInstance(summary.request, InternalPipelineValidation)
+        self.assertIsInstance(summary.request.pipeline_graph, Graph)
+        self.assertEqual(summary.request.parameters, {"max-runtime": 5})
 
 
 if __name__ == "__main__":
