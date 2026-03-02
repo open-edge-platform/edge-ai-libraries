@@ -415,17 +415,17 @@ class InternalPerformanceJobStatus:
     """
 
     id: str
-    request: Dict[str, Any]
+    request: dict[str, Any]
     state: InternalTestJobState
     start_time: int
-    end_time: Optional[int] = None
-    details: List[str] = field(default_factory=list)
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[InternalPipelineStreamSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    live_stream_urls: Optional[Dict[str, str]] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    live_stream_urls: dict[str, str] | None = None
 
 
 @dataclass
@@ -462,16 +462,16 @@ class InternalDensityJobStatus:
     """
 
     id: str
-    request: Dict[str, Any]
+    request: dict[str, Any]
     state: InternalTestJobState
     start_time: int
-    end_time: Optional[int] = None
-    details: List[str] = field(default_factory=list)
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[InternalPipelineStreamSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
 
 
 @dataclass
@@ -548,13 +548,13 @@ class InternalOptimizationJobStatus:
     request: InternalPipelineRequestOptimize
     state: InternalOptimizationJobState
     start_time: int
-    type: Optional[InternalOptimizationType] = None
-    end_time: Optional[int] = None
-    details: List[str] = field(default_factory=list)
-    optimized_pipeline_graph: Optional[Graph] = None
-    optimized_pipeline_graph_simple: Optional[Graph] = None
-    optimized_pipeline_description: Optional[str] = None
-    total_fps: Optional[float] = None
+    type: InternalOptimizationType | None = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    optimized_pipeline_graph: Graph | None = None
+    optimized_pipeline_graph_simple: Graph | None = None
+    optimized_pipeline_description: str | None = None
+    total_fps: float | None = None
 
 
 @dataclass
@@ -600,8 +600,8 @@ class InternalValidationJobStatus:
     start_time: int
     elapsed_time: int
     state: InternalValidationJobState
-    details: List[str] = field(default_factory=list)
-    is_valid: Optional[bool] = None
+    details: list[str] = field(default_factory=list)
+    is_valid: bool | None = None
 
 
 @dataclass
@@ -649,9 +649,9 @@ class InternalValidationJob:
     pipeline_description: str
     state: InternalValidationJobState
     start_time: int
-    end_time: Optional[int] = None
-    details: List[str] = field(default_factory=list)
-    is_valid: Optional[bool] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    is_valid: bool | None = None
 
 
 @dataclass

@@ -1342,12 +1342,12 @@ class TestsJobStatus(BaseModel):
     start_time: int
     elapsed_time: int
     state: TestJobState
-    details: List[str]
-    total_fps: Optional[float]
-    per_stream_fps: Optional[float]
-    total_streams: Optional[int]
-    streams_per_pipeline: Optional[List[PipelineStreamSpec]]
-    video_output_paths: Optional[Dict[str, List[str]]]
+    details: list[str]
+    total_fps: float | None
+    per_stream_fps: float | None
+    total_streams: int | None
+    streams_per_pipeline: list[PipelineStreamSpec] | None
+    video_output_paths: dict[str, list[str]] | None
 
 
 class PerformanceJobStatus(TestsJobStatus):
@@ -1474,18 +1474,18 @@ class OptimizationJobStatus(BaseModel):
     """
 
     id: str
-    type: Optional[OptimizationType]
+    type: OptimizationType | None
     start_time: int
     elapsed_time: int
     state: OptimizationJobState
-    details: List[str]
-    total_fps: Optional[float]
+    details: list[str]
+    total_fps: float | None
     original_pipeline_graph: PipelineGraph
     original_pipeline_graph_simple: PipelineGraph
-    optimized_pipeline_graph: Optional[PipelineGraph]
-    optimized_pipeline_graph_simple: Optional[PipelineGraph]
+    optimized_pipeline_graph: PipelineGraph | None
+    optimized_pipeline_graph_simple: PipelineGraph | None
     original_pipeline_description: str
-    optimized_pipeline_description: Optional[str]
+    optimized_pipeline_description: str | None
 
 
 class OptimizationJobSummary(BaseModel):
@@ -1529,8 +1529,8 @@ class ValidationJobStatus(BaseModel):
     start_time: int
     elapsed_time: int
     state: ValidationJobState
-    details: List[str]
-    is_valid: Optional[bool]
+    details: list[str]
+    is_valid: bool | None
 
 
 class ValidationJobSummary(BaseModel):

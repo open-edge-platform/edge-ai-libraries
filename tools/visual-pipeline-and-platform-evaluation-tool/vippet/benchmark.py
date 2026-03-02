@@ -7,7 +7,6 @@ based on configurable parameters and stream counts.
 import logging
 import math
 from dataclasses import dataclass
-from typing import List
 
 from internal_types import (
     InternalExecutionConfig,
@@ -37,9 +36,9 @@ class BenchmarkResult:
     """
 
     n_streams: int
-    streams_per_pipeline: List[InternalPipelineStreamSpec]
+    streams_per_pipeline: list[InternalPipelineStreamSpec]
     per_stream_fps: float
-    video_output_paths: dict[str, List[str]]
+    video_output_paths: dict[str, list[str]]
 
     def __repr__(self):
         return (
@@ -142,7 +141,7 @@ class Benchmark:
         # We'll set this once we fall below the fps_floor
         higher_bound = -1
         best_config: tuple[
-            int, list[InternalPipelineStreamSpec], float, dict[str, List[str]]
+            int, list[InternalPipelineStreamSpec], float, dict[str, list[str]]
         ] = (
             0,
             [],

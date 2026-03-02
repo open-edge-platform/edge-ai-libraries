@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import List
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -102,7 +101,7 @@ def stop_test_job_handler(job_id: str):
     "/tests/performance/status",
     operation_id="get_performance_statuses",
     summary="List all performance test jobs",
-    response_model=List[schemas.PerformanceJobStatus],
+    response_model=list[schemas.PerformanceJobStatus],
 )
 def get_performance_statuses():
     """
@@ -394,7 +393,7 @@ def stop_performance_test_job(job_id: str):
     "/tests/density/status",
     operation_id="get_density_statuses",
     summary="List all density test jobs",
-    response_model=List[schemas.DensityJobStatus],
+    response_model=list[schemas.DensityJobStatus],
 )
 def get_density_statuses():
     """
@@ -639,7 +638,7 @@ def stop_density_test_job(job_id: str):
     "/optimization/status",
     operation_id="get_optimization_statuses",
     summary="List all optimization jobs",
-    response_model=List[schemas.OptimizationJobStatus],
+    response_model=list[schemas.OptimizationJobStatus],
 )
 def get_optimization_statuses():
     """
@@ -808,7 +807,7 @@ def get_optimization_job_status(job_id: str):
     "/validation/status",
     operation_id="get_validation_statuses",
     summary="List all validation jobs",
-    response_model=List[schemas.ValidationJobStatus],
+    response_model=list[schemas.ValidationJobStatus],
 )
 def get_validation_statuses():
     """

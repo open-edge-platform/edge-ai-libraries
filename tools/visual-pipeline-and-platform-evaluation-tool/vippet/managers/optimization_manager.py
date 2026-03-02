@@ -3,7 +3,6 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from graph import Graph
 from internal_types import (
@@ -35,7 +34,7 @@ class PipelineOptimizationResult:
     """
 
     optimized_pipeline_description: str
-    total_fps: Optional[float] = None
+    total_fps: float | None = None
 
     def __repr__(self) -> str:
         return (
@@ -136,7 +135,7 @@ class OptimizationManager:
     * convert between GStreamer pipeline strings and graph representations.
     """
 
-    _instance: Optional["OptimizationManager"] = None
+    _instance: "OptimizationManager | None" = None
     _lock = threading.Lock()
 
     def __new__(cls) -> "OptimizationManager":
@@ -154,9 +153,9 @@ class OptimizationManager:
         self._initialized = True
 
         # All known jobs keyed by job id
-        self.jobs: Dict[str, InternalOptimizationJobStatus] = {}
+        self.jobs: dict[str, InternalOptimizationJobStatus] = {}
         # Currently running OptimizationRunner instances keyed by job id
-        self.runners: Dict[str, OptimizationRunner] = {}
+        self.runners: dict[str, OptimizationRunner] = {}
         # Shared lock protecting access to ``jobs`` and ``runners``
         self._jobs_lock = threading.Lock()
         self.logger = logging.getLogger("OptimizationManager")
@@ -232,7 +231,7 @@ class OptimizationManager:
             self.logger.debug(f"Current pipeline optimization job statuses: {statuses}")
             return statuses
 
-    def get_job_status(self, job_id: str) -> Optional[InternalOptimizationJobStatus]:
+    def get_job_status(self, job_id: str) -> InternalOptimizationJobStatus | None:
         """
         Return the internal status for a single job.
 
@@ -246,7 +245,7 @@ class OptimizationManager:
             self.logger.debug(f"Pipeline optimization job status for {job_id}: {job}")
             return job
 
-    def get_job_summary(self, job_id: str) -> Optional[InternalOptimizationJobSummary]:
+    def get_job_summary(self, job_id: str) -> InternalOptimizationJobSummary | None:
         """
         Return a short internal summary for a single job.
 

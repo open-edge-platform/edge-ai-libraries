@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 import uuid
-from typing import Optional
 
 from internal_types import (
     InternalPipelineValidation,
@@ -34,7 +33,7 @@ class ValidationManager:
     Conversion to API types happens in the route layer.
     """
 
-    _instance: Optional["ValidationManager"] = None
+    _instance: "ValidationManager | None" = None
     _lock = threading.Lock()
 
     def __new__(cls) -> "ValidationManager":

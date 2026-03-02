@@ -2,7 +2,7 @@ import logging
 import threading
 import time
 import uuid
-from typing import Optional, Union
+from typing import TypeVar
 from graph import Graph
 
 from internal_types import (
@@ -25,6 +25,8 @@ from managers.pipeline_manager import PipelineManager
 
 logger = logging.getLogger("tests_manager")
 
+_T = TypeVar("_T", InternalPerformanceJobStatus, InternalDensityJobStatus)
+
 
 class TestsManager:
     """
@@ -43,7 +45,7 @@ class TestsManager:
     types happens in the route layer.
     """
 
-    _instance: Optional["TestsManager"] = None
+    _instance: "TestsManager | None" = None
     _lock = threading.Lock()
 
     def __new__(cls) -> "TestsManager":
@@ -564,9 +566,7 @@ class TestsManager:
                 job.details = [detail_message]
         self.logger.error(f"Test job {job_id} failed: {detail_message}")
 
-    def get_job_statuses_by_type(
-        self, job_type: type
-    ) -> list[Union[InternalPerformanceJobStatus, InternalDensityJobStatus]]:
+    def get_job_statuses_by_type(self, job_type: type[_T]) -> list[_T]:
         """
         Return internal job status objects for all jobs of a specific type.
 
@@ -577,9 +577,7 @@ class TestsManager:
         Returns internal types. Conversion to API types happens in the route layer.
         """
         with self._jobs_lock:
-            statuses: list[
-                Union[InternalPerformanceJobStatus, InternalDensityJobStatus]
-            ] = []
+            statuses: list[_T] = []
             for job in self.jobs.values():
                 if isinstance(job, job_type):
                     statuses.append(job)
@@ -588,7 +586,7 @@ class TestsManager:
 
     def get_job_status(
         self, job_id: str
-    ) -> Union[InternalPerformanceJobStatus, InternalDensityJobStatus, None]:
+    ) -> InternalPerformanceJobStatus | InternalDensityJobStatus | None:
         """
         Return the internal job status for a single job.
 
@@ -605,7 +603,7 @@ class TestsManager:
 
     def get_job_summary(
         self, job_id: str
-    ) -> Union[InternalPerformanceJobSummary, InternalDensityJobSummary, None]:
+    ) -> InternalPerformanceJobSummary | InternalDensityJobSummary | None:
         """
         Return a short summary for a single job.
 
@@ -620,9 +618,7 @@ class TestsManager:
             job = self.jobs[job_id]
 
             if isinstance(job, InternalPerformanceJobStatus):
-                job_summary: Union[
-                    InternalPerformanceJobSummary, InternalDensityJobSummary
-                ] = InternalPerformanceJobSummary(
+                job_summary = InternalPerformanceJobSummary(
                     id=job.id,
                     request=job.request,
                 )
