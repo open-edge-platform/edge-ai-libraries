@@ -88,6 +88,33 @@ license plate analytics.
 **Expected Outcome**: A repeatable benchmark that shows whether a platform can sustain required ALPR accuracy and
 real-time performance under target deployment conditions.
 
+### Performance Results (1080p, End-to-End)
+
+Below table shows the end-to-end performance of processing 1080p videos with this sample application.
+
+| Device | Number of streams | Batch Size | Total FPS |
+|---|---:|---:|---:|
+| Jetson Nano | 1 | 1 | 9.20 |
+| Jetson NX | 3 | 3 | 80.31 |
+| Jetson Xavier | 5 | 5 | 146.43 |
+| Jetson Orin | 5 | 5 | 341.65 |
+| T4 | 14 | 14 | 447.15 |
+
+### Density View (Derived from the same data, FPS floor = 30)
+
+This density-oriented view estimates how many streams can be sustained at a 30 FPS floor based on the measured
+Total FPS values above.
+
+| Device | FPS Floor | Estimated Max Streams @ Floor | Estimated Per Stream FPS |
+|---|---:|---:|---:|
+| Jetson Nano | 30 | 0 | N/A |
+| Jetson NX | 30 | 2 | 40.16 |
+| Jetson Xavier | 30 | 4 | 36.61 |
+| Jetson Orin | 30 | 11 | 31.06 |
+| T4 | 30 | 14 | 31.94 |
+
+For ViPPET, use the built-in **Density Test** to report measured (not estimated) stream density directly per platform.
+
 ## Learn More
 
 - [System Requirements](docs/user-guide/get-started/system-requirements.md)
