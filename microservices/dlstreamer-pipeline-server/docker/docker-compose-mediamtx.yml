@@ -84,12 +84,8 @@ services:
       - "/tmp:/tmp"
       - "./mr_models:/home/pipeline-server/mr_models:rw"
     group_add:
-      # render group ID for ubuntu 20.04 host OS
-      - "109"
-      # render group ID for ubuntu 22.04 host OS
-      - "110"
-      # render group ID for ubuntu 24.04 host OS
-      - "992"
+      # render group ID; this variable should be exported on host before running docker compose or added to .env
+      - "${RENDER_GID}"
     device_cgroup_rules:
       # Default run - device-cgroup-rule='c 189:* rmw'
       # Selective rules can be applied for deployment

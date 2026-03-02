@@ -1,28 +1,23 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import (
-    PipelineStreamSpec,
-    PipelineGraph,
-    Node,
-    Edge,
-)
 from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
-from graph import Graph
+from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
     InternalPipelineDensitySpec,
+    InternalPipelineStreamSpec,
 )
 from pipeline_runner import PipelineRunResult
 
 
 def create_simple_graph() -> Graph:
     """Helper to create a simple test pipeline Graph object."""
-    pipeline_graph = PipelineGraph(
+    return Graph(
         nodes=[
             Node(id="0", type="filesrc", data={"location": "/videos/test.mp4"}),
             Node(id="1", type="fakesink", data={}),
@@ -31,7 +26,6 @@ def create_simple_graph() -> Graph:
             Edge(id="0", source="0", target="1"),
         ],
     )
-    return Graph.from_dict(pipeline_graph.model_dump())
 
 
 def create_internal_density_spec(
@@ -83,15 +77,15 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
-        # Expected result uses PipelineStreamSpec with variant path format
+        # Expected result uses InternalPipelineStreamSpec with variant path format
         expected_result = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test1/variants/variant-1",
                     streams=2,
                 ),
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test2/variants/variant-2",
                     streams=1,
                 ),
@@ -396,6 +390,7 @@ class TestBenchmark(unittest.TestCase):
 
             # Check that all pipeline IDs use the variant path format
             for stream_spec in result.streams_per_pipeline:
+                self.assertIsInstance(stream_spec, InternalPipelineStreamSpec)
                 self.assertTrue(
                     stream_spec.id.startswith("/pipelines/"),
                     f"Expected pipeline ID to start with '/pipelines/', got: {stream_spec.id}",

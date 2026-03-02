@@ -7,18 +7,34 @@ import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressInd
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils";
+import { formatErrorMessage } from "@/lib/utils.ts";
 
 interface PipelineSelection {
   pipelineId: string;
+  variantId: string;
   streams: number;
   isRemoving?: boolean;
   isNew?: boolean;
@@ -26,12 +42,9 @@ interface PipelineSelection {
 
 export const PerformanceTests = () => {
   const pipelines = useAppSelector(selectPipelines);
-  const [runPerformanceTest, { isLoading: isRunning }] =
-    useRunPerformanceTestMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     total_fps: number | null;
     per_stream_fps: number | null;
@@ -42,36 +55,23 @@ export const PerformanceTests = () => {
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { data: jobStatus } = useGetPerformanceJobStatusQuery(
-    { jobId: jobId! },
-    {
-      skip: !jobId,
-      pollingInterval: 1000, // Poll every second
-    },
-  );
-
-  useEffect(() => {
-    if (jobStatus?.state === "COMPLETED") {
-      setTestResult({
-        total_fps: jobStatus.total_fps,
-        per_stream_fps: jobStatus.per_stream_fps,
-        video_output_paths: jobStatus.video_output_paths,
-      });
-      setErrorMessage(null);
-      setJobId(null);
-    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
-      console.error("Test failed:", jobStatus.error_message);
-      setErrorMessage(jobStatus.error_message || "Test failed");
-      setTestResult(null);
-      setJobId(null);
-    }
-  }, [jobStatus]);
+  const {
+    execute: runTest,
+    isLoading,
+    jobStatus,
+  } = useAsyncJob({
+    asyncJobHook: useRunPerformanceTestMutation,
+    statusCheckHook: useGetPerformanceJobStatusQuery,
+  });
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
+      const firstPipeline = pipelines[0];
+      const firstVariant = firstPipeline.variants[0];
       setPipelineSelections([
         {
-          pipelineId: pipelines[0].id,
+          pipelineId: firstPipeline.id,
+          variantId: firstVariant.id,
           streams: 8,
           isNew: false,
         },
@@ -80,25 +80,22 @@ export const PerformanceTests = () => {
   }, [pipelines, pipelineSelections.length]);
 
   const handleAddPipeline = () => {
-    const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
-    const availablePipeline = pipelines.find(
-      (pipeline) => !usedPipelineIds.includes(pipeline.id),
-    );
-    if (availablePipeline) {
+    if (pipelines.length > 0) {
+      const firstPipeline = pipelines[0];
+      const firstVariant = firstPipeline.variants[0];
       setPipelineSelections((prev) => [
         ...prev,
         {
-          pipelineId: availablePipeline.id,
+          pipelineId: firstPipeline.id,
+          variantId: firstVariant.id,
           streams: 8,
           isNew: true,
         },
       ]);
       setTimeout(() => {
         setPipelineSelections((prev) =>
-          prev.map((sel) =>
-            sel.pipelineId === availablePipeline.id
-              ? { ...sel, isNew: false }
-              : sel,
+          prev.map((sel, idx) =>
+            idx === prev.length - 1 ? { ...sel, isNew: false } : sel,
           ),
         );
       }, 300);
@@ -120,24 +117,34 @@ export const PerformanceTests = () => {
     }
   };
 
-  const handlePipelineChange = (
-    oldPipelineId: string,
-    newPipelineId: string,
-  ) => {
+  const handlePipelineChange = (index: number, newPipelineId: string) => {
     setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === oldPipelineId
-          ? { ...sel, pipelineId: newPipelineId }
-          : sel,
+      prev.map((sel, idx) => {
+        if (idx === index) {
+          const newPipeline = pipelines.find((p) => p.id === newPipelineId);
+          const firstVariant = newPipeline?.variants[0];
+          return {
+            ...sel,
+            pipelineId: newPipelineId,
+            variantId: firstVariant?.id || sel.variantId,
+          };
+        }
+        return sel;
+      }),
+    );
+  };
+
+  const handleVariantChange = (index: number, newVariantId: string) => {
+    setPipelineSelections((prev) =>
+      prev.map((sel, idx) =>
+        idx === index ? { ...sel, variantId: newVariantId } : sel,
       ),
     );
   };
 
-  const handleStreamsChange = (pipelineId: string, streams: number) => {
+  const handleStreamsChange = (index: number, streams: number) => {
     setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, streams } : sel,
-      ),
+      prev.map((sel, idx) => (idx === index ? { ...sel, streams } : sel)),
     );
   };
 
@@ -145,8 +152,8 @@ export const PerformanceTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const result = await runPerformanceTest({
-        performanceTestSpecInput: {
+      const status = await runTest({
+        performanceTestSpec: {
           execution_config: {
             output_mode: videoOutputEnabled ? "file" : "disabled",
             max_runtime: 0,
@@ -155,15 +162,31 @@ export const PerformanceTests = () => {
             pipeline: {
               source: "variant",
               pipeline_id: selection.pipelineId,
-              variant_id: "cpu",
+              variant_id: selection.variantId,
             },
             streams: selection.streams,
           })),
         },
-      }).unwrap();
-      setJobId(result.job_id);
-    } catch (err) {
-      console.error("Failed to run performance test:", err);
+      });
+
+      setTestResult({
+        total_fps: status.total_fps,
+        per_stream_fps: status.per_stream_fps,
+        video_output_paths: status.video_output_paths,
+      });
+      setErrorMessage(null);
+    } catch (error) {
+      if (isAsyncJobError(error)) {
+        handleAsyncJobError(error, "Test failed");
+        setErrorMessage(
+          formatErrorMessage(error?.error_message, "Test failed"),
+        );
+      } else {
+        const errorMessage = handleApiError(error, "Test failed");
+        setErrorMessage(errorMessage);
+      }
+      console.error("Test failed:", error);
+      setTestResult(null);
     }
   };
 
@@ -187,79 +210,99 @@ export const PerformanceTests = () => {
         </div>
 
         <div className="space-y-3 mb-6">
-          {pipelineSelections.map((selection) => (
-            <div
-              key={selection.pipelineId}
-              className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
-                selection.isRemoving
-                  ? "opacity-0 -translate-y-2"
-                  : selection.isNew
-                    ? "animate-in fade-in slide-in-from-top-2"
-                    : ""
-              }`}
-            >
-              <div className="flex-1 flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Pipeline
-                  </label>
-                  <select
-                    value={selection.pipelineId}
-                    onChange={(e) =>
-                      handlePipelineChange(selection.pipelineId, e.target.value)
-                    }
-                    className="w-full px-3 py-2 border text-sm cursor-pointer bg-background"
+          {pipelineSelections.map((selection, index) => {
+            const selectedPipeline = pipelines.find(
+              (p) => p.id === selection.pipelineId,
+            );
+            return (
+              <div
+                key={`${selection.pipelineId}-${index}`}
+                className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
+                  selection.isRemoving
+                    ? "opacity-0 -translate-y-2"
+                    : selection.isNew
+                      ? "animate-in fade-in slide-in-from-top-2"
+                      : ""
+                }`}
+              >
+                <div className="flex-1 flex items-center gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-1">
+                      Pipeline
+                    </label>
+                    <Select
+                      value={selection.pipelineId}
+                      onValueChange={(value) =>
+                        handlePipelineChange(index, value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pipelines.map((pipeline) => (
+                          <SelectItem key={pipeline.id} value={pipeline.id}>
+                            {pipeline.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-1">
+                      Variant
+                    </label>
+                    <Select
+                      value={selection.variantId}
+                      onValueChange={(value) =>
+                        handleVariantChange(index, value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedPipeline?.variants.map((variant) => (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {variant.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-1">
+                      Streams
+                    </label>
+                    <StreamsSlider
+                      value={selection.streams}
+                      onChange={(val) => handleStreamsChange(index, val)}
+                      min={1}
+                      max={64}
+                    />
+                  </div>
+                </div>
+
+                {pipelineSelections.length > 1 && (
+                  <Button
+                    onClick={() => handleRemovePipeline(selection.pipelineId)}
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
                   >
-                    {pipelines
-                      .filter(
-                        (pipeline) =>
-                          pipeline.id === selection.pipelineId ||
-                          !pipelineSelections.some(
-                            (sel) => sel.pipelineId === pipeline.id,
-                          ),
-                      )
-                      .map((pipeline) => (
-                        <option key={pipeline.id} value={pipeline.id}>
-                          {pipeline.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-1">
-                    Streams
-                  </label>
-                  <StreamsSlider
-                    value={selection.streams}
-                    onChange={(val) =>
-                      handleStreamsChange(selection.pipelineId, val)
-                    }
-                    min={1}
-                    max={64}
-                  />
-                </div>
+                    <X className="w-5 h-5" />
+                  </Button>
+                )}
               </div>
+            );
+          })}
 
-              {pipelineSelections.length > 1 && (
-                <button
-                  onClick={() => handleRemovePipeline(selection.pipelineId)}
-                  className="text-red-500 hover:text-red-700 p-2"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-          ))}
-
-          <button
-            onClick={handleAddPipeline}
-            disabled={pipelineSelections.length >= pipelines.length}
-            className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-          >
+          <Button onClick={handleAddPipeline} variant="outline">
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
-          </button>
+          </Button>
         </div>
 
         <div className="my-4 flex flex-col">
@@ -287,19 +330,14 @@ export const PerformanceTests = () => {
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
-        <button
+        <Button
           onClick={handleRunTest}
-          disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-          className="w-fit px-4 py-2 bg-classic-blue font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
+          disabled={isLoading || pipelineSelections.length === 0}
         >
-          {jobId
-            ? "Running..."
-            : isRunning
-              ? "Starting..."
-              : "Run performance test"}
-        </button>
+          {isLoading ? "Running..." : "Run performance test"}
+        </Button>
 
-        {jobId && jobStatus && (
+        {jobStatus && (
           <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}

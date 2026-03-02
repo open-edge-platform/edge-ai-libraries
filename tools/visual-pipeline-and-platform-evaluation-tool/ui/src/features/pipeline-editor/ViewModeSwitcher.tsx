@@ -8,8 +8,7 @@ import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
 } from "@xyflow/react";
-import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import { useUpdateVariantMutation } from "@/api/api.generated";
 import { UnsavedChangesDialog } from "@/components/shared/UnsavedChangesDialog";
 import { useState } from "react";
@@ -91,12 +90,7 @@ const ViewModeSwitcher = ({
 
       setTimeout(() => onTransitionEnd(), 100);
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to update pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to update pipeline");
       onTransitionEnd();
       console.error("Failed to update pipeline:", error);
     }

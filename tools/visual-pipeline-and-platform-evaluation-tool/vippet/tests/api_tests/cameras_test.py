@@ -4,6 +4,13 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 from api.routes.cameras import router as cameras_router
+from internal_types import (
+    InternalCamera,
+    InternalCameraType,
+    InternalUSBCameraDetails,
+    InternalNetworkCameraDetails,
+    InternalCameraProfileInfo,
+)
 
 
 class TestCamerasAPI(unittest.TestCase):
@@ -31,27 +38,44 @@ class TestCamerasAPI(unittest.TestCase):
 
     @staticmethod
     def _make_usb_camera(device_id, device_name, device_path="/dev/video0"):
-        """Helper method to create a mock USB camera."""
-        return {
-            "device_id": device_id,
-            "device_name": device_name,
-            "device_type": "USB",
-            "details": {"device_path": device_path, "resolution": "1920x1080"},
-        }
+        """Helper method to create an InternalCamera with USB details."""
+        return InternalCamera(
+            device_id=device_id,
+            device_name=device_name,
+            device_type=InternalCameraType.USB,
+            details=InternalUSBCameraDetails(
+                device_path=device_path,
+                best_capture=None,
+            ),
+        )
 
     @staticmethod
     def _make_network_camera(device_id, device_name, ip, port=80, profiles=None):
-        """Helper method to create a mock network camera."""
-        return {
-            "device_id": device_id,
-            "device_name": device_name,
-            "device_type": "NETWORK",
-            "details": {
-                "ip": ip,
-                "port": port,
-                "profiles": profiles if profiles is not None else [],
-            },
-        }
+        """Helper method to create an InternalCamera with network details."""
+        internal_profiles = []
+        if profiles:
+            for p in profiles:
+                internal_profiles.append(
+                    InternalCameraProfileInfo(
+                        name=p.get("name", ""),
+                        rtsp_url=p.get("rtsp_url", ""),
+                        resolution=p.get("resolution", ""),
+                        encoding=p.get("encoding", ""),
+                        framerate=p.get("framerate", 0),
+                        bitrate=p.get("bitrate", 0),
+                    )
+                )
+        return InternalCamera(
+            device_id=device_id,
+            device_name=device_name,
+            device_type=InternalCameraType.NETWORK,
+            details=InternalNetworkCameraDetails(
+                ip=ip,
+                port=port,
+                profiles=internal_profiles,
+                best_profile=internal_profiles[0] if internal_profiles else None,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # GET /cameras

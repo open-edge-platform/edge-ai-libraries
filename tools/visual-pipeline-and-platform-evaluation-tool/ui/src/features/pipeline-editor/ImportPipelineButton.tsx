@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Upload, FileJson, Terminal } from "lucide-react";
+import { useRef, useState } from "react";
+import { FileJson, Terminal, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { createGraphLayout } from "./utils/graphLayout";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 
 interface ImportPipelineButtonProps {
   onImport: (
@@ -130,12 +130,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
       setDialogOpen(false);
       setPipelineDescription("");
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to import pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to import pipeline");
       console.error("Failed to import pipeline:", error);
     }
   };

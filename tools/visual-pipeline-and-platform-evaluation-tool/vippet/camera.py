@@ -7,15 +7,15 @@ from typing import List, Optional
 
 from onvif import ONVIFCamera
 
-from api.api_schemas import (
-    Camera,
-    CameraType,
-    USBCameraDetails,
-    NetworkCameraDetails,
-    CameraProfileInfo,
-    V4L2Format,
-    V4L2FormatSize,
-    V4L2BestCapture,
+from internal_types import (
+    InternalCamera,
+    InternalCameraType,
+    InternalUSBCameraDetails,
+    InternalNetworkCameraDetails,
+    InternalCameraProfileInfo,
+    InternalV4L2Format,
+    InternalV4L2FormatSize,
+    InternalV4L2BestCapture,
 )
 from utils import slugify_text
 
@@ -79,8 +79,8 @@ def _score_capture_candidate(fourcc: str, width: int, height: int, fps: float) -
 
 
 def _select_best_from_v4l2_formats(
-    formats: List[V4L2Format],
-) -> Optional[V4L2BestCapture]:
+    formats: List[InternalV4L2Format],
+) -> Optional[InternalV4L2BestCapture]:
     """Select the best capture configuration from V4L2 formats.
 
     Algorithm:
@@ -88,13 +88,13 @@ def _select_best_from_v4l2_formats(
     2. Score each with _score_capture_candidate().
     3. Among candidates with fps >= _MIN_ACCEPTABLE_FPS, pick highest score.
     4. Fallback: if no candidate meets FPS threshold, pick overall best.
-    5. Return V4L2BestCapture or None if formats is empty.
+    5. Return InternalV4L2BestCapture or None if formats is empty.
 
     Args:
-        formats: List of V4L2Format objects from v4l2-ctl parsing.
+        formats: List of InternalV4L2Format objects from v4l2-ctl parsing.
 
     Returns:
-        V4L2BestCapture with the best configuration, or None if no candidates.
+        InternalV4L2BestCapture with the best configuration, or None if no candidates.
     """
     best_acceptable = None
     best_acceptable_score = -1.0
@@ -125,12 +125,12 @@ def _select_best_from_v4l2_formats(
         f"Selected best capture: {fourcc} {width}x{height} @{fps}fps "
         f"(score={_score_capture_candidate(fourcc, width, height, fps):.3f})"
     )
-    return V4L2BestCapture(fourcc=fourcc, width=width, height=height, fps=fps)
+    return InternalV4L2BestCapture(fourcc=fourcc, width=width, height=height, fps=fps)
 
 
 def _select_best_profile(
-    profiles: List[CameraProfileInfo],
-) -> Optional[CameraProfileInfo]:
+    profiles: List[InternalCameraProfileInfo],
+) -> Optional[InternalCameraProfileInfo]:
     """Select the best ONVIF profile using the same scoring algorithm.
 
     - Map encoding strings: "H264"/"H.264" -> "H264", "H265"/"H.265" -> "H265", "JPEG" -> "MJPG"
@@ -140,10 +140,10 @@ def _select_best_profile(
     - Same two-pass selection: prefer fps >= _MIN_ACCEPTABLE_FPS, fall back to overall best
 
     Args:
-        profiles: List of CameraProfileInfo objects from ONVIF discovery.
+        profiles: List of InternalCameraProfileInfo objects from ONVIF discovery.
 
     Returns:
-        Best CameraProfileInfo, or None if no valid profiles.
+        Best InternalCameraProfileInfo, or None if no valid profiles.
     """
     encoding_map = {
         "H264": "H264",
@@ -224,7 +224,7 @@ class USBCameraDiscovery:
             self.initialized = True
             logger.debug("USBCameraDiscovery initialized")
 
-    def _parse_v4l2_formats(self, device_path: str) -> List[V4L2Format]:
+    def _parse_v4l2_formats(self, device_path: str) -> List[InternalV4L2Format]:
         """Parse supported V4L2 formats from a USB camera device.
 
         Runs v4l2-ctl --device <path> --list-formats-ext and parses output.
@@ -233,7 +233,7 @@ class USBCameraDiscovery:
             device_path: Path to the video device (e.g., /dev/video0).
 
         Returns:
-            List of V4L2Format objects with supported formats and resolutions.
+            List of InternalV4L2Format objects with supported formats and resolutions.
         """
         try:
             result = subprocess.run(
@@ -254,7 +254,7 @@ class USBCameraDiscovery:
             return []
 
     @staticmethod
-    def _parse_formats_ext_output(output: str) -> List[V4L2Format]:
+    def _parse_formats_ext_output(output: str) -> List[InternalV4L2Format]:
         """Parse the raw text output of v4l2-ctl --list-formats-ext.
 
         Handles any fourcc code (MJPG, YUYV, H264, H265, NV12, etc.).
@@ -268,11 +268,11 @@ class USBCameraDiscovery:
             output: Raw text output from v4l2-ctl.
 
         Returns:
-            List of V4L2Format objects.
+            List of InternalV4L2Format objects.
         """
-        formats: List[V4L2Format] = []
-        current_format: Optional[V4L2Format] = None
-        current_size: Optional[V4L2FormatSize] = None
+        formats: List[InternalV4L2Format] = []
+        current_format: Optional[InternalV4L2Format] = None
+        current_size: Optional[InternalV4L2FormatSize] = None
 
         # Pattern: [N]: 'FOURCC' (description)
         format_re = re.compile(r"\[\d+\]\s*:\s*'(\w+)'")
@@ -288,7 +288,7 @@ class USBCameraDiscovery:
             m = format_re.search(stripped)
             if m:
                 fourcc = m.group(1)
-                current_format = V4L2Format(fourcc=fourcc, sizes=[])
+                current_format = InternalV4L2Format(fourcc=fourcc, sizes=[])
                 formats.append(current_format)
                 current_size = None
                 continue
@@ -298,7 +298,9 @@ class USBCameraDiscovery:
             if m and current_format is not None:
                 width = int(m.group(1))
                 height = int(m.group(2))
-                current_size = V4L2FormatSize(width=width, height=height, fps_list=[])
+                current_size = InternalV4L2FormatSize(
+                    width=width, height=height, fps_list=[]
+                )
                 current_format.sizes.append(current_size)
                 continue
 
@@ -390,7 +392,7 @@ class USBCameraDiscovery:
             )
             return False
 
-    def discover_cameras(self) -> List[Camera]:
+    def discover_cameras(self) -> List[InternalCamera]:
         """
         Discover USB cameras connected to the system.
 
@@ -398,7 +400,7 @@ class USBCameraDiscovery:
         Parses V4L2 formats and selects the best capture configuration.
 
         Returns:
-            List[Camera]: List of discovered USB cameras.
+            List[InternalCamera]: List of discovered USB cameras.
         """
         cameras = []
 
@@ -458,11 +460,11 @@ class USBCameraDiscovery:
                             best_capture = _select_best_from_v4l2_formats(formats)
 
                             cameras.append(
-                                Camera(
+                                InternalCamera(
                                     device_name=current_device_name,
-                                    device_type=CameraType.USB,
+                                    device_type=InternalCameraType.USB,
                                     device_id=f"usb-camera-{device_name}-{device_num}",
-                                    details=USBCameraDetails(
+                                    details=InternalUSBCameraDetails(
                                         device_path=device_path,
                                         best_capture=best_capture,
                                     ),
@@ -608,7 +610,7 @@ class ONVIFCameraDiscovery:
             f"ONVIFCameraDiscovery initialized with JSON file: {self.json_file_path}"
         )
 
-    def discover_cameras(self) -> List[Camera]:
+    def discover_cameras(self) -> List[InternalCamera]:
         """
         Retrieve discovered ONVIF cameras from the JSON file written by onvif_discovery_agent.
 
@@ -616,7 +618,7 @@ class ONVIFCameraDiscovery:
         Profiles are populated after authentication via load_camera_profiles().
 
         Returns:
-            List[Camera]: List of discovered cameras with IP and port information.
+            List[InternalCamera]: List of discovered cameras with IP and port information.
         """
         cameras = []
 
@@ -639,11 +641,13 @@ class ONVIFCameraDiscovery:
                     continue
 
                 cameras.append(
-                    Camera(
+                    InternalCamera(
                         device_name=f"ONVIF Camera {ip}",
-                        device_type=CameraType.NETWORK,
+                        device_type=InternalCameraType.NETWORK,
                         device_id=f"network-camera-{ip}-{port}",
-                        details=NetworkCameraDetails(ip=ip, port=port, profiles=[]),
+                        details=InternalNetworkCameraDetails(
+                            ip=ip, port=port, profiles=[]
+                        ),
                     )
                 )
 
@@ -662,7 +666,7 @@ class ONVIFCameraDiscovery:
 
     def load_camera_profiles(
         self, camera_id: str, username: str, password: str
-    ) -> Camera:
+    ) -> InternalCamera:
         """
         Authenticate with a specific ONVIF camera and load its profiles.
 
@@ -674,7 +678,7 @@ class ONVIFCameraDiscovery:
             password: ONVIF password for authentication.
 
         Returns:
-            Camera: Updated Camera object with populated profiles and best_profile.
+            InternalCamera: Updated camera object with populated profiles and best_profile.
 
         Raises:
             ValueError: If camera_id is invalid or camera not found.
@@ -705,7 +709,7 @@ class ONVIFCameraDiscovery:
             # Get camera profiles
             profiles = self._camera_profiles(camera_obj)
 
-            # Convert ONVIFProfile objects to CameraProfileInfo
+            # Convert ONVIFProfile objects to InternalCameraProfileInfo
             profile_infos = []
             for profile in profiles:
                 resolution = None
@@ -716,7 +720,7 @@ class ONVIFCameraDiscovery:
                         resolution = f"{width}x{height}"
 
                 profile_infos.append(
-                    CameraProfileInfo(
+                    InternalCameraProfileInfo(
                         name=profile.name,
                         rtsp_url=profile.rtsp_url,
                         resolution=resolution,
@@ -729,12 +733,12 @@ class ONVIFCameraDiscovery:
             # Select best profile using scoring algorithm
             best_profile = _select_best_profile(profile_infos)
 
-            # Create Camera object with populated profiles and best_profile
-            camera = Camera(
+            # Create InternalCamera object with populated profiles and best_profile
+            camera = InternalCamera(
                 device_name=f"ONVIF Camera {ip}",
-                device_type=CameraType.NETWORK,
+                device_type=InternalCameraType.NETWORK,
                 device_id=camera_id,
-                details=NetworkCameraDetails(
+                details=InternalNetworkCameraDetails(
                     ip=ip,
                     port=port,
                     profiles=profile_infos,

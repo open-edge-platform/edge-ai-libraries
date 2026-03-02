@@ -1,10 +1,11 @@
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
+  useUpdateVariantMutation,
 } from "@/api/api.generated";
 import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
 import {
@@ -17,6 +18,7 @@ import PipelineEditor, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
@@ -24,7 +26,11 @@ import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPane
 import { toast } from "sonner";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
-import { isApiError } from "@/lib/apiUtils";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils";
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +44,8 @@ import {
 } from "@/components/ui/resizable";
 import { ArrowLeft, Redo2, Save, Undo2 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 type UrlParams = {
   id: string;
@@ -47,10 +55,8 @@ type UrlParams = {
 export const Pipelines = () => {
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const source = searchParams.get("source");
-  const [performanceTestJobId, setPerformanceTestJobId] = useState<
-    string | null
-  >(null);
   const [currentViewport, setCurrentViewport] = useState<Viewport | undefined>(
     undefined,
   );
@@ -92,45 +98,19 @@ export const Pipelines = () => {
     },
   );
 
-  const [runPerformanceTest, { isLoading: isRunning }] =
-    useRunPerformanceTestMutation();
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
+  const [updateVariant] = useUpdateVariantMutation();
 
-  const { data: jobStatus } = useGetPerformanceJobStatusQuery(
-    { jobId: performanceTestJobId! },
-    {
-      skip: !performanceTestJobId,
-      pollingInterval: 1000,
-    },
-  );
-
-  useEffect(() => {
-    if (jobStatus?.state === "COMPLETED") {
-      toast.success("Pipeline run completed", {
-        description: new Date().toISOString(),
-      });
-
-      if (videoOutputEnabled && jobStatus.video_output_paths) {
-        // const paths = jobStatus.video_output_paths[id]; // TODO: Fix key mismatch - not using pipelineId as key
-        const paths = Object.values(jobStatus.video_output_paths)[0];
-        if (paths && paths.length > 0) {
-          const videoPath = [...paths].pop();
-          if (videoPath) {
-            setCompletedVideoPath(videoPath);
-          }
-        }
-      }
-
-      setPerformanceTestJobId(null);
-    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
-      toast.error("Pipeline run failed", {
-        description: jobStatus.error_message || "Unknown error",
-      });
-      setPerformanceTestJobId(null);
-    }
-  }, [jobStatus, videoOutputEnabled, id]);
+  const {
+    execute: runPipeline,
+    isLoading: isPipelineRunning,
+    jobStatus,
+  } = useAsyncJob({
+    asyncJobHook: useRunPerformanceTestMutation,
+    statusCheckHook: useGetPerformanceJobStatusQuery,
+  });
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -169,14 +149,40 @@ export const Pipelines = () => {
     }
   }, [currentNodes, currentEdges]);
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log("Save clicked");
-    // After successful save, call: resetHistory();
+  const handleSave = async () => {
+    if (!id || !variant) return;
+
+    try {
+      const graphData = {
+        nodes: currentNodes.map((node) => ({
+          id: node.id,
+          type: node.type ?? "",
+          data: node.data as { [key: string]: string },
+        })),
+        edges: currentEdges.map((edge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+        })),
+      };
+
+      await updateVariant({
+        pipelineId: id,
+        variantId: variant,
+        variantUpdate: isSimpleMode
+          ? { pipeline_graph_simple: graphData }
+          : { pipeline_graph: graphData },
+      }).unwrap();
+
+      resetHistory();
+    } catch (error) {
+      handleApiError(error, "Failed to save variant");
+      console.error("Failed to save variant:", error);
+    }
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (performanceTestJobId) {
+    if (jobStatus?.state === "RUNNING") {
       return;
     }
 
@@ -235,7 +241,11 @@ export const Pipelines = () => {
         }).unwrap();
       }
 
-      const response = await runPerformanceTest({
+      toast.success("Pipeline run started", {
+        description: new Date().toISOString(),
+      });
+
+      const status = await runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
             {
@@ -251,35 +261,39 @@ export const Pipelines = () => {
             max_runtime: 0,
           },
         },
-      }).unwrap();
+      });
 
-      if (response && typeof response === "object" && "job_id" in response) {
-        setPerformanceTestJobId(response.job_id as string);
-      }
-
-      toast.success("Pipeline run started", {
+      toast.success("Pipeline run completed", {
         description: new Date().toISOString(),
       });
+
+      if (videoOutputEnabled && status.video_output_paths) {
+        const paths = Object.values(status.video_output_paths)[0];
+        if (paths && paths.length > 0) {
+          const videoPath = [...paths].pop();
+          if (videoPath) {
+            setCompletedVideoPath(videoPath);
+          }
+        }
+      }
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to start pipeline", {
-        description: errorMessage,
-      });
+      if (isAsyncJobError(error)) {
+        handleAsyncJobError(error, "Pipeline run");
+      } else {
+        handleApiError(error, "Failed to start pipeline");
+      }
       console.error("Failed to start pipeline:", error);
     }
   };
 
   const handleStopPipeline = async () => {
-    if (!performanceTestJobId) return;
+    if (!jobStatus?.id) return;
 
     try {
       await stopPerformanceTest({
-        jobId: performanceTestJobId,
+        jobId: jobStatus.id,
       }).unwrap();
 
-      setPerformanceTestJobId(null);
       setShowDetailsPanel(false);
       setCompletedVideoPath(null);
 
@@ -287,12 +301,7 @@ export const Pipelines = () => {
         description: new Date().toISOString(),
       });
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error("Failed to stop pipeline", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to stop pipeline");
       console.error("Failed to stop pipeline:", error);
     }
   };
@@ -329,7 +338,7 @@ export const Pipelines = () => {
           target.getAttribute("data-resize-handle") !== null;
 
         if (!isResizeHandle) {
-          if (!performanceTestJobId && !completedVideoPath) {
+          if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
             setShowDetailsPanel(false);
             setSelectedNode(null);
           }
@@ -342,9 +351,12 @@ export const Pipelines = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showDetailsPanel, performanceTestJobId, completedVideoPath]);
+  }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
+    const currentVariantData = data.variants.find((v) => v.id === variant);
+    const isReadOnly = currentVariantData?.read_only ?? false;
+
     const editorContent = (
       <div className="w-full h-full relative">
         <div
@@ -442,14 +454,15 @@ export const Pipelines = () => {
           <div className="flex items-center gap-2 px-4">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={undo}
                   disabled={!canUndo}
-                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Undo"
                 >
                   <Undo2 className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p>Undo (Ctrl+Z)</p>
@@ -458,14 +471,15 @@ export const Pipelines = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={redo}
                   disabled={!canRedo}
-                  className="p-2 hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Redo"
                 >
                   <Redo2 className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 <p>Redo (Ctrl+Y)</p>
@@ -474,22 +488,30 @@ export const Pipelines = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   onClick={handleSave}
-                  className="p-2 hover:bg-accent rounded transition-colors"
+                  disabled={isReadOnly || !canUndo}
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Save"
                 >
                   <Save className="h-5 w-5" />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Save (Ctrl+S)</p>
+                <p>
+                  {isReadOnly
+                    ? "Read-only variant cannot be saved."
+                    : !canUndo
+                      ? "No changes to save"
+                      : "Save (Ctrl+S)"}
+                </p>
               </TooltipContent>
             </Tooltip>
 
-            <div className="w-px h-6 bg-border" />
+            <Separator orientation="vertical" className="h-6" />
 
-            {performanceTestJobId ? (
+            {jobStatus?.state === "RUNNING" ? (
               <StopPipelineButton
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
@@ -497,19 +519,33 @@ export const Pipelines = () => {
             ) : (
               <RunPipelineButton
                 onRun={handleRunPipeline}
-                isRunning={isRunning}
+                isRunning={isPipelineRunning}
               />
             )}
             <PipelineActionsMenu
-              pipelineId={id!}
-              variant={variant!}
+              pipeline={data}
+              variantId={variant!}
               currentNodes={currentNodes}
               currentEdges={currentEdges}
               currentViewport={currentViewport}
-              pipelineName={data.name}
               isSimpleMode={isSimpleMode}
-              performanceTestJobId={performanceTestJobId}
+              isReadOnly={isReadOnly}
+              performanceTestJobId={jobStatus?.id ?? null}
               onGraphUpdate={updateGraph}
+              onVariantRenamed={() => {
+                refetch();
+              }}
+              onVariantDeleted={() => {
+                const remainingVariants = data.variants.filter(
+                  (v) => v.id !== variant,
+                );
+                const firstVariant = remainingVariants[0];
+                if (firstVariant) {
+                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                } else {
+                  navigate("/pipelines");
+                }
+              }}
             />
           </div>
         </header>
@@ -547,7 +583,7 @@ export const Pipelines = () => {
                   >
                     {showDetailsPanel && !selectedNode ? (
                       <PerformanceTestPanel
-                        isRunning={performanceTestJobId != null}
+                        isRunning={jobStatus?.state === "RUNNING"}
                         completedVideoPath={completedVideoPath}
                       />
                     ) : (
