@@ -276,4 +276,11 @@ def calculate_total(items, tax_rate=0.23):
 - Keep installation and setup instructions current
 - Document any new environment variables or configuration options
 
+## Common Issues
+
+- **Models not found**: Run `make install-models-once` first
+- **Permission denied on /dev/video***: Add user to `video` group
+- **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
+- **Port conflicts**: Check if ports 80, 7860, 8554 are available
+
 
