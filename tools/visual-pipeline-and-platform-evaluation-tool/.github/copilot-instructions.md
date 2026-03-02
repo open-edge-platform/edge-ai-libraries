@@ -10,7 +10,7 @@ These instructions apply to the entire repository.
 
 - ViPPET is a hardware-evaluation tool for AI workloads.
 - Backend: Python 3.12, FastAPI, Pydantic v2.
-- Frontend: React 18, TypeScript (strict), Vite, Tailwind.
+- Frontend: React 19, shadcn components, react-hook-form, zod, recharts, react-router.
 - Runtime uses Docker Compose profiles: `cpu`, `gpu`, `npu`.
 
 ## Coding Rules

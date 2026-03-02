@@ -55,7 +55,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 | ----- | ---------- |
 | Backend | Python 3.12, FastAPI, uvicorn, Pydantic v2 |
 | AI Inference | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0 |
-| Frontend | React 18, TypeScript, Vite, Redux Toolkit, redux-persist, Tailwind CSS, next-themes |
+| Frontend | React 19, shadcn components, react-hook-form, zod, recharts, react-router |
 | Containerization | Docker Compose with hardware profiles: `cpu`, `gpu`, `npu` |
 | Metrics | Telegraf, qmassa (GPU), InfluxDB line protocol |
 | Type Checking | Pyright (Python), TypeScript strict mode |
