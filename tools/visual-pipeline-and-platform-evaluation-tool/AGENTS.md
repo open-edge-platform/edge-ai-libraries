@@ -203,23 +203,59 @@ Example:
 ```python
 @app.route('/pipelines', methods=['POST']) 
 def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
-    """Create a new user-defined pipeline.
-
-    This endpoint enforces USER_CREATED source, delegates to PipelineManager,
-    and returns the generated pipeline ID. The backend automatically sets
-    pipeline ID, timestamps, variant IDs, and other metadata.
-
-    Args:
-        body (schemas.PipelineDefinition): Pipeline definition containing name,
-            description, tags, and variants. Source is ignored and forced to USER_CREATED.
-
-    Returns:
-        JSONResponse: HTTP response with status 201 and PipelineCreationResponse
-            containing generated pipeline id, or error response (400/500).
-
-    Raises:
-        ValueError: When pipeline definition is invalid (returned as 400).
-        Exception: For unexpected errors during pipeline creation (returned as 500).
+    """
+    # Create Pipeline
+    
+    Create a new user-defined pipeline with automatic metadata generation.
+    
+    ## Operation
+    1. Enforce `USER_CREATED` source
+    2. Delegate to `PipelineManager.add_pipeline()`
+    3. Return generated pipeline ID
+    
+    ## Auto-Generated Fields
+    The backend automatically sets:
+    - Pipeline ID (generated from name)
+    - Timestamps (`created_at` and `modified_at`)
+    - Variant IDs (generated from variant names)
+    - Variant `read_only=False` for all variants
+    - Pipeline `thumbnail=None` (user-created pipelines)
+    
+    ## Request Body
+    **`PipelineDefinition`** with:
+    - `name` *(required)* - Non-empty pipeline name
+    - `description` *(required)* - Human-readable description
+    - `source` *(ignored)* - Forced to `USER_CREATED`
+    - `tags` *(optional)* - List of categorization tags
+    - `variants` *(required)* - List of `VariantCreate` objects
+    
+    ## Returns
+    - **201**: `PipelineCreationResponse` with generated pipeline `id`
+    - **400**: `MessageResponse` - Invalid pipeline definition
+    - **500**: `MessageResponse` - Unexpected error
+    
+    ## Example Request
+    ```json
+    {
+      "name": "vehicle-detection",
+      "description": "Simple vehicle detection pipeline",
+      "tags": ["detection", "vehicle"],
+      "variants": [
+        {
+          "name": "CPU",
+          "pipeline_graph": {...},
+          "pipeline_graph_simple": {...}
+        }
+      ]
+    }
+    ```
+    
+    ## Example Response (201)
+    ```json
+    {
+      "id": "pipeline-a3f5d9e1"
+    }
+    ```
     """
 ```
 
