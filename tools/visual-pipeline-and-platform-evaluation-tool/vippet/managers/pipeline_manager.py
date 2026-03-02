@@ -519,6 +519,9 @@ class PipelineManager:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
+                # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
+                graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
+
                 graph_instance = graph_instance.unify_all_element_names(
                     pipeline_index, stream_index
                 )
