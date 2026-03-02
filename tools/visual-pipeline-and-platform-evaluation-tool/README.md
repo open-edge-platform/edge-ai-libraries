@@ -53,6 +53,26 @@ can be adjusted to create tailored performance tests.
 **Automated Video Generation**: Synthetic test videos can be generated to evaluate system performance under
 controlled conditions.
 
+### Performance Testing Capabilities
+
+**Single Pipeline Testing**: 
+Test individual AI pipelines with configurable stream counts to measure baseline performance. 
+Users can specify the number of concurrent streams and optionally save output videos for quality verification. 
+Real-time metrics including Total FPS and Per Stream FPS are displayed during testing.
+
+**Multi-Pipeline Concurrent Testing**: 
+Evaluate system performance under complex workloads by running multiple different pipelines simultaneously. 
+Each pipeline can be configured with its own stream count, allowing simulation of real-world deployment scenarios 
+where multiple AI workloads compete for system resources.
+
+**Real-Time Metrics Dashboard**: 
+Monitor CPU frequency, GPU power usage, memory utilization, and throughput metrics in real-time during all performance tests. 
+This enables immediate identification of bottlenecks and resource constraints.
+
+**Output Video Validation**: 
+Optionally capture and save processed video outputs during performance testing to verify 
+that AI inference quality is maintained under load conditions.
+
 ### **Workflow Overview**
 
 **Data Ingestion**: Video streams from live cameras or recorded files are provided and pipeline parameters are
