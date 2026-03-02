@@ -84,7 +84,7 @@ For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment sc
 | `dataprepPgvector.env.ALLOWED_HOSTS` | Mandatory comma-separated trusted domains for URL ingestion (SSRF mitigation) | `example.com,subdomain.example.com` |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `2.1.0-rc1`   |
+| `Chatqna.image.tag` | latest image tag                                  | `2.1.0-rc2`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |
