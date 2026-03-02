@@ -24,7 +24,7 @@ Following steps should be followed to deploy Document Summarization application 
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/document-summarization):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/document-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.4
 ```
 
 🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application.
@@ -69,7 +69,7 @@ Clone the repository containing the Helm chart:
 # Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 # Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
 ```
 
 #### Step 2: Change to the Chart Directory

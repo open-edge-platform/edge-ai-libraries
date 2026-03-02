@@ -154,6 +154,8 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip3 install -r simulator/requirements.txt
 python3 simulator/temperature_input.py --port 5000
 ```

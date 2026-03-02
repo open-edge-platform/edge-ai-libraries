@@ -6,11 +6,11 @@ Video analytics involves the conversion of video streams into valuable insights 
 
 ## Deploy using Docker Compose
 ---
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started.html).
+For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/get-started.html).
 
 ## Deploy using Kubernetes Charts
 ---
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started/deploy-with-helm.html).
+For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer-pipeline-server/get-started/deploy-with-helm.html).
 
 ## Supported versions
 ---

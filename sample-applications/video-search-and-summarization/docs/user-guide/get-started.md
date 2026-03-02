@@ -99,7 +99,7 @@ Before running the application, you need to set several environment variables:
    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
    ```
 
-   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 

@@ -1,0 +1,165 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ovms-model-download-helper
+  labels:
+    app: ovms-helper
+data:
+  download-ovms-model.sh: |-
+    #!/bin/bash
+    # Shared function to download OVMS models via model-download service
+    # Usage: download_ovms_model MODEL_NAME MODEL_TYPE HUB DEVICE CACHE_SIZE
+    
+    # Function to check the health of the model-download microservice
+    check_model_download_service_health() {
+        local MAX_ATTEMPTS=5
+        local SLEEP_SECS=5
+        local attempt=1
+        
+        echo "Checking health of model-download microservice..."
+        
+        while [ $attempt -le $MAX_ATTEMPTS ]; do
+            local HEALTH_RESPONSE
+            HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "${MODEL_DOWNLOAD_BASE_URL}health")
+            
+            if [ "$HEALTH_RESPONSE" -eq 200 ]; then
+                echo "Model-download microservice is up and running"
+                return 0
+            fi
+            
+            echo "Attempt $attempt/$MAX_ATTEMPTS: Model-download microservice not available. Retrying in $SLEEP_SECS seconds..."
+            sleep "$SLEEP_SECS"
+            attempt=$((attempt + 1))
+        done
+        
+        echo "ERROR: Model-download service is not healthy. Please restart the service and try again"
+        return 1
+    }
+    
+    download_ovms_model() {
+        local MODEL_NAME=$1
+        local MODEL_TYPE=$2  # llm | embeddings | rerank
+        local HUB=${3:-openvino}  # default to openvino
+        local DEVICE=$4
+        local CACHE_SIZE=$5
+        local TARGET_DIR="/opt/data/models/"
+        
+        echo "Installing required tools..."
+        apt-get update -qq && apt-get install -y -qq curl jq > /dev/null 2>&1
+        
+        # Check model-download service health
+        if ! check_model_download_service_health; then
+            exit 1
+        fi
+        
+        mkdir -p "$TARGET_DIR"
+        
+        echo "Downloading ${MODEL_TYPE} model '${MODEL_NAME}' via model-download service..."
+        
+        # Build JSON payload
+        if [ -n "$CACHE_SIZE" ]; then
+            CONFIG_JSON="{\"precision\": \"${WEIGHT_FORMAT}\", \"device\": \"${DEVICE}\", \"cache_size\": \"${CACHE_SIZE}\"}"
+        else
+            CONFIG_JSON="{\"precision\": \"${WEIGHT_FORMAT}\", \"device\": \"${DEVICE}\"}"
+        fi
+        
+        # Submit download request
+        POST_RESPONSE=$(curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"models\": [
+                    {
+                        \"name\": \"${MODEL_NAME}\",
+                        \"hub\": \"${HUB}\",
+                        \"type\": \"${MODEL_TYPE}\",
+                        \"is_ovms\": true,
+                        \"config\": ${CONFIG_JSON}
+                    }
+                ]
+            }")
+        
+        if [ -z "$POST_RESPONSE" ] || echo "$POST_RESPONSE" | grep -q "error"; then
+            echo "ERROR: Failed to submit model download request. Response: $POST_RESPONSE"
+            exit 1
+        fi
+        
+        echo "Model download API response: $POST_RESPONSE"
+        
+        # Extract job IDs
+        JOB_IDS=$(echo "$POST_RESPONSE" | jq -r '.job_ids[]')
+        
+        if [ -z "$JOB_IDS" ]; then
+            echo "ERROR: No job_ids returned by model-download API"
+            exit 1
+        fi
+        
+        echo "Jobs submitted: $JOB_IDS"
+        
+        # Poll jobs until completion
+        MAX_ATTEMPTS=60
+        SLEEP_SECS=5
+        attempt=1
+        
+        while [ $attempt -le $MAX_ATTEMPTS ]; do
+            all_done=1
+            
+            for job_id in $JOB_IDS; do
+                JOB_URL="${MODEL_DOWNLOAD_BASE_URL%/}/jobs/${job_id}"
+                JOB_RESPONSE=$(curl -s "$JOB_URL")
+                
+                status=$(echo "$JOB_RESPONSE" | jq -r '.status')
+                echo "Job $job_id → $status"
+                
+                if [ "$status" != "completed" ] && [ "$status" != "failed" ]; then
+                    all_done=0
+                fi
+                
+                if [ "$status" = "failed" ]; then
+                    echo "ERROR: Job $job_id failed"
+                    exit 1
+                fi
+            done
+            
+            if [ $all_done -eq 1 ]; then
+                break
+            fi
+            
+            echo "Waiting for jobs to finish (attempt $attempt/$MAX_ATTEMPTS)..."
+            sleep $SLEEP_SECS
+            attempt=$((attempt + 1))
+        done
+        
+        if [ $attempt -gt $MAX_ATTEMPTS ]; then
+            echo "ERROR: Timed out waiting for model download jobs"
+            exit 1
+        fi
+        
+        # Copy model files from conversion paths
+        for job_id in $JOB_IDS; do
+            JOB_URL="${MODEL_DOWNLOAD_BASE_URL%/}/jobs/${job_id}"
+            JOB_RESPONSE=$(curl -s "$JOB_URL")
+            
+            conversion_path=$(echo "$JOB_RESPONSE" | jq -r '.result.conversion_path // empty')
+            
+            if [ -z "$conversion_path" ]; then
+                echo "ERROR: No conversion path returned for job $job_id"
+                exit 1
+            fi
+
+            # Translate path: model-download uses /opt/models, but we mount models-pvc at /opt/data
+            # So /opt/models/downloaded_models/... becomes /opt/data/downloaded_models/...
+            source_path=$(echo "$conversion_path" | sed 's|/opt/models|/opt/data|')
+
+            if [ ! -d "$source_path" ]; then
+                echo "ERROR: Conversion path does not exist: $source_path (API returned: $conversion_path)"
+                exit 1
+            fi
+
+            echo "Copying model files from $source_path to $TARGET_DIR"
+            cp -r "$source_path"/* "$TARGET_DIR"
+
+            echo "Successfully copied model files for job $job_id"
+        done
+        
+        echo "Successfully prepared ${MODEL_TYPE} model: ${MODEL_NAME}"
+    }

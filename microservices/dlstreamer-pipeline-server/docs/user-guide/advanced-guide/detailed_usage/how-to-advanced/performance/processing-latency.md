@@ -38,7 +38,7 @@ This guide will help you add environment variables to enable `GST TRACER` logs a
    * The `GST TRACER` logs are written to the `trace.log` file in the `tmp` directory. Since the `tmp` directory in the container is mounted to the local `tmp` directory, you can view the logs on your host machine.
    * To view the contents of the file, use `cat trace.log`
    * To follow the logs being written real-time, use `tail -f trace.log`
-  Latency tracer is the functionality provided by DL Streamer. Please refer to the [DL Streamer Latency Tracer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/latency_tracer.html) documentation for available configuration options and detailed description of latency logs interpretation.
+  Latency tracer is the functionality provided by DL Streamer. Please refer to the [DL Streamer Latency Tracer](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/dev_guide/latency_tracer.html) documentation for available configuration options and detailed description of latency logs interpretation.
 
 ## Learn More
 
@@ -48,8 +48,8 @@ For more information on the Gstreamer tracing and debug log levels, refer to the
 - <https://gstreamer.freedesktop.org/documentation/additional/design/tracing.html?gi-language=python#print-processing-latencies-for-each-element>
 
 ## Known Issues
-**Issue:** The trace.log file will be overwritten every time a pipeline related operation is executed. 
-* **Workaround:** Copy the log file as needed. 
+**Issue:** The trace.log file will be overwritten every time a pipeline related operation is executed.
+* **Workaround:** Copy the log file as needed.
 
-**Issue:** The pipeline latency measurement does not work when `gvametapublish` element is in the pipeline. 
+**Issue:** The pipeline latency measurement does not work when `gvametapublish` element is in the pipeline.
 * **Workaround:** Leverage element latency.
