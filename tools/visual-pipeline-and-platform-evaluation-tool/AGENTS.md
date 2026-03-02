@@ -179,6 +179,8 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `RECORDINGS_PATH` | Path to input videos | `/videos/input` |
 | `LIVE_STREAM_SERVER_HOST` | RTSP server hostname | `mediamtx` |
 | `LIVE_STREAM_SERVER_PORT` | RTSP server port | `8554` |
+| `COMPOSE_PROFILES` | Hardware profile (cpu/gpu/npu) | Auto-detected |
+| `PYTHONPATH` | Python module search path | `/app` |
 
 ## Important Notes for AI Agents
 
