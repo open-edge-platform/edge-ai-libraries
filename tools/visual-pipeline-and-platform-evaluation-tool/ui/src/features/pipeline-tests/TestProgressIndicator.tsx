@@ -342,7 +342,7 @@ export const TestProgressIndicator = ({
                 isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
               }`}
             >
-              GPU
+              Power Usage Over Time
               {availableGpus.length > 1 && (
                 <>
                   {" "}
@@ -350,8 +350,7 @@ export const TestProgressIndicator = ({
                     {selectedGpu}
                   </span>
                 </>
-              )}{" "}
-              Power Usage Over Time
+              )}
             </h3>
             <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
               <div className="flex">
