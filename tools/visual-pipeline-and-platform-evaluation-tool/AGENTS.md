@@ -256,6 +256,20 @@ def calculate_total(items, tax_rate=0.23):
 - Use Pydantic models with Field descriptions for request/response schemas
 - Add endpoint descriptions and examples in route decorators
 
+## Naming Conventions
+
+### Python
+- Functions/variables: `snake_case`
+- Classes: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE`
+- Private methods: `_leading_underscore`
+
+### TypeScript
+- Functions/variables: `camelCase`
+- Components: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE`
+- Types/Interfaces: `PascalCase`
+
 ### README Updates
 
 - Update relevant README files when adding new features or changing APIs
