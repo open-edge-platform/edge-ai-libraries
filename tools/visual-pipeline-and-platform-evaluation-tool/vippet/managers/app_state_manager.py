@@ -10,7 +10,7 @@ import logging
 import threading
 from typing import Optional
 
-from api.api_schemas import AppStatus
+from internal_types import InternalAppStatus
 
 logger = logging.getLogger("app_state_manager")
 
@@ -44,12 +44,12 @@ class AppStateManager:
             return
         self._initialized = True
 
-        self._status: AppStatus = AppStatus.STARTING
+        self._status: InternalAppStatus = InternalAppStatus.STARTING
         self._message: Optional[str] = None
         self._state_lock = threading.Lock()
 
     @property
-    def status(self) -> AppStatus:
+    def status(self) -> InternalAppStatus:
         """Returns the current application status."""
         with self._state_lock:
             return self._status
@@ -60,7 +60,9 @@ class AppStateManager:
         with self._state_lock:
             return self._message
 
-    def set_status(self, status: AppStatus, message: Optional[str] = None) -> None:
+    def set_status(
+        self, status: InternalAppStatus, message: Optional[str] = None
+    ) -> None:
         """
         Set the application status and optional message.
 
@@ -79,7 +81,7 @@ class AppStateManager:
     def is_ready(self) -> bool:
         """Returns True if the application is ready to serve requests."""
         with self._state_lock:
-            return self._status == AppStatus.READY
+            return self._status == InternalAppStatus.READY
 
     def is_healthy(self) -> bool:
         """
@@ -89,4 +91,4 @@ class AppStateManager:
         so container is not killed while loading resources.
         """
         with self._state_lock:
-            return self._status != AppStatus.SHUTDOWN
+            return self._status != InternalAppStatus.SHUTDOWN

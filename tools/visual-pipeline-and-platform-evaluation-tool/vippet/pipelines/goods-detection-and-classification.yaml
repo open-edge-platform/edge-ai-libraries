@@ -13,7 +13,7 @@ variants:
       gvadetect
         batch-size=1
         model-instance-id=detect0-cpu
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11n/INT8/yolo11n.xml
         threshold=0.5
         inference-interval=3
         scale-method=fast
@@ -49,7 +49,7 @@ variants:
       gvadetect
         batch-size=1
         model-instance-id=detect0-gpu
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11n/INT8/yolo11n.xml
         threshold=0.5
         inference-interval=3
         scale-method=fast
@@ -85,7 +85,7 @@ variants:
       gvadetect
         batch-size=1
         model-instance-id=detect0-npu
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11n/INT8/yolo11n.xml
         threshold=0.5
         inference-interval=3
         scale-method=fast
@@ -119,7 +119,7 @@ variants:
       gvadetect
         batch-size=1
         model-instance-id=detect0-gpu-npu
-        model=/models/output/public/yolo11n/FP16/yolo11n.xml
+        model=/models/output/public/yolo11n/INT8/yolo11n.xml
         threshold=0.5
         inference-interval=3
         scale-method=fast

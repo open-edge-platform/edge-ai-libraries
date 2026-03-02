@@ -15,9 +15,9 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Prerequisites
 
-- Docker tool and Docker Compose tool.
-- Hugging Face API token. This is only required for gated Hugging Face models or conversion.
+- (Optional) Hugging Face API token, required for gated Hugging Face models or conversion.
 - Sufficient disk space for model storage.
+- See [System Requirements](./system-requirements.md)
 
 ## Quick Start with Setup Script
 

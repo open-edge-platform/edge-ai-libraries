@@ -1,7 +1,7 @@
 ﻿import io
 import pytest
 from fastapi.testclient import TestClient
-from app.server import app, is_file_supported, ensure_directory_exists, clean_directory
+from app.server import app, is_file_supported, clean_directory, safe_log
 
 
 client = TestClient(app)
@@ -20,7 +20,7 @@ def test_is_file_supported():
 
 def test_ensure_and_clean_directory(tmp_path):
     test_dir = tmp_path / "docs"
-    ensure_directory_exists(str(test_dir))
+    test_dir.mkdir(parents=True, exist_ok=True)
     assert test_dir.exists()
     # Create a file
     file_path = test_dir / "file.txt"
@@ -60,3 +60,24 @@ def test_summarize_supported_file(mocker):
     )
     assert response.status_code == 200
     assert mock_summary in response.text or mock_summary in response.json().get("summary", "")
+
+
+def test_safe_log_crlf_escaping():
+    """Verify that carriage returns and line feeds are escaped."""
+    original = "line1\r\nline2"
+    expected = "line1\\r\\nline2"
+    assert safe_log(original) == expected
+
+
+def test_safe_log_truncation_at_max_len():
+    """Verify truncation behavior exactly at and just beyond max_len."""
+    base = "a" * 10
+    assert safe_log(base, max_len=10) == base
+    assert safe_log(base + "b", max_len=10) == (base + "...")
+
+
+def test_safe_log_various_input_types():
+    """Verify handling of strings, numbers, and None values."""
+    assert safe_log("text") == "text"
+    assert safe_log(123) == "123"
+    assert safe_log(None) == "None"

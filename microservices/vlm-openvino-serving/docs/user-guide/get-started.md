@@ -222,13 +222,13 @@ curl --location 'http://localhost:9764/v1/chat/completions' \
           {
             "type": "image_url",
             "image_url": {
-              "url": "https://preschool.org/wp-content/uploads/2021/08/What-to-do-during-your-preschool-reading-time-855x570.jpg"
+              "url": "https://github.com/openvinotoolkit/openvino_notebooks/assets/29454499/d5fbbd1a-d484-415c-88cb-9986625b7b11"
             }
           },
           {
             "type": "image_url",
             "image_url": {
-              "url": "https://images.squarespace-cdn.com/content/v1/659e1d627cfb464f89ed5d6d/16cb28f5-86eb-4bdd-a240-fb3316523aee/AdobeStock_663850233.jpeg"
+              "url": "https://github.com/openvinotoolkit/openvino_notebooks/assets/29454499/d5fbbd1a-d484-415c-88cb-9986625b7b11"
             }
           }
         ]

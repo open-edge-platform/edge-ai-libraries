@@ -2,13 +2,22 @@
 
 ## Current Release
 
+**Version**: 1.3.2 \
+**Release Date**: WW09 2026
+
+-  Upgrade Ollama binary to latest version 0.17.0.
+-  Upgrade GPU drivers for PTL support.
+-  Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
+
+## Previous Releases
+
 **Version**: 1.3.1 \
 **Release Date**: WW48 2025
 
 - Helm Chart Update. Resolved issues caused by deprecated schema and fields in Helm charts following the recent Helm binary release. The chart has been updated to align with the latest Helm specifications, ensuring compatibility and preventing deployment failures.
 - Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
 
-## Previous Releases
+## Earlier releases
 
 **Version**: 1.3.0 \
 **Release Date**: WW42 2025
@@ -27,8 +36,6 @@
 - Enhanced container security by updating UI and NGINX containers to run as non-root users, aligning with industry best practices.
 - Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
 - Functional on EMT 3.0.
-
-## Earlier releases
 
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
