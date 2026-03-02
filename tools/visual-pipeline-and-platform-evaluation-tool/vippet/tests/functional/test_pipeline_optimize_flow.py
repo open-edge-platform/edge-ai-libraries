@@ -16,8 +16,6 @@ from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 
-pytestmark = pytest.mark.integration
-
 
 PIPELINE_NAME = "Simple Video Structurization (D-T-C) [CPU]"
 OPTIMIZATION_CASES = [
@@ -121,7 +119,9 @@ def _wait_for_completion(session: requests.Session, job_id: str) -> dict[str, An
     )
 
 
-@pytest.mark.parametrize("case_id,payload", OPTIMIZATION_CASES, ids=[c[0] for c in OPTIMIZATION_CASES])
+@pytest.mark.parametrize(
+    "case_id,payload", OPTIMIZATION_CASES, ids=[c[0] for c in OPTIMIZATION_CASES]
+)
 def test_pipeline_optimize_flow(
     http_client: requests.Session,
     case_id: str,

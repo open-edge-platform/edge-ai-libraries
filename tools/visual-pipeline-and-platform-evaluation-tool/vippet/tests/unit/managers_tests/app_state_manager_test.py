@@ -1,6 +1,6 @@
 import unittest
 
-from api.api_schemas import AppStatus
+from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 
 
@@ -40,7 +40,7 @@ class TestAppStateManager(unittest.TestCase):
     def test_initial_status_is_starting(self):
         """New AppStateManager should have STARTING status."""
         manager = AppStateManager()
-        self.assertEqual(manager.status, AppStatus.STARTING)
+        self.assertEqual(manager.status, InternalAppStatus.STARTING)
 
     def test_initial_message_is_none(self):
         """New AppStateManager should have no message."""
@@ -65,33 +65,33 @@ class TestAppStateManager(unittest.TestCase):
         """set_status should update the status property."""
         manager = AppStateManager()
 
-        manager.set_status(AppStatus.INITIALIZING)
-        self.assertEqual(manager.status, AppStatus.INITIALIZING)
+        manager.set_status(InternalAppStatus.INITIALIZING)
+        self.assertEqual(manager.status, InternalAppStatus.INITIALIZING)
 
-        manager.set_status(AppStatus.READY)
-        self.assertEqual(manager.status, AppStatus.READY)
+        manager.set_status(InternalAppStatus.READY)
+        self.assertEqual(manager.status, InternalAppStatus.READY)
 
-        manager.set_status(AppStatus.SHUTDOWN)
-        self.assertEqual(manager.status, AppStatus.SHUTDOWN)
+        manager.set_status(InternalAppStatus.SHUTDOWN)
+        self.assertEqual(manager.status, InternalAppStatus.SHUTDOWN)
 
     def test_set_status_updates_message(self):
         """set_status should update the message property."""
         manager = AppStateManager()
 
-        manager.set_status(AppStatus.INITIALIZING, "Loading videos...")
+        manager.set_status(InternalAppStatus.INITIALIZING, "Loading videos...")
         self.assertEqual(manager.message, "Loading videos...")
 
-        manager.set_status(AppStatus.READY, None)
+        manager.set_status(InternalAppStatus.READY, None)
         self.assertIsNone(manager.message)
 
     def test_set_status_clears_previous_message(self):
         """set_status without message should clear previous message."""
         manager = AppStateManager()
 
-        manager.set_status(AppStatus.INITIALIZING, "Step 1")
+        manager.set_status(InternalAppStatus.INITIALIZING, "Step 1")
         self.assertEqual(manager.message, "Step 1")
 
-        manager.set_status(AppStatus.INITIALIZING)
+        manager.set_status(InternalAppStatus.INITIALIZING)
         self.assertIsNone(manager.message)
 
     # ------------------------------------------------------------------
@@ -101,25 +101,25 @@ class TestAppStateManager(unittest.TestCase):
     def test_is_ready_returns_false_for_starting(self):
         """is_ready should return False for STARTING status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.STARTING)
+        manager.set_status(InternalAppStatus.STARTING)
         self.assertFalse(manager.is_ready())
 
     def test_is_ready_returns_false_for_initializing(self):
         """is_ready should return False for INITIALIZING status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.INITIALIZING)
+        manager.set_status(InternalAppStatus.INITIALIZING)
         self.assertFalse(manager.is_ready())
 
     def test_is_ready_returns_true_for_ready(self):
         """is_ready should return True only for READY status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.READY)
+        manager.set_status(InternalAppStatus.READY)
         self.assertTrue(manager.is_ready())
 
     def test_is_ready_returns_false_for_shutdown(self):
         """is_ready should return False for SHUTDOWN status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.SHUTDOWN)
+        manager.set_status(InternalAppStatus.SHUTDOWN)
         self.assertFalse(manager.is_ready())
 
     # ------------------------------------------------------------------
@@ -129,54 +129,54 @@ class TestAppStateManager(unittest.TestCase):
     def test_is_healthy_returns_true_for_starting(self):
         """is_healthy should return True for STARTING status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.STARTING)
+        manager.set_status(InternalAppStatus.STARTING)
         self.assertTrue(manager.is_healthy())
 
     def test_is_healthy_returns_true_for_initializing(self):
         """is_healthy should return True for INITIALIZING status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.INITIALIZING)
+        manager.set_status(InternalAppStatus.INITIALIZING)
         self.assertTrue(manager.is_healthy())
 
     def test_is_healthy_returns_true_for_ready(self):
         """is_healthy should return True for READY status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.READY)
+        manager.set_status(InternalAppStatus.READY)
         self.assertTrue(manager.is_healthy())
 
     def test_is_healthy_returns_false_for_shutdown(self):
         """is_healthy should return False only for SHUTDOWN status."""
         manager = AppStateManager()
-        manager.set_status(AppStatus.SHUTDOWN)
+        manager.set_status(InternalAppStatus.SHUTDOWN)
         self.assertFalse(manager.is_healthy())
 
     # ------------------------------------------------------------------
-    # AppStatus enum
+    # InternalAppStatus enum
     # ------------------------------------------------------------------
 
-    def test_app_status_values(self):
-        """AppStatus enum should have expected string values."""
-        self.assertEqual(AppStatus.STARTING.value, "starting")
-        self.assertEqual(AppStatus.INITIALIZING.value, "initializing")
-        self.assertEqual(AppStatus.READY.value, "ready")
-        self.assertEqual(AppStatus.SHUTDOWN.value, "shutdown")
+    def test_internal_app_status_values(self):
+        """InternalAppStatus enum should have expected string values."""
+        self.assertEqual(InternalAppStatus.STARTING.value, "starting")
+        self.assertEqual(InternalAppStatus.INITIALIZING.value, "initializing")
+        self.assertEqual(InternalAppStatus.READY.value, "ready")
+        self.assertEqual(InternalAppStatus.SHUTDOWN.value, "shutdown")
 
-    def test_app_status_is_str_enum(self):
-        """AppStatus should be usable as string."""
-        self.assertIsInstance(AppStatus.READY, str)
+    def test_internal_app_status_is_str_enum(self):
+        """InternalAppStatus should be usable as string."""
+        self.assertIsInstance(InternalAppStatus.READY, str)
         # When used as str directly (not via str() function), it equals its value
-        self.assertEqual(AppStatus.READY.value, "ready")
+        self.assertEqual(InternalAppStatus.READY.value, "ready")
         # The enum inherits from str, so it can be compared directly
-        self.assertEqual(AppStatus.READY, "ready")
+        self.assertEqual(InternalAppStatus.READY, "ready")
 
 
 class TestAppStateManagerErrorStatus(unittest.TestCase):
     """Tests for ERROR status handling in AppStateManager."""
 
     def test_error_status_not_defined(self):
-        """AppStatus should not have ERROR value - only STARTING, INITIALIZING, READY, SHUTDOWN."""
+        """InternalAppStatus should not have ERROR value - only STARTING, INITIALIZING, READY, SHUTDOWN."""
         # Verify ERROR is not in the enum
-        status_values = [s.value for s in AppStatus]
+        status_values = [s.value for s in InternalAppStatus]
         self.assertNotIn("error", status_values)
         self.assertIn("starting", status_values)
         self.assertIn("initializing", status_values)

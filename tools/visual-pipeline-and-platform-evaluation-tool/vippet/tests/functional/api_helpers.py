@@ -24,7 +24,9 @@ def fetch_devices(session: requests.Session) -> list[JsonDict]:
     response = session.get(f"{BASE_URL}/devices", timeout=30)
     response.raise_for_status()
     payload = response.json()
-    assert isinstance(payload, list), f"Expected list response, got {type(payload).__name__}"
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
     logger.info("Retrieved %d devices", len(payload))
     return payload
 
@@ -35,7 +37,9 @@ def fetch_pipelines(session: requests.Session) -> list[JsonDict]:
     response = session.get(f"{BASE_URL}/pipelines", timeout=30)
     response.raise_for_status()
     payload = response.json()
-    assert isinstance(payload, list), f"Expected list response, got {type(payload).__name__}"
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
     logger.debug("Received %d pipelines", len(payload))
     return payload
 
@@ -65,7 +69,9 @@ def fetch_videos(session: requests.Session) -> list[JsonDict]:
     response = session.get(f"{BASE_URL}/videos", timeout=30)
     response.raise_for_status()
     payload = response.json()
-    assert isinstance(payload, list), f"Expected list response, got {type(payload).__name__}"
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
     logger.info("Retrieved %d videos", len(payload))
     return payload
 
@@ -76,7 +82,9 @@ def fetch_models(session: requests.Session) -> list[JsonDict]:
     response = session.get(f"{BASE_URL}/models", timeout=30)
     response.raise_for_status()
     payload = response.json()
-    assert isinstance(payload, list), f"Expected list response, got {type(payload).__name__}"
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
     logger.info("Retrieved %d models", len(payload))
     return payload
 
@@ -130,9 +138,15 @@ def wait_for_job_completion(
     )
 
     while time.monotonic() < deadline:
-        if last_status.get("state") == "COMPLETED":
+        state = last_status.get("state")
+        if state == "COMPLETED":
             logger.info("Job at %s finished with COMPLETED state", status_url)
             return last_status
+        if state == "ERROR":
+            pytest.fail(
+                f"Job at {status_url} reached ERROR state: "
+                f"{last_status.get('error_message')}"
+            )
         time.sleep(POLL_INTERVAL_SECONDS)
         response = session.get(status_url, timeout=30)
         response.raise_for_status()

@@ -488,8 +488,8 @@ def _convert_pipeline_density_spec(
             pipeline = pipeline_manager.get_pipeline_by_id(pid)
             variant = pipeline_manager.get_variant_by_ids(pid, vid)
 
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+            # Use Graph directly from InternalVariant
+            graph = variant.pipeline_graph
 
             return InternalPipelineDensitySpec(
                 pipeline_id=f"/pipelines/{pid}/variants/{vid}",
@@ -562,8 +562,8 @@ def _convert_pipeline_performance_spec(
             pipeline = pipeline_manager.get_pipeline_by_id(pid)
             variant = pipeline_manager.get_variant_by_ids(pid, vid)
 
-            # Convert PipelineGraph to Graph
-            graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+            # Use Graph directly from InternalVariant
+            graph = variant.pipeline_graph
 
             return InternalPipelinePerformanceSpec(
                 pipeline_id=f"/pipelines/{pid}/variants/{vid}",

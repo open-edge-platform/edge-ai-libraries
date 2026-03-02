@@ -107,7 +107,7 @@ test: env-setup ## Run tests and generate coverage report
 
 test-functional: $(VENV_DIR) ## Run functional tests
 	set +u; . ./$</bin/activate; set -u ;\
-	VIPPET_DEVICE_FILTERS=CPU,GPU,NPU python3.12 -m pytest -vv vippet/tests/functional/test_videos_list.py
+	python3.12 -m pytest --log-cli-level=INFO vippet/tests/functional/test_density_job_flow.py
 
 install-models-once: env-setup ## Handle models download and installation (once)
 	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models

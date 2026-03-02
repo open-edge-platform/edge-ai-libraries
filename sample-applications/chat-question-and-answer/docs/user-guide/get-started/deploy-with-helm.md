@@ -9,16 +9,22 @@ Before you begin, ensure that you have the following prerequisites:
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
+- Model download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Guide](../../../../microservices/model-download/docs/user-guide/deploy-with-helm.md) for deployment instructions.
+- Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying ChatQnA. Refer to the [Model Download Get Started Guide](../../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 ## Steps to deploy with Helm
 
 Following steps should be followed to deploy ChatQ&A using Helm. You can install from source code or pull the chart from Docker hub.
 
-**_Steps 1 to 3 varies depending on if the user prefers to build or pull the Helm details._**
+**_Steps 1 to 4 vary depending on whether you build from source or pull Helm chart details from Docker Hub._**
 
 ### Option 1: Install from Docker Hub
 
-#### Step 1: Pull the Specific Chart
+#### Step 1: Ensure the Model Download Service Is Up and Running
+
+As mentioned in the prerequisites, ensure that the `model-download` microservice is deployed and running.
+
+#### Step 2: Pull the Specific Chart
 
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer):
 
@@ -28,7 +34,7 @@ helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <v
 
 🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
 
-#### Step 2: Extract the `.tgz` File
+#### Step 3: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 
@@ -42,7 +48,7 @@ This will create a directory named `chat-question-and-answer` containing the cha
 cd chat-question-and-answer
 ```
 
-#### Step 3: Configure the right `values*.yaml` file
+#### Step 4: Configure the right `values*.yaml` file
 
 Choose the appropriate `values*.yaml` file based on the model server you want to use and set the necessary environment variables:
 
@@ -52,7 +58,9 @@ Choose the appropriate `values*.yaml` file based on the model server you want to
 
 Note: If deploying from a cloned repo, the user can choose to edit only the `values.yaml` file which is symlinked to `values_ovms.yaml` as default option. When the chart is downloaded from registry, the symlink gets removed and the user should use the preferred `values*.yaml` file.
 
-Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Ensure you set the `huggingface.apiToken`, proxy settings, and `dataprepPgvector.env.ALLOWED_HOSTS` as required.
+
+For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration).
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -63,6 +71,8 @@ Ensure you set the `huggingface.apiToken` and proxy settings as required.
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-minio-password>` (password length should be at least 8 characters) |
 | `global.OTLP_ENDPOINT` | OTLP endpoint | |
 | `global.OTLP_ENDPOINT_TRACE` | OTLP endpoint for trace | |
+| `global.modelDownload.serviceName` | Model download service name (required for OVMS) | `<your-model-download-service-name>`(Ex: model-download) |
+| `global.modelDownload.port` | Model download service port (required for OVMS) | `<your-model-download-service-port>`(Ex: 8000 or 8200) |
 | `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | `false` |
 | `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
@@ -71,6 +81,7 @@ Ensure you set the `huggingface.apiToken` and proxy settings as required.
 | `global.GPU.enabled` | For model server deployed on GPU | false |
 | `global.GPU.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
+| `dataprepPgvector.env.ALLOWED_HOSTS` | Mandatory comma-separated trusted domains for URL ingestion (SSRF mitigation) | `example.com,subdomain.example.com` |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `latest`   |
@@ -97,7 +108,11 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-li
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
-#### Step 2: Change to the Chart Directory
+#### Step 2: Verify the Model Download Service Is Up and Running
+
+As mentioned in the prerequisites, ensure that the `model-download` microservice is deployed and running.
+
+#### Step 3: Change to the Chart Directory
 
 Navigate to the chart directory:
 
@@ -105,11 +120,11 @@ Navigate to the chart directory:
 cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart
 ```
 
-#### Step 3: Configure the `values*.yaml` File
+#### Step 4: Configure the `values*.yaml` File
 
-Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 4** for the list of keys and example values.
 
-#### Step 4: Build Helm Dependencies
+#### Step 5: Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
 
@@ -119,7 +134,7 @@ helm dependency build
 
 ## Common Steps after configuration
 
-### Step 5: Deploy the Helm Chart
+### Step 6: Deploy the Helm Chart
 
 Deploy the OVMS Helm chart:
 
@@ -141,7 +156,7 @@ Deploy the TGI Helm chart:
 helm install chatqna . -f values_tgi.yaml -n <your-namespace>
 ```
 
-### Step 6: Verify the Deployment
+### Step 7: Verify the Deployment
 
 Check the status of the deployed resources to ensure everything is running correctly
 
@@ -150,11 +165,11 @@ kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 7: Access the Application
+### Step 8: Access the Application
 
 Open the UI in a browser at `http://<node-ip>:<ui-node-port>`
 
-### Step 8: Update Helm Dependencies
+### Step 9: Update Helm Dependencies
 
 If any changes are made to the subcharts, update the Helm dependencies using the following command:
 
@@ -162,7 +177,7 @@ If any changes are made to the subcharts, update the Helm dependencies using the
 helm dependency update
 ```
 
-### Step 9: Uninstall Helm chart
+### Step 10: Uninstall Helm chart
 
 To uninstall helm charts deployed, use the following command:
 
@@ -192,6 +207,12 @@ helm uninstall <name> -n <your-namespace>
   # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
+
+**Note:**
+ChatQnA uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
+
+Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall ChatQnA first, then clean up `model-download` resources, and remove the PVC if needed.
+
 
 ## Related links
 

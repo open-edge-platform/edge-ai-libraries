@@ -8,7 +8,6 @@ Run with Python 3.12+ and pytest while the VIPPET API is available locally:
 import logging
 from typing import Any
 
-import pytest
 import requests
 
 from api_helpers import fetch_videos
@@ -37,8 +36,6 @@ EXPECTED_VIDEOS: list[dict[str, Any]] = [
     },
 ]
 
-pytestmark = pytest.mark.integration
-
 
 def _video_matches(candidate: dict[str, Any], expected: dict[str, Any]) -> bool:
     return all(candidate.get(key) == value for key, value in expected.items())
@@ -52,5 +49,9 @@ def test_videos_endpoint_returns_videos(http_client: requests.Session) -> None:
         Video.model_validate(raw)
 
     for expected in EXPECTED_VIDEOS:
-        matching = next((video for video in videos if _video_matches(video, expected)), None)
-        assert matching is not None, f"Videos endpoint missing expected entry: {expected['filename']}"
+        matching = next(
+            (video for video in videos if _video_matches(video, expected)), None
+        )
+        assert matching is not None, (
+            f"Videos endpoint missing expected entry: {expected['filename']}"
+        )

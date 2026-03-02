@@ -9,14 +9,11 @@ import logging
 import time
 from typing import Any
 
-import pytest
 import requests
 
 from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
-
-pytestmark = pytest.mark.integration
 
 VALIDATION_PAYLOAD: dict[str, Any] = {
     "type": "GStreamer",
@@ -33,14 +30,6 @@ VALIDATION_PAYLOAD: dict[str, Any] = {
     },
     "parameters": {"max-runtime": 10},
 }
-
-
-@pytest.fixture(scope="module")
-def http_client() -> requests.Session:
-    session = requests.Session()
-    session.headers.update({"Accept": "application/json"})
-    yield session
-    session.close()
 
 
 def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:

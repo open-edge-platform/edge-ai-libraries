@@ -7,15 +7,12 @@ Run with Python 3.12+ and pytest while the VIPPET API is available locally:
 
 import logging
 
-import pytest
 import requests
 
 from api_helpers import fetch_models
 from vippet.api.api_schemas import Model
 
 logger = logging.getLogger(__name__)
-
-pytestmark = pytest.mark.integration
 
 
 def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
