@@ -49,6 +49,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Eye, Film, Infinity, Redo2, Save, SlidersHorizontal, Timer, Undo2 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 type UrlParams = {
   id: string;
   variant: string;
@@ -72,6 +73,7 @@ export const Pipelines = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [streams, setStreams] = useState(1);
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -276,7 +278,7 @@ export const Pipelines = () => {
                 source: "graph",
                 pipeline_graph: payloadGraphData,
               },
-              streams: 1,
+              streams,
             },
           ],
           execution_config: {
@@ -438,7 +440,7 @@ export const Pipelines = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Advanced view
+                        View mode
                       </p>
                       <ViewModeSwitcher
                         pipelineId={id}
@@ -462,6 +464,41 @@ export const Pipelines = () => {
                     </div>
 
                     <Separator />
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Pipeline run options
+                    </p>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span>Streams</span>
+                          <span className="text-xs text-muted-foreground">{streams}</span>
+                        </div>
+                        <StreamsSlider
+                          value={streams}
+                          onChange={setStreams}
+                          min={1}
+                          max={12}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Infinity className="h-4 w-4 text-muted-foreground" />
+                        <span>Run pipeline in loop</span>
+                      </div>
+                      <Switch
+                        checked={loopingEnabled}
+                        onCheckedChange={(checked) => {
+                          setLoopingEnabled(checked);
+                          if (checked) {
+                            setVideoOutputEnabled(false);
+                            setLivePreviewEnabled(false);
+                          }
+                        }}
+                      />
+                    </div>
 
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
@@ -470,7 +507,6 @@ export const Pipelines = () => {
                           <span>Keep pipeline output</span>
                         </div>
                         <Switch
-                          disabled={(loopingEnabled || livePreviewEnabled) && !videoOutputEnabled}
                           checked={videoOutputEnabled}
                           onCheckedChange={(checked) => {
                             setVideoOutputEnabled(checked);
@@ -482,23 +518,7 @@ export const Pipelines = () => {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Infinity className="h-4 w-4 text-muted-foreground" />
-                          <span>Run pipeline in loop</span>
-                        </div>
-                        <Switch
-                          disabled={(videoOutputEnabled || livePreviewEnabled) && !loopingEnabled}
-                          checked={loopingEnabled}
-                          onCheckedChange={(checked) => {
-                            setLoopingEnabled(checked);
-                            if (checked) {
-                              setVideoOutputEnabled(false);
-                              setLivePreviewEnabled(false);
-                            }
-                          }}
-                        />
-                      </div>
+                      
 
                       {loopingEnabled && (
                         <div className="ml-6 flex items-center gap-2">
@@ -540,10 +560,6 @@ export const Pipelines = () => {
                           <span>Enable live preview</span>
                         </div>
                         <Switch
-                          disabled={
-                            (videoOutputEnabled || loopingEnabled) &&
-                            !livePreviewEnabled
-                          }
                           checked={livePreviewEnabled}
                           onCheckedChange={(checked) => {
                             setLivePreviewEnabled(checked);

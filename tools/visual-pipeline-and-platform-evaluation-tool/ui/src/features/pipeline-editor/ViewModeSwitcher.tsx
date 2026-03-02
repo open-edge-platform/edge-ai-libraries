@@ -127,7 +127,7 @@ const ViewModeSwitcher = ({
               checked={!isSimpleMode}
               onCheckedChange={handleModeSwitch}
             />
-            <span className="text-sm font-medium">Advanced View</span>
+            <span className="text-sm font-medium">Enable advanced mode</span>
           </label>
         </TooltipTrigger>
         <TooltipContent side="bottom">
