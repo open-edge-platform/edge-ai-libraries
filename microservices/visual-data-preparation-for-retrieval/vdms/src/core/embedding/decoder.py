@@ -7,8 +7,10 @@ PIL image conversion using a producer-consumer pattern with multiprocessing supp
 from __future__ import annotations
 
 import io
+import logging
 import os
 import queue
+import signal
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
@@ -25,9 +27,8 @@ from typing import Union
 
 import av
 import numpy as np
-from PIL import Image
 
-EOS = object()  # end-of-stream sentinel (unique, non-colliding)
+INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
 
 import queue
@@ -35,6 +36,8 @@ from multiprocessing import shared_memory
 
 import numpy as np
 
+shutdown_Event = threading.Event()
+logger = logging.getLogger(__name__)
 
 class SharedMemoryPool:
     def __init__(self, max_blocks, block_size):
@@ -219,6 +222,86 @@ def convert_and_store_frame(
     )
 
 
+def decode_stream_and_batch_generator(
+    container: av.container.Container,
+    stream_id: int,
+    stream_config: VideoFrameConfig,
+    shm_pool: SharedMemoryPool,
+    batch_size: int = 64,
+    shutdown_event: threading.Event | None = None,
+) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
+
+    def flush_batch(batch, batch_id):
+        frames_meta = list(
+            thread_pool.map(
+                lambda item: convert_and_store_frame(stream_id, item[0], item[1], shm_pool),
+                batch,
+            )
+        )
+        return BatchFrameMetadata(
+            stream_id=stream_id,
+            batch_id=batch_id,
+            frames=frames_meta,
+        ).to_dict()
+
+    batch: list[tuple[int, av.VideoFrame]] = []
+    batch_id = 0
+    global_frame_idx = 0
+
+    with container, ThreadPoolExecutor(max_workers=8) as thread_pool:
+        stream = container.streams.video[0]
+        stream.thread_type = "AUTO"
+
+        if stream_config.keyframes_only:
+            stream.skip_frame = "NONKEY"
+
+        try:
+            for packet in container.demux(stream):
+
+                if shutdown_event and shutdown_event.is_set():
+                    yield (INTERRUPT, stream_id)
+                    break
+
+                if packet.dts is None:
+                    continue
+
+                try:
+                    frames = packet.decode()
+                except av.AVError:
+                    # RTSP transient decode failure — continue
+                    continue
+
+                for frame in frames:
+                    if shutdown_event and shutdown_event.is_set():
+                        break
+
+                    if global_frame_idx % stream_config.frame_interval != 0:
+                        global_frame_idx += 1
+                        continue
+
+                    batch.append((global_frame_idx, frame))
+                    global_frame_idx += 1
+
+                    if len(batch) >= batch_size:
+                        yield flush_batch(batch, batch_id)
+                        batch.clear()
+                        batch_id += 1
+
+            # Final drain (only on shutdown or true EOS)
+            if batch:
+                yield flush_batch(batch, batch_id)
+
+        finally:
+            if shutdown_event and shutdown_event.is_set():
+                logger.info(f"Stream {stream_id} stopped by shutdown event")
+            else:
+                logger.info(f"Stream {stream_id} ended")
+
+            yield (DONE, stream_id)
+
+
 def decode_and_batch_generator(
     container: av.container.Container,
     stream_id: int,
@@ -241,6 +324,7 @@ def decode_and_batch_generator(
 
             # TODO: Shutdown signal check
             if shutdown_event and shutdown_event.is_set():
+                yield (INTERRUPT, stream_id)
                 break
 
             if frame_id % stream_config.frame_interval != 0:
@@ -277,7 +361,7 @@ def decode_and_batch_generator(
 def generator_to_queue(gen, result_queue):
     for item in gen:
         result_queue.put(item)
-        if item is None:
+        if item is None or (isinstance(item, tuple) and item[0] is INTERRUPT):
             break
 
 
@@ -312,7 +396,16 @@ class VideoFrameExtractor:
     ):
         self.config = config or VideoFrameConfig()
         self.shm_pool = shm_pool
+
         self._shutdown = threading.Event()
+        self._shutdown.clear()
+
+        def handle_sigint(sig, frame):
+            logger.info("Shutdown signal received, stopping frame extraction...")
+            self._shutdown.set()
+
+        signal.signal(signal.SIGINT, handle_sigint)
+
         self.finished_set = set()
         if isinstance(video_input, list):
             self.video_inputs = [VideoInput.auto_detect(vi) for vi in video_input]
@@ -356,8 +449,10 @@ class VideoFrameExtractor:
                                 if stream.display_aspect_ratio
                                 else None
                             ),
-                            duration_seconds=float(
-                                stream.duration * Fraction(str(stream.time_base))
+                            duration_seconds=(
+                                float(stream.duration * Fraction(str(stream.time_base)))
+                                if stream.duration and stream.time_base
+                                else None
                             ),
                             duration=stream.duration,
                         )
@@ -404,18 +499,29 @@ class VideoFrameExtractor:
         result_queue: queue.Queue = queue.Queue(maxsize=self.config.queue_size)
         finished_set = set()
 
-        self._shutdown.clear()
         threads = []
         for video_index, video_input in enumerate(inputs):
             container = self._open_video_source(video_input)
-            stream_gen = decode_and_batch_generator(
-                container=container,
-                stream_id=video_index,
-                stream_config=self.config,
-                shm_pool=self.shm_pool,
-                batch_size=self.config.batch_size,
-                shutdown_event=self._shutdown,
-            )
+
+            if video_input.source_type == VideoSourceType.RTSP:
+                # For streaming sources, we can start decoding immediately
+                stream_gen = decode_stream_and_batch_generator(
+                    container=container,
+                    stream_id=video_index,
+                    stream_config=self.config,
+                    shm_pool=self.shm_pool,
+                    batch_size=self.config.batch_size,
+                    shutdown_event=self._shutdown,
+                )
+            else:
+                stream_gen = decode_and_batch_generator(
+                    container=container,
+                    stream_id=video_index,
+                    stream_config=self.config,
+                    shm_pool=self.shm_pool,
+                    batch_size=self.config.batch_size,
+                    shutdown_event=self._shutdown,
+                )
 
             t = threading.Thread(
                 target=generator_to_queue, args=(stream_gen, result_queue), daemon=True
@@ -431,26 +537,33 @@ class VideoFrameExtractor:
                 except queue.Empty:
                     continue
 
-                # Handle DONE sentinel
-                if isinstance(batch, tuple) and batch[0] is DONE:
-                    _, stream_id = batch
+                # Handle DONE and INTERRUPT sentinel
+                if isinstance(batch, tuple):
 
-                    finished_set.add(stream_id)
+                    if batch[0] is INTERRUPT:
+                        break
 
-                    t = threads[stream_id]
-                    if t.is_alive():
-                        t.join(timeout=1.0)
+                    if batch[0] is DONE:
+                        _, stream_id = batch
 
-                    continue
+                        finished_set.add(stream_id)
+
+                        t = threads[stream_id]
+                        if t.is_alive():
+                            t.join(timeout=1.0)
+
+                        continue
 
                 yield batch
 
         except Exception as e:
             self._shutdown.set()
+            logger.error(f"Error during frame extraction: {e}", exc_info=True)
             raise
 
         finally:
-            self._shutdown.set()
+            self.shm_pool.close()
+            logger.info("All threads have been signaled to shutdown and shared memory has been released.")
 
 
 def extract_batched_frames(

@@ -1616,7 +1616,7 @@ def get_frames_for_embeddings(
 def detect_embed_store_worker(
     detection_meta_queue, embed_sink_queue, shm_pool, enable_object_detection, detection_confidence
 ):
-    thread_pool = ThreadPoolExecutor(max_workers=16)
+    thread_pool = ThreadPoolExecutor(max_workers=2)
     detector = get_global_detector(enable_object_detection, detection_confidence)
     _sdk_client = get_sdk_client()
 
@@ -1637,7 +1637,7 @@ def detect_embed_store_worker(
             detection_time = time.perf_counter()
 
             frame_np, frame_metadata, shm_handles = get_frames_for_embeddings(
-                batch, thread_pool, detector, enable_object_detection=False
+                batch, thread_pool, detector, enable_object_detection=True
             )
             logger.info(
                 f"Worker extracted {len(frame_np)} frames (including detected crops) for embedding generation"
@@ -1682,6 +1682,8 @@ def detect_embed_store_worker(
 
         logger.info(
             f"Worker completed processing batch: "
+            f"Stream ID: {batch.get('stream_id', 'unknown')}, "
+            f"Batch ID: {batch.get('batch_id', 'unknown')}, "
             f"frames processed: {len(frame_np)}, "
             f"embeddings generated: {len(embedding)}, "
             f"embeddings stored: {len(saved_ids)}, "
@@ -1716,10 +1718,11 @@ def _process_video_from_memory_simple_pipeline(
 
     try:
 
-        extraction_batch_size = 64
+        extraction_batch_size = 1
+        frame_interval = 1
         detection_meta_queue: mp.Queue = mp.Queue(maxsize=32)
         embed_sink_queue: mp.Queue = mp.Queue(maxsize=32)
-        shm_pool = SharedMemoryPool(max_blocks=1024, block_size=1920 * 1080 * 3)
+        shm_pool = SharedMemoryPool(max_blocks=512, block_size=1920 * 1080 * 3)
 
         p = threading.Thread(
             target=detect_embed_store_worker,
@@ -1762,13 +1765,21 @@ def _process_video_from_memory_simple_pipeline(
         )
 
         # Create video input from bytes and extract frames
-        extractor = VideoFrameExtractor([video_content], config, shm_pool=shm_pool)
+        extractor = VideoFrameExtractor(
+            [
+                "rtsp://10.223.24.242:8554/livingroom",
+                "rtsp://10.223.24.242:8554/backyard",
+                "rtsp://10.223.24.242:8554/garage",
+            ],
+            config,
+            shm_pool=shm_pool,
+        )
         stream_metadata = extractor.get_metadata()
         fps = stream_metadata.average_rate
         total_frames = stream_metadata.total_frames
         video_duration_seconds = stream_metadata.duration_seconds
         logger.info(
-            f"Video metadata: fps={fps}, total_frames={total_frames}, duration={video_duration_seconds:.2f}s"
+            f"Video metadata: fps={fps}, total_frames={total_frames}, duration={video_duration_seconds}s"
         )
 
         # Process batches in parallel - each batch will do optional object detection + embedding generation + immediate storage
