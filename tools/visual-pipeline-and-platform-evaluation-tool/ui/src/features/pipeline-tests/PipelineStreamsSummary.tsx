@@ -9,6 +9,11 @@ export const PipelineStreamsSummary = ({
   streamsPerPipeline,
   pipelines,
 }: PipelineStreamsSummaryProps) => {
+  const maxStreams = Math.max(
+    ...streamsPerPipeline.map((pipeline) => pipeline.streams ?? 0),
+    1,
+  );
+
   const getPipelineName = (pipelineId: string) => {
     const pipeline = pipelines.find((p) => p.id === pipelineId);
     return pipeline?.name ?? pipelineId;
@@ -18,10 +23,6 @@ export const PipelineStreamsSummary = ({
     <div className="space-y-3">
       {streamsPerPipeline.map((item) => {
         const streams = item.streams ?? 0;
-        const maxStreams = Math.max(
-          ...streamsPerPipeline.map((p) => p.streams ?? 0),
-          1,
-        );
         const percentage = (streams / maxStreams) * 100;
 
         return (
