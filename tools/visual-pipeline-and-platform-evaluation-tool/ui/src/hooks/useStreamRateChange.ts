@@ -15,9 +15,14 @@ const allocateProportionally = (weights: number[], total: number): number[] => {
     weightSum > 0
       ? nonNegativeWeights
       : new Array(nonNegativeWeights.length).fill(1);
-  const effectiveSum = effectiveWeights.reduce((sum, weight) => sum + weight, 0);
+  const effectiveSum = effectiveWeights.reduce(
+    (sum, weight) => sum + weight,
+    0,
+  );
 
-  const raw = effectiveWeights.map((weight) => (weight / effectiveSum) * safeTotal);
+  const raw = effectiveWeights.map(
+    (weight) => (weight / effectiveSum) * safeTotal,
+  );
   const allocated = raw.map((value) => Math.floor(value));
 
   let remainder = safeTotal - allocated.reduce((sum, value) => sum + value, 0);
