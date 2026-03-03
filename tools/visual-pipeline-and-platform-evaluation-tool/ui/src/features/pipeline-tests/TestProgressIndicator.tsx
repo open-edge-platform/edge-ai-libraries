@@ -54,7 +54,7 @@ const MetricCard = ({
     >
       {icon}
     </div>
-    <div className={`${useDemoStyles ? "flex-1" : ""}`}>
+    <div className={useDemoStyles ? "flex-1" : undefined}>
       <h3
         className={`${
           useDemoStyles
@@ -68,11 +68,7 @@ const MetricCard = ({
       </h3>
       <p
         className={`text-3xl font-bold ${
-          useDemoStyles
-            ? forceDark
-              ? "text-white"
-              : "text-foreground"
-            : "text-foreground"
+          useDemoStyles && forceDark ? "text-white" : "text-foreground"
         }`}
       >
         {value.toFixed(2)}
@@ -80,9 +76,7 @@ const MetricCard = ({
           className={`text-sm ml-1.5 font-semibold ${
             isSummary
               ? "text-energy-blue-tint-2"
-              : useDemoStyles
-                ? "text-muted-foreground"
-                : "text-muted-foreground"
+              : "text-muted-foreground"
           }`}
         >
           {unit}
@@ -393,7 +387,7 @@ export const TestProgressIndicator = ({
                 <>
                   {" "}
                   <span
-                    className={`inline-block ${useDemoStyles ? "min-w-[0.5rem]" : "min-w-[1ch]"}`}
+                    className="inline-block min-w-[0.5rem]"
                   >
                     {selectedGpu}
                   </span>
@@ -429,9 +423,7 @@ export const TestProgressIndicator = ({
                   ]}
                   showLegend={true}
                   className={
-                    useDemoStyles
-                      ? "!shadow-none !p-0 !bg-transparent !border-0"
-                      : "!shadow-none !p-0"
+                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
                   }
                   labels={["GPU Power", "Package Power"]}
                   maxDataPoints={30}
@@ -472,7 +464,7 @@ export const TestProgressIndicator = ({
                 <>
                   {" "}
                   <span
-                    className={`inline-block ${useDemoStyles ? "min-w-[0.5rem]" : "min-w-[1ch]"}`}
+                    className="inline-block min-w-[0.5rem]"
                   >
                     {selectedGpu}
                   </span>
@@ -502,9 +494,7 @@ export const TestProgressIndicator = ({
                   showLegend={false}
                   labels={["Frequency"]}
                   className={
-                    useDemoStyles
-                      ? "!shadow-none !p-0 !bg-transparent !border-0"
-                      : "!shadow-none !p-0"
+                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
                   }
                   maxDataPoints={30}
                   isSummary={isSummary}
@@ -544,7 +534,7 @@ export const TestProgressIndicator = ({
                 <>
                   {" "}
                   <span
-                    className={`inline-block ${useDemoStyles ? "min-w-[0.5rem]" : "min-w-[1ch]"}`}
+                    className="inline-block min-w-[0.5rem]"
                   >
                     {selectedGpu}
                   </span>
@@ -571,9 +561,7 @@ export const TestProgressIndicator = ({
                   labels={availableEngines.map((e) => engineLabels[e])}
                   wrapLegend={true}
                   className={
-                    useDemoStyles
-                      ? "!shadow-none !p-0 !bg-transparent !border-0"
-                      : "!shadow-none !p-0"
+                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
                   }
                   maxDataPoints={30}
                   isSummary={isSummary}
