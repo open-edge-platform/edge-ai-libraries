@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: LicenseRef-Intel
+---
+specSchema: "Application"
+schemaVersion: "0.1"
+$schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
+
+name: model-download-app
+version: 1.1.0-rc1
+description: "Model Download Microservice"
+helmRegistry: "docker-hub"
+chartName: "intel/model-download-chart"
+
+chartVersion: "1.1.0-rc1"
+defaultProfile: "default"
+
+profiles:
+  - name: "default"
+    displayName: "default"
+    valuesFileName: "model-download-values.yaml"
+    parameterTemplates:
+      - name: global.proxy.http_proxy
+        displayName: "Http proxy"
+        type: string
+        default: ""
+      - name: global.proxy.https_proxy
+        displayName: "Https proxy"
+        type: string
+        default: ""
+      - name: global.proxy.no_proxy
+        displayName: "No proxy"
+        type: string
+        default: "localhost,127.0.0.1"
+      - name: modeldownload.service.port
+        displayName: "Static Service Port"
+        type: string
+        mandatory: true
+      - name: modeldownload.env.HUGGINGFACEHUB_API_TOKEN
+        displayName: "Huggingface API Token"
+        type: string
+        secret: true
+        mandatory: true
+      - name: modeldownload.env.ENABLED_PLUGINS
+        displayName: "Enabled plugins"
+        type: string
+        default: "openvino"
