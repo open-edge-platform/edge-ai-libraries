@@ -74,9 +74,7 @@ const MetricCard = ({
         {value.toFixed(2)}
         <span
           className={`text-sm ml-1.5 font-semibold ${
-            isSummary
-              ? "text-energy-blue-tint-2"
-              : "text-muted-foreground"
+            isSummary ? "text-energy-blue-tint-2" : "text-muted-foreground"
           }`}
         >
           {unit}
@@ -386,9 +384,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span
-                    className="inline-block min-w-[0.5rem]"
-                  >
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
@@ -422,9 +418,7 @@ export const TestProgressIndicator = ({
                     ),
                   ]}
                   showLegend={true}
-                  className={
-                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
-                  }
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
                   labels={["GPU Power", "Package Power"]}
                   maxDataPoints={30}
                   isSummary={isSummary}
@@ -463,9 +457,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span
-                    className="inline-block min-w-[0.5rem]"
-                  >
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
@@ -493,9 +485,7 @@ export const TestProgressIndicator = ({
                   ]}
                   showLegend={false}
                   labels={["Frequency"]}
-                  className={
-                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
-                  }
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
@@ -533,9 +523,7 @@ export const TestProgressIndicator = ({
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span
-                    className="inline-block min-w-[0.5rem]"
-                  >
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
@@ -560,9 +548,7 @@ export const TestProgressIndicator = ({
                   yAxisDomain={[0, 100]}
                   labels={availableEngines.map((e) => engineLabels[e])}
                   wrapLegend={true}
-                  className={
-                    `${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`
-                  }
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
                   maxDataPoints={30}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
