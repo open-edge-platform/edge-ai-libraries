@@ -23,7 +23,7 @@ and run the application efficiently.
 ## Software Requirements
 
 **DL Streamer requirements**
-- Ensure all [requirements](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dl-streamer/get_started/system_requirements.html) for DL Streamer are fulfilled.
+- Ensure all [requirements](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dl-streamer/get_started/system_requirements.html) for DL Streamer are fulfilled.
 
 **Required Software**:
 - Docker 27.3.1 or higher

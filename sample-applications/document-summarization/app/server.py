@@ -8,7 +8,6 @@ import logging
 import traceback
 import openlit
 import tempfile
-from typing import Any
 from openai import OpenAI
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -106,7 +105,7 @@ def save_uploaded_file(uploaded_file: UploadFile, destination: str):
             # Reset file pointer for potential reuse
             uploaded_file.file.seek(0)
     except Exception as e:
-        logger.error(f"Error saving file: {str(e)}")
+        logger.error("Error saving file: %s", safe_log(str(e), max_len=512))
         raise
 
 
@@ -131,6 +130,23 @@ def clean_directory(directory: str):
 def is_file_supported(file):
     _, file_extension = os.path.splitext(file)
     return file_extension in config.SUPPORTED_FILE_EXTENSIONS
+
+
+def safe_log(value: object, max_len: int = 255) -> str:
+    """Sanitize untrusted log fields.
+
+    Use 255 when logging filenames (common max filename length).
+    Use 512 for broader user text (for example query) to keep more context.
+
+    Args:
+        value (object): Untrusted value to be logged safely.
+        max_len (int): Maximum output length after sanitization/truncation.
+
+    Returns:
+        str: Log-safe string with CR(carriage return)/LF(line feed) escaped and optional truncation.
+    """
+    text = str(value).replace("\r", "\\r").replace("\n", "\\n")
+    return text if len(text) <= max_len else f"{text[:max_len]}..."
 
 
 def chunk_text_file(file_path, max_chars=2000):
@@ -171,10 +187,10 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
     """
 
     try:
-        logger.info(f"Received file: {file.filename}, content-type: {file.content_type}, query: {query}")
+        logger.info("Received summarize request for file=%s", safe_log(file.filename))
 
         if not is_file_supported(file.filename):
-            logger.warning(f"Rejected file: {file.filename} - Only {', '.join(config.SUPPORTED_FILE_EXTENSIONS)} files are allowed to upload")
+            logger.warning("Rejected file upload: unsupported file type, file=%s", safe_log(file.filename))
             return JSONResponse(
                 status_code=400,
                 content={"message": f"Only {', '.join(config.SUPPORTED_FILE_EXTENSIONS)} files are allowed to upload."},
@@ -213,8 +229,8 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
 
             logger.info(f"Loaded {len(documents)} document(s) from {file_location}")
         except Exception as e:
-            logger.error(f"Error loading documents: {str(e)}")
-            return JSONResponse(status_code=500, content={"message": f"Failed to load document: {str(e)}"})
+            logger.error("Error loading documents: %s", safe_log(str(e), max_len=512))
+            return JSONResponse(status_code=500, content={"message": "Failed to load document."})
 
         try:
             logger.info("Initializing SimpleSummaryPack")
@@ -234,7 +250,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
                         summary = '\n'.join([s for s in summary])
                     all_summaries.append(summary)
                 except Exception as e:
-                    logger.error(f"Error summarizing chunk {doc_id}: {str(e)}")
+                    logger.error("Error summarizing chunk %s: %s", safe_log(doc_id), safe_log(str(e), max_len=512))
             combined_summary = '\n\n'.join(all_summaries)
             logger.info("Successfully generated combined summary")
 
@@ -252,7 +268,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             try:
                 final_summary = final_summary_pack.run(final_doc_id)
             except Exception as e:
-                logger.error(f"Error generating final summary: {str(e)}")
+                logger.error("Error generating final summary: %s", safe_log(str(e), max_len=512))
                 # fallback: yield the combined summary as a single chunk
                 def fallback_gen():
                     yield combined_summary
@@ -260,14 +276,14 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
             logger.info("Successfully generated distilled summary")
             return StreamingResponse(final_summary, media_type="text/event-stream")
         except Exception as e:
-            logger.error(f"Error in processing: {str(e)}")
+            logger.error("Error in processing: %s", safe_log(str(e), max_len=512))
             logger.error(traceback.format_exc())
-            return JSONResponse(status_code=500, content={"message": f"Error processing document: {str(e)}"})
+            return JSONResponse(status_code=500, content={"message": "Error processing document."})
 
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error("Unexpected error: %s", safe_log(str(e), max_len=512))
         logger.error(traceback.format_exc())
-        return JSONResponse(status_code=500, content={"message": f"An error occurred: {str(e)}"})
+        return JSONResponse(status_code=500, content={"message": "An internal server error occurred."})
     finally:
         try:
             if os.path.exists(tmp_docs_dir):
@@ -275,7 +291,7 @@ async def stream_data_endpoint(file: UploadFile = File(...), query: str = "Summa
                 clean_directory(tmp_docs_dir)
                 logger.info("Directory cleaned successfully")
         except Exception as e:
-            logger.error(f"Error cleaning directory: {str(e)}")
+            logger.error("Error cleaning directory: %s", safe_log(str(e), max_len=512))
 
 FastAPIInstrumentor.instrument_app(app)
 

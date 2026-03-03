@@ -8,49 +8,39 @@ metadata:
 data:
   init-embed-script.sh: |-
     #!/bin/bash
-    model=$0
-    weight_format=$1
-    gpu_enabled=$3
-    # FLATTENED_MODEL_NAME=$(echo ${model} | tr '/' '-')
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/requirements.txt
+    set -e
+
+    model=$1
+    weight_format=$2
+    hf_token=$3
+    gpu_enabled=$4
+
+    MODEL_DOWNLOAD_HOST="{{ .Values.global.modelDownload.serviceName }}"
+    MODEL_DOWNLOAD_PORT="{{ .Values.global.modelDownload.port }}"
     
-    pip3 install -U huggingface_hub[hf_xet]==0.36.0
-
-    # Log in to Hugging Face using the provided token
-    hf auth login --token $2
-
-    # Check if the login was successful
-    if [ $? -eq 0 ]; then
-        echo "Successfully logged in to Hugging Face!"
-    else
-        echo "Failed to log in to Hugging Face. Please check your token and try again."
+    # Validate that model-download service configuration is set
+    if [ -z "$MODEL_DOWNLOAD_HOST" ] || [ -z "$MODEL_DOWNLOAD_PORT" ]; then
+        echo "ERROR: global.modelDownload.serviceName and global.modelDownload.port must be set"
+        echo "Please set these values in your Helm installation"
+        exit 1
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/tags/v2025.4.1/demos/common/export_models/export_model.py -o export_model.py
     
-    # Add add_servable_to_config call to export_embeddings_model_ov function as it missing in the original script in the latest OVMS release
-    python3 -c "
-    import re
-    with open('export_model.py', 'r') as f:
-        content = f.read()
+    MODEL_DOWNLOAD_BASE_URL="http://${MODEL_DOWNLOAD_HOST}:${MODEL_DOWNLOAD_PORT}/api/v1/"
+    MODEL_DOWNLOAD_API_URL="${MODEL_DOWNLOAD_BASE_URL}models/download"
+    DOWNLOAD_MODEL_DIR="downloaded_models/"
+    WEIGHT_FORMAT="$weight_format"
     
-    # Find the export_embeddings_model_ov function and add the line after the print statement
-    pattern = r'(def export_embeddings_model_ov.*?print\(\"Created graph.*?\)\n)'
-    replacement = r'\1    add_servable_to_config(config_file_path, model_name, os.path.relpath( os.path.join(model_repository_path, model_name), os.path.dirname(config_file_path)))\n'
-    content = re.sub(pattern, replacement, content, flags=re.DOTALL)
-    
-    with open('export_model.py', 'w') as f:
-        f.write(content)
-    "
-    
-    mkdir models
+    # Determine target device
     if [ "$gpu_enabled" = "true" ]; then
-        echo "GPU is enabled, using GPU model"
-        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }} --extra_quantization_params "--library sentence_transformers"
+        DEVICE="{{ .Values.global.gpu.device }}"
     else
-        echo "GPU is not enabled, using CPU model"
-        python3 export_model.py embeddings_ov --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device CPU --extra_quantization_params "--library sentence_transformers"
-        
+        DEVICE="CPU"
     fi
 
-    cp -r models /opt/data/
-    echo "All the steps are completed successfully"
+    # Source shared download function
+    . /shared/download-ovms-model.sh
+
+    # Download embedding model (no cache_size for embeddings)
+    download_ovms_model "$model" "embeddings" "openvino" "$DEVICE" ""
+
+    echo "All steps completed successfully"

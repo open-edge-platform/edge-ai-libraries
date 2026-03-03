@@ -6,10 +6,10 @@
 .. raw:: html
 
    <div class="component_card_widget">
-     <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/plcopen-motion-control">
+     <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/plcopen-motion-control">
         GitHub project
      </a>
-     <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/plcopen-motion-control/README.md">
+     <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/plcopen-motion-control/README.md">
         Readme
      </a>
    </div>

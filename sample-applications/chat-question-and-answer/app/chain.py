@@ -204,7 +204,7 @@ async def process_chunks(conversation_messages, max_tokens):
             if hasattr(msg, "role") and hasattr(msg, "content") and msg.content is not None:
                 valid_history_msgs.append(f"{msg.role}: {msg.content}")
             else:
-                logging.warning("Skipping malformed message in history: %s", msg)
+                logging.warning("Skipping history message: missing 'role' or 'content'")
         history = "\n".join(valid_history_msgs)
     else:
         # In case there is 1 or no message object, history will be considered empty
