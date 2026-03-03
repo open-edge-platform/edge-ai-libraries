@@ -159,9 +159,7 @@ export const DensityTests = () => {
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
-            max_runtime: loopingEnabled
-                ? loopingRuntimeSeconds
-                : 0,
+            max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -281,7 +279,9 @@ export const DensityTests = () => {
 
         <button
           onClick={handleAddPipeline}
-          disabled={pipelineSelections.length >= pipelines.length || isRunActive}
+          disabled={
+            pipelineSelections.length >= pipelines.length || isRunActive
+          }
           className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
           <Plus className="w-5 h-5" />
@@ -317,7 +317,9 @@ export const DensityTests = () => {
                       setLoopingEnabled(isChecked);
                     }}
                   />
-                  <span className="text-sm font-medium">Run pipeline in loop</span>
+                  <span className="text-sm font-medium">
+                    Run pipeline in loop
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -338,7 +340,9 @@ export const DensityTests = () => {
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   setLoopingRuntimeSeconds(
-                    Number.isNaN(value) ? DEFAULT_LOOPING_RUNTIME_SECONDS : value,
+                    Number.isNaN(value)
+                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                      : value,
                   );
                 }}
                 onBlur={() => {

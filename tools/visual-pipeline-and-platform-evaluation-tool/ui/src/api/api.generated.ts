@@ -551,7 +551,7 @@ export type ValidationError = {
   loc: (string | number)[];
   msg: string;
   type: string;
-  input?: any;
+  input?: unknown;
   ctx?: object;
 };
 export type HttpValidationError = {
@@ -597,7 +597,7 @@ export type PerformanceJobStatus = {
 export type PerformanceJobSummary = {
   id: string;
   request: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 export type DensityJobStatus = {
@@ -617,7 +617,7 @@ export type DensityJobStatus = {
 export type DensityJobSummary = {
   id: string;
   request: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 export type OptimizationType = "preprocess" | "optimize";
@@ -644,7 +644,7 @@ export type OptimizationJobStatus = {
 export type PipelineRequestOptimize = {
   type: OptimizationType;
   parameters: {
-    [key: string]: any;
+    [key: string]: unknown;
   } | null;
 };
 export type OptimizationJobSummary = {
@@ -663,7 +663,7 @@ export type ValidationJobStatus = {
 export type PipelineValidation = {
   pipeline_graph: PipelineGraph;
   parameters?: {
-    [key: string]: any;
+    [key: string]: unknown;
   } | null;
 };
 export type ValidationJobSummary = {
@@ -739,7 +739,7 @@ export type ValidationJobResponse = {
 export type PipelineValidation2 = {
   pipeline_graph: PipelineGraph;
   parameters?: {
-    [key: string]: any;
+    [key: string]: unknown;
   } | null;
 };
 export type PipelineUpdate = {

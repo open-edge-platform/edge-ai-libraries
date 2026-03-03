@@ -44,10 +44,24 @@ import {
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Eye, Film, Infinity, Redo2, Save, SlidersHorizontal, Timer, Undo2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  Film,
+  Infinity as InfinityIcon,
+  Redo2,
+  Save,
+  SlidersHorizontal,
+  Timer,
+  Undo2,
+} from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 type UrlParams = {
   id: string;
@@ -426,7 +440,6 @@ export const Pipelines = () => {
                 hasUnsavedChanges={canUndo}
               />
             )}
-
           </div>
           <div className="flex items-center gap-2 px-4">
             <Tooltip>
@@ -491,7 +504,11 @@ export const Pipelines = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label="Pipeline options">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Pipeline options"
+                      >
                         <SlidersHorizontal className="h-5 w-5" />
                       </Button>
                     </PopoverTrigger>
@@ -501,7 +518,10 @@ export const Pipelines = () => {
                   </TooltipContent>
                 </Tooltip>
 
-                <PopoverContent align="start" className="w-[420px] p-4 rounded-none">
+                <PopoverContent
+                  align="start"
+                  className="w-[420px] p-4 rounded-none"
+                >
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -523,7 +543,9 @@ export const Pipelines = () => {
                           setCurrentEdges([]);
                         }}
                         onRefetch={refetch}
-                        onEditorKeyChange={() => setEditorKey((prev) => prev + 1)}
+                        onEditorKeyChange={() =>
+                          setEditorKey((prev) => prev + 1)
+                        }
                         onResetHistory={resetHistory}
                       />
                     </div>
@@ -550,7 +572,10 @@ export const Pipelines = () => {
                             return;
                           }
 
-                          const normalizedValue = Math.min(12, Math.max(1, Math.trunc(value)));
+                          const normalizedValue = Math.min(
+                            12,
+                            Math.max(1, Math.trunc(value)),
+                          );
                           setStreams(normalizedValue);
                         }}
                         onBlur={() => {
@@ -568,7 +593,7 @@ export const Pipelines = () => {
 
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm">
-                        <Infinity className="h-4 w-4 text-muted-foreground" />
+                        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
                         <span>Run pipeline in loop</span>
                       </div>
                       <Switch
@@ -611,9 +636,7 @@ export const Pipelines = () => {
                           }}
                           className="h-8 w-24 px-2 text-xs"
                         />
-                        <span className="text-xs text-muted-foreground">
-                          s
-                        </span>
+                        <span className="text-xs text-muted-foreground">s</span>
                       </div>
                     )}
 

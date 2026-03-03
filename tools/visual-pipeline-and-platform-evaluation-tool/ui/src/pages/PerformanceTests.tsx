@@ -336,7 +336,11 @@ export const PerformanceTests = () => {
             );
           })}
 
-          <Button onClick={handleAddPipeline} variant="outline" disabled={isRunActive}>
+          <Button
+            onClick={handleAddPipeline}
+            variant="outline"
+            disabled={isRunActive}
+          >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
           </Button>
@@ -385,7 +389,9 @@ export const PerformanceTests = () => {
                       }
                     }}
                   />
-                  <span className="text-sm font-medium">Enable live preview</span>
+                  <span className="text-sm font-medium">
+                    Enable live preview
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -408,7 +414,9 @@ export const PerformanceTests = () => {
                       }
                     }}
                   />
-                  <span className="text-sm font-medium">Run pipeline in loop</span>
+                  <span className="text-sm font-medium">
+                    Run pipeline in loop
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -429,7 +437,9 @@ export const PerformanceTests = () => {
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   setLoopingRuntimeSeconds(
-                    Number.isNaN(value) ? DEFAULT_LOOPING_RUNTIME_SECONDS : value,
+                    Number.isNaN(value)
+                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                      : value,
                   );
                 }}
                 onBlur={() => {
