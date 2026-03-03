@@ -29,7 +29,7 @@ const PerformanceTestPanel = ({
             {liveStreamUrl ? (
               <WebRTCVideoPlayer
                 pipelineId={pipelineId}
-                liveStreamUrl={liveStreamUrl}
+                streamUrl={liveStreamUrl}
               />
             ) : (
               <p className="text-sm text-muted-foreground">

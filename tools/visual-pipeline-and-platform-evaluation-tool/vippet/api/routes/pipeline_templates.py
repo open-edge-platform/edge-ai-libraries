@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from internal_types import InternalPipeline, InternalVariant
 from managers.pipeline_template_manager import PipelineTemplateManager
 
 router = APIRouter()
@@ -83,7 +84,8 @@ def get_pipeline_templates():
             ]
     """
     try:
-        return PipelineTemplateManager().get_templates()
+        internal_templates = PipelineTemplateManager().get_templates()
+        return [_internal_pipeline_to_api(t) for t in internal_templates]
     except Exception:
         logger.error("Unexpected error while listing pipeline templates", exc_info=True)
         return JSONResponse(
@@ -170,7 +172,8 @@ def get_pipeline_template(template_id: str):
             }
     """
     try:
-        return PipelineTemplateManager().get_template_by_id(template_id)
+        internal_template = PipelineTemplateManager().get_template_by_id(template_id)
+        return _internal_pipeline_to_api(internal_template)
     except ValueError as exc:
         logger.warning("Pipeline template '%s' not found: %s", template_id, exc)
         return JSONResponse(
@@ -189,3 +192,65 @@ def get_pipeline_template(template_id: str):
             ).model_dump(),
             status_code=500,
         )
+
+
+# ------------------------------------------------------------------
+# Conversion helpers: internal types -> API types
+#
+# These functions convert InternalPipeline/InternalVariant (from
+# internal_types) to API Pipeline/Variant (from api.api_schemas).
+# Managers work exclusively with internal types; conversion happens
+# at the route boundary.
+# ------------------------------------------------------------------
+
+
+def _internal_variant_to_api(variant: InternalVariant) -> schemas.Variant:
+    """
+    Convert InternalVariant to API Variant.
+
+    Converts Graph objects to PipelineGraph Pydantic models.
+
+    Args:
+        variant: InternalVariant from PipelineTemplateManager.
+
+    Returns:
+        API Variant Pydantic model.
+    """
+    return schemas.Variant(
+        id=variant.id,
+        name=variant.name,
+        read_only=variant.read_only,
+        pipeline_graph=schemas.PipelineGraph.model_validate(
+            variant.pipeline_graph.to_dict()
+        ),
+        pipeline_graph_simple=schemas.PipelineGraph.model_validate(
+            variant.pipeline_graph_simple.to_dict()
+        ),
+        created_at=variant.created_at,
+        modified_at=variant.modified_at,
+    )
+
+
+def _internal_pipeline_to_api(pipeline: InternalPipeline) -> schemas.Pipeline:
+    """
+    Convert InternalPipeline to API Pipeline.
+
+    Converts all variants and maps InternalPipelineSource to API PipelineSource.
+
+    Args:
+        pipeline: InternalPipeline from PipelineTemplateManager.
+
+    Returns:
+        API Pipeline Pydantic model.
+    """
+    return schemas.Pipeline(
+        id=pipeline.id,
+        name=pipeline.name,
+        description=pipeline.description,
+        source=schemas.PipelineSource(pipeline.source.value),
+        tags=pipeline.tags,
+        variants=[_internal_variant_to_api(v) for v in pipeline.variants],
+        thumbnail=pipeline.thumbnail,
+        created_at=pipeline.created_at,
+        modified_at=pipeline.modified_at,
+    )

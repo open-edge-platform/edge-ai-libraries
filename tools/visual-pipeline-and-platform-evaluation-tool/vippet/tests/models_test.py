@@ -81,20 +81,22 @@ class TestModels(unittest.TestCase):
   display_name: Installed Model
   source: public
   type: classification
-  model_path: inst.xml
-  model_proc: ""
   unsupported_devices: "NPU"
-  precision: FP32
   default: true
+  precisions:
+    - precision: FP32
+      model_path: inst.xml
+      model_proc: ""
 - name: miss
   display_name: Missing Model
   source: public
   type: detection
-  model_path: miss.xml
-  model_proc: ""
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: miss.xml
+      model_proc: ""
 """
             yaml_file = td_path / "supported_models.yaml"
             yaml_file.write_text(yaml_content)
@@ -115,7 +117,7 @@ class TestModels(unittest.TestCase):
 
             # find by display name
             found_by_disp = manager.find_installed_model_by_display_name(
-                "Installed Model"
+                "Installed Model (FP32)"
             )
             self.assertIsNotNone(found_by_disp)
             self.assertEqual(found_by_disp.name, "inst")
@@ -142,20 +144,22 @@ class TestModels(unittest.TestCase):
   display_name: Model A
   source: public
   type: detection
-  model_path: a.xml
-  model_proc: ""
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: a.xml
+      model_proc: ""
 - name: b
   display_name: Model B
   source: public
   type: detection
-  model_path: b.xml
-  model_proc: ""
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: b.xml
+      model_proc: ""
 """
             yaml_file = td_path / "supported.yaml"
             yaml_file.write_text(yaml_content)
@@ -166,7 +170,7 @@ class TestModels(unittest.TestCase):
             manager = m.SupportedModelsManager()
 
             # If "Disabled" present in model_names, it should appear first
-            model_names = ["Disabled", "Model A", "Model B"]
+            model_names = ["Disabled", "Model A (FP32)", "Model B (FP32)"]
             filtered, default = manager.filter_detection_models(
                 model_names, default_model="Disabled"
             )
@@ -175,9 +179,9 @@ class TestModels(unittest.TestCase):
 
             # If default_model not present on disk, pick first available non-Disabled
             filtered2, default2 = manager.filter_detection_models(
-                ["Model A", "Model B"], default_model="NonExistent"
+                ["Model A (FP32)", "Model B (FP32)"], default_model="NonExistent"
             )
-            self.assertIn("Model A", filtered2)
+            self.assertIn("Model A (FP32)", filtered2)
             self.assertIn(default2, filtered2)
 
             # No models on disk: filtered empty and default None
@@ -188,11 +192,12 @@ class TestModels(unittest.TestCase):
   display_name: Model C
   source: public
   type: detection
-  model_path: nofile.xml
-  model_proc: ""
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: nofile.xml
+      model_proc: ""
 """
             )
             m2 = _reload_models_module(str(yaml_file2), str(models_dir))
@@ -200,7 +205,7 @@ class TestModels(unittest.TestCase):
                 setattr(m2, "_supported_models_manager_instance", None)
             manager2 = m2.SupportedModelsManager()
             filtered3, default3 = manager2.filter_detection_models(
-                ["Model C"], default_model="Model C"
+                ["Model C (FP32)"], default_model="Model C (FP32)"
             )
             self.assertEqual(filtered3, [])
             self.assertIsNone(default3)
@@ -220,11 +225,12 @@ class TestModels(unittest.TestCase):
   display_name: Model2
   source: public
   type: classification
-  model_path: inst2.xml
-  model_proc: ""
   unsupported_devices: "NPU, TPU"
-  precision: FP32
   default: true
+  precisions:
+    - precision: FP32
+      model_path: inst2.xml
+      model_proc: ""
 """
             )
             m = _reload_models_module(str(yaml_file), str(models_dir))
@@ -233,9 +239,13 @@ class TestModels(unittest.TestCase):
             manager = m.SupportedModelsManager()
 
             # 'npu' should be unsupported (case-insensitive)
-            self.assertFalse(manager.is_model_supported_on_device("Model2", "npu"))
+            self.assertFalse(
+                manager.is_model_supported_on_device("Model2 (FP32)", "npu")
+            )
             # 'gpu' should be supported
-            self.assertTrue(manager.is_model_supported_on_device("Model2", "GPU"))
+            self.assertTrue(
+                manager.is_model_supported_on_device("Model2 (FP32)", "GPU")
+            )
             # model not found should return False
             self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
 
@@ -259,13 +269,14 @@ class TestModels(unittest.TestCase):
   display_name: Model Base
   source: public
   type: detection
-  model_path: shared.xml
-  model_proc: {base_proc.name}
   extra_model_procs:
     - {str(extra_proc)}
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: shared.xml
+      model_proc: {base_proc.name}
 """
             yaml_file = td_path / "supported.yaml"
             yaml_file.write_text(yaml_content)
@@ -312,7 +323,10 @@ class TestModels(unittest.TestCase):
 - display_name: Missing Name
   source: public
   type: classification
-  model_path: something.xml
+  precisions:
+    - precision: FP32
+      model_path: something.xml
+      model_proc: ""
 """
             )
             m2 = _reload_models_module(str(missing_field_yaml), str(models_dir))
@@ -330,6 +344,71 @@ class TestModels(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 m3.SupportedModelsManager()
 
+    def test_find_installed_model_by_model_and_proc_path_precision_dir_matching(self):
+        """Test that find_installed_model_by_model_and_proc_path disambiguates models
+        with the same filename but different precision directories (e.g. INT8 vs FP16)."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+
+            # Create the precision-based directory structure:
+            # models/public/yolov10s/INT8/yolov10s.xml
+            # models/public/yolov10s/FP16/yolov10s.xml
+            int8_dir = models_dir / "public" / "yolov10s" / "INT8"
+            fp16_dir = models_dir / "public" / "yolov10s" / "FP16"
+            int8_dir.mkdir(parents=True)
+            fp16_dir.mkdir(parents=True)
+            int8_xml = int8_dir / "yolov10s.xml"
+            fp16_xml = fp16_dir / "yolov10s.xml"
+            int8_xml.write_text("int8 model")
+            fp16_xml.write_text("fp16 model")
+
+            yaml_content = """
+- name: yolov10s
+  display_name: YOLO v10s 640x640
+  source: public
+  type: detection
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: false
+  precisions:
+    - precision: INT8
+      model_path: public/yolov10s/INT8/yolov10s.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: public/yolov10s/FP16/yolov10s.xml
+      model_proc: ""
+"""
+            yaml_file = td_path / "supported.yaml"
+            yaml_file.write_text(yaml_content)
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+            manager = m.SupportedModelsManager()
+
+            # Both precisions are installed — total 2 models
+            self.assertEqual(len(manager.get_all_installed_models()), 2)
+
+            # Searching by full path with INT8 dir should return the INT8 variant
+            found_int8 = manager.find_installed_model_by_model_and_proc_path(
+                str(int8_xml)
+            )
+            self.assertIsNotNone(found_int8)
+            self.assertEqual(found_int8.precision, "INT8")
+            self.assertIn("INT8", found_int8.display_name)
+
+            # Searching by full path with FP16 dir should return the FP16 variant
+            found_fp16 = manager.find_installed_model_by_model_and_proc_path(
+                str(fp16_xml)
+            )
+            self.assertIsNotNone(found_fp16)
+            self.assertEqual(found_fp16.precision, "FP16")
+            self.assertIn("FP16", found_fp16.display_name)
+
+            # The two results must be different model instances
+            self.assertIsNot(found_int8, found_fp16)
+
     def test_supported_models_manager_singleton_behavior(self):
         """Test SupportedModelsManager singleton pattern and behavior on failure."""
         with tempfile.TemporaryDirectory() as td:
@@ -343,11 +422,12 @@ class TestModels(unittest.TestCase):
   display_name: S1
   source: public
   type: classification
-  model_path: nofile.xml
-  model_proc: ""
   unsupported_devices: ""
-  precision: FP32
   default: false
+  precisions:
+    - precision: FP32
+      model_path: nofile.xml
+      model_proc: ""
 """
             )
             m = _reload_models_module(str(yaml_file), str(models_dir))

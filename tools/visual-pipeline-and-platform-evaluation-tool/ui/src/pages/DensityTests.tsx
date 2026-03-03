@@ -9,6 +9,15 @@ import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressInd
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,9 +27,17 @@ import {
 } from "@/components/ui/tooltip";
 import { Square, Plus, X } from "lucide-react";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils.ts";
+import { formatErrorMessage } from "@/lib/utils.ts";
+import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 
 interface PipelineSelection {
   pipelineId: string;
+  variantId: string;
   stream_rate: number;
   isRemoving?: boolean;
   isNew?: boolean;
@@ -29,58 +46,44 @@ interface PipelineSelection {
 export const DensityTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const pipelines = useAppSelector(selectPipelines);
-  const [runDensityTest, { isLoading: isRunning }] =
-    useRunDensityTestMutation();
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;
     streams_per_pipeline: PipelineStreamSpec[] | null;
+    video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
 
-  const { data: jobStatus } = useGetDensityJobStatusQuery(
-    { jobId: jobId! },
-    {
-      skip: !jobId,
-      pollingInterval: 1000,
-    },
-  );
-  const isRunActive = jobStatus?.state === "RUNNING";
-
-  useEffect(() => {
-    if (jobStatus?.state === "COMPLETED") {
-      setTestResult({
-        per_stream_fps: jobStatus.per_stream_fps,
-        total_streams: jobStatus.total_streams,
-        streams_per_pipeline: jobStatus.streams_per_pipeline,
-      });
-      setErrorMessage(null);
-      setJobId(null);
-    } else if (jobStatus?.state === "ERROR" || jobStatus?.state === "ABORTED") {
-      console.error("Test failed:", jobStatus.error_message);
-      setErrorMessage(jobStatus.error_message || "Test failed");
-      setTestResult(null);
-      setJobId(null);
-    }
-  }, [jobStatus]);
+  const {
+    execute: runTest,
+    isLoading,
+    jobStatus,
+  } = useAsyncJob({
+    asyncJobHook: useRunDensityTestMutation,
+    statusCheckHook: useGetDensityJobStatusQuery,
+  });
+  const isRunActive = jobStatus?.state === "RUNNING" || isLoading;
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
+      const firstPipeline = pipelines[0];
+      const firstVariant = firstPipeline.variants[0];
       setPipelineSelections([
         {
-          pipelineId: pipelines[0].id,
-          stream_rate: 50,
+          pipelineId: firstPipeline.id,
+          variantId: firstVariant.id,
+          stream_rate: 100,
           isNew: false,
         },
       ]);
@@ -93,20 +96,33 @@ export const DensityTests = () => {
       (pipeline) => !usedPipelineIds.includes(pipeline.id),
     );
     if (availablePipeline) {
-      setPipelineSelections((prev) => [
-        ...prev,
-        {
-          pipelineId: availablePipeline.id,
-          stream_rate: 50,
-          isNew: true,
-        },
-      ]);
+      const firstVariant = availablePipeline.variants[0];
+      if (!firstVariant) return;
+
+      setPipelineSelections((prev) => {
+        const next = [
+          ...prev,
+          {
+            pipelineId: availablePipeline.id,
+            variantId: firstVariant.id,
+            stream_rate: 0,
+            isNew: true,
+          },
+        ];
+
+        const count = next.length;
+        const baseRate = Math.floor(100 / count);
+        const remainder = 100 - baseRate * count;
+
+        return next.map((selection, index) => ({
+          ...selection,
+          stream_rate: index === 0 ? baseRate + remainder : baseRate,
+        }));
+      });
       setTimeout(() => {
         setPipelineSelections((prev) =>
-          prev.map((sel) =>
-            sel.pipelineId === availablePipeline.id
-              ? { ...sel, isNew: false }
-              : sel,
+          prev.map((sel, idx) =>
+            idx === prev.length - 1 ? { ...sel, isNew: false } : sel,
           ),
         );
       }, 300);
@@ -121,30 +137,45 @@ export const DensityTests = () => {
         ),
       );
       setTimeout(() => {
-        setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId),
-        );
+        setPipelineSelections((prev) => {
+          const filtered = prev.filter((sel) => sel.pipelineId !== pipelineId);
+
+          if (filtered.length === 0) return filtered;
+
+          const count = filtered.length;
+          const baseRate = Math.floor(100 / count);
+          const remainder = 100 - baseRate * count;
+
+          return filtered.map((selection, index) => ({
+            ...selection,
+            stream_rate: index === 0 ? baseRate + remainder : baseRate,
+          }));
+        });
       }, 300);
     }
   };
 
-  const handlePipelineChange = (
-    oldPipelineId: string,
-    newPipelineId: string,
-  ) => {
+  const handlePipelineChange = (index: number, newPipelineId: string) => {
     setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === oldPipelineId
-          ? { ...sel, pipelineId: newPipelineId }
-          : sel,
-      ),
+      prev.map((sel, idx) => {
+        if (idx === index) {
+          const newPipeline = pipelines.find((p) => p.id === newPipelineId);
+          const firstVariant = newPipeline?.variants[0];
+          return {
+            ...sel,
+            pipelineId: newPipelineId,
+            variantId: firstVariant?.id || sel.variantId,
+          };
+        }
+        return sel;
+      }),
     );
   };
 
-  const handleStreamRateChange = (pipelineId: string, stream_rate: number) => {
+  const handleVariantChange = (index: number, newVariantId: string) => {
     setPipelineSelections((prev) =>
-      prev.map((sel) =>
-        sel.pipelineId === pipelineId ? { ...sel, stream_rate } : sel,
+      prev.map((sel, idx) =>
+        idx === index ? { ...sel, variantId: newVariantId } : sel,
       ),
     );
   };
@@ -155,7 +186,7 @@ export const DensityTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
-      const result = await runDensityTest({
+      const status = await runTest({
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
@@ -166,24 +197,41 @@ export const DensityTests = () => {
             pipeline: {
               source: "variant",
               pipeline_id: selection.pipelineId,
-              variant_id: "cpu",
+              variant_id: selection.variantId,
             },
             stream_rate: selection.stream_rate,
           })),
         },
-      }).unwrap();
-      setJobId(result.job_id);
-    } catch (err) {
-      console.error("Failed to run density test:", err);
+      });
+
+      setTestResult({
+        per_stream_fps: status.per_stream_fps,
+        total_streams: status.total_streams,
+        streams_per_pipeline: status.streams_per_pipeline,
+        video_output_paths: status.video_output_paths,
+      });
+      setErrorMessage(null);
+    } catch (error) {
+      if (isAsyncJobError(error)) {
+        handleAsyncJobError(error, "Test failed");
+        setErrorMessage(
+          formatErrorMessage(error?.error_message, "Test failed"),
+        );
+      } else {
+        const errorMessage = handleApiError(error, "Test failed");
+        setErrorMessage(errorMessage);
+      }
+      console.error("Test failed:", error);
+      setTestResult(null);
     }
   };
 
   const handleStopTest = async () => {
-    if (!jobId) return;
+    if (!jobStatus?.id) return;
 
     try {
       await stopDensityTest({
-        jobId,
+        jobId: jobStatus.id,
       }).unwrap();
     } catch (err) {
       console.error("Failed to stop density test:", err);
@@ -209,84 +257,109 @@ export const DensityTests = () => {
       </div>
 
       <div className="space-y-3 mb-6">
-        {pipelineSelections.map((selection) => (
-          <div
-            key={selection.pipelineId}
-            className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
-              selection.isRemoving
-                ? "opacity-0 -translate-y-2"
-                : selection.isNew
-                  ? "animate-in fade-in slide-in-from-top-2"
-                  : ""
-            }`}
-          >
-            <div className="flex-1 flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">
-                  Pipeline
-                </label>
-                <select
-                  value={selection.pipelineId}
+        {pipelineSelections.map((selection, index) => {
+          const selectedPipeline = pipelines.find(
+            (p) => p.id === selection.pipelineId,
+          );
+          return (
+            <div
+              key={`${selection.pipelineId}-${index}`}
+              className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
+                selection.isRemoving
+                  ? "opacity-0 -translate-y-2"
+                  : selection.isNew
+                    ? "animate-in fade-in slide-in-from-top-2"
+                    : ""
+              }`}
+            >
+              <div className="flex-1 flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Pipeline
+                  </label>
+                  <Select
+                    value={selection.pipelineId}
+                    onValueChange={(value) =>
+                      handlePipelineChange(index, value)
+                    }
+                    disabled={isRunActive}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelines.map((pipeline) => (
+                        <SelectItem key={pipeline.id} value={pipeline.id}>
+                          {pipeline.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Variant
+                  </label>
+                  <Select
+                    value={selection.variantId}
+                    onValueChange={(value) => handleVariantChange(index, value)}
+                    disabled={isRunActive}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedPipeline?.variants.map((variant) => (
+                        <SelectItem key={variant.id} value={variant.id}>
+                          {variant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">
+                    Participation Rate
+                  </label>
+                  <ParticipationSlider
+                    value={selection.stream_rate}
+                    onChange={(val) =>
+                      handleStreamRateChange(selection.pipelineId, val)
+                    }
+                    min={0}
+                    max={100}
+                    disabled={isRunActive}
+                  />
+                </div>
+              </div>
+
+              {pipelineSelections.length > 1 && (
+                <Button
+                  onClick={() => handleRemovePipeline(selection.pipelineId)}
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive"
                   disabled={isRunActive}
-                  onChange={(e) =>
-                    handlePipelineChange(selection.pipelineId, e.target.value)
-                  }
-                  className="w-full px-3 py-2 border text-sm cursor-pointer bg-white dark:bg-background"
                 >
-                  {pipelines
-                    .filter(
-                      (pipeline) =>
-                        pipeline.id === selection.pipelineId ||
-                        !pipelineSelections.some(
-                          (sel) => sel.pipelineId === pipeline.id,
-                        ),
-                    )
-                    .map((pipeline) => (
-                      <option key={pipeline.id} value={pipeline.id}>
-                        {pipeline.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">
-                  Participation Rate
-                </label>
-                <ParticipationSlider
-                  value={selection.stream_rate}
-                  onChange={(val) =>
-                    handleStreamRateChange(selection.pipelineId, val)
-                  }
-                  min={0}
-                  max={100}
-                  disabled={isRunActive}
-                />
-              </div>
+                  <X className="w-5 h-5" />
+                </Button>
+              )}
             </div>
+          );
+        })}
 
-            {pipelineSelections.length > 1 && (
-              <button
-                onClick={() => handleRemovePipeline(selection.pipelineId)}
-                disabled={isRunActive}
-                className="text-red-500 hover:text-red-700 p-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        ))}
-
-        <button
+        <Button
           onClick={handleAddPipeline}
+          variant="outline"
           disabled={
             pipelineSelections.length >= pipelines.length || isRunActive
           }
-          className="w-fit px-4 py-2 bg-background hover:bg-classic-blue dark:hover:bg-energy-blue border-2 border-classic-blue dark:border-energy-blue text-primary dark:text-energy-blue hover:text-white dark:hover:text-[#242528] transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
         >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
-        </button>
+        </Button>
       </div>
 
       <div className="my-4">
@@ -358,26 +431,26 @@ export const DensityTests = () => {
         </div>
 
         {isRunActive ? (
-          <button
+          <Button
             onClick={handleStopTest}
             disabled={isStopping}
-            className="w-[160px] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            variant="destructive"
+            className="w-[160px]"
             title="Stop test"
           >
             <Square className="w-5 h-5" />
             <span>{isStopping ? "Stopping..." : "Stop"}</span>
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             onClick={handleRunTest}
-            disabled={isRunning || pipelineSelections.length === 0 || !!jobId}
-            className="w-fit px-4 py-2 bg-primary font-medium text-primary-foreground hover:bg-classic-blue-hover disabled:opacity-50 disabled:cursor-not-allowed dark:bg-energy-blue dark:hover:bg-energy-blue-tint-1 transition-colors"
+            disabled={isLoading || pipelineSelections.length === 0}
           >
-            {isRunning ? "Starting..." : "Run density test"}
-          </button>
+            {isLoading ? "Starting..." : "Run density test"}
+          </Button>
         )}
 
-        {jobId && jobStatus && (
+        {jobStatus && (
           <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}

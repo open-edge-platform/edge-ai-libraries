@@ -3,12 +3,12 @@ import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader.ts";
 
 interface WebRTCVideoPlayerProps {
   pipelineId?: string;
-  liveStreamUrl?: string | null;
+  streamUrl?: string;
 }
 
 const WebRTCVideoPlayer = ({
   pipelineId,
-  liveStreamUrl,
+  streamUrl,
 }: WebRTCVideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [message, setMessage] = useState<string>("");
@@ -42,47 +42,34 @@ const WebRTCVideoPlayer = ({
   }, []);
 
   useEffect(() => {
-    if (!pipelineId && !liveStreamUrl) {
+    if (!pipelineId && !streamUrl) {
       return;
     }
 
-    const appBaseUrl = `${window.location.origin}/`;
-    const baseUrl =
-      import.meta.env.VITE_MEDIAMTX_BASE_URL || `${window.location.origin}/`;
-    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-
-    let playbackUrl = "";
-
-    if (liveStreamUrl) {
-      try {
-        const streamUrl = new URL(liveStreamUrl);
-        const streamPath = streamUrl.pathname.replace(/^\/+/, "");
-        const whepPath = streamPath.endsWith("/whep")
-          ? streamPath
-          : `${streamPath}/whep`;
-        playbackUrl = new URL(whepPath, appBaseUrl).toString();
-      } catch {
-        const normalizedPath = liveStreamUrl.replace(/^\/+/, "");
-        const whepPath = normalizedPath.endsWith("/whep")
-          ? normalizedPath
-          : `${normalizedPath}/whep`;
-        playbackUrl = new URL(whepPath, appBaseUrl).toString();
+    let whepPath: string;
+    if (streamUrl) {
+      // Convert RTSP URL to WHEP URL
+      // RTSP format: rtsp://mediamtx:8554/stream-name
+      // Extract stream name and build relative WHEP URL for proxy
+      if (streamUrl.startsWith("rtsp://")) {
+        const rtspUrl = new URL(streamUrl);
+        const streamName = rtspUrl.pathname.substring(1); // Remove leading '/'
+        // Use relative URL to leverage Vite/nginx proxy
+        whepPath = `/${streamName}/whep`;
+      } else {
+        // Assume it's already a WHEP URL
+        whepPath = streamUrl;
       }
+    } else {
+      // Build URL from pipelineId
+      whepPath = `/stream_${pipelineId}/whep`;
     }
 
-    if (!playbackUrl && pipelineId) {
-      playbackUrl = new URL(
-        `stream_${pipelineId}/whep`,
-        normalizedBaseUrl,
-      ).toString();
-    }
-
-    if (!playbackUrl) {
-      return;
-    }
+    // Convert relative path to absolute URL
+    const absoluteUrl = new URL(whepPath, window.location.origin).toString();
 
     const reader = new MediaMTXWebRTCReader({
-      url: playbackUrl,
+      url: absoluteUrl,
       onError: (err: string) => {
         setMessage(err);
         if (videoRef.current) videoRef.current.controls = false;
@@ -99,16 +86,20 @@ const WebRTCVideoPlayer = ({
     return () => {
       reader?.close();
     };
-  }, [defaultControls, pipelineId, liveStreamUrl]);
+  }, [defaultControls, pipelineId, streamUrl]);
 
-  if (!pipelineId && !liveStreamUrl) {
+  if (!pipelineId && !streamUrl) {
     return null;
   }
 
   return (
-    <div style={{ position: "relative" }}>
-      <video ref={videoRef} style={{ maxHeight: 430 }} />
-      {message && <div style={{ position: "absolute", top: 6 }}>{message}</div>}
+    <div className="relative h-full w-full">
+      <video ref={videoRef} className="h-full w-full object-cover" />
+      {message && (
+        <div className="absolute top-1.5 left-1.5 rounded bg-black/50 px-2 py-1 text-xs text-white">
+          {message}
+        </div>
+      )}
     </div>
   );
 };

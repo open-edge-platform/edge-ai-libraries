@@ -5,6 +5,18 @@ import { vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+// @ts-expect-error: ResizeObserver is not in jsdom; we provide a test-time mock
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  // @ts-expect-error: Assigning our mock to the global ResizeObserver constructor
+  globalThis.ResizeObserver = MockResizeObserver;
+}
+
 afterEach(() => {
   cleanup();
 });
