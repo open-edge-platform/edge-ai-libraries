@@ -2315,6 +2315,7 @@ const DemoMode = () => {
                                 <TestProgressIndicator
                                   key={performanceJobId || testStartTimestamp}
                                   forceDark={true}
+                                  useDemoStyles={true}
                                 />
                               </div>
                             )}
@@ -2352,6 +2353,7 @@ const DemoMode = () => {
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
                                 forceDark={true}
+                                useDemoStyles={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2411,6 +2413,7 @@ const DemoMode = () => {
                                 }
                                 className="mt-2"
                                 forceDark={true}
+                                useDemoStyles={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2445,6 +2448,7 @@ const DemoMode = () => {
                                 <TestProgressIndicator
                                   key={densityJobId || testStartTimestamp}
                                   forceDark={true}
+                                  useDemoStyles={true}
                                 />
                               </div>
                             )}
@@ -2482,6 +2486,7 @@ const DemoMode = () => {
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
                                 forceDark={true}
+                                useDemoStyles={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />
@@ -2552,6 +2557,7 @@ const DemoMode = () => {
                                 }
                                 className="mt-2"
                                 forceDark={true}
+                                useDemoStyles={true}
                                 historyOverride={frozenMetrics}
                                 metricsOverride={frozenMetricsSummary}
                               />

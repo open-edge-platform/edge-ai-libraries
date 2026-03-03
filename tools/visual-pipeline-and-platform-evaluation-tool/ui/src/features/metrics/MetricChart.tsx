@@ -30,6 +30,8 @@ export interface MetricChartProps {
   isSummary?: boolean;
   hideSummaryBorder?: boolean;
   forceDark?: boolean;
+  useDemoStyles?: boolean;
+  wrapLegend?: boolean;
 }
 
 export const MetricChart = ({
@@ -46,6 +48,8 @@ export const MetricChart = ({
   isSummary = false,
   hideSummaryBorder = false,
   forceDark = false,
+  useDemoStyles = false,
+  wrapLegend = false,
 }: MetricChartProps) => {
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
@@ -112,35 +116,48 @@ export const MetricChart = ({
   };
 
   const isCompact = className?.includes("!h-");
+  const hasTitle = title.trim().length > 0;
 
   return (
     <div
-      className={`${forceDark ? "bg-neutral-950/50" : "bg-card/80"} rounded-xl shadow-2xl ${isCompact ? "p-4 pb-6" : "p-6"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
+      className={`${
+        useDemoStyles
+          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          : "bg-background"
+      } ${useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md"} ${isCompact ? "p-4 pb-6" : "p-4"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
         isSummary && !hideSummaryBorder
           ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-          : forceDark
-            ? "border border-neutral-800/50"
-            : "border border-border"
+          : useDemoStyles
+            ? forceDark
+              ? "border border-neutral-800/50"
+              : "border border-border"
+            : ""
       } ${className}`}
     >
-      <h3
-        className={`text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-4" : "mb-8"} ${
-          isSummary && !hideSummaryBorder
-            ? "text-energy-blue-tint-1"
-            : "text-neutral-400"
-        }`}
-      >
-        {title}
-      </h3>
+      {hasTitle && (
+        <h3
+          className={`${
+            useDemoStyles
+              ? `text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
+                  isSummary && !hideSummaryBorder
+                    ? "text-energy-blue-tint-1"
+                    : "text-neutral-400"
+                }`
+              : "text-sm font-medium text-foreground mb-5"
+          }`}
+        >
+          {title}
+        </h3>
+      )}
       <div className="relative">
         <ChartContainer
           config={chartConfig}
           className={
             isCompact
               ? "h-[80px] w-full"
-              : showLegend
-                ? "h-[230px] w-full"
-                : "h-[200px] w-full"
+              : useDemoStyles
+                ? "h-[250px] w-full"
+                : "h-[230px] w-full"
           }
         >
           <AreaChart data={formattedData}>
@@ -175,9 +192,11 @@ export const MetricChart = ({
               content={
                 <ChartTooltipContent
                   className={
-                    forceDark
-                      ? "bg-neutral-900 border-neutral-700 text-white"
-                      : "bg-popover border-border text-popover-foreground"
+                    useDemoStyles
+                      ? forceDark
+                        ? "bg-neutral-900 border-neutral-700 text-white"
+                        : "bg-popover border-border text-popover-foreground"
+                      : "bg-neutral-900 border-neutral-700 text-white"
                   }
                   labelFormatter={(value) => {
                     if (!value) return "";
@@ -195,7 +214,7 @@ export const MetricChart = ({
               <ChartLegend
                 content={
                   <ChartLegendContent
-                    className={`${forceDark ? "text-white" : "text-foreground"} text-[8px]`}
+                    className={`${useDemoStyles ? (forceDark ? "text-white" : "text-foreground") : "text-foreground"} text-[8px] ${wrapLegend ? "flex-wrap gap-x-3 gap-y-1" : ""}`}
                   />
                 }
               />
@@ -222,7 +241,6 @@ export const MetricChart = ({
           </span>
         </div>
       </div>
-      {!showLegend && !isCompact && <div className="h-[30px]" />}
     </div>
   );
 };
