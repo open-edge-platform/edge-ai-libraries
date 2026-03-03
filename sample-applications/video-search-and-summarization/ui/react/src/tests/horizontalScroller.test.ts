@@ -16,7 +16,7 @@ describe('useHorizontalScroll', () => {
     // Mock the scrollLeft property
     Object.defineProperty(mockElement, 'scrollLeft', {
       get: vi.fn(() => 0),
-      set: mockScrollLeft,
+      set: mockScrollLeft as (v: any) => void,
       configurable: true
     });
 
