@@ -49,7 +49,6 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Eye, Film, Infinity, Redo2, Save, SlidersHorizontal, Timer, Undo2 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
-import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 type UrlParams = {
   id: string;
   variant: string;
@@ -502,7 +501,7 @@ export const Pipelines = () => {
                   </TooltipContent>
                 </Tooltip>
 
-                <PopoverContent align="start" className="w-[420px] p-4">
+                <PopoverContent align="start" className="w-[420px] p-4 rounded-none">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -535,18 +534,36 @@ export const Pipelines = () => {
                     </p>
 
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center justify-between gap-2 text-sm">
-                          <span>Streams</span>
-                          <span className="text-xs text-muted-foreground">{streams}</span>
-                        </div>
-                        <StreamsSlider
-                          value={streams}
-                          onChange={setStreams}
-                          min={1}
-                          max={12}
-                        />
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>Streams</span>
                       </div>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={12}
+                        step={1}
+                        value={streams}
+                        onChange={(event) => {
+                          const value = event.target.valueAsNumber;
+                          if (Number.isNaN(value)) {
+                            setStreams(1);
+                            return;
+                          }
+
+                          const normalizedValue = Math.min(12, Math.max(1, Math.trunc(value)));
+                          setStreams(normalizedValue);
+                        }}
+                        onBlur={() => {
+                          if (streams < 1) {
+                            setStreams(1);
+                          }
+
+                          if (streams > 12) {
+                            setStreams(12);
+                          }
+                        }}
+                        className="h-8 w-24 px-2 text-sm bg-background dark:bg-input/60"
+                      />
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
@@ -566,6 +583,40 @@ export const Pipelines = () => {
                       />
                     </div>
 
+                    {loopingEnabled && (
+                      <div className="ml-6 flex items-center gap-2">
+                        <Timer className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          Duration
+                        </span>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={loopingRuntimeSeconds}
+                          onChange={(event) => {
+                            const value = event.target.valueAsNumber;
+                            setLoopingRuntimeSeconds(
+                              Number.isNaN(value)
+                                ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                                : value,
+                            );
+                          }}
+                          onBlur={() => {
+                            if (loopingRuntimeSeconds < 1) {
+                              setLoopingRuntimeSeconds(
+                                DEFAULT_LOOPING_RUNTIME_SECONDS,
+                              );
+                            }
+                          }}
+                          className="h-8 w-24 px-2 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          s
+                        </span>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">
@@ -583,40 +634,6 @@ export const Pipelines = () => {
                           }}
                         />
                       </div>
-
-                      {loopingEnabled && (
-                        <div className="ml-6 flex items-center gap-2">
-                          <Timer className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            Duration
-                          </span>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={loopingRuntimeSeconds}
-                            onChange={(event) => {
-                              const value = event.target.valueAsNumber;
-                              setLoopingRuntimeSeconds(
-                                Number.isNaN(value)
-                                  ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                                  : value,
-                              );
-                            }}
-                            onBlur={() => {
-                              if (loopingRuntimeSeconds < 1) {
-                                setLoopingRuntimeSeconds(
-                                  DEFAULT_LOOPING_RUNTIME_SECONDS,
-                                );
-                              }
-                            }}
-                            className="h-8 w-24 px-2 text-xs"
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            s
-                          </span>
-                        </div>
-                      )}
 
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">

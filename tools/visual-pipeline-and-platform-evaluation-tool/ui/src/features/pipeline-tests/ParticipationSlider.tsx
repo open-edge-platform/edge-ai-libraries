@@ -5,6 +5,7 @@ interface ParticipationSliderProps {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  disabled?: boolean;
 }
 
 export const ParticipationSlider = ({
@@ -12,6 +13,7 @@ export const ParticipationSlider = ({
   onChange,
   min = 0,
   max = 100,
+  disabled = false,
 }: ParticipationSliderProps) => {
   return (
     <div className="flex items-center gap-3">
@@ -25,6 +27,7 @@ export const ParticipationSlider = ({
         max={max}
         step={1}
         className="flex-1"
+        disabled={disabled}
       />
       <span className="text-sm text-muted-foreground min-w-[3ch] text-center">
         {max}
@@ -42,7 +45,7 @@ export const ParticipationSlider = ({
         max={max}
         className="w-[4rem] px-2 py-1 text-sm font-medium border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ textAlign: "center" }}
-        disabled={true}
+        disabled={disabled}
       />
       <span className="text-sm text-muted-foreground">%</span>
     </div>
