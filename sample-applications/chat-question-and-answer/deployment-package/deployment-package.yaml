@@ -8,17 +8,26 @@ $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 name: "chatqna"
 displayName: "chatqna"
 description: "Chat Q&A Sample Application"
-version: "2.0.1"
+version: "2.1.0-rc2"
 
 applications:
   - name: chatqna-app
-    version: 2.0.1
+    version: 2.1.0-rc2
+  - name: model-download-app
+    version: 1.1.0-rc1
+
+applicationDependencies:
+  - name: chatqna-app
+    requires: model-download-app
 
 defaultNamespaces:
   chatqna-app: chatqna
+  model-download-app: chatqna
 
 deploymentProfiles:
   - name: "ovms"
     applicationProfiles:
+      - application: "model-download-app"
+        profile: "default"
       - application: "chatqna-app"
         profile: "ovms"
