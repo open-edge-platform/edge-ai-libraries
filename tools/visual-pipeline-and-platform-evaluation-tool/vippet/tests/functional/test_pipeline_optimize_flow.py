@@ -1,9 +1,4 @@
-"""Integration test covering pipeline optimization flows.
-
-Run with Python 3.12+ and pytest while the VIPPET API is available locally:
-
-    python3.12 -m pytest integration/test_pipeline_optimize_flow.py
-"""
+"""Integration test covering pipeline optimization flows."""
 
 import logging
 import time

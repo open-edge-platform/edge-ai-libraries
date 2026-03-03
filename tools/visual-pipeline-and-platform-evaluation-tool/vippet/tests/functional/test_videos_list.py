@@ -1,9 +1,4 @@
-"""Integration test covering the videos endpoint happy path.
-
-Run with Python 3.12+ and pytest while the VIPPET API is available locally:
-
-    python3.12 -m pytest integration/test_videos_list.py
-"""
+"""Integration test covering the videos endpoint happy path."""
 
 import logging
 from typing import Any
@@ -11,9 +6,18 @@ from typing import Any
 import requests
 
 from api_helpers import fetch_videos
-from vippet.api.api_schemas import Video
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_VIDEO_KEYS: set[str] = {
+    "filename",
+    "width",
+    "height",
+    "fps",
+    "frame_count",
+    "codec",
+    "duration",
+}
 
 EXPECTED_VIDEOS: list[dict[str, Any]] = [
     {
@@ -46,7 +50,10 @@ def test_videos_endpoint_returns_videos(http_client: requests.Session) -> None:
 
     assert videos, "Videos endpoint returned an empty list"
     for raw in videos:
-        Video.model_validate(raw)
+        assert isinstance(raw, dict), "Each video entry must be an object"
+        assert REQUIRED_VIDEO_KEYS.issubset(raw.keys()), (
+            f"Video entry missing required keys: {REQUIRED_VIDEO_KEYS - raw.keys()}"
+        )
 
     for expected in EXPECTED_VIDEOS:
         matching = next(

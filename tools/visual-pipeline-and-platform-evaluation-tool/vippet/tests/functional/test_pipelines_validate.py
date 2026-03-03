@@ -1,9 +1,4 @@
-"""Integration test covering the pipelines validate endpoint.
-
-Run with Python 3.12+ and pytest while the VIPPET API is available locally:
-
-    python3.12 -m pytest integration/test_pipelines_validate.py
-"""
+"""Integration test covering the pipelines validate endpoint."""
 
 import logging
 import time
@@ -55,6 +50,9 @@ def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
         response = http_client.get(status_url, timeout=30)
         response.raise_for_status()
         last_status = response.json()
+        assert isinstance(last_status, dict), (
+            "Validation status payload must be an object"
+        )
         state = last_status.get("state")
         logger.info(
             "Validation job %s polled state=%s is_valid=%s",

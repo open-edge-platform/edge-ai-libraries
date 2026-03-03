@@ -1,10 +1,4 @@
-"""Shared configuration constants for VIPPET functional tests.
-
-Environment variables:
-* ``VIPPET_BASE_URL``            (default ``http://localhost/api/v1``)
-* ``VIPPET_JOB_TIMEOUT_SECONDS`` (default ``600``)
-* ``VIPPET_JOB_POLL_INTERVAL``   (default ``2.0``)
-"""
+"""Shared configuration constants for VIPPET functional tests."""
 
 import os
 

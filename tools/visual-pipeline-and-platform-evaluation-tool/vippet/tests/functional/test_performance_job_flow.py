@@ -1,14 +1,4 @@
-"""Integration test covering the performance job happy path.
-
-Run with Python 3.12+ and pytest while the VIPPET API is available locally:
-
-    python3.12 -m pytest integration/test_performance_job_flow.py
-
-Pipeline variants are discovered dynamically at collection time by querying
-``GET /pipelines`` and ``GET /devices``.  Only (pipeline, variant) pairs
-whose variant name matches one of the device families reported by the
-devices endpoint (CPU / GPU / NPU) are included in the parametrize set.
-"""
+"""Integration test covering the performance job happy path."""
 
 import logging
 import time
@@ -80,7 +70,13 @@ def test_performance_job_completes_successfully(
     http_client: requests.Session,
     case: PipelineCase | None,
 ) -> None:
-    """Verify that a performance test job for *case* reaches COMPLETED state."""
+    """Verify that a performance test job for *case* reaches COMPLETED state.
+
+    Pipeline variants are discovered dynamically at collection time by querying
+    ``GET /pipelines`` and ``GET /devices``.  Only (pipeline, variant) pairs
+    whose variant name matches one of the device families reported by the
+    devices endpoint (CPU / GPU / NPU) are included in the parametrize set.
+    """
     assert case is not None
     logger.info(
         "Running performance test for pipeline='%s' variant=%s",

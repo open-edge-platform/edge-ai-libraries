@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
-import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import {
+  useMetricHistory,
+  type MetricHistoryPoint,
+  type GpuMetrics,
+} from "@/hooks/useMetricHistory.ts";
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
 
@@ -10,18 +14,71 @@ interface MetricCardProps {
   value: number;
   unit: string;
   icon: React.ReactNode;
+  isSummary?: boolean;
+  forceDark?: boolean;
+  useDemoStyles?: boolean;
 }
 
-const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-background shadow-md p-4 flex items-center space-x-3">
-    <div className="shrink-0 p-2 bg-classic-blue/5 dark:bg-teal-chart">
+const MetricCard = ({
+  title,
+  value,
+  unit,
+  icon,
+  isSummary = false,
+  forceDark = false,
+  useDemoStyles = false,
+}: MetricCardProps) => (
+  <div
+    className={`${
+      useDemoStyles
+        ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+        : "bg-background"
+    } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} flex items-center space-x-3 transition-all ${
+      isSummary
+        ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
+        : useDemoStyles
+          ? forceDark
+            ? "border border-neutral-800/50"
+            : "border border-border"
+          : ""
+    }`}
+  >
+    <div
+      className={`shrink-0 p-3 rounded-lg backdrop-blur-sm ${
+        useDemoStyles
+          ? isSummary
+            ? "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20"
+            : "bg-gradient-to-br from-white/10 to-white/5"
+          : "bg-classic-blue/5 dark:bg-teal-chart p-2 rounded-none"
+      }`}
+    >
       {icon}
     </div>
-    <div>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <p className="text-2xl font-bold text-foreground">
+    <div className={useDemoStyles ? "flex-1" : undefined}>
+      <h3
+        className={`${
+          useDemoStyles
+            ? `text-[11px] font-semibold uppercase tracking-widest mb-3 ${
+                isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+              }`
+            : "text-sm font-medium text-foreground mb-2"
+        }`}
+      >
+        {title}
+      </h3>
+      <p
+        className={`text-3xl font-bold ${
+          useDemoStyles && forceDark ? "text-white" : "text-foreground"
+        }`}
+      >
         {value.toFixed(2)}
-        <span className="text-sm text-muted-foreground ml-1">{unit}</span>
+        <span
+          className={`text-sm ml-1.5 font-semibold ${
+            isSummary ? "text-energy-blue-tint-2" : "text-muted-foreground"
+          }`}
+        >
+          {unit}
+        </span>
       </p>
     </div>
   </div>
@@ -29,13 +86,36 @@ const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
 
 interface TestProgressIndicatorProps {
   className?: string;
+  forceDark?: boolean;
+  useDemoStyles?: boolean;
+  historyOverride?: MetricHistoryPoint[];
+  metricsOverride?: {
+    fps: number;
+    cpu: number;
+    memory: number;
+    availableGpuIds: string[];
+    gpuDetailedMetrics: Record<string, GpuMetrics>;
+  };
 }
 
 export const TestProgressIndicator = ({
   className = "",
+  forceDark = false,
+  useDemoStyles = false,
+  historyOverride,
+  metricsOverride,
 }: TestProgressIndicatorProps) => {
-  const metrics = useMetrics();
-  const history = useMetricHistory();
+  const isSummary = !!metricsOverride;
+  const liveMetrics = useMetrics();
+  const liveHistory = useMetricHistory();
+  const metrics = metricsOverride ?? {
+    fps: liveMetrics.fps,
+    cpu: liveMetrics.cpu,
+    memory: liveMetrics.memory,
+    availableGpuIds: liveMetrics.availableGpuIds,
+    gpuDetailedMetrics: liveMetrics.gpuDetailedMetrics,
+  };
+  const history = historyOverride ?? liveHistory;
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
   // get available GPU IDs from metrics
@@ -150,14 +230,23 @@ export const TestProgressIndicator = ({
   };
 
   return (
-    <div className={`space-y-4 ${className} text-foreground`}>
+    <div
+      className={`space-y-4 ${className} text-foreground ${
+        isSummary
+          ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
+          : ""
+      }`}
+    >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <div className="space-y-4">
           <MetricCard
-            title="Frame Rate"
+            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
             value={metrics.fps}
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="Frame Rate Over Time"
@@ -168,6 +257,10 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, Math.max(...fpsData.map((d) => d.value), 60)]}
             showLegend={false}
             labels={["Frame Rate"]}
+            maxDataPoints={30}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="Memory Utilization Over Time"
@@ -178,15 +271,22 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["Memory"]}
+            maxDataPoints={30}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
         </div>
 
         <div className="space-y-4">
           <MetricCard
-            title="CPU Usage"
+            title={isSummary ? "CPU Usage Average" : "CPU Usage"}
             value={metrics.cpu}
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="CPU Usage Over Time"
@@ -197,6 +297,10 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["CPU Usage"]}
+            maxDataPoints={30}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="CPU Temperature Over Time"
@@ -207,6 +311,10 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, Math.max(...cpuTempData.map((d) => d.temp), 100)]}
             showLegend={false}
             labels={["Temperature"]}
+            maxDataPoints={30}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="CPU Frequency Over Time"
@@ -220,12 +328,16 @@ export const TestProgressIndicator = ({
             ]}
             showLegend={false}
             labels={["Frequency"]}
+            maxDataPoints={30}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
         </div>
 
         <div className="space-y-4">
           <MetricCard
-            title="GPU Usage"
+            title={isSummary ? "GPU Usage Average" : "GPU Usage"}
             value={(() => {
               const gpuMetrics =
                 metrics.gpuDetailedMetrics[selectedGpu.toString()];
@@ -240,95 +352,45 @@ export const TestProgressIndicator = ({
             })()}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU
-              {availableGpus.length > 1 && (
-                <>
-                  {" "}
-                  <span className="inline-block min-w-[1ch]">
-                    {selectedGpu}
-                  </span>
-                </>
-              )}{" "}
-              Usage Over Time
-            </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
-              <div className="flex">
-                <GpuSelector
-                  availableGpus={availableGpus}
-                  selectedGpu={selectedGpu}
-                  onGpuChange={setSelectedGpu}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <MetricChart
-                  title=""
-                  data={gpuChartData}
-                  dataKeys={availableEngines}
-                  colors={availableEngines.map((e) => engineColors[e])}
-                  unit="%"
-                  yAxisDomain={[0, 100]}
-                  className="!shadow-none !p-0"
-                  labels={availableEngines.map((e) => engineLabels[e])}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU
-              {availableGpus.length > 1 && (
-                <>
-                  {" "}
-                  <span className="inline-block min-w-[1ch]">
-                    {selectedGpu}
-                  </span>
-                </>
-              )}{" "}
-              Frequency Over Time
-            </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
-              <div className="flex">
-                <GpuSelector
-                  availableGpus={availableGpus}
-                  selectedGpu={selectedGpu}
-                  onGpuChange={setSelectedGpu}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <MetricChart
-                  title=""
-                  data={gpuFrequencyData}
-                  dataKeys={["frequency"]}
-                  colors={["var(--color-yellow-chart)"]}
-                  unit=" GHz"
-                  yAxisDomain={[
-                    0,
-                    Math.max(...gpuFrequencyData.map((d) => d.frequency), 3),
-                  ]}
-                  showLegend={false}
-                  labels={["Frequency"]}
-                  className="!shadow-none !p-0"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU
-              {availableGpus.length > 1 && (
-                <>
-                  {" "}
-                  <span className="inline-block min-w-[1ch]">
-                    {selectedGpu}
-                  </span>
-                </>
-              )}{" "}
+          <div
+            className={`${
+              useDemoStyles
+                ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                : "bg-background"
+            } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : useDemoStyles
+                  ? forceDark
+                    ? "border border-neutral-800/50"
+                    : "border border-border"
+                  : ""
+            }`}
+          >
+            <h3
+              className={`${
+                useDemoStyles
+                  ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                      isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+                    }`
+                  : "text-sm font-medium text-foreground mb-5"
+              }`}
+            >
               Power Usage Over Time
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[0.5rem]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}
             </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
+            <div className="flex gap-4 items-stretch overflow-hidden">
               <div className="flex">
                 <GpuSelector
                   availableGpus={availableGpus}
@@ -356,8 +418,142 @@ export const TestProgressIndicator = ({
                     ),
                   ]}
                   showLegend={true}
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
                   labels={["GPU Power", "Package Power"]}
-                  className="!shadow-none !p-0"
+                  maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
+                  forceDark={forceDark}
+                  useDemoStyles={useDemoStyles}
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            className={`${
+              useDemoStyles
+                ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                : "bg-background"
+            } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : useDemoStyles
+                  ? forceDark
+                    ? "border border-neutral-800/50"
+                    : "border border-border"
+                  : ""
+            }`}
+          >
+            <h3
+              className={`${
+                useDemoStyles
+                  ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                      isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+                    }`
+                  : "text-sm font-medium text-foreground mb-5"
+              }`}
+            >
+              GPU
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[0.5rem]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}{" "}
+              Frequency Over Time
+            </h3>
+            <div className="flex gap-4 items-stretch overflow-hidden">
+              <div className="flex">
+                <GpuSelector
+                  availableGpus={availableGpus}
+                  selectedGpu={selectedGpu}
+                  onGpuChange={setSelectedGpu}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <MetricChart
+                  title=""
+                  data={gpuFrequencyData}
+                  dataKeys={["frequency"]}
+                  colors={["var(--color-yellow-chart)"]}
+                  unit=" GHz"
+                  yAxisDomain={[
+                    0,
+                    Math.max(...gpuFrequencyData.map((d) => d.frequency), 3),
+                  ]}
+                  showLegend={false}
+                  labels={["Frequency"]}
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+                  maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
+                  forceDark={forceDark}
+                  useDemoStyles={useDemoStyles}
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            className={`${
+              useDemoStyles
+                ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                : "bg-background"
+            } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+              isSummary
+                ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+                : useDemoStyles
+                  ? forceDark
+                    ? "border border-neutral-800/50"
+                    : "border border-border"
+                  : ""
+            }`}
+          >
+            <h3
+              className={`${
+                useDemoStyles
+                  ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                      isSummary ? "text-energy-blue-tint-1" : "text-neutral-400"
+                    }`
+                  : "text-sm font-medium text-foreground mb-5"
+              }`}
+            >
+              GPU
+              {availableGpus.length > 1 && (
+                <>
+                  {" "}
+                  <span className="inline-block min-w-[0.5rem]">
+                    {selectedGpu}
+                  </span>
+                </>
+              )}{" "}
+              Usage Over Time
+            </h3>
+            <div className="flex gap-4 items-stretch overflow-hidden">
+              <div className="flex">
+                <GpuSelector
+                  availableGpus={availableGpus}
+                  selectedGpu={selectedGpu}
+                  onGpuChange={setSelectedGpu}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <MetricChart
+                  title=""
+                  data={gpuChartData}
+                  dataKeys={availableEngines}
+                  colors={availableEngines.map((e) => engineColors[e])}
+                  unit="%"
+                  yAxisDomain={[0, 100]}
+                  labels={availableEngines.map((e) => engineLabels[e])}
+                  wrapLegend={true}
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+                  maxDataPoints={30}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
+                  forceDark={forceDark}
+                  useDemoStyles={useDemoStyles}
                 />
               </div>
             </div>
