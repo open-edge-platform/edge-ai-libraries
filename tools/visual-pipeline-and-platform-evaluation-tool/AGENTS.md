@@ -333,6 +333,50 @@ def calculate_total(items, tax_rate=0.23):
 - Constants: `UPPER_SNAKE_CASE`
 - Types/Interfaces: `PascalCase`
 
+## Python Typing Rules (Python 3.12+)
+
+## Scope
+
+Use **Python 3.12+ only**.
+Do not write backward-compatible typing.
+
+---
+
+## Rules
+
+- Use built-in generics: `list`, `dict`, `set`, `tuple`
+- Use `|`
+- Use `T | None`
+- Do not use `List`, `Dict`, `Union`, `Optional`
+- Import from `typing` only when necessary
+
+---
+
+## Correct Examples
+
+```python
+def process(data: list[dict[str, int]] | None) -> bool:
+    return data is not None
+```
+
+```python
+from typing import Literal
+
+def open_file(mode: Literal["r", "w"]) -> None:
+    ...
+```
+
+---
+
+## Do Not Use
+
+```python
+List[int]
+Dict[str, int]
+Union[int, str]
+Optional[str]
+```
+
 ### README Updates
 
 - Update relevant README files when adding new features or changing APIs
