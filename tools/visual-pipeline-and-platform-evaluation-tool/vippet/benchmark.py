@@ -54,10 +54,10 @@ class BenchmarkResult:
 class Benchmark:
     """Benchmarking class for pipeline evaluation."""
 
-    def __init__(self):
+    def __init__(self, max_runtime: float = 0):
         self.best_result = None
-        # Initialize PipelineRunner in normal mode with max_runtime=0 (run until EOS)
-        self.runner = PipelineRunner(mode="normal", max_runtime=0)
+        # Initialize PipelineRunner in normal mode with optional max_runtime for each run
+        self.runner = PipelineRunner(mode="normal", max_runtime=max_runtime)
         self.logger = logging.getLogger(__name__)
 
     @staticmethod

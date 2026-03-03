@@ -454,7 +454,9 @@ class TestsManager:
             )
 
             # Initialize Benchmark
-            benchmark = Benchmark()
+            benchmark = Benchmark(
+                max_runtime=internal_spec.execution_config.max_runtime
+            )
 
             # Store benchmark runner for this job so that a future extension could cancel it.
             with self._jobs_lock:

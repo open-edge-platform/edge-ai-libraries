@@ -44,25 +44,6 @@ def fetch_pipelines(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
-def fetch_pipeline_id(session: requests.Session, pipeline_name: str) -> str:
-    """Return the ``id`` of the pipeline with the given name.
-
-    Fetches GET /pipelines and asserts that exactly one pipeline with
-    ``name == pipeline_name`` exists.
-    """
-    logger.info("Fetching pipeline id for '%s'", pipeline_name)
-    pipelines = fetch_pipelines(session)
-
-    matching = next((p for p in pipelines if p.get("name") == pipeline_name), None)
-    assert matching is not None, (
-        f"Pipeline named '{pipeline_name}' not found in /pipelines response"
-    )
-    pipeline_id = matching.get("id")
-    assert pipeline_id, "Matching pipeline missing 'id' field"
-    logger.info("Using pipeline id %s for '%s'", pipeline_id, pipeline_name)
-    return str(pipeline_id)
-
-
 def fetch_videos(session: requests.Session) -> list[JsonDict]:
     """Return the raw list of videos from GET /videos."""
     logger.info("Fetching videos from %s/videos", BASE_URL)
