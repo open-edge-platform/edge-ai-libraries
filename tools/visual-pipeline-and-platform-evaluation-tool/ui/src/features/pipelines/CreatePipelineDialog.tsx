@@ -136,6 +136,56 @@ export const CreatePipelineDialog = ({
     reader.readAsText(file);
   };
 
+  const updateGraphNodes = (
+    graph: PipelineGraph,
+    data: CreatePipelineFormData,
+  ): PipelineGraph => {
+    if (!graph) return { nodes: [], edges: [] };
+
+    return {
+      ...graph,
+      nodes: (graph.nodes ?? []).map((node) => {
+        if (node.type === "filesrc") {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              location: data.sourceFileName ?? "",
+            },
+          };
+        }
+        if (node.type === "source") {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              source: data.sourceFileName ?? "",
+            },
+          };
+        }
+        if (node.type === "gvadetect") {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              model: data.detectionModel ?? "",
+            },
+          };
+        }
+        if (node.type === "gvaclassify") {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              model: data.classificationModel ?? "",
+            },
+          };
+        }
+        return node;
+      }),
+    };
+  };
+
   const onSubmit = async (data: CreatePipelineFormData) => {
     try {
       // Step 1: Convert description to graph
@@ -196,57 +246,13 @@ export const CreatePipelineDialog = ({
         tags: data.tags,
       };
 
-      const updateGraphNodes = (graph: PipelineGraph): PipelineGraph => {
-        if (!graph) return { nodes: [], edges: [] };
-
-        return {
-          ...graph,
-          nodes: (graph.nodes ?? []).map((node) => {
-            if (node.type === "filesrc") {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  location: data.sourceFileName ?? "",
-                },
-              };
-            }
-            if (node.type === "source") {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  source: data.sourceFileName ?? "",
-                },
-              };
-            }
-            if (node.type === "gvadetect") {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  model: data.detectionModel ?? "",
-                },
-              };
-            }
-            if (node.type === "gvaclassify") {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  model: data.classificationModel ?? "",
-                },
-              };
-            }
-            return node;
-          }),
-        };
-      };
-
       const variants = (selectedTemplate.variants ?? []).map((variant) => ({
         ...variant,
-        pipeline_graph: updateGraphNodes(variant.pipeline_graph),
-        pipeline_graph_simple: updateGraphNodes(variant.pipeline_graph_simple),
+        pipeline_graph: updateGraphNodes(variant.pipeline_graph, data),
+        pipeline_graph_simple: updateGraphNodes(
+          variant.pipeline_graph_simple,
+          data,
+        ),
       }));
 
       const response = await createPipeline({

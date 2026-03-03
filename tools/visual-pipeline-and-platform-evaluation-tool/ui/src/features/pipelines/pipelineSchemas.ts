@@ -17,7 +17,6 @@ export const createPipelineSchema = pipelineMetadataSchema
   .extend({
     variantName: z.union([variantNameSchema, z.literal("")]),
     pipelineDescription: z.string(),
-    // Template mode fields
     templateId: z.string(),
     sourceFileName: z.string(),
     detectionModel: z.string(),
@@ -25,11 +24,9 @@ export const createPipelineSchema = pipelineMetadataSchema
   })
   .refine(
     (data) => {
-      // If pipelineDescription is filled, validate it (description mode)
       if (data.pipelineDescription && data.pipelineDescription.trim()) {
         return data.pipelineDescription.trim().length > 0;
       }
-      // If templateId is filled, we're in template mode - no validation needed here
       return true;
     },
     {
@@ -39,7 +36,6 @@ export const createPipelineSchema = pipelineMetadataSchema
   )
   .refine(
     (data) => {
-      // Only validate templateId if not in description mode
       if (!data.pipelineDescription || !data.pipelineDescription.trim()) {
         return data.templateId && data.templateId.trim().length > 0;
       }
@@ -52,7 +48,6 @@ export const createPipelineSchema = pipelineMetadataSchema
   )
   .refine(
     (data) => {
-      // Only validate sourceFileName if in template mode
       if (data.templateId && data.templateId.trim()) {
         return data.sourceFileName && data.sourceFileName.trim().length > 0;
       }
@@ -65,7 +60,6 @@ export const createPipelineSchema = pipelineMetadataSchema
   )
   .refine(
     (data) => {
-      // Only validate detectionModel if in template mode
       if (data.templateId && data.templateId.trim()) {
         return data.detectionModel && data.detectionModel.trim().length > 0;
       }
@@ -78,7 +72,6 @@ export const createPipelineSchema = pipelineMetadataSchema
   )
   .refine(
     (data) => {
-      // Only validate classificationModel for detect-classify template
       if (data.templateId?.toLowerCase() === "detect-classify") {
         return (
           data.classificationModel && data.classificationModel.trim().length > 0
