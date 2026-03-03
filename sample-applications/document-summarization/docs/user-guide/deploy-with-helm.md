@@ -36,7 +36,7 @@ Refer to the release notes for details on the latest version number to use for t
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf document-summarization-<version-no>.tgz
+tar -xvf document-summarization-1.0.5-rc2.tgz
 ```
 
 This will create a directory named `document-summarization` containing the chart files. Navigate to the extracted directory.
