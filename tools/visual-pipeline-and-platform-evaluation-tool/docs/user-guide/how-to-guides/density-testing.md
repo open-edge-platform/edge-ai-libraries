@@ -51,7 +51,7 @@ If you run tests via API, use `POST /tests/density`.
 ### Request schema
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `fps_floor` | number | Yes | Minimum acceptable FPS per stream |
 | `pipeline_density_specs` | array | Yes | Pipelines and stream rates |
 | `execution_config` | object | Yes | Output mode and runtime |

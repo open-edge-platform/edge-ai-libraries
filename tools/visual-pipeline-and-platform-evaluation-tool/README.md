@@ -55,42 +55,46 @@ controlled conditions.
 
 ### Performance Testing Capabilities
 
-**Single Pipeline Testing**: 
-Test individual AI pipelines with configurable stream counts to measure baseline performance. 
-Users can specify the number of concurrent streams and optionally save output videos for quality verification. 
+**Single Pipeline Testing**:
+Test individual AI pipelines with configurable stream counts to measure baseline performance.
+Users can specify the number of concurrent streams and optionally save output videos for quality verification.
 Real-time metrics including Total FPS and Per Stream FPS are displayed during testing.
 
-**Multi-Pipeline Concurrent Testing**: 
-Evaluate system performance under complex workloads by running multiple different pipelines simultaneously. 
-Each pipeline can be configured with its own stream count, allowing simulation of real-world deployment scenarios 
+**Multi-Pipeline Concurrent Testing**:
+Evaluate system performance under complex workloads by running multiple different pipelines simultaneously.
+Each pipeline can be configured with its own stream count, allowing simulation of real-world deployment scenarios
 where multiple AI workloads compete for system resources.
 
-**Real-Time Metrics Dashboard**: 
-Monitor CPU frequency, GPU power usage, memory utilization, and throughput metrics in real-time during all performance tests. 
+**Real-Time Metrics Dashboard**:
+Monitor CPU frequency, GPU power usage, memory utilization, and throughput metrics in real-time during all
+performance tests.
 This enables immediate identification of bottlenecks and resource constraints.
 
-**Output Video Validation**: 
-Optionally capture and save processed video outputs during performance testing to verify 
+**Output Video Validation**:
+Optionally capture and save processed video outputs during performance testing to verify
 that AI inference quality is maintained under load conditions.
 
 ### Density Testing
 
-**Automated Stream Density Discovery**: 
-Determine the maximum number of concurrent streams your hardware can sustain while maintaining a minimum FPS threshold. 
-The density test automatically scales up stream counts until performance drops below the specified `fps_floor`, 
+**Automated Stream Density Discovery**:
+Determine the maximum number of concurrent streams your hardware can sustain while maintaining a minimum FPS
+threshold.
+The density test automatically scales up stream counts until performance drops below the specified `fps_floor`,
 providing precise hardware capacity measurements.
 
-**Multi-Pipeline Density Analysis**: 
-Test complex workload scenarios by running multiple different pipelines simultaneously with configurable stream rate ratios. 
-For example, allocate 70% of streams to object detection and 30% to license plate recognition to simulate real-world deployment conditions.
+**Multi-Pipeline Density Analysis**:
+Test complex workload scenarios by running multiple different pipelines simultaneously with configurable stream
+rate ratios.
+For example, allocate 70% of streams to object detection and 30% to license plate recognition to simulate
+real-world deployment conditions.
 
-**FPS Floor Validation**: 
-Set minimum acceptable performance thresholds (e.g., 30 FPS per stream) 
-and automatically discover the maximum sustainable workload. 
+**FPS Floor Validation**:
+Set minimum acceptable performance thresholds (for example, 30 FPS per stream)
+and automatically discover the maximum sustainable workload.
 This eliminates guesswork in capacity planning and ensures deployments meet performance requirements.
 
-**Capacity Planning Support**: 
-Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions. 
+**Capacity Planning Support**:
+Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions.
 Results show exactly how many concurrent video streams each hardware configuration can process while maintaining quality thresholds.
 
 ### **Workflow Overview**
@@ -133,13 +137,15 @@ real-time performance under target deployment conditions.
 Below table shows the end-to-end performance of processing 1080p videos with this sample application.
 
 TO DO: Add real values
+
 | Device | Number of streams | Batch Size | Total FPS |
-|---|---:|---:|---:|
+| --- | ---: | ---: | ---: |
 | Device 1 | 1 | 1 | 9.20 |
 | Device 2 | 3 | 3 | 80.31 |
 | Device 3 | 5 | 5 | 146.43 |
 | Device 4 | 5 | 5 | 341.65 |
 | Device 5 | 14 | 14 | 447.15 |
+
 
 ### Density View (Derived from the same data, FPS floor = 30)
 
@@ -147,8 +153,9 @@ This density-oriented view estimates how many streams can be sustained at a 30 F
 Total FPS values above.
 
 TO DO: Add real values
+
 | Device | FPS Floor | Estimated Max Streams @ Floor | Estimated Per Stream FPS |
-|---|---:|---:|---:|
+| --- | ---: | ---: | ---: |
 | Device 1 | 30 | 0 | N/A |
 | Device 2 | 30 | 2 | 40.16 |
 | Device 3 | 30 | 4 | 36.61 |
