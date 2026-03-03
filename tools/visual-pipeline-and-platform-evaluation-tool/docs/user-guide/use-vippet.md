@@ -13,6 +13,9 @@ to demonstrating running pipelines on both CPU and GPU to compare performance.
 The [performance testing article](./how-to-guides/performance-testing.md) covers performance testing of single pipelines
 as well as multiple pipelines running concurrently.
 
+The [density testing article](./how-to-guides/density-testing.md) explains how to find the maximum sustainable stream
+density for a target FPS floor.
+
 <!--hide_directive
 :::{toctree}
 :maxdepth: 2
@@ -22,6 +25,7 @@ as well as multiple pipelines running concurrently.
 ./how-to-guides/use-video-generator
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
+./how-to-guides/density-testing
 
 :::
 hide_directive-->
