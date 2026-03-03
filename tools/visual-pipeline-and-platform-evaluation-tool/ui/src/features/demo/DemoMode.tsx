@@ -40,6 +40,7 @@ import { useNavigate } from "react-router";
 import { usePipelinesLoader } from "@/hooks/usePipelines.ts";
 import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
+import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
 import {
@@ -195,6 +196,7 @@ const DemoMode = () => {
   >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
+  const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
@@ -882,81 +884,6 @@ const DemoMode = () => {
       return changed ? next : prev;
     });
   }, [pipelineSelections, pipelines]);
-
-  const handleStreamRateChange = (pipelineId: string, newRate: number) => {
-    setPipelineSelections((prev) => {
-      if (prev.length === 1) {
-        return [{ ...prev[0], stream_rate: 100 }];
-      }
-
-      const changedIndex = prev.findIndex(
-        (sel) => sel.pipelineId === pipelineId,
-      );
-      if (changedIndex === -1) return prev;
-
-      const clampedRate = Math.max(0, Math.min(100, newRate));
-
-      let fixedSum = clampedRate;
-
-      if (changedIndex === prev.length - 1) {
-        for (let i = 1; i < prev.length - 1; i++) {
-          fixedSum += prev[i].stream_rate;
-        }
-      } else {
-        for (let i = 0; i < changedIndex; i++) {
-          fixedSum += prev[i].stream_rate;
-        }
-      }
-
-      const remainingRate = 100 - fixedSum;
-
-      let toAdjust: typeof prev;
-      if (changedIndex === prev.length - 1) {
-        toAdjust = [prev[0]];
-      } else {
-        toAdjust = prev.slice(changedIndex + 1);
-      }
-
-      const adjustSum = toAdjust.reduce((sum, sel) => sum + sel.stream_rate, 0);
-
-      const adjusted = toAdjust.map((sel) => {
-        const proportion =
-          adjustSum > 0 ? sel.stream_rate / adjustSum : 1 / toAdjust.length;
-        const newValue = proportion * remainingRate;
-        return {
-          ...sel,
-          stream_rate: Math.round(newValue),
-        };
-      });
-
-      const sumAdjusted = adjusted.reduce(
-        (sum, sel) => sum + sel.stream_rate,
-        0,
-      );
-      const diff = remainingRate - sumAdjusted;
-      if (diff !== 0 && adjusted.length > 0) {
-        adjusted[0] = {
-          ...adjusted[0],
-          stream_rate: adjusted[0].stream_rate + diff,
-        };
-      }
-
-      return prev.map((sel, idx) => {
-        if (idx === changedIndex) {
-          return { ...sel, stream_rate: clampedRate };
-        }
-
-        if (changedIndex === prev.length - 1 && idx === 0) {
-          return adjusted[0];
-        } else if (changedIndex !== prev.length - 1 && idx > changedIndex) {
-          const adjustedIdx = idx - changedIndex - 1;
-          return adjusted[adjustedIdx];
-        }
-
-        return sel;
-      });
-    });
-  };
 
   const handlePerformanceStreamsChange = (
     pipelineId: string,

@@ -33,6 +33,7 @@ import {
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -56,6 +57,7 @@ export const DensityTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
 
   const {
     execute: runTest,
@@ -169,87 +171,6 @@ export const DensityTests = () => {
         idx === index ? { ...sel, variantId: newVariantId } : sel,
       ),
     );
-  };
-
-  const handleStreamRateChange = (pipelineId: string, newRate: number) => {
-    setPipelineSelections((prev) => {
-      if (prev.length === 1) {
-        return [{ ...prev[0], stream_rate: 100 }];
-      }
-
-      const changedIndex = prev.findIndex(
-        (selection) => selection.pipelineId === pipelineId,
-      );
-      if (changedIndex === -1) return prev;
-
-      const clampedRate = Math.max(0, Math.min(100, newRate));
-
-      let fixedSum = clampedRate;
-
-      if (changedIndex === prev.length - 1) {
-        for (let index = 1; index < prev.length - 1; index++) {
-          fixedSum += prev[index].stream_rate;
-        }
-      } else {
-        for (let index = 0; index < changedIndex; index++) {
-          fixedSum += prev[index].stream_rate;
-        }
-      }
-
-      const remainingRate = 100 - fixedSum;
-
-      const selectionsToAdjust =
-        changedIndex === prev.length - 1
-          ? [prev[0]]
-          : prev.slice(changedIndex + 1);
-
-      const adjustSum = selectionsToAdjust.reduce(
-        (sum, selection) => sum + selection.stream_rate,
-        0,
-      );
-
-      const adjusted = selectionsToAdjust.map((selection) => {
-        const proportion =
-          adjustSum > 0
-            ? selection.stream_rate / adjustSum
-            : 1 / selectionsToAdjust.length;
-        const newValue = proportion * remainingRate;
-
-        return {
-          ...selection,
-          stream_rate: Math.round(newValue),
-        };
-      });
-
-      const sumAdjusted = adjusted.reduce(
-        (sum, selection) => sum + selection.stream_rate,
-        0,
-      );
-      const diff = remainingRate - sumAdjusted;
-      if (diff !== 0 && adjusted.length > 0) {
-        adjusted[0] = {
-          ...adjusted[0],
-          stream_rate: adjusted[0].stream_rate + diff,
-        };
-      }
-
-      return prev.map((selection, index) => {
-        if (index === changedIndex) {
-          return { ...selection, stream_rate: clampedRate };
-        }
-
-        if (changedIndex === prev.length - 1 && index === 0) {
-          return adjusted[0];
-        }
-
-        if (changedIndex !== prev.length - 1 && index > changedIndex) {
-          const adjustedIndex = index - changedIndex - 1;
-          return adjusted[adjustedIndex];
-        }
-
-        return selection;
-      });
-    });
   };
 
   const handleRunTest = async () => {

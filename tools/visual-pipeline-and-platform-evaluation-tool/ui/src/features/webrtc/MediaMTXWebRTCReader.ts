@@ -366,20 +366,16 @@ class MediaMTXWebRTCReader {
 
     this.sessionUrl = null;
 
-    fetch(sessionUrl, {
+    void fetch(sessionUrl, {
       method: "DELETE",
-    })
-      .then((res) => {
-        if (res.status === 404 || res.status === 410) {
+    }).then(
+      (res) => {
+        if ([404, 410].includes(res.status)) {
           return;
         }
-        if (!res.ok) {
-          throw new Error(`failed to close WHEP session (${res.status})`);
-        }
-      })
-      .catch(() => {
-        // Ignore close errors: session may already be removed by server.
-      });
+      },
+      () => {},
+    );
   };
 
   constructor(conf: MediaMTXWebRTCReaderConfig) {
