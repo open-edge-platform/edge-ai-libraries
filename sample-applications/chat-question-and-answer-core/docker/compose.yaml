@@ -7,8 +7,7 @@ x-nginx-common: &nginx-common
     - ../nginx_config/nginx.conf:/etc/nginx/nginx.conf:ro
 
 x-chatqna-core-common: &chatqna-core-common
-  #image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
-  image: chatqna:ollama
+  image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
   build:
     context: ../
     dockerfile: docker/Dockerfile
