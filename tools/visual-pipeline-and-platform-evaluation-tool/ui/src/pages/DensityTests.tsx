@@ -73,7 +73,17 @@ export const DensityTests = () => {
     asyncJobHook: useRunDensityTestMutation,
     statusCheckHook: useGetDensityJobStatusQuery,
   });
-  const isRunActive = jobStatus?.state === "RUNNING" || isLoading;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    console.debug("[DensityTests] run activity state", {
+      timestamp: new Date().toISOString(),
+      jobId: jobStatus?.id ?? null,
+      jobState: jobStatus?.state ?? null,
+      isLoading,
+    });
+  }, [jobStatus?.id, jobStatus?.state, isLoading]);
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -282,7 +292,7 @@ export const DensityTests = () => {
                     onValueChange={(value) =>
                       handlePipelineChange(index, value)
                     }
-                    disabled={isRunActive}
+                    disabled={isLoading}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -304,7 +314,7 @@ export const DensityTests = () => {
                   <Select
                     value={selection.variantId}
                     onValueChange={(value) => handleVariantChange(index, value)}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -330,7 +340,7 @@ export const DensityTests = () => {
                     }
                     min={0}
                     max={100}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -341,7 +351,7 @@ export const DensityTests = () => {
                   variant="ghost"
                   size="icon"
                   className="text-destructive"
-                  disabled={isRunActive}
+                  disabled={isLoading}
                 >
                   <X className="w-5 h-5" />
                 </Button>
@@ -354,7 +364,7 @@ export const DensityTests = () => {
           onClick={handleAddPipeline}
           variant="outline"
           disabled={
-            pipelineSelections.length >= pipelines.length || isRunActive
+            pipelineSelections.length >= pipelines.length || isLoading
           }
         >
           <Plus className="w-5 h-5" />
@@ -371,7 +381,7 @@ export const DensityTests = () => {
             onChange={(e) => setFpsFloor(Number(e.target.value))}
             min={1}
             max={120}
-            disabled={isRunActive}
+            disabled={isLoading}
             className="w-24 px-3 py-2 border"
           />
           <span className="text-sm text-muted-foreground">FPS</span>
@@ -384,7 +394,7 @@ export const DensityTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={loopingEnabled}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setLoopingEnabled(isChecked);
@@ -409,7 +419,7 @@ export const DensityTests = () => {
                 min={1}
                 step={1}
                 value={loopingRuntimeSeconds}
-                disabled={isRunActive}
+                disabled={isLoading}
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   setLoopingRuntimeSeconds(
@@ -430,7 +440,7 @@ export const DensityTests = () => {
           )}
         </div>
 
-        {isRunActive ? (
+        {isLoading ? (
           <Button
             onClick={handleStopTest}
             disabled={isStopping}

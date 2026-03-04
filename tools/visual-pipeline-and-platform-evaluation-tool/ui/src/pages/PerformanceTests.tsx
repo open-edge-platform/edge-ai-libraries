@@ -74,7 +74,6 @@ export const PerformanceTests = () => {
   });
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
-  const isRunActive = jobStatus?.state === "RUNNING";
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -265,7 +264,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.pipelineId}
-                      disabled={isRunActive}
+                      disabled={isLoading}
                       onValueChange={(value) =>
                         handlePipelineChange(index, value)
                       }
@@ -289,7 +288,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.variantId}
-                      disabled={isRunActive}
+                      disabled={isLoading}
                       onValueChange={(value) =>
                         handleVariantChange(index, value)
                       }
@@ -316,7 +315,7 @@ export const PerformanceTests = () => {
                       onChange={(val) => handleStreamsChange(index, val)}
                       min={1}
                       max={64}
-                      disabled={isRunActive}
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -327,7 +326,7 @@ export const PerformanceTests = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive"
-                    disabled={isRunActive}
+                    disabled={isLoading}
                   >
                     <X className="w-5 h-5" />
                   </Button>
@@ -339,7 +338,7 @@ export const PerformanceTests = () => {
           <Button
             onClick={handleAddPipeline}
             variant="outline"
-            disabled={isRunActive}
+            disabled={isLoading}
           >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
@@ -353,7 +352,7 @@ export const PerformanceTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={videoOutputEnabled}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setVideoOutputEnabled(isChecked);
@@ -379,7 +378,7 @@ export const PerformanceTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={livePreviewEnabled}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setLivePreviewEnabled(isChecked);
@@ -404,7 +403,7 @@ export const PerformanceTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={loopingEnabled}
-                    disabled={isRunActive}
+                    disabled={isLoading}
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setLoopingEnabled(isChecked);
@@ -433,7 +432,7 @@ export const PerformanceTests = () => {
                 min={1}
                 step={1}
                 value={loopingRuntimeSeconds}
-                disabled={isRunActive}
+                disabled={isLoading}
                 onChange={(event) => {
                   const value = event.target.valueAsNumber;
                   setLoopingRuntimeSeconds(
@@ -456,7 +455,7 @@ export const PerformanceTests = () => {
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
-        {isRunActive ? (
+        {isLoading ? (
           <button
             onClick={handleStopTest}
             disabled={isStopping}
