@@ -22,7 +22,10 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 import openlit
-
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers import EnsembleRetriever
+from sqlalchemy import text
+from langchain_core.documents import Document
 logging.basicConfig(level=logging.INFO)
 
 # Check if OTLP endpoint is set in environment variables
@@ -58,6 +61,8 @@ MODEL_NAME = os.getenv("EMBEDDING_MODEL", "Alibaba-NLP/gte-large-en-v1.5")
 EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL", "http://localhost:6006")
 COLLECTION_NAME = os.getenv("INDEX_NAME")
 FETCH_K = int(os.getenv("FETCH_K", "1"))
+DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.5"))
+SPARSE_WEIGHT = float(os.getenv("SPARSE_WEIGHT", "0.5"))
 
 engine = create_async_engine(PG_CONNECTION_STRING)
 
@@ -85,6 +90,37 @@ retriever = EGAIVectorStoreRetriever(
     search_type="mmr",
     search_kwargs={"k": FETCH_K, "fetch_k": FETCH_K * 3},
 )
+
+bm25_retriever = None
+ensemble_retriever = None
+
+async def init_bm25():
+    global bm25_retriever, ensemble_retriever
+    if ensemble_retriever is not None:
+        return
+    try:
+        async with engine.begin() as conn:
+            query = text(
+                "SELECT document, cmetadata FROM langchain_pg_embedding "
+                "JOIN langchain_pg_collection ON langchain_pg_embedding.collection_id = langchain_pg_collection.uuid "
+                "WHERE langchain_pg_collection.name = :name"
+            )
+            result = await conn.execute(query, {"name": COLLECTION_NAME})
+            rows = result.all()
+            
+        if rows:
+            docs = [Document(page_content=row[0], metadata=row[1] or {}) for row in rows]
+            bm25_retriever = BM25Retriever.from_documents(docs)
+            bm25_retriever.k = FETCH_K
+            ensemble_retriever = EnsembleRetriever(
+                retrievers=[bm25_retriever, retriever],
+                weights=[SPARSE_WEIGHT, DENSE_WEIGHT]
+            )
+            logging.info("Ensemble retriever with BM25 initialized successfully.")
+        else:
+            logging.warning("No documents found for BM25 initializing.")
+    except Exception as e:
+        logging.error(f"Failed to initialize BM25 retriever: {str(e)}")
 
 # Define our prompt
 template = """
@@ -150,7 +186,13 @@ async def context_retriever_fn(chain_inputs: dict):
     if not question:
         return {}  # to keep shape consistent
 
-    retrieved_docs = await retriever.aget_relevant_documents(question)
+    if ensemble_retriever is None:
+        await init_bm25()
+
+    if ensemble_retriever:
+        retrieved_docs = await ensemble_retriever.ainvoke(question)
+    else:
+        retrieved_docs = await retriever.aget_relevant_documents(question)
     return retrieved_docs     # context: list[Document]
 
 # Format the context in a readable way
