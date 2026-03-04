@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: LicenseRef-Intel
+---
+global:
+  proxy:
+    no_proxy: "localhost,127.0.0.1"
+    http_proxy: ""
+    https_proxy: ""
+
+modeldownload:
+  service:
+    port: <model-download-port>
+  env:
+    HUGGINGFACEHUB_API_TOKEN: <HUGGINGFACEHUB_API_TOKEN>
+    ENABLED_PLUGINS: openvino
