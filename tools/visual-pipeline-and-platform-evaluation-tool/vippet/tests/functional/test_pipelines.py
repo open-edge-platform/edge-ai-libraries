@@ -47,9 +47,7 @@ def created_pipeline_ids(http_client: requests.Session):
             )
 
 
-def test_get_pipelines_predefined_variants_are_read_only(
-    http_client: requests.Session,
-) -> None:
+def test_get_pipelines_predefined_variants_are_read_only(http_client: requests.Session) -> None:
     pipelines = fetch_pipelines(http_client)
     predefined = [p for p in pipelines if p.get("source") == "PREDEFINED"]
 
@@ -65,10 +63,7 @@ def test_get_pipelines_predefined_variants_are_read_only(
             )
 
 
-def test_create_pipeline_with_default_variant_and_add_custom_variant(
-    http_client: requests.Session,
-    created_pipeline_ids: list[str],
-) -> None:
+def test_create_pipeline_with_default_variant_and_add_custom_variant(http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
     default_variant_name = "CPU"
     custom_variant_name = "CUSTOM_GPU"
     unique_name = f"functional-pipeline-{uuid4().hex[:8]}"
@@ -128,9 +123,7 @@ def test_create_pipeline_with_default_variant_and_add_custom_variant(
     assert custom_variant.get("read_only") is False
 
 
-def test_predefined_pipeline_modification_is_forbidden(
-    http_client: requests.Session,
-) -> None:
+def test_predefined_pipeline_modification_is_forbidden(http_client: requests.Session) -> None:
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
     variant_id = predefined_pipeline["variants"][0]["id"]
