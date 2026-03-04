@@ -136,7 +136,7 @@ export const CreatePipelineDialog = ({
     reader.readAsText(file);
   };
 
-  const updateGraphNodes = (
+  const updateGraphNodesWithTemplateValues = (
     graph: PipelineGraph,
     data: CreatePipelineFormData,
   ): PipelineGraph => {
@@ -248,8 +248,11 @@ export const CreatePipelineDialog = ({
 
       const variants = (selectedTemplate.variants ?? []).map((variant) => ({
         ...variant,
-        pipeline_graph: updateGraphNodes(variant.pipeline_graph, data),
-        pipeline_graph_simple: updateGraphNodes(
+        pipeline_graph: updateGraphNodesWithTemplateValues(
+          variant.pipeline_graph,
+          data,
+        ),
+        pipeline_graph_simple: updateGraphNodesWithTemplateValues(
           variant.pipeline_graph_simple,
           data,
         ),
