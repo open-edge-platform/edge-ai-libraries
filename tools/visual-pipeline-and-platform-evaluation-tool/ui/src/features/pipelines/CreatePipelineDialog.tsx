@@ -302,13 +302,13 @@ export const CreatePipelineDialog = ({
         <DialogHeader>
           <DialogTitle>Create Pipeline</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="form" className="w-full">
+        <Tabs defaultValue="template" className="w-full">
           <TabsList className="w-full">
-            <TabsTrigger value="form" className="flex-1">
-              From Description
-            </TabsTrigger>
             <TabsTrigger value="template" className="flex-1">
               From Template
+            </TabsTrigger>
+            <TabsTrigger value="form" className="flex-1">
+              From Description
             </TabsTrigger>
           </TabsList>
 
@@ -528,37 +528,39 @@ export const CreatePipelineDialog = ({
                               trigger("templateId");
                             }}
                           >
-                            {templates.map((template) => (
-                              <label
-                                key={template.id}
-                                htmlFor={`template-${template.id}`}
-                                className="cursor-pointer"
-                              >
-                                <Card
-                                  className={`p-4 transition-colors hover:border-primary ${
-                                    selectedTemplate?.id === template.id
-                                      ? "border-primary bg-accent"
-                                      : ""
-                                  }`}
+                            {[...templates]
+                              .sort((a, b) => b.id.localeCompare(a.id))
+                              .map((template) => (
+                                <label
+                                  key={template.id}
+                                  htmlFor={`template-${template.id}`}
+                                  className="cursor-pointer"
                                 >
-                                  <div className="flex items-start gap-3">
-                                    <RadioGroupItem
-                                      value={template.id}
-                                      id={`template-${template.id}`}
-                                      className="mt-1"
-                                    />
-                                    <div className="flex-1 space-y-1">
-                                      <h3 className="font-semibold text-base">
-                                        {template.name}
-                                      </h3>
-                                      <p className="text-sm text-muted-foreground">
-                                        {template.description}
-                                      </p>
+                                  <Card
+                                    className={`p-4 transition-colors hover:border-primary ${
+                                      selectedTemplate?.id === template.id
+                                        ? "border-primary bg-accent"
+                                        : ""
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <RadioGroupItem
+                                        value={template.id}
+                                        id={`template-${template.id}`}
+                                        className="mt-1"
+                                      />
+                                      <div className="flex-1 space-y-1">
+                                        <h3 className="font-semibold text-base">
+                                          {template.name}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                          {template.description}
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
-                                </Card>
-                              </label>
-                            ))}
+                                  </Card>
+                                </label>
+                              ))}
                           </RadioGroup>
                           <FieldError
                             errors={
