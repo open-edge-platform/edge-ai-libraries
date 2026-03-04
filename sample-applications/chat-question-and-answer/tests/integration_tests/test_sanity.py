@@ -36,7 +36,7 @@ class TestSanity:
         headers = {'Content-Type': 'application/json'}
         proxy = {'http': os.environ.get("http_proxy"), 'https': os.environ.get("https_proxy")}
         try:
-            response = requests.request(method, url, headers=headers, data=request_payload, proxies=proxy, verify=False, stream=stream, params=params, files=files)                    
+            response = requests.request(method, url, headers=headers, data=request_payload, proxies=proxy, verify=True, stream=stream, params=params, files=files)
         except Exception as e:
             print(f"Request fails with error {e}")
         return response

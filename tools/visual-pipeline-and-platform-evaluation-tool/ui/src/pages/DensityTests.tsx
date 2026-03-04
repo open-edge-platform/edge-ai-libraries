@@ -33,6 +33,7 @@ import {
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -56,6 +57,7 @@ export const DensityTests = () => {
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
 
   const {
     execute: runTest,
@@ -74,7 +76,7 @@ export const DensityTests = () => {
         {
           pipelineId: firstPipeline.id,
           variantId: firstVariant.id,
-          stream_rate: 50,
+          stream_rate: 100,
           isNew: false,
         },
       ]);
@@ -82,18 +84,34 @@ export const DensityTests = () => {
   }, [pipelines, pipelineSelections.length]);
 
   const handleAddPipeline = () => {
-    if (pipelines.length > 0) {
-      const firstPipeline = pipelines[0];
-      const firstVariant = firstPipeline.variants[0];
-      setPipelineSelections((prev) => [
-        ...prev,
-        {
-          pipelineId: firstPipeline.id,
-          variantId: firstVariant.id,
-          stream_rate: 50,
-          isNew: true,
-        },
-      ]);
+    const usedPipelineIds = pipelineSelections.map((sel) => sel.pipelineId);
+    const availablePipeline = pipelines.find(
+      (pipeline) => !usedPipelineIds.includes(pipeline.id),
+    );
+    if (availablePipeline) {
+      const firstVariant = availablePipeline.variants[0];
+      if (!firstVariant) return;
+
+      setPipelineSelections((prev) => {
+        const next = [
+          ...prev,
+          {
+            pipelineId: availablePipeline.id,
+            variantId: firstVariant.id,
+            stream_rate: 0,
+            isNew: true,
+          },
+        ];
+
+        const count = next.length;
+        const baseRate = Math.floor(100 / count);
+        const remainder = 100 - baseRate * count;
+
+        return next.map((selection, index) => ({
+          ...selection,
+          stream_rate: index === 0 ? baseRate + remainder : baseRate,
+        }));
+      });
       setTimeout(() => {
         setPipelineSelections((prev) =>
           prev.map((sel, idx) =>
@@ -112,9 +130,20 @@ export const DensityTests = () => {
         ),
       );
       setTimeout(() => {
-        setPipelineSelections((prev) =>
-          prev.filter((sel) => sel.pipelineId !== pipelineId),
-        );
+        setPipelineSelections((prev) => {
+          const filtered = prev.filter((sel) => sel.pipelineId !== pipelineId);
+
+          if (filtered.length === 0) return filtered;
+
+          const count = filtered.length;
+          const baseRate = Math.floor(100 / count);
+          const remainder = 100 - baseRate * count;
+
+          return filtered.map((selection, index) => ({
+            ...selection,
+            stream_rate: index === 0 ? baseRate + remainder : baseRate,
+          }));
+        });
       }, 300);
     }
   };
@@ -141,12 +170,6 @@ export const DensityTests = () => {
       prev.map((sel, idx) =>
         idx === index ? { ...sel, variantId: newVariantId } : sel,
       ),
-    );
-  };
-
-  const handleStreamRateChange = (index: number, stream_rate: number) => {
-    setPipelineSelections((prev) =>
-      prev.map((sel, idx) => (idx === index ? { ...sel, stream_rate } : sel)),
     );
   };
 
@@ -281,7 +304,9 @@ export const DensityTests = () => {
                   </label>
                   <ParticipationSlider
                     value={selection.stream_rate}
-                    onChange={(val) => handleStreamRateChange(index, val)}
+                    onChange={(val) =>
+                      handleStreamRateChange(selection.pipelineId, val)
+                    }
                     min={0}
                     max={100}
                   />
