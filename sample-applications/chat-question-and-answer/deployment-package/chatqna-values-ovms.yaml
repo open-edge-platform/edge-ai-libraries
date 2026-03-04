@@ -5,7 +5,7 @@ global:
   huggingface:
     apiToken: <HUGGINGFACEHUB_API_TOKEN>  # Set this during installation
   proxy:
-    no_proxy: ""
+    no_proxy: "localhost,127.0.0.1"
     http_proxy: ""
     https_proxy: ""
   UI_NODEPORT: <ui-nodeport>
@@ -18,6 +18,9 @@ global:
   RERANKER_MODEL: <RERANKER_MODEL>
   OTLP_ENDPOINT:
   OTLP_ENDPOINT_TRACE:
+  modelDownload:
+    serviceName: model-download
+    port: 8000
   ovmsEmbeddinggpuService:
     enabled: false
   gpu:
@@ -66,11 +69,14 @@ chatqna-ui:
   nameOverride: "ui"
 
 dataprepPgvector:
-  name: document-ingestion
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
+  dataprepPgvector:
+    name: document-ingestion
+    service:
+      type: ClusterIP
+      port: 8000
+      targetPort: 8000
+    env:
+      ALLOWED_HOSTS: <ALLOWED_HOSTS>
 
 tgiService:
   name: text-generation-service
