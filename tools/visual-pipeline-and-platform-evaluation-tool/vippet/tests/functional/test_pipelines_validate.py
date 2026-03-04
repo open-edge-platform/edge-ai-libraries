@@ -1,4 +1,4 @@
-"""Integration test covering the pipelines validate endpoint."""
+"""Functional test covering the pipelines validate endpoint."""
 
 import logging
 import time

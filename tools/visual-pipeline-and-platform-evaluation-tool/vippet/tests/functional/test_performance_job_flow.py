@@ -1,4 +1,4 @@
-"""Integration test covering the performance job happy path."""
+"""Functional test covering the performance job happy path."""
 
 import logging
 import time

@@ -1,4 +1,4 @@
-"""Integration test ensuring the models endpoint responds with data."""
+"""Functional test ensuring the models endpoint responds with data."""
 
 import logging
 

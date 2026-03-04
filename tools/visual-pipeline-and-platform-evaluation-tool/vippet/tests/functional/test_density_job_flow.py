@@ -1,4 +1,4 @@
-"""Integration test covering the density job happy path."""
+"""Functional test covering the density job happy path."""
 
 import logging
 import time

@@ -1,4 +1,4 @@
-"""Integration test covering the videos endpoint happy path."""
+"""Functional test covering the videos endpoint happy path."""
 
 import logging
 from typing import Any

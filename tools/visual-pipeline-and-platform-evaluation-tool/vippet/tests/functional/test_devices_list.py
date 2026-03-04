@@ -1,4 +1,4 @@
-"""Integration test covering the devices endpoint happy path."""
+"""Functional test covering the devices endpoint happy path."""
 
 import logging
 

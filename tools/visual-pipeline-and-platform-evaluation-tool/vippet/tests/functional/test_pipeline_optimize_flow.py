@@ -1,4 +1,4 @@
-"""Integration test covering pipeline optimization flows."""
+"""Functional test covering pipeline optimization flows."""
 
 import logging
 
