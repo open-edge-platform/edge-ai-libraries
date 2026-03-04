@@ -2,6 +2,7 @@
 
 import logging
 
+import pytest
 import requests
 
 from api_helpers import fetch_devices
@@ -18,6 +19,7 @@ REQUIRED_DEVICE_KEYS: set[str] = {
 VALID_DEVICE_FAMILIES: set[str] = {"CPU", "GPU", "NPU"}
 
 
+@pytest.mark.smoke
 def test_devices_endpoint_returns_devices(http_client: requests.Session) -> None:
     devices = fetch_devices(http_client)
 

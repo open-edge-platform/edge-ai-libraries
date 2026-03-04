@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+import pytest
 import requests
 
 from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
@@ -27,6 +28,7 @@ VALIDATION_PAYLOAD: dict[str, Any] = {
 }
 
 
+@pytest.mark.full
 def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
     logger.info("Submitting validation job to %s/pipelines/validate", BASE_URL)
     response = http_client.post(

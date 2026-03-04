@@ -70,6 +70,7 @@ def _start_density_job(session: requests.Session, payload: JsonDict) -> str:
     return job_id
 
 
+@pytest.mark.full
 @pytest.mark.parametrize("case", PIPELINE_CASES, ids=CASE_IDS)
 def test_density_job_completes_successfully(
     http_client: requests.Session,

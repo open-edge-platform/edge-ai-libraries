@@ -54,6 +54,7 @@ def _start_optimization_job(
     return str(job_id)
 
 
+@pytest.mark.full
 @pytest.mark.parametrize(
     "case_id,payload", OPTIMIZATION_CASES, ids=[c[0] for c in OPTIMIZATION_CASES]
 )

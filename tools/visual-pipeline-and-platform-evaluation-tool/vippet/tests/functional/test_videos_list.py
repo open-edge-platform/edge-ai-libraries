@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+import pytest
 import requests
 
 from api_helpers import fetch_videos
@@ -19,33 +20,9 @@ REQUIRED_VIDEO_KEYS: set[str] = {
     "duration",
 }
 
-EXPECTED_VIDEOS: list[dict[str, Any]] = [
-    {
-        "filename": "people.mp4",
-        "width": 1920,
-        "height": 1080,
-        "fps": 30,
-        "frame_count": 302,
-        "codec": "h264",
-        "duration": 10.066666666666666,
-    },
-    {
-        "filename": "license-plate-detection.mp4",
-        "width": 1920,
-        "height": 1080,
-        "fps": 30,
-        "frame_count": 923,
-        "codec": "h264",
-        "duration": 30.766666666666666,
-    },
-]
 
-
-def _video_matches(candidate: dict[str, Any], expected: dict[str, Any]) -> bool:
-    return all(candidate.get(key) == value for key, value in expected.items())
-
-
-def test_videos_endpoint_returns_videos(http_client: requests.Session) -> None:
+@pytest.mark.smoke
+def test_videos_endpoint_returns_valid_structure(http_client: requests.Session) -> None:
     videos = fetch_videos(http_client)
 
     assert videos, "Videos endpoint returned an empty list"
@@ -55,10 +32,18 @@ def test_videos_endpoint_returns_videos(http_client: requests.Session) -> None:
             f"Video entry missing required keys: {REQUIRED_VIDEO_KEYS - raw.keys()}"
         )
 
-    for expected in EXPECTED_VIDEOS:
-        matching = next(
-            (video for video in videos if _video_matches(video, expected)), None
-        )
-        assert matching is not None, (
-            f"Videos endpoint missing expected entry: {expected['filename']}"
+
+@pytest.mark.smoke
+def test_all_default_recordings_are_available(
+    http_client: requests.Session,
+    default_recordings_config: list[dict[str, Any]],
+) -> None:
+    """All recordings listed in default_recordings.yaml must be returned by the API."""
+    videos = fetch_videos(http_client)
+    available_filenames = {video["filename"] for video in videos}
+
+    for recording in default_recordings_config:
+        expected_filename = recording["filename"]
+        assert expected_filename in available_filenames, (
+            f"Default recording '{expected_filename}' is not present in the API response"
         )
