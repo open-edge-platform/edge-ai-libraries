@@ -163,3 +163,86 @@ def test_predefined_pipeline_modification_is_forbidden(http_client: requests.Ses
         f"Expected 400 for read-only variant delete, got "
         f"{delete_variant_response.status_code}, body={delete_variant_response.text}"
     )
+
+
+def test_create_pipeline_with_empty_name(http_client: requests.Session) -> None:
+    payload = {
+        "name": "",
+        "description": "Should fail due to empty name",
+        "tags": ["functional", "validation"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            }
+        ],
+    }
+
+    response = http_client.post(f"{BASE_URL}/pipelines", json=payload, timeout=30)
+
+    # Pydantic validation for min_length=1 should reject empty name.
+    assert response.status_code == 422, (
+        f"Expected 422 for empty pipeline name, got {response.status_code}, body={response.text}"
+    )
+
+
+def test_create_pipeline_with_duplicate_variant_names(http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
+    unique_name = f"functional-pipeline-dup-variants-{uuid4().hex[:8]}"
+    duplicate_variant_name = "CPU"
+    payload = {
+        "name": unique_name,
+        "description": "Pipeline with duplicate variant names",
+        "tags": ["functional", "variants"],
+        "variants": [
+            {
+                "name": duplicate_variant_name,
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            },
+            {
+                "name": duplicate_variant_name,
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            },
+        ],
+    }
+
+    response = http_client.post(f"{BASE_URL}/pipelines", json=payload, timeout=30)
+    assert response.status_code == 201, (
+        f"Expected 201 when creating pipeline with duplicate variant names, got "
+        f"{response.status_code}, body={response.text}"
+    )
+
+    pipeline_id = response.json().get("id")
+    assert isinstance(pipeline_id, str) and pipeline_id
+    created_pipeline_ids.append(pipeline_id)
+
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    assert get_response.status_code == 200, (
+        f"get_pipeline failed: {get_response.status_code} {get_response.text}"
+    )
+    pipeline_data = get_response.json()
+    variants = pipeline_data.get("variants", [])
+
+    assert len(variants) == 2, "Expected two variants in created pipeline"
+    assert all(v.get("name") == duplicate_variant_name for v in variants)
+
+    variant_ids = [v.get("id") for v in variants]
+    assert len(set(variant_ids)) == 2, (
+        f"Expected unique variant ids for duplicate names, got ids={variant_ids}"
+    )
+
+
+def test_update_nonexistent_pipeline(http_client: requests.Session) -> None:
+    nonexistent_pipeline_id = f"does-not-exist-{uuid4().hex[:8]}"
+    response = http_client.patch(
+        f"{BASE_URL}/pipelines/{nonexistent_pipeline_id}",
+        json={"name": "new-name"},
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for non-existent pipeline update, got "
+        f"{response.status_code}, body={response.text}"
+    )
