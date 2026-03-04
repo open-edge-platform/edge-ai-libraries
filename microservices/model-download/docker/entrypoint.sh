@@ -107,7 +107,7 @@ install_dependencies() {
             ;;
         ollama)
             echo -e "${BLUE}INFO:${NC} Installing Ollama binary..."
-            OLLAMA_VERSION="v0.14.0"
+            OLLAMA_VERSION="v0.17.4"
             OLLAMA_ARCHIVE="${PARALLEL_TMP_DIR}/ollama-linux-amd64.tar.zst"
             OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst"
 
@@ -118,27 +118,17 @@ install_dependencies() {
                 return 1
             fi
 
-            echo -e "${BLUE}INFO:${NC} Downloading Ollama ${OLLAMA_VERSION}..."
-            if ! curl -fSL -o "${OLLAMA_ARCHIVE}" "${OLLAMA_URL}"; then
-                echo -e "${RED} ERROR:${NC} Failed to download Ollama binary from ${OLLAMA_URL}"
+            mkdir -p /opt/bin
+
+            echo -e "${BLUE}INFO:${NC} Downloading and extracting Ollama ${OLLAMA_VERSION} binary only..."
+            # Stream the archive and extract only the ollama binary - avoids writing full archive to disk
+            if ! curl -fSL "${OLLAMA_URL}" | tar --use-compress-program=unzstd -xf - -C /opt/bin --strip-components=1 bin/ollama; then
+                echo -e "${RED} ERROR:${NC} Failed to download or extract Ollama binary"
                 echo "1" > "${status_file}"
                 return 1
             fi
 
-            echo -e "${BLUE}INFO:${NC} Extracting Ollama binary..."
-            if ! tar --use-compress-program=unzstd -xf "${OLLAMA_ARCHIVE}" -C "/opt/"; then
-                echo -e "${RED} ERROR:${NC} Failed to extract Ollama binary"
-                rm -f "${OLLAMA_ARCHIVE}"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-
-            rm -f "${OLLAMA_ARCHIVE}"
-
-            # Make all binaries executable
-            if [ -d "/opt/bin" ]; then
-                chmod +x /opt/bin/* 2>/dev/null || true
-            fi
+            chmod +x /opt/bin/ollama
 
             # Verify ollama binary is present and executable
             if [ -x "/opt/bin/ollama" ]; then
