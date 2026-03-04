@@ -14,7 +14,7 @@ This section shows how to build the Model Download microservice from source.
       # Clone the latest on the mainline
         git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       # Alternatively, clone a specific release branch
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
       ```
 2. **Navigate to the directory**:
 
