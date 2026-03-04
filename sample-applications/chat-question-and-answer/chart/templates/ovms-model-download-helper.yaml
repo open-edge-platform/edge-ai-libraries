@@ -62,7 +62,10 @@ data:
         else
             CONFIG_JSON="{\"precision\": \"${WEIGHT_FORMAT}\", \"device\": \"${DEVICE}\"}"
         fi
-        
+        local EXTRA_CONFIG=""
+        if [ "$MODEL_TYPE" = "embeddings" ]; then
+            EXTRA_CONFIG=', "extra_quantization_params": "--library sentence_transformers"'
+        fi      
         # Submit download request
         POST_RESPONSE=$(curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
             -H "Content-Type: application/json" \
@@ -73,7 +76,7 @@ data:
                         \"hub\": \"${HUB}\",
                         \"type\": \"${MODEL_TYPE}\",
                         \"is_ovms\": true,
-                        \"config\": ${CONFIG_JSON}
+                        \"config\": ${CONFIG_JSON}\"${EXTRA_CONFIG}
                     }
                 ]
             }")
