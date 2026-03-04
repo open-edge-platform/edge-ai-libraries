@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 import requests
 
-from api_helpers import fetch_pipelines
+from helpers.api_helpers import fetch_pipelines
 from config import BASE_URL
 
 logger = logging.getLogger(__name__)

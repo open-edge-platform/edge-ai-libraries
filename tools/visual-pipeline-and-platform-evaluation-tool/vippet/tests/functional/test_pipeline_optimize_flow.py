@@ -5,7 +5,7 @@ import logging
 import pytest
 import requests
 
-from api_helpers import JsonDict, wait_for_job_completion
+from helpers.api_helpers import JsonDict, wait_for_job_completion
 from config import BASE_URL
 
 logger = logging.getLogger(__name__)

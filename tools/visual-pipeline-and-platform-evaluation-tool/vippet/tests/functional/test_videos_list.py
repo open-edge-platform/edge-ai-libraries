@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import requests
 
-from api_helpers import fetch_videos
+from helpers.api_helpers import fetch_videos
 
 logger = logging.getLogger(__name__)
 

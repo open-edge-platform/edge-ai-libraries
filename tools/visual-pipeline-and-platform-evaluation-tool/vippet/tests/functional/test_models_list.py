@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import requests
 
-from api_helpers import fetch_models
+from helpers.api_helpers import fetch_models
 
 logger = logging.getLogger(__name__)
 

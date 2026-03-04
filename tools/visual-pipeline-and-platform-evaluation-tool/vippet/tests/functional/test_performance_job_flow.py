@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 import requests
 
-from api_helpers import wait_for_job_completion
+from helpers.api_helpers import wait_for_job_completion
 from config import BASE_URL
-from pipeline_case_helpers import PipelineCase, discover_pipeline_cases_for_pytest
+from helpers.pipeline_case_helpers import PipelineCase, discover_pipeline_cases_for_pytest
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ import logging
 import pytest
 import requests
 
-from api_helpers import fetch_devices
+from helpers.api_helpers import fetch_devices
 
 logger = logging.getLogger(__name__)
 

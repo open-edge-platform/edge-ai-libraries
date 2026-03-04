@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import pytest
 import requests
 
-from api_helpers import fetch_devices, fetch_pipelines
+from .api_helpers import fetch_devices, fetch_pipelines
 
 logger = logging.getLogger(__name__)
 
