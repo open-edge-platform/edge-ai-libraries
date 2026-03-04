@@ -107,7 +107,7 @@ test: env-setup ## Run tests and generate coverage report
 
 test-functional: $(VENV_DIR) ## Run functional tests
 	set +u; . ./$</bin/activate; set -u ;\
-	python3.12 -m pytest --log-cli-level=INFO vippet/tests/functional/test_*.py
+	python -m pytest --log-cli-level=INFO vippet/tests/functional/test_*.py
 
 install-models-once: env-setup ## Handle models download and installation (once)
 	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models

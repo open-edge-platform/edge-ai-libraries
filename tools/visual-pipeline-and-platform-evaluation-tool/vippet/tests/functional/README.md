@@ -10,13 +10,13 @@ Functional tests that exercise the VIPPET API end-to-end.
 ## Running
 
 ```bash
-python3.12 -m pytest vippet/tests/functional/
+python3 -m pytest vippet/tests/functional/
 ```
 
 Run a specific test file:
 
 ```bash
-python3.12 -m pytest vippet/tests/functional/test_density_job_flow.py
+python3 -m pytest vippet/tests/functional/test_density_job_flow.py
 ```
 
 Or via Makefile:
