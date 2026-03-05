@@ -21,23 +21,26 @@ export const isAsyncJobError = (error: unknown): error is AsyncJobStatus =>
   error !== null &&
   typeof error === "object" &&
   "state" in error &&
-  "error_message" in error;
+  "details" in error;
 
 export const handleAsyncJobError = (
   error: AsyncJobStatus,
   titlePrefix: string,
 ) => {
-  if (error.state === "ERROR") {
-    const description = formatErrorMessage(error.error_message);
+  if (error.state === "FAILED") {
+    const description = formatErrorMessage(error.details);
     toast.error(`${titlePrefix} error`, {
       description,
     });
-  } else if (error.state === "ABORTED") {
+  } else if (
+    error.state === "COMPLETED" &&
+    error.details?.some((detail) => detail.includes("Cancelled by user"))
+  ) {
     const description = formatErrorMessage(
-      error.error_message,
-      "Operation aborted",
+      error.details,
+      "Operation cancelled",
     );
-    toast.error(`${titlePrefix} aborted`, {
+    toast.error(`${titlePrefix} cancelled`, {
       description,
     });
   }
