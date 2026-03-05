@@ -523,6 +523,7 @@ export const PerformanceTests = () => {
                 <p>Run test in loop mode for a selected duration</p>
               </TooltipContent>
             </Tooltip>
+          </div>
 
           {loopingEnabled && (
             <div className="ml-6 flex items-center gap-2">
@@ -568,7 +569,11 @@ export const PerformanceTests = () => {
             </div>
           )}
 
-          {videoOutputEnabled && <SaveOutputWarning />}
+          {videoOutputEnabled && (
+            <div>
+              <SaveOutputWarning />
+            </div>
+          )}
         </div>
 
         {isRunning ? (
@@ -730,7 +735,6 @@ export const PerformanceTests = () => {
               )}
           </div>
         )}
-      </div>
       </div>
     </>
   );
