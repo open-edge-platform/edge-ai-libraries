@@ -101,7 +101,7 @@ class OptimizationRunner:
                 pipeline string and measured total FPS.
         """
         # Import from /opt/intel/dlstreamer/scripts/optimizer/optimizer.py provided in DLStreamer image
-        # https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/optimizer
+        # https://github.com/open-edge-platform/dlstreamer/tree/main/scripts/optimizer/optimizer.py
         import optimizer  # pyright: ignore[reportMissingImports]
 
         optimized_pipeline, total_fps = optimizer.get_optimized_pipeline(
