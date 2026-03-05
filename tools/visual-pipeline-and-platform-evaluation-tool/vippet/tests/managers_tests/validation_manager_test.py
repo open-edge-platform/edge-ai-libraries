@@ -11,7 +11,7 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.validation_manager import ValidationManager
-from pipeline_runner import PipelineValidationResult
+from pipeline_runner import PipelineResult
 
 
 # Helper to create an internal Graph from the standard test graph
@@ -44,6 +44,8 @@ class TestValidationManager(unittest.TestCase):
       * status and summary retrieval,
       * interaction with PipelineRunner,
       * input validation and error paths.
+
+    Validation jobs cannot be cancelled by the user.
 
     All tests use internal types only. The manager does not depend on
     API schema types.
@@ -113,6 +115,7 @@ class TestValidationManager(unittest.TestCase):
         self.assertEqual(job.state, InternalValidationJobState.RUNNING)
         self.assertIsInstance(job.start_time, int)
         self.assertIsNone(job.end_time)
+        self.assertEqual(job.details, [])
         self.assertEqual(
             job.pipeline_description, "filesrc ! decodebin3 ! autovideosink"
         )
@@ -191,7 +194,7 @@ class TestValidationManager(unittest.TestCase):
 
     @patch("managers.validation_manager.PipelineRunner")
     def test_execute_validation_marks_job_completed_on_success(self, mock_runner_cls):
-        """On successful validation, job should be marked COMPLETED."""
+        """On successful validation (exit_code=0, no stderr), job should be COMPLETED."""
         manager = ValidationManager()
 
         internal_request = self._build_internal_validation()
@@ -206,10 +209,10 @@ class TestValidationManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        # Mock PipelineRunner returning valid result
+        # Mock PipelineRunner returning valid result (exit_code=0, empty stderr)
         mock_runner = MagicMock()
-        mock_runner.run.return_value = PipelineValidationResult(
-            is_valid=True, errors=[]
+        mock_runner.run.return_value = PipelineResult(
+            exit_code=0, stderr=[], stdout=["Pipeline parsed successfully."]
         )
         mock_runner_cls.return_value = mock_runner
 
@@ -222,15 +225,15 @@ class TestValidationManager(unittest.TestCase):
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalValidationJobState.COMPLETED)
+        self.assertEqual(updated.details, ["Pipeline is valid"])
         self.assertTrue(updated.is_valid)
-        self.assertIsNone(updated.error_message)
         self.assertIsNotNone(updated.end_time)
 
     @patch("managers.validation_manager.PipelineRunner")
-    def test_execute_validation_marks_job_error_on_invalid_pipeline(
+    def test_execute_validation_marks_job_failed_on_invalid_pipeline(
         self, mock_runner_cls
     ):
-        """When pipeline is invalid, job should be marked ERROR."""
+        """When pipeline is invalid (non-zero exit or stderr errors), job should be FAILED."""
         manager = ValidationManager()
 
         internal_request = self._build_internal_validation()
@@ -246,9 +249,18 @@ class TestValidationManager(unittest.TestCase):
         manager.jobs[job_id] = job
 
         mock_runner = MagicMock()
-        mock_runner.run.return_value = PipelineValidationResult(
-            is_valid=False, errors=["no element foo", "some other error"]
+        mock_runner.run.return_value = PipelineResult(
+            exit_code=1,
+            stderr=[
+                "gst_runner - ERROR - no element foo",
+                "gst_runner - ERROR - some other error",
+            ],
+            stdout=[],
         )
+        mock_runner._parse_validation_stderr.return_value = [
+            "no element foo",
+            "some other error",
+        ]
         mock_runner_cls.return_value = mock_runner
 
         manager._execute_validation(
@@ -259,13 +271,16 @@ class TestValidationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalValidationJobState.ERROR)
+        self.assertEqual(updated.state, InternalValidationJobState.FAILED)
+        self.assertIsInstance(updated.details, list)
+        self.assertTrue(len(updated.details) > 0)
+        # Details should contain error information
+        self.assertTrue(any("no element foo" in d for d in updated.details))
         self.assertFalse(updated.is_valid)
-        self.assertEqual(updated.error_message, ["no element foo", "some other error"])
 
     @patch("managers.validation_manager.PipelineRunner")
-    def test_execute_validation_sets_error_on_exception(self, mock_runner_cls):
-        """Unexpected exception should mark job as ERROR."""
+    def test_execute_validation_sets_failed_on_exception(self, mock_runner_cls):
+        """Unexpected exception should mark job as FAILED with error in details list."""
         manager = ValidationManager()
 
         internal_request = self._build_internal_validation()
@@ -292,9 +307,10 @@ class TestValidationManager(unittest.TestCase):
         )
 
         updated = manager.jobs[job_id]
-        self.assertEqual(updated.state, InternalValidationJobState.ERROR)
-        self.assertIsNotNone(updated.error_message)
-        self.assertIn("runner exploded", " ".join(updated.error_message or []))
+        self.assertEqual(updated.state, InternalValidationJobState.FAILED)
+        self.assertIsInstance(updated.details, list)
+        self.assertTrue(len(updated.details) > 0)
+        self.assertIn("runner exploded", updated.details[0])
 
     # ------------------------------------------------------------------
     # Status and summary retrieval
@@ -322,6 +338,7 @@ class TestValidationManager(unittest.TestCase):
             state=InternalValidationJobState.COMPLETED,
             start_time=now - 1000,
             end_time=now,
+            details=["Pipeline is valid"],
             is_valid=True,
         )
 
@@ -339,8 +356,12 @@ class TestValidationManager(unittest.TestCase):
         self.assertIn("job-1", ids)
         self.assertIn("job-2", ids)
 
+        status1 = next(s for s in statuses if s.id == "job-1")
+        self.assertEqual(status1.details, [])
+
         status2 = next(s for s in statuses if s.id == "job-2")
         self.assertEqual(status2.state, InternalValidationJobState.COMPLETED)
+        self.assertEqual(status2.details, ["Pipeline is valid"])
         self.assertTrue(status2.is_valid)
 
     def test_get_job_status_unknown_returns_none(self):
@@ -375,6 +396,7 @@ class TestValidationManager(unittest.TestCase):
         self.assertEqual(status.id, job_id)
         self.assertEqual(status.state, InternalValidationJobState.RUNNING)
         self.assertIsNone(status.is_valid)
+        self.assertEqual(status.details, [])
 
     def test_get_job_summary_unknown_returns_none(self):
         """Unknown job ids should yield no summary."""

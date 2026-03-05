@@ -102,7 +102,7 @@ jobs:
         path: /tmp/htmlcov
 
     - name: Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
       with:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -128,7 +128,7 @@ jobs:
       shell: bash
 
     - name: Scan Docker extended image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
       with:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
