@@ -173,7 +173,7 @@ def test_predefined_pipeline_modification_is_forbidden(
         f"{delete_variant_response.status_code}, body={delete_variant_response.text}"
     )
 
-
+@pytest.mark.smoke
 def test_create_pipeline_with_empty_name(http_client: requests.Session) -> None:
     payload = {
         "name": "",
