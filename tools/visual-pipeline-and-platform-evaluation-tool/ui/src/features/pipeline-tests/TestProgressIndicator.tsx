@@ -263,12 +263,12 @@ export const TestProgressIndicator = ({
     return engines;
   }, [gpuData]);
 
-  // filter and prepare data for chart - only include available engines and replace undefined with 0
+  // filter and prepare data for chart - only include available engines
+  // and stabilize single zero drops to keep continuity like other GPU charts
   const gpuChartData = useMemo(() => {
-    return gpuData.map((point) => {
-      const chartPoint: Record<string, number | undefined> & {
-        timestamp: number;
-      } = {
+    const normalizedGpuChartData: Array<{ timestamp: number } & Record<string, number>> =
+      gpuData.map((point) => {
+      const chartPoint: { timestamp: number } & Record<string, number> = {
         timestamp: point.timestamp,
       };
 
@@ -279,6 +279,11 @@ export const TestProgressIndicator = ({
 
       return chartPoint;
     });
+
+    return stabilizeSingleZeroDropSeries(
+      normalizedGpuChartData,
+      availableEngines,
+    );
   }, [gpuData, availableEngines]);
   const gpuFrequencyData = useMemo(() => {
     const gpuId = selectedGpu.toString();

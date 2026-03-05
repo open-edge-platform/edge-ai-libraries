@@ -1040,7 +1040,7 @@ const DemoMode = () => {
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
-            max_runtime: 1800,
+            max_runtime: 10,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
