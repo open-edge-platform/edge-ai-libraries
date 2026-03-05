@@ -48,7 +48,9 @@ def created_pipeline_ids(http_client: requests.Session):
 
 
 @pytest.mark.smoke
-def test_get_pipelines_predefined_variants_are_read_only(http_client: requests.Session) -> None:
+def test_get_pipelines_predefined_variants_are_read_only(
+    http_client: requests.Session,
+) -> None:
     pipelines = fetch_pipelines(http_client)
     predefined = [p for p in pipelines if p.get("source") == "PREDEFINED"]
 
@@ -66,7 +68,8 @@ def test_get_pipelines_predefined_variants_are_read_only(http_client: requests.S
 
 @pytest.mark.smoke
 def test_create_pipeline_with_default_variant_and_add_custom_variant(
-    http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
     default_variant_name = "CPU"
     custom_variant_name = "CUSTOM_GPU"
     unique_name = f"functional-pipeline-{uuid4().hex[:8]}"
@@ -127,11 +130,13 @@ def test_create_pipeline_with_default_variant_and_add_custom_variant(
 
 
 @pytest.mark.smoke
-def test_predefined_pipeline_metadata_can_be_updated(http_client: requests.Session) -> None:
+def test_predefined_pipeline_metadata_can_be_updated(
+    http_client: requests.Session,
+) -> None:
     """Test that PREDEFINED pipeline metadata (name, description, tags) can be updated."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
-    
+
     original_name = predefined_pipeline.get("name", "")
     original_description = predefined_pipeline.get("description", "")
     original_tags = predefined_pipeline.get("tags", [])
@@ -139,16 +144,16 @@ def test_predefined_pipeline_metadata_can_be_updated(http_client: requests.Sessi
     # Test metadata update is allowed
     update_payload = {
         "name": f"{original_name}-updated",
-        "description": f"{original_description} updated", 
+        "description": f"{original_description} updated",
         "tags": ["functional", "predefined"],
     }
-    
+
     response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}",
         json=update_payload,
         timeout=30,
     )
-    
+
     assert response.status_code == 200
     updated_pipeline = response.json()
     assert updated_pipeline.get("name") == update_payload["name"]
@@ -160,21 +165,21 @@ def test_predefined_pipeline_metadata_can_be_updated(http_client: requests.Sessi
         f"{BASE_URL}/pipelines/{pipeline_id}",
         json={
             "name": original_name,
-            "description": original_description, 
+            "description": original_description,
             "tags": original_tags,
         },
         timeout=30,
     )
 
 
-@pytest.mark.smoke  
+@pytest.mark.smoke
 def test_predefined_pipeline_cannot_be_deleted(http_client: requests.Session) -> None:
     """Test that PREDEFINED pipelines cannot be deleted."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
 
     response = http_client.delete(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
-    
+
     assert response.status_code == 400, (
         f"Expected 400 for PREDEFINED pipeline delete, got "
         f"{response.status_code}, body={response.text}"
@@ -196,7 +201,7 @@ def test_predefined_variants_cannot_be_modified(http_client: requests.Session) -
     )
     assert update_response.status_code == 400
 
-    # Test variant graph update is forbidden  
+    # Test variant graph update is forbidden
     graph_update_response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
         json={"pipeline_graph": _graph_dict()},
@@ -213,14 +218,14 @@ def test_predefined_variants_cannot_be_deleted(http_client: requests.Session) ->
     variant_id = predefined_pipeline["variants"][0]["id"]
 
     response = http_client.delete(
-        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}", 
-        timeout=30
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}", timeout=30
     )
-    
+
     assert response.status_code == 400, (
         f"Expected 400 for read-only variant delete, got "
         f"{response.status_code}, body={response.text}"
     )
+
 
 @pytest.mark.smoke
 def test_create_pipeline_with_empty_name(http_client: requests.Session) -> None:
@@ -247,7 +252,8 @@ def test_create_pipeline_with_empty_name(http_client: requests.Session) -> None:
 
 @pytest.mark.smoke
 def test_create_pipeline_with_duplicate_variant_names(
-    http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
     unique_name = f"functional-pipeline-dup-variants-{uuid4().hex[:8]}"
     duplicate_variant_name = "CPU"
     payload = {
@@ -307,3 +313,67 @@ def test_update_nonexistent_pipeline(http_client: requests.Session) -> None:
         f"Expected 404 for non-existent pipeline update, got "
         f"{response.status_code}, body={response.text}"
     )
+
+
+@pytest.mark.smoke
+def test_validate_pipeline_endpoint(http_client: requests.Session) -> None:
+    """Test POST /pipelines/validate endpoint."""
+    payload = {"pipeline_graph": _graph_dict(), "parameters": {"max-runtime": 10}}
+
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/validate", json=payload, timeout=30
+    )
+    assert response.status_code == 202
+    assert "job_id" in response.json()
+
+
+@pytest.mark.smoke
+def test_optimize_variant_endpoint(http_client: requests.Session) -> None:
+    """Test POST /pipelines/{id}/variants/{id}/optimize endpoint."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+    variant_id = predefined_pipeline["variants"][0]["id"]
+
+    payload = {"type": "optimize", "parameters": {"search_duration": 300}}
+
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/optimize",
+        json=payload,
+        timeout=30,
+    )
+    assert response.status_code == 202
+    assert "job_id" in response.json()
+
+
+@pytest.mark.smoke
+def test_convert_advanced_to_simple_graph(http_client: requests.Session) -> None:
+    """Test POST /pipelines/{id}/variants/{id}/convert-to-simple endpoint."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+    variant_id = predefined_pipeline["variants"][0]["id"]
+
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-simple",
+        json=_graph_dict(),
+        timeout=30,
+    )
+    assert response.status_code == 200
+    assert "nodes" in response.json()
+    assert "edges" in response.json()
+
+
+@pytest.mark.smoke
+def test_convert_simple_to_advanced_graph(http_client: requests.Session) -> None:
+    """Test POST /pipelines/{id}/variants/{id}/convert-to-advanced endpoint."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+    variant_id = predefined_pipeline["variants"][0]["id"]
+
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
+        json=_graph_dict(),
+        timeout=30,
+    )
+    assert response.status_code == 200
+    assert "nodes" in response.json()
+    assert "edges" in response.json()
