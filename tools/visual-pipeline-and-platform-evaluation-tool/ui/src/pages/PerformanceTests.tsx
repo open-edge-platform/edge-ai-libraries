@@ -34,6 +34,12 @@ import {
   isAsyncJobError,
 } from "@/lib/apiUtils";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import {
+  buildPipelineVariantRawKey,
+  parsePipelineVariantReference,
+  resolvePipelineVariantLabel,
+  type PipelineVariantReference,
+} from "@/features/pipeline-tests/pipelineVariantReference";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -41,12 +47,6 @@ interface PipelineSelection {
   streams: number;
   isRemoving?: boolean;
   isNew?: boolean;
-}
-
-interface PipelineVariantReference {
-  rawKey: string;
-  pipelineId: string;
-  variantId: string | null;
 }
 
 export const PerformanceTests = () => {
@@ -85,63 +85,25 @@ export const PerformanceTests = () => {
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
 
-  const parsePipelineVariantReference = (
-    value: string,
-  ): PipelineVariantReference => {
-    const variantPathMatch = value.match(
-      /^\/pipelines\/([^/]+)\/variants\/([^/]+)$/,
-    );
-    if (variantPathMatch) {
-      return {
-        rawKey: value,
-        pipelineId: variantPathMatch[1],
-        variantId: variantPathMatch[2],
-      };
-    }
-
-    return {
-      rawKey: value,
-      pipelineId: value,
-      variantId: null,
-    };
-  };
-
   const selectedPipelineReferences = useMemo(() => {
-    const uniqueReferences = new Map<string, PipelineVariantReference>();
-
-    pipelineSelections.forEach((selection) => {
-      const rawKey = `/pipelines/${selection.pipelineId}/variants/${selection.variantId}`;
-      if (!uniqueReferences.has(rawKey)) {
-        uniqueReferences.set(rawKey, {
-          rawKey,
-          pipelineId: selection.pipelineId,
-          variantId: selection.variantId,
-        });
-      }
-    });
-
-    return Array.from(uniqueReferences.values());
+    return Array.from(
+      new Set(
+        pipelineSelections.map((selection) =>
+          buildPipelineVariantRawKey(selection.pipelineId, selection.variantId),
+        ),
+      ),
+    ).map((rawKey) => parsePipelineVariantReference(rawKey));
   }, [pipelineSelections]);
-
-  const getVariantDisplayName = (
-    pipelineId: string,
-    variantId: string | null,
-  ): string | null => {
-    if (!variantId) {
-      return null;
-    }
-
-    const pipeline = pipelines.find((item) => item.id === pipelineId);
-    const variant = pipeline?.variants.find((item) => item.id === variantId);
-
-    return variant?.name ?? variantId;
-  };
 
   const renderPipelineVariantLabel = (
     pipelineId: string,
     variantId: string | null,
   ) => {
-    const variantName = getVariantDisplayName(pipelineId, variantId);
+    const { variantName } = resolvePipelineVariantLabel(
+      pipelines,
+      pipelineId,
+      variantId,
+    );
 
     return (
       <>
