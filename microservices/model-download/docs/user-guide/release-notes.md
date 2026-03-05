@@ -2,6 +2,19 @@
 
 ## Current Release
 
+## Version 1.1.0-rc2
+
+**Release Date**: WW10 2026
+- Added pass-through of parameters for the OpenVINO plugin.
+- Enabled use of all parameters aligned with Optimum CLI.
+- Updated request payload structure for OpenVINO conversion models.
+- Added support for both latest and previous (n-1) OVMS versions, configurable through a single environment variable when run as an individual plugin.
+- Implemented `hls` plugin for Health AI Suite with pre-configured models: `human-pose-estimation-3d-0001`, `mtts_can.hdf5`, `ecg_8960_ir10_fp16`, `ecg_17920_ir10_fp16`.
+- Added HLS plugin support for pre-configured model types: `3d-pose`, `rppg`, and `ai-ecg`.
+
+**Known Issues or Behavior**:
+- Latest OVMS version (`2026.0`) may run into dependency conflicts.
+
 ## Version 1.1.0-rc1
 
 **Release Date**: WW08 2026

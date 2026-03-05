@@ -21,7 +21,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
 
    ```bash
-   helm pull oci://registry-1.docker.io/intel/model-download-chart --version 1.1.0-rc1
+   helm pull oci://registry-1.docker.io/intel/model-download-chart --version 1.1.0-rc2
    ```
 
    See the [Docker hub's tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
@@ -30,7 +30,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
 
    Extract the `.tgz` file:
    ```bash
-   tar -xvf model-download-chart-1.1.0-rc1.tgz
+   tar -xvf model-download-chart-1.1.0-rc2.tgz
    ```
 
 3. This will create a directory named `model-download-chart`, containing the chart files. Navigate to the extracted directory:
