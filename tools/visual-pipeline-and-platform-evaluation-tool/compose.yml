@@ -98,6 +98,8 @@ services:
   vippet:  # Always 'vippet', hardware config from override files
     <<: *vippet
     container_name: vippet
+    ports:
+      - "7860:7860"
   collector:
     image: docker.io/intel/vippet-collector:${DOCKER_TAG}
     build:
@@ -186,3 +188,5 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+
+

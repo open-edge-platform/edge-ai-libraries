@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
+  useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
@@ -22,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Square, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 import {
@@ -41,6 +43,8 @@ interface PipelineSelection {
 }
 
 export const PerformanceTests = () => {
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const pipelines = useAppSelector(selectPipelines);
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
@@ -53,16 +57,23 @@ export const PerformanceTests = () => {
     } | null;
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [loopingEnabled, setLoopingEnabled] = useState(false);
+  const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
+    DEFAULT_LOOPING_RUNTIME_SECONDS,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
     execute: runTest,
-    isLoading,
+    isLoading: isRunning,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+  const [stopPerformanceTest, { isLoading: isStopping }] =
+    useStopPerformanceTestJobMutation();
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -155,8 +166,16 @@ export const PerformanceTests = () => {
       const status = await runTest({
         performanceTestSpec: {
           execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
+            output_mode: livePreviewEnabled
+              ? "live_stream"
+              : videoOutputEnabled
+                ? "file"
+                : "disabled",
+            max_runtime: livePreviewEnabled
+              ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+              : loopingEnabled
+                ? loopingRuntimeSeconds
+                : 0,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             pipeline: {
@@ -187,6 +206,19 @@ export const PerformanceTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+    }
+  };
+
+  const handleStopTest = async () => {
+    if (!jobStatus?.id) return;
+
+    try {
+      await stopPerformanceTest({
+        jobId: jobStatus.id,
+      }).unwrap();
+    } catch (error) {
+      handleApiError(error, "Failed to stop test");
+      console.error("Failed to stop test:", error);
     }
   };
 
@@ -232,6 +264,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.pipelineId}
+                      disabled={isRunning}
                       onValueChange={(value) =>
                         handlePipelineChange(index, value)
                       }
@@ -255,6 +288,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.variantId}
+                      disabled={isRunning}
                       onValueChange={(value) =>
                         handleVariantChange(index, value)
                       }
@@ -281,6 +315,7 @@ export const PerformanceTests = () => {
                       onChange={(val) => handleStreamsChange(index, val)}
                       min={1}
                       max={64}
+                      disabled={isRunning}
                     />
                   </div>
                 </div>
@@ -291,6 +326,7 @@ export const PerformanceTests = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive"
+                    disabled={isRunning}
                   >
                     <X className="w-5 h-5" />
                   </Button>
@@ -299,22 +335,32 @@ export const PerformanceTests = () => {
             );
           })}
 
-          <Button onClick={handleAddPipeline} variant="outline">
+          <Button
+            onClick={handleAddPipeline}
+            variant="outline"
+            disabled={isRunning}
+          >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
           </Button>
         </div>
 
-        <div className="my-4 flex flex-col">
-          <div className="flex items-center">
+        <div className="my-4 flex flex-col gap-2">
+          <div className="flex items-center gap-6 flex-wrap">
             <Tooltip>
               <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={videoOutputEnabled}
-                    onCheckedChange={(checked) =>
-                      setVideoOutputEnabled(checked === true)
-                    }
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setVideoOutputEnabled(isChecked);
+                      if (isChecked) {
+                        setLivePreviewEnabled(false);
+                        setLoopingEnabled(false);
+                      }
+                    }}
                   />
                   <span className="text-sm font-medium">Save output</span>
                 </label>
@@ -326,16 +372,107 @@ export const PerformanceTests = () => {
                 </p>
               </TooltipContent>
             </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={livePreviewEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLivePreviewEnabled(isChecked);
+                      if (isChecked) {
+                        setVideoOutputEnabled(false);
+                        setLoopingEnabled(false);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Enable live preview
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Stream pipeline output live instead of saving to file</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={loopingEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLoopingEnabled(isChecked);
+                      if (isChecked) {
+                        setVideoOutputEnabled(false);
+                        setLivePreviewEnabled(false);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Run pipeline in loop
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Run test in loop mode for a selected duration</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
+
+          {loopingEnabled && (
+            <div className="ml-6 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Duration</span>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={loopingRuntimeSeconds}
+                disabled={isRunning}
+                onChange={(event) => {
+                  const value = event.target.valueAsNumber;
+                  setLoopingRuntimeSeconds(
+                    Number.isNaN(value)
+                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                      : value,
+                  );
+                }}
+                onBlur={() => {
+                  if (loopingRuntimeSeconds < 1) {
+                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
+                  }
+                }}
+                className="h-8 w-24 px-2 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">s</span>
+            </div>
+          )}
+
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
 
-        <Button
-          onClick={handleRunTest}
-          disabled={isLoading || pipelineSelections.length === 0}
-        >
-          {isLoading ? "Running..." : "Run performance test"}
-        </Button>
+        {isRunning ? (
+          <button
+            onClick={handleStopTest}
+            disabled={isStopping}
+            className="w-[160px] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            title="Stop test"
+          >
+            <Square className="w-5 h-5" />
+            <span>{isStopping ? "Stopping..." : "Stop"}</span>
+          </button>
+        ) : (
+          <Button
+            onClick={handleRunTest}
+            disabled={isRunning || pipelineSelections.length === 0}
+          >
+            {isRunning ? "Starting..." : "Run performance test"}
+          </Button>
+        )}
 
         {jobStatus && (
           <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">

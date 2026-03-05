@@ -414,7 +414,7 @@ class Graph:
         Changes applied:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
-        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux, parsebin) with tsdemux
+        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
         - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
 
         Returns:
@@ -485,7 +485,6 @@ class Graph:
                 "matroskademux",
                 "avidemux",
                 "flvdemux",
-                "parsebin",
             }:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
