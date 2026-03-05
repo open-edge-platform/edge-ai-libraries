@@ -5,11 +5,9 @@ based on configurable parameters and stream counts.
 """
 
 import logging
-from dataclasses import dataclass
 import math
-from typing import List
+from dataclasses import dataclass
 
-from pipeline_runner import PipelineRunner, PipelineRunResult
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -18,6 +16,7 @@ from internal_types import (
     InternalPipelineStreamSpec,
 )
 from managers.pipeline_manager import PipelineManager
+from pipeline_runner import PipelineRunner
 
 
 @dataclass
@@ -37,9 +36,9 @@ class BenchmarkResult:
     """
 
     n_streams: int
-    streams_per_pipeline: List[InternalPipelineStreamSpec]
+    streams_per_pipeline: list[InternalPipelineStreamSpec]
     per_stream_fps: float
-    video_output_paths: dict[str, List[str]]
+    video_output_paths: dict[str, list[str]]
 
     def __repr__(self):
         return (
@@ -142,7 +141,7 @@ class Benchmark:
         # We'll set this once we fall below the fps_floor
         higher_bound = -1
         best_config: tuple[
-            int, list[InternalPipelineStreamSpec], float, dict[str, List[str]]
+            int, list[InternalPipelineStreamSpec], float, dict[str, list[str]]
         ] = (
             0,
             [],
@@ -184,18 +183,15 @@ class Benchmark:
             )
 
             # Run the pipeline
-            results = self.runner.run(pipeline_command, n_streams)
+            result = self.runner.run(pipeline_command, n_streams)
 
             # Check for cancellation
-            if self.runner.is_cancelled():
+            if result.cancelled:
                 self.logger.info("Benchmark cancelled.")
                 break
 
-            if results is None or not isinstance(results, PipelineRunResult):
-                raise RuntimeError("Pipeline runner returned invalid results.")
-
             try:
-                total_fps = results.total_fps
+                total_fps = result.total_fps
                 per_stream_fps = total_fps / n_streams if n_streams > 0 else 0.0
             except (ValueError, TypeError, ZeroDivisionError):
                 raise RuntimeError("Failed to parse FPS metrics from pipeline results.")
@@ -203,7 +199,8 @@ class Benchmark:
                 raise RuntimeError("Pipeline returned zero or invalid FPS metrics.")
 
             self.logger.info(
-                "n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
+                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
+                result.exit_code,
                 n_streams,
                 total_fps,
                 per_stream_fps,

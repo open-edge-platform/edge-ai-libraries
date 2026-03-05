@@ -54,15 +54,13 @@ class InternalTestJobState(str, Enum):
 
     Values:
         RUNNING: Test is still executing.
-        COMPLETED: Test finished successfully.
-        ERROR: Test failed with an error.
-        ABORTED: Test was cancelled by the user.
+        COMPLETED: Test finished successfully
+        FAILED: Test finished unsuccessfully
     """
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class InternalOptimizationJobState(str, Enum):
@@ -71,15 +69,13 @@ class InternalOptimizationJobState(str, Enum):
 
     Values:
         RUNNING: Optimization is in progress.
-        COMPLETED: Optimization finished successfully.
-        ERROR: Optimization failed with an error.
-        ABORTED: Optimization was cancelled by the user.
+        COMPLETED: Optimization finished successfully
+        FAILED: Optimization finished unsuccessfully
     """
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class InternalValidationJobState(str, Enum):
@@ -88,15 +84,13 @@ class InternalValidationJobState(str, Enum):
 
     Values:
         RUNNING: Validation is in progress.
-        COMPLETED: Validation finished successfully.
-        ERROR: Validation failed with an error.
-        ABORTED: Validation was cancelled by the user.
+        COMPLETED: Validation finished successfully (pipeline is valid).
+        FAILED: Validation finished unsuccessfully (pipeline is invalid, or encountered an error).
     """
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class InternalOptimizationType(str, Enum):
@@ -397,6 +391,9 @@ class InternalPerformanceJobStatus:
     Tracks timing, FPS metrics, stream counts, and output paths.
     Used by TestsManager to store job progress.
 
+    The details list is cleared when the job transitions to a new state,
+    then new entries related to the new state are appended.
+
     The streams_per_pipeline field uses InternalPipelineStreamSpec with
     pipeline IDs in the format:
         For VariantReference: "/pipelines/{pipeline_id}/variants/{variant_id}"
@@ -408,27 +405,27 @@ class InternalPerformanceJobStatus:
         state: Current job state.
         start_time: Job start time in milliseconds since epoch.
         end_time: Job end time in milliseconds since epoch (None if running).
+        details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
         live_stream_urls: Mapping from pipeline ID to live stream URL.
-        error_message: Error description when state is ERROR or ABORTED.
     """
 
     id: str
-    request: Dict[str, Any]
+    request: dict[str, Any]
     state: InternalTestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[InternalPipelineStreamSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    live_stream_urls: Optional[Dict[str, str]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
+    live_stream_urls: dict[str, str] | None = None
 
 
 @dataclass
@@ -442,6 +439,9 @@ class InternalDensityJobStatus:
     Does not include live_stream_urls because density tests do not support
     live-streaming output mode.
 
+    The details list is cleared when the job transitions to a new state,
+    then new entries related to the new state are appended.
+
     The streams_per_pipeline field uses InternalPipelineStreamSpec with
     pipeline IDs in the format:
         For VariantReference: "/pipelines/{pipeline_id}/variants/{variant_id}"
@@ -453,25 +453,25 @@ class InternalDensityJobStatus:
         state: Current job state.
         start_time: Job start time in milliseconds since epoch.
         end_time: Job end time in milliseconds since epoch (None if running).
+        details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
-        error_message: Error description when state is ERROR or ABORTED.
     """
 
     id: str
-    request: Dict[str, Any]
+    request: dict[str, Any]
     state: InternalTestJobState
     start_time: int
-    end_time: Optional[int] = None
-    total_fps: Optional[float] = None
-    per_stream_fps: Optional[float] = None
-    total_streams: Optional[int] = None
-    streams_per_pipeline: Optional[List[InternalPipelineStreamSpec]] = None
-    video_output_paths: Optional[Dict[str, List[str]]] = None
-    error_message: Optional[str] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_fps: float | None = None
+    per_stream_fps: float | None = None
+    total_streams: int | None = None
+    streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
+    video_output_paths: dict[str, list[str]] | None = None
 
 
 @dataclass
@@ -518,21 +518,27 @@ class InternalOptimizationJobStatus:
     Tracks original and optimized pipeline graphs, timing, and results.
     Used by OptimizationManager to store job progress.
 
+    Cancellation always results in FAILED state because partial optimization
+    results are not useful.
+
+    The details list is cleared when the job transitions to a new state,
+    then new entries related to the new state are appended.
+
     Attributes:
         id: Job identifier.
         original_pipeline_graph: Original advanced view of the pipeline as Graph.
         original_pipeline_graph_simple: Original simple view of the pipeline as Graph.
         original_pipeline_description: Original GStreamer pipeline string.
         request: Original optimization request as internal type.
-        state: Current job state (RUNNING, COMPLETED, ERROR, ABORTED).
+        state: Current job state.
         start_time: Job start time in milliseconds since epoch.
         type: Optimization type (PREPROCESS or OPTIMIZE), or None.
         end_time: Job end time in milliseconds since epoch (None if running).
+        details: List of human-readable messages for the current state. Cleared on state transition.
         optimized_pipeline_graph: Optimized advanced view (None until completed).
         optimized_pipeline_graph_simple: Optimized simple view (None until completed).
         optimized_pipeline_description: Optimized GStreamer pipeline string (None until completed).
         total_fps: Measured FPS for optimized pipeline (None for PREPROCESS type).
-        error_message: Error description (None unless state is ERROR or ABORTED).
     """
 
     id: str
@@ -542,13 +548,13 @@ class InternalOptimizationJobStatus:
     request: InternalPipelineRequestOptimize
     state: InternalOptimizationJobState
     start_time: int
-    type: Optional[InternalOptimizationType] = None
-    end_time: Optional[int] = None
-    optimized_pipeline_graph: Optional[Graph] = None
-    optimized_pipeline_graph_simple: Optional[Graph] = None
-    optimized_pipeline_description: Optional[str] = None
-    total_fps: Optional[float] = None
-    error_message: Optional[str] = None
+    type: InternalOptimizationType | None = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    optimized_pipeline_graph: Graph | None = None
+    optimized_pipeline_graph_simple: Graph | None = None
+    optimized_pipeline_description: str | None = None
+    total_fps: float | None = None
 
 
 @dataclass
@@ -578,21 +584,24 @@ class InternalValidationJobStatus:
     Used by ValidationManager for status queries. Converted to API
     ValidationJobStatus in the route layer.
 
+    The details list is cleared when the job transitions to a new state,
+    then new entries related to the new state are appended.
+
     Attributes:
         id: Job identifier.
         start_time: Job start time in milliseconds since epoch.
         elapsed_time: Elapsed time in milliseconds.
         state: Current validation job state.
+        details: List of human-readable messages for the current state. Cleared on state transition.
         is_valid: Final validation result (None until completed).
-        error_message: List of validation error descriptions (None if no errors).
     """
 
     id: str
     start_time: int
     elapsed_time: int
     state: InternalValidationJobState
-    is_valid: Optional[bool] = None
-    error_message: Optional[List[str]] = None
+    details: list[str] = field(default_factory=list)
+    is_valid: bool | None = None
 
 
 @dataclass
@@ -621,6 +630,9 @@ class InternalValidationJob:
     Tracks pipeline description, timing, and validation results.
     Used by ValidationManager to store job progress.
 
+    The details list is cleared when the job transitions to a new state,
+    then new entries related to the new state are appended.
+
     Attributes:
         id: Job identifier.
         request: Original validation request as internal type.
@@ -628,8 +640,8 @@ class InternalValidationJob:
         state: Current validation job state.
         start_time: Job start time in milliseconds since epoch.
         end_time: Job end time in milliseconds since epoch (None if running).
+        details: List of human-readable messages for the current state. Cleared on state transition.
         is_valid: Final validation result (None until completed).
-        error_message: List of validation error descriptions (None if no errors).
     """
 
     id: str
@@ -637,9 +649,9 @@ class InternalValidationJob:
     pipeline_description: str
     state: InternalValidationJobState
     start_time: int
-    end_time: Optional[int] = None
-    is_valid: Optional[bool] = None
-    error_message: Optional[List[str]] = None
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    is_valid: bool | None = None
 
 
 @dataclass

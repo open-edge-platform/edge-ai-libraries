@@ -130,6 +130,7 @@ export const Pipelines = () => {
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isJobCancelled,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
@@ -301,9 +302,15 @@ export const Pipelines = () => {
         },
       });
 
-      toast.success("Pipeline run completed", {
-        description: new Date().toISOString(),
-      });
+      if (isJobCancelled(status)) {
+        toast.info("Pipeline run cancelled", {
+          description: new Date().toISOString(),
+        });
+      } else {
+        toast.success("Pipeline run completed", {
+          description: new Date().toISOString(),
+        });
+      }
 
       if (videoOutputEnabled && status.video_output_paths) {
         const paths = Object.values(status.video_output_paths)[0];
@@ -334,10 +341,6 @@ export const Pipelines = () => {
 
       setShowDetailsPanel(false);
       setCompletedVideoPath(null);
-
-      toast.success("Pipeline stopped", {
-        description: new Date().toISOString(),
-      });
     } catch (error) {
       handleApiError(error, "Failed to stop pipeline");
       console.error("Failed to stop pipeline:", error);
