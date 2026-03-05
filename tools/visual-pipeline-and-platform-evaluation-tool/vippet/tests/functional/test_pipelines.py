@@ -127,74 +127,99 @@ def test_create_pipeline_with_default_variant_and_add_custom_variant(
 
 
 @pytest.mark.smoke
-def test_predefined_pipeline_modification_is_forbidden(http_client: requests.Session) -> None:
+def test_predefined_pipeline_metadata_can_be_updated(http_client: requests.Session) -> None:
+    """Test that PREDEFINED pipeline metadata (name, description, tags) can be updated."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
-    variant_id = predefined_pipeline["variants"][0]["id"]
-
+    
     original_name = predefined_pipeline.get("name", "")
     original_description = predefined_pipeline.get("description", "")
     original_tags = predefined_pipeline.get("tags", [])
 
+    # Test metadata update is allowed
     update_payload = {
         "name": f"{original_name}-updated",
-        "description": f"{original_description} updated",
+        "description": f"{original_description} updated", 
         "tags": ["functional", "predefined"],
     }
-    update_pipeline_response = http_client.patch(
+    
+    response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}",
         json=update_payload,
         timeout=30,
     )
-    assert update_pipeline_response.status_code == 200, (
-        f"Expected 200 for PREDEFINED pipeline metadata update, got "
-        f"{update_pipeline_response.status_code}, body={update_pipeline_response.text}"
-    )
-
-    updated_pipeline = update_pipeline_response.json()
+    
+    assert response.status_code == 200
+    updated_pipeline = response.json()
     assert updated_pipeline.get("name") == update_payload["name"]
     assert updated_pipeline.get("description") == update_payload["description"]
     assert updated_pipeline.get("tags") == update_payload["tags"]
 
-    # Restore original metadata to keep this test environment-friendly.
-    restore_response = http_client.patch(
+    # Cleanup - restore original metadata
+    http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}",
         json={
             "name": original_name,
-            "description": original_description,
+            "description": original_description, 
             "tags": original_tags,
         },
         timeout=30,
     )
-    assert restore_response.status_code == 200, (
-        f"Failed to restore PREDEFINED pipeline metadata. "
-        f"status={restore_response.status_code}, body={restore_response.text}"
-    )
 
-    delete_pipeline_response = http_client.delete(
-        f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30
-    )
-    assert delete_pipeline_response.status_code == 400, (
+
+@pytest.mark.smoke  
+def test_predefined_pipeline_cannot_be_deleted(http_client: requests.Session) -> None:
+    """Test that PREDEFINED pipelines cannot be deleted."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+
+    response = http_client.delete(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    
+    assert response.status_code == 400, (
         f"Expected 400 for PREDEFINED pipeline delete, got "
-        f"{delete_pipeline_response.status_code}, body={delete_pipeline_response.text}"
+        f"{response.status_code}, body={response.text}"
     )
 
-    update_variant_response = http_client.patch(
+
+@pytest.mark.smoke
+def test_predefined_variants_cannot_be_modified(http_client: requests.Session) -> None:
+    """Test that read-only variants from PREDEFINED pipelines cannot be modified."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+    variant_id = predefined_pipeline["variants"][0]["id"]
+
+    # Test variant update is forbidden
+    update_response = http_client.patch(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
+        json={"name": "forbidden-update"},
+        timeout=30,
+    )
+    assert update_response.status_code == 400
+
+    # Test variant graph update is forbidden  
+    graph_update_response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
         json={"pipeline_graph": _graph_dict()},
         timeout=30,
     )
-    assert update_variant_response.status_code == 400, (
-        f"Expected 400 for read-only variant graph update, got "
-        f"{update_variant_response.status_code}, body={update_variant_response.text}"
-    )
+    assert graph_update_response.status_code == 400
 
-    delete_variant_response = http_client.delete(
-        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}", timeout=30
+
+@pytest.mark.smoke
+def test_predefined_variants_cannot_be_deleted(http_client: requests.Session) -> None:
+    """Test that read-only variants from PREDEFINED pipelines cannot be deleted."""
+    predefined_pipeline = _find_predefined_pipeline(http_client)
+    pipeline_id = predefined_pipeline["id"]
+    variant_id = predefined_pipeline["variants"][0]["id"]
+
+    response = http_client.delete(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}", 
+        timeout=30
     )
-    assert delete_variant_response.status_code == 400, (
+    
+    assert response.status_code == 400, (
         f"Expected 400 for read-only variant delete, got "
-        f"{delete_variant_response.status_code}, body={delete_variant_response.text}"
+        f"{response.status_code}, body={response.text}"
     )
 
 @pytest.mark.smoke
