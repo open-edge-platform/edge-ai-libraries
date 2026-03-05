@@ -86,7 +86,11 @@ export const Pipelines = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [streams, setStreams] = useState(1);
+  const [streamsInput, setStreamsInput] = useState("1");
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -563,32 +567,43 @@ export const Pipelines = () => {
                         <span>Streams</span>
                       </div>
                       <Input
-                        type="number"
-                        min={1}
-                        max={12}
-                        step={1}
-                        value={streams}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={streamsInput}
                         onChange={(event) => {
-                          const value = event.target.valueAsNumber;
-                          if (Number.isNaN(value)) {
-                            setStreams(1);
+                          const value = event.target.value;
+
+                          if (value !== "" && !/^\d+$/.test(value)) {
                             return;
                           }
 
+                          setStreamsInput(value);
+
+                          if (value === "") {
+                            return;
+                          }
+
+                          const parsedValue = Number.parseInt(value, 10);
+
                           const normalizedValue = Math.min(
                             12,
-                            Math.max(1, Math.trunc(value)),
+                            Math.max(1, parsedValue),
                           );
                           setStreams(normalizedValue);
                         }}
                         onBlur={() => {
-                          if (streams < 1) {
-                            setStreams(1);
-                          }
+                          const parsedValue =
+                            streamsInput.trim().length === 0
+                              ? Number.NaN
+                              : Number.parseInt(streamsInput, 10);
 
-                          if (streams > 12) {
-                            setStreams(12);
-                          }
+                          const normalizedValue = Number.isFinite(parsedValue)
+                            ? Math.min(12, Math.max(1, parsedValue))
+                            : 1;
+
+                          setStreams(normalizedValue);
+                          setStreamsInput(String(normalizedValue));
                         }}
                         className="h-8 w-24 px-2 text-sm bg-background dark:bg-input/60"
                       />
@@ -618,26 +633,40 @@ export const Pipelines = () => {
                           Duration
                         </span>
                         <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={loopingRuntimeSeconds}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={loopingRuntimeInput}
                           onChange={(event) => {
-                            const value = event.target.valueAsNumber;
-                            setLoopingRuntimeSeconds(
-                              Number.isNaN(value)
-                                ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                                : value,
-                            );
+                            const value = event.target.value;
+
+                            if (value !== "" && !/^\d+$/.test(value)) {
+                              return;
+                            }
+
+                            setLoopingRuntimeInput(value);
+
+                            if (value === "") {
+                              return;
+                            }
+
+                            const parsedValue = Number.parseInt(value, 10);
+                            setLoopingRuntimeSeconds(parsedValue);
                           }}
                           onBlur={() => {
-                            if (loopingRuntimeSeconds < 1) {
-                              setLoopingRuntimeSeconds(
-                                DEFAULT_LOOPING_RUNTIME_SECONDS,
-                              );
-                            }
+                            const parsedValue =
+                              loopingRuntimeInput.trim().length === 0
+                                ? Number.NaN
+                                : Number.parseInt(loopingRuntimeInput, 10);
+                            const normalizedValue =
+                              Number.isFinite(parsedValue) && parsedValue >= 1
+                                ? parsedValue
+                                : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                            setLoopingRuntimeSeconds(normalizedValue);
+                            setLoopingRuntimeInput(String(normalizedValue));
                           }}
-                          className="h-8 w-24 px-2 text-xs"
+                          className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
                         />
                         <span className="text-xs text-muted-foreground">s</span>
                       </div>

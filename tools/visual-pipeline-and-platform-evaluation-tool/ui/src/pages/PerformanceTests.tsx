@@ -69,6 +69,9 @@ export const PerformanceTests = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
@@ -295,9 +298,7 @@ export const PerformanceTests = () => {
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
-        setErrorMessage(
-          formatErrorMessage(error?.error_message, "Test failed"),
-        );
+        setErrorMessage(formatErrorMessage(error?.details, "Test failed"));
       } else {
         const errorMessage = handleApiError(error, "Test failed");
         setErrorMessage(errorMessage);
@@ -523,34 +524,49 @@ export const PerformanceTests = () => {
               </TooltipContent>
             </Tooltip>
 
-            {loopingEnabled && (
-              <div className="flex items-center gap-2 h-[42px]">
-                <span className="text-xs text-muted-foreground">Duration</span>
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={loopingRuntimeSeconds}
-                  disabled={isRunning}
-                  onChange={(event) => {
-                    const value = event.target.valueAsNumber;
-                    setLoopingRuntimeSeconds(
-                      Number.isNaN(value)
-                        ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                        : value,
-                    );
-                  }}
-                  onBlur={() => {
-                    if (loopingRuntimeSeconds < 1) {
-                      setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
-                    }
-                  }}
-                  className="h-8 w-24 px-2 text-xs"
-                />
-                <span className="text-xs text-muted-foreground">s</span>
-              </div>
-            )}
-          </div>
+          {loopingEnabled && (
+            <div className="ml-6 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Duration</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loopingRuntimeInput}
+                disabled={isRunning}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  if (value !== "" && !/^\d+$/.test(value)) {
+                    return;
+                  }
+
+                  setLoopingRuntimeInput(value);
+
+                  if (value === "") {
+                    return;
+                  }
+
+                  const parsedValue = Number.parseInt(value, 10);
+                  setLoopingRuntimeSeconds(parsedValue);
+                }}
+                onBlur={() => {
+                  const parsedValue =
+                    loopingRuntimeInput.trim().length === 0
+                      ? Number.NaN
+                      : Number.parseInt(loopingRuntimeInput, 10);
+                  const normalizedValue =
+                    Number.isFinite(parsedValue) && parsedValue >= 1
+                      ? parsedValue
+                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                  setLoopingRuntimeSeconds(normalizedValue);
+                  setLoopingRuntimeInput(String(normalizedValue));
+                }}
+                className="h-8 w-24 px-2 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">s</span>
+            </div>
+          )}
 
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
@@ -713,6 +729,7 @@ export const PerformanceTests = () => {
               )}
           </div>
         )}
+      </div>
       </div>
     </>
   );

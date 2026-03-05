@@ -9,6 +9,97 @@ import {
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
 
+const CHART_MAX_DATA_POINTS = 30;
+
+const getRecentYAxisMax = (
+  values: number[],
+  maxDataPoints: number,
+  minMax: number,
+  headroomFactor = 1.15,
+) => {
+  const recentValues = values.slice(-maxDataPoints).filter(Number.isFinite);
+  if (recentValues.length === 0) return minMax;
+
+  const recentMax = Math.max(...recentValues, 0);
+  if (recentMax <= 0) return minMax;
+
+  return Math.max(recentMax * headroomFactor, minMax);
+};
+
+const stabilizeSingleZeroDropSeries = <T extends Record<string, number>>(
+  data: T[],
+  keys: (keyof T)[],
+): T[] => {
+  const previousByKey: Partial<Record<keyof T, number>> = {};
+  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
+
+  return data.map((point) => {
+    const stabilizedPoint = { ...point };
+
+    keys.forEach((key) => {
+      const value = point[key];
+      const previousValue = previousByKey[key] ?? 0;
+      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
+
+      if (value === 0 && previousValue > 0) {
+        const nextZeroStreak = currentZeroStreak + 1;
+        zeroStreakByKey[key] = nextZeroStreak;
+        if (nextZeroStreak === 1) {
+          stabilizedPoint[key] = previousValue as T[keyof T];
+          return;
+        }
+      } else {
+        zeroStreakByKey[key] = 0;
+      }
+
+      if (value > 0) {
+        previousByKey[key] = value;
+      }
+    });
+
+    return stabilizedPoint;
+  });
+};
+
+const stabilizeSingleZeroDropOptionalSeries = <
+  T extends Record<string, number | undefined>,
+>(
+  data: T[],
+  keys: (keyof T)[],
+): T[] => {
+  const previousByKey: Partial<Record<keyof T, number>> = {};
+  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
+
+  return data.map((point) => {
+    const stabilizedPoint = { ...point };
+
+    keys.forEach((key) => {
+      const value = point[key];
+      if (value === undefined) return;
+
+      const previousValue = previousByKey[key] ?? 0;
+      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
+
+      if (value === 0 && previousValue > 0) {
+        const nextZeroStreak = currentZeroStreak + 1;
+        zeroStreakByKey[key] = nextZeroStreak;
+        if (nextZeroStreak === 1) {
+          stabilizedPoint[key] = previousValue as T[keyof T];
+          return;
+        }
+      } else {
+        zeroStreakByKey[key] = 0;
+      }
+
+      if (value > 0) {
+        previousByKey[key] = value;
+      }
+    });
+
+    return stabilizedPoint;
+  });
+};
+
 interface MetricCardProps {
   title: string;
   value: number;
@@ -133,7 +224,7 @@ export const TestProgressIndicator = ({
 
   const gpuData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => {
+    const rawGpuData = history.map((point) => {
       const gpu = point.gpus[gpuId];
       return {
         timestamp: point.timestamp,
@@ -144,6 +235,14 @@ export const TestProgressIndicator = ({
         videoEnhance: gpu?.videoEnhance,
       };
     });
+
+    return stabilizeSingleZeroDropOptionalSeries(rawGpuData, [
+      "compute",
+      "render",
+      "copy",
+      "video",
+      "videoEnhance",
+    ]);
   }, [history, selectedGpu]);
 
   // determine which GPU engines are available (have at least one non-undefined value)
@@ -164,12 +263,12 @@ export const TestProgressIndicator = ({
     return engines;
   }, [gpuData]);
 
-  // filter and prepare data for chart - only include available engines and replace undefined with 0
+  // filter and prepare data for chart - only include available engines
+  // and stabilize single zero drops to keep continuity like other GPU charts
   const gpuChartData = useMemo(() => {
-    return gpuData.map((point) => {
-      const chartPoint: Record<string, number | undefined> & {
-        timestamp: number;
-      } = {
+    const normalizedGpuChartData: Array<{ timestamp: number } & Record<string, number>> =
+      gpuData.map((point) => {
+      const chartPoint: { timestamp: number } & Record<string, number> = {
         timestamp: point.timestamp,
       };
 
@@ -180,23 +279,58 @@ export const TestProgressIndicator = ({
 
       return chartPoint;
     });
+
+    return stabilizeSingleZeroDropSeries(
+      normalizedGpuChartData,
+      availableEngines,
+    );
   }, [gpuData, availableEngines]);
   const gpuFrequencyData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => ({
+    const rawGpuFrequencyData = history.map((point) => ({
       timestamp: point.timestamp,
       frequency: point.gpus[gpuId]?.frequency ?? 0,
     }));
+
+    return stabilizeSingleZeroDropSeries(rawGpuFrequencyData, ["frequency"]);
   }, [history, selectedGpu]);
 
   const gpuPowerData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => ({
+    const rawGpuPowerData = history.map((point) => ({
       timestamp: point.timestamp,
       gpuPower: point.gpus[gpuId]?.gpuPower ?? 0,
       pkgPower: point.gpus[gpuId]?.pkgPower ?? 0,
     }));
+
+    return stabilizeSingleZeroDropSeries(rawGpuPowerData, [
+      "gpuPower",
+      "pkgPower",
+    ]);
   }, [history, selectedGpu]);
+
+  const displayedGpuUsage = useMemo(() => {
+    const latestGpuPoint = gpuData.at(-1);
+    if (!latestGpuPoint) {
+      const gpuMetrics = metrics.gpuDetailedMetrics[selectedGpu.toString()];
+      if (!gpuMetrics) return 0;
+      return Math.max(
+        gpuMetrics.compute ?? 0,
+        gpuMetrics.render ?? 0,
+        gpuMetrics.copy ?? 0,
+        gpuMetrics.video ?? 0,
+        gpuMetrics.videoEnhance ?? 0,
+      );
+    }
+
+    return Math.max(
+      latestGpuPoint.compute ?? 0,
+      latestGpuPoint.render ?? 0,
+      latestGpuPoint.copy ?? 0,
+      latestGpuPoint.video ?? 0,
+      latestGpuPoint.videoEnhance ?? 0,
+    );
+  }, [gpuData, metrics.gpuDetailedMetrics, selectedGpu]);
 
   const cpuTempData = history.map((point) => ({
     timestamp: point.timestamp,
@@ -212,6 +346,36 @@ export const TestProgressIndicator = ({
     timestamp: point.timestamp,
     memory: point.memory ?? 0,
   }));
+
+  const fpsYAxisMax = getRecentYAxisMax(
+    fpsData.map((point) => point.value),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const cpuTempYAxisMax = getRecentYAxisMax(
+    cpuTempData.map((point) => point.temp),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const cpuFrequencyYAxisMax = getRecentYAxisMax(
+    cpuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    0.1,
+  );
+
+  const gpuPowerYAxisMax = getRecentYAxisMax(
+    gpuPowerData.map((point) => Math.max(point.gpuPower, point.pkgPower)),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const gpuFrequencyYAxisMax = getRecentYAxisMax(
+    gpuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    0.1,
+  );
 
   const engineColors: Record<string, string> = {
     compute: "var(--color-yellow-chart)",
@@ -254,10 +418,10 @@ export const TestProgressIndicator = ({
             dataKeys={["value"]}
             colors={["var(--color-magenta-chart)"]}
             unit=" fps"
-            yAxisDomain={[0, Math.max(...fpsData.map((d) => d.value), 60)]}
+            yAxisDomain={[0, fpsYAxisMax]}
             showLegend={false}
             labels={["Frame Rate"]}
-            maxDataPoints={30}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -271,7 +435,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["Memory"]}
-            maxDataPoints={30}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -297,7 +461,7 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["CPU Usage"]}
-            maxDataPoints={30}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -308,10 +472,10 @@ export const TestProgressIndicator = ({
             dataKeys={["temp"]}
             colors={["var(--color-green-chart)"]}
             unit="°C"
-            yAxisDomain={[0, Math.max(...cpuTempData.map((d) => d.temp), 100)]}
+            yAxisDomain={[0, cpuTempYAxisMax]}
             showLegend={false}
             labels={["Temperature"]}
-            maxDataPoints={30}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -322,13 +486,10 @@ export const TestProgressIndicator = ({
             dataKeys={["frequency"]}
             colors={["var(--color-green-chart)"]}
             unit=" GHz"
-            yAxisDomain={[
-              0,
-              Math.max(...cpuFrequencyData.map((d) => d.frequency), 5),
-            ]}
+            yAxisDomain={[0, cpuFrequencyYAxisMax]}
             showLegend={false}
             labels={["Frequency"]}
-            maxDataPoints={30}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -338,18 +499,7 @@ export const TestProgressIndicator = ({
         <div className="space-y-4">
           <MetricCard
             title={isSummary ? "GPU Usage Average" : "GPU Usage"}
-            value={(() => {
-              const gpuMetrics =
-                metrics.gpuDetailedMetrics[selectedGpu.toString()];
-              if (!gpuMetrics) return 0;
-              return Math.max(
-                gpuMetrics.compute ?? 0,
-                gpuMetrics.render ?? 0,
-                gpuMetrics.copy ?? 0,
-                gpuMetrics.video ?? 0,
-                gpuMetrics.videoEnhance ?? 0,
-              );
-            })()}
+            value={displayedGpuUsage}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
             isSummary={isSummary}
@@ -408,19 +558,11 @@ export const TestProgressIndicator = ({
                     "var(--color-yellow-chart)",
                   ]}
                   unit=" W"
-                  yAxisDomain={[
-                    0,
-                    Math.max(
-                      ...gpuPowerData.map((d) =>
-                        Math.max(d.gpuPower, d.pkgPower),
-                      ),
-                      50,
-                    ),
-                  ]}
+                  yAxisDomain={[0, gpuPowerYAxisMax]}
                   showLegend={true}
                   className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
                   labels={["GPU Power", "Package Power"]}
-                  maxDataPoints={30}
+                  maxDataPoints={CHART_MAX_DATA_POINTS}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
                   forceDark={forceDark}
@@ -479,14 +621,11 @@ export const TestProgressIndicator = ({
                   dataKeys={["frequency"]}
                   colors={["var(--color-yellow-chart)"]}
                   unit=" GHz"
-                  yAxisDomain={[
-                    0,
-                    Math.max(...gpuFrequencyData.map((d) => d.frequency), 3),
-                  ]}
+                  yAxisDomain={[0, gpuFrequencyYAxisMax]}
                   showLegend={false}
                   labels={["Frequency"]}
                   className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
-                  maxDataPoints={30}
+                  maxDataPoints={CHART_MAX_DATA_POINTS}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
                   forceDark={forceDark}
@@ -549,7 +688,7 @@ export const TestProgressIndicator = ({
                   labels={availableEngines.map((e) => engineLabels[e])}
                   wrapLegend={true}
                   className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
-                  maxDataPoints={30}
+                  maxDataPoints={CHART_MAX_DATA_POINTS}
                   isSummary={isSummary}
                   hideSummaryBorder={true}
                   forceDark={forceDark}
