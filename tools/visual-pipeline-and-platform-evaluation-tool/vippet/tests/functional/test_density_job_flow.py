@@ -10,7 +10,10 @@ import requests
 
 from helpers.api_helpers import run_job_with_retry, wait_for_job_completion
 from config import BASE_URL
-from helpers.pipeline_case_helpers import PipelineCase, discover_pipeline_cases_for_pytest
+from helpers.pipeline_case_helpers import (
+    PipelineCase,
+    discover_pipeline_cases_for_pytest,
+)
 
 logger = logging.getLogger(__name__)
 
