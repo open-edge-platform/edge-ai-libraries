@@ -3,10 +3,10 @@ import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
   useRunDensityTestMutation,
+  useStopDensityTestJobMutation,
 } from "@/api/api.generated.ts";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
-import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
@@ -19,14 +19,14 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, X } from "lucide-react";
+import { Square, Plus, X } from "lucide-react";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
-import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -44,7 +44,10 @@ interface PipelineSelection {
 }
 
 export const DensityTests = () => {
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const pipelines = useAppSelector(selectPipelines);
+  const [stopDensityTest, { isLoading: isStopping }] =
+    useStopDensityTestJobMutation();
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
   >([]);
@@ -55,13 +58,16 @@ export const DensityTests = () => {
     streams_per_pipeline: PipelineStreamSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
-  const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [loopingEnabled, setLoopingEnabled] = useState(false);
+  const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
+    DEFAULT_LOOPING_RUNTIME_SECONDS,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
 
   const {
     execute: runTest,
-    isLoading,
+    isLoading: isRunning,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunDensityTestMutation,
@@ -182,8 +188,8 @@ export const DensityTests = () => {
       const status = await runTest({
         densityTestSpec: {
           execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
+            output_mode: "disabled",
+            max_runtime: loopingEnabled ? loopingRuntimeSeconds : 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
@@ -216,6 +222,18 @@ export const DensityTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+    }
+  };
+
+  const handleStopTest = async () => {
+    if (!jobStatus?.id) return;
+
+    try {
+      await stopDensityTest({
+        jobId: jobStatus.id,
+      }).unwrap();
+    } catch (err) {
+      console.error("Failed to stop density test:", err);
     }
   };
 
@@ -263,6 +281,7 @@ export const DensityTests = () => {
                     onValueChange={(value) =>
                       handlePipelineChange(index, value)
                     }
+                    disabled={isRunning}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -284,6 +303,7 @@ export const DensityTests = () => {
                   <Select
                     value={selection.variantId}
                     onValueChange={(value) => handleVariantChange(index, value)}
+                    disabled={isRunning}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -309,6 +329,7 @@ export const DensityTests = () => {
                     }
                     min={0}
                     max={100}
+                    disabled={isRunning}
                   />
                 </div>
               </div>
@@ -319,6 +340,7 @@ export const DensityTests = () => {
                   variant="ghost"
                   size="icon"
                   className="text-destructive"
+                  disabled={isRunning}
                 >
                   <X className="w-5 h-5" />
                 </Button>
@@ -327,7 +349,13 @@ export const DensityTests = () => {
           );
         })}
 
-        <Button onClick={handleAddPipeline} variant="outline">
+        <Button
+          onClick={handleAddPipeline}
+          variant="outline"
+          disabled={
+            pipelineSelections.length >= pipelines.length || isRunning
+          }
+        >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
         </Button>
@@ -342,6 +370,7 @@ export const DensityTests = () => {
             onChange={(e) => setFpsFloor(Number(e.target.value))}
             min={1}
             max={120}
+            disabled={isRunning}
             className="w-24 px-3 py-2 border"
           />
           <span className="text-sm text-muted-foreground">FPS</span>
@@ -353,31 +382,72 @@ export const DensityTests = () => {
               <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
-                    checked={videoOutputEnabled}
-                    onCheckedChange={(checked) =>
-                      setVideoOutputEnabled(checked === true)
-                    }
+                    checked={loopingEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLoopingEnabled(isChecked);
+                    }}
                   />
-                  <span className="text-sm font-medium">Save output</span>
+                  <span className="text-sm font-medium">
+                    Run pipeline in loop
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>
-                  Selecting this option changes the last fakesink to filesink so
-                  it is possible to view generated output
-                </p>
+                <p>Run test in loop mode for a selected duration</p>
               </TooltipContent>
             </Tooltip>
           </div>
-          {videoOutputEnabled && <SaveOutputWarning />}
+
+          {loopingEnabled && (
+            <div className="ml-6 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Duration</span>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={loopingRuntimeSeconds}
+                disabled={isRunning}
+                onChange={(event) => {
+                  const value = event.target.valueAsNumber;
+                  setLoopingRuntimeSeconds(
+                    Number.isNaN(value)
+                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                      : value,
+                  );
+                }}
+                onBlur={() => {
+                  if (loopingRuntimeSeconds < 1) {
+                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
+                  }
+                }}
+                className="h-8 w-24 px-2 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">s</span>
+            </div>
+          )}
         </div>
 
-        <Button
-          onClick={handleRunTest}
-          disabled={isLoading || pipelineSelections.length === 0}
-        >
-          {isLoading ? "Running..." : "Run density test"}
-        </Button>
+        {isRunning ? (
+          <Button
+            onClick={handleStopTest}
+            disabled={isStopping}
+            variant="destructive"
+            className="w-[160px]"
+            title="Stop test"
+          >
+            <Square className="w-5 h-5" />
+            <span>{isStopping ? "Stopping..." : "Stop"}</span>
+          </Button>
+        ) : (
+          <Button
+            onClick={handleRunTest}
+            disabled={isRunning || pipelineSelections.length === 0}
+          >
+            {isRunning ? "Starting..." : "Run density test"}
+          </Button>
+        )}
 
         {jobStatus && (
           <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
@@ -435,50 +505,6 @@ export const DensityTests = () => {
                 </div>
               )}
             </div>
-
-            {videoOutputEnabled &&
-              testResult.video_output_paths &&
-              Object.keys(testResult.video_output_paths).length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-3">
-                    Output Videos:
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(testResult.video_output_paths).map(
-                      ([pipelineId, paths]) => {
-                        const videoPath =
-                          paths && paths.length > 0 ? [...paths].pop() : null;
-
-                        return (
-                          <div
-                            key={pipelineId}
-                            className="border border-green-300 dark:border-green-700 overflow-hidden"
-                          >
-                            <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
-                              <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                <PipelineName pipelineId={pipelineId} />
-                              </p>
-                            </div>
-                            {videoPath ? (
-                              <video
-                                controls
-                                className="w-full"
-                                src={`/assets${videoPath}`}
-                              >
-                                Your browser does not support the video tag.
-                              </video>
-                            ) : (
-                              <div className="p-4 text-center text-sm text-green-700 dark:text-green-300">
-                                no streams
-                              </div>
-                            )}
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-              )}
           </div>
         )}
       </div>
