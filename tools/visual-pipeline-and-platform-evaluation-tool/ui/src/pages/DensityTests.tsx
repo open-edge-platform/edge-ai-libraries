@@ -391,12 +391,12 @@ export const DensityTests = () => {
                     }}
                   />
                   <span className="text-sm font-medium">
-                    Run pipeline in loop
+                    Set iteration duration
                   </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Run test in loop mode for a selected duration</p>
+                <p>Run test iteration for a selected duration</p>
               </TooltipContent>
             </Tooltip>
           </div>

@@ -43,7 +43,6 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
-import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
 import {
   Tooltip,
   TooltipContent,
@@ -180,6 +179,7 @@ const CheckboxInfoHint = ({
 );
 
 const DemoMode = () => {
+  const DEFAULT_DENSITY_ITERATION_DURATION_SECONDS = 10;
   const navigate = useNavigate();
   usePipelinesLoader();
   useModelsLoader();
@@ -197,6 +197,12 @@ const DemoMode = () => {
     PipelineSelection[]
   >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
+  const [densityIterationDurationEnabled, setDensityIterationDurationEnabled] =
+    useState(false);
+  const [densityIterationDurationSeconds, setDensityIterationDurationSeconds] =
+    useState(DEFAULT_DENSITY_ITERATION_DURATION_SECONDS);
+  const [densityIterationDurationInput, setDensityIterationDurationInput] =
+    useState(String(DEFAULT_DENSITY_ITERATION_DURATION_SECONDS));
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
@@ -521,15 +527,6 @@ const DemoMode = () => {
     }
     return { total, perStream };
   }, [performanceResult]);
-
-  const colorModes = {
-    first: "180,230,255",
-    second: "15,76,129",
-    third: "120,190,255",
-    fourth: "30,90,150",
-    fifth: "200,240,255",
-    sixth: "140,210,255",
-  };
 
   // UI color styles
   const colors = {
@@ -1040,7 +1037,9 @@ const DemoMode = () => {
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
-            max_runtime: 10,
+            max_runtime: densityIterationDurationEnabled
+              ? densityIterationDurationSeconds
+              : 0,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
@@ -1095,15 +1094,15 @@ const DemoMode = () => {
 
   return (
     <div className="relative h-screen overflow-hidden text-white">
-      {/* Animated background */}
-      <BubbleBackground
-        interactive={true}
-        className="absolute inset-0 z-0"
-        colors={colorModes}
-      />
+      <div className="absolute inset-0 z-0 bg-slate-900">
+        <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rounded-full bg-blue-300/25 blur-3xl" />
+        <div className="absolute top-1/4 right-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-200/18 blur-3xl" />
+        <div className="absolute bottom-[-140px] left-1/3 h-[420px] w-[420px] rounded-full bg-indigo-300/18 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/10 via-transparent to-slate-950/25" />
+      </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 h-full flex flex-col bg-slate-950/80 min-h-0">
+      <div className="relative z-10 h-full flex flex-col bg-slate-950/25 min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
@@ -2210,6 +2209,95 @@ const DemoMode = () => {
                                           placeholder="Minimum FPS threshold"
                                           min={0}
                                         />
+                                      </div>
+
+                                      <div className="space-y-2 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              densityIterationDurationEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setDensityIterationDurationEnabled(
+                                                checked === true,
+                                              )
+                                            }
+                                            disabled={isReadOnly}
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs font-medium text-slate-300">
+                                            Set iteration duration
+                                          </label>
+                                          <CheckboxInfoHint description="Run test iteration for a selected duration." />
+                                        </div>
+
+                                        {densityIterationDurationEnabled && (
+                                          <div className="flex items-center gap-2 pl-6">
+                                            <span className="text-xs text-slate-400">
+                                              Duration
+                                            </span>
+                                            <input
+                                              type="text"
+                                              inputMode="numeric"
+                                              pattern="[0-9]*"
+                                              value={
+                                                densityIterationDurationInput
+                                              }
+                                              disabled={isReadOnly}
+                                              onChange={(event) => {
+                                                const value =
+                                                  event.target.value;
+
+                                                if (
+                                                  value !== "" &&
+                                                  !/^\d+$/.test(value)
+                                                ) {
+                                                  return;
+                                                }
+
+                                                setDensityIterationDurationInput(
+                                                  value,
+                                                );
+
+                                                if (value === "") {
+                                                  return;
+                                                }
+
+                                                const parsedValue =
+                                                  Number.parseInt(value, 10);
+                                                setDensityIterationDurationSeconds(
+                                                  parsedValue,
+                                                );
+                                              }}
+                                              onBlur={() => {
+                                                const parsedValue =
+                                                  densityIterationDurationInput
+                                                    .trim().length === 0
+                                                    ? Number.NaN
+                                                    : Number.parseInt(
+                                                        densityIterationDurationInput,
+                                                        10,
+                                                      );
+                                                const normalizedValue =
+                                                  Number.isFinite(parsedValue) &&
+                                                  parsedValue >= 1
+                                                    ? parsedValue
+                                                    : DEFAULT_DENSITY_ITERATION_DURATION_SECONDS;
+
+                                                setDensityIterationDurationSeconds(
+                                                  normalizedValue,
+                                                );
+                                                setDensityIterationDurationInput(
+                                                  String(normalizedValue),
+                                                );
+                                              }}
+                                              className={`w-20 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                            />
+                                            <span className="text-xs text-slate-400">
+                                              s
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>

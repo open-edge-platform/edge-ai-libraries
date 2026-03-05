@@ -585,6 +585,7 @@ export const PerformanceTests = () => {
           <Button
             onClick={handleRunTest}
             disabled={isRunning || pipelineSelections.length === 0}
+            className="self-start"
           >
             {isRunning ? "Starting..." : "Run performance test"}
           </Button>
