@@ -12,42 +12,59 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
+
+      {{- if .Values.global.gpu.enabled }}
+      securityContext:
+        fsGroup: 0
+      {{- end }}
+
       initContainers:
         - name: init-script
           image: "python:3.10.12"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           command:
-              - /bin/sh
-              - -c
-              - |
-                if [ -f /opt/data/models/config.json ]; then
-                  echo "Config file found, checking for model conversion."
-                  if grep '"name": "{{ .Values.global.LLM_MODEL }}"' /opt/data/models/config.json; then
-                    echo "Model already converted, skipping conversion."
-                  else
-                    echo "Model not converted, running init script. /config/init-script.sh "{{ .Values.global.LLM_MODEL }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
-                    . /config/init-script.sh
-                  fi
+            - /bin/sh
+            - -c
+            - |
+              if [ -f /opt/data/models/config_all.json ]; then
+                echo "Config file found, checking for model conversion."
+                if grep '"name": "{{ .Values.global.LLM_MODEL }}"' /opt/data/models/config_all.json; then
+                  echo "Model already converted, skipping conversion."
                 else
-                  echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.LLM_MODEL }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
-                  . /config/init-script.sh
+                  echo "Model not converted, running init script."
+                  sh /config/init-script.sh "$LLM_MODEL" "$WEIGHT_FORMAT" "$HF_TOKEN" "$GPU_ENABLED"
                 fi
-          args: ["{{ .Values.global.LLM_MODEL}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.gpu.enabled }}"]
+              else
+                echo "No config_all.json found, running init script."
+                sh /config/init-script.sh "$LLM_MODEL" "$WEIGHT_FORMAT" "$HF_TOKEN" "$GPU_ENABLED"
+              fi
           env:
+            - name: LLM_MODEL
+              value: "{{ .Values.global.LLM_MODEL }}"
+            - name: WEIGHT_FORMAT
+              value: "{{ .Values.ovms.env.WEIGHT_FORMAT }}"
+            - name: GPU_ENABLED
+              value: "{{ .Values.global.gpu.enabled }}"
+            - name: HF_TOKEN
+              value: "{{ .Values.global.huggingface.apiToken }}"
             - name: http_proxy
-              value: {{ .Values.global.proxy.http_proxy }}
+              value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
-              value: {{ .Values.global.proxy.https_proxy }}
+              value: "{{ .Values.global.proxy.https_proxy }}"
             - name: no_proxy
-              value: {{ .Values.global.proxy.no_proxy }}
+              value: "{{ .Values.global.proxy.no_proxy }},{{ .Values.global.modelDownload.serviceName }}"
+
           volumeMounts:
             - name: scripts-volume
               mountPath: /config
+            - name: shared-helper
+              mountPath: /shared
             - name: workspace
               mountPath: /opt/data
+
       containers:
         - name: {{ .Values.ovms.name }}
-          image: "{{- if .Values.global.gpu.enabled -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}{{- end -}}"
+          image: "{{- if .Values.global.gpu.enabled -}}{{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }}{{- else -}}{{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}{{- end -}}"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           readinessProbe:
             httpGet:
@@ -55,13 +72,20 @@ spec:
               port: {{ .Values.ovms.readinessProbe.httpGet.port }}
             initialDelaySeconds: {{ .Values.ovms.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.ovms.readinessProbe.periodSeconds }}
+
           ports:
             - containerPort: {{ .Values.ovms.service.port }}
+
           volumeMounts:
             - name: scripts-volume
               mountPath: /config
             - name: workspace
               mountPath: /opt/data
+{{- if .Values.global.gpu.enabled }}
+            - name: dri-device
+              mountPath: /dev/dri
+{{- end }}
+
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
@@ -71,34 +95,50 @@ spec:
               value: {{ .Values.global.proxy.no_proxy }}
             - name: WEIGHT_FORMAT
               value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
-          args: ["--port", "9300", "--rest_port", "8300", "--config_path", "/opt/data/models/config.json"]
-      {{ if .Values.global.gpu.enabled }}
+
+          args:
+            - "--port"
+            - "9300"
+            - "--rest_port"
+            - "8300"
+            - "--config_path"
+            - "/opt/data/models/config_all.json"
+
+{{- if .Values.global.gpu.enabled }}
           resources:
             requests:
-              {{ .Values.global.gpu.key}}: 1
+              {{ .Values.global.gpu.key }}: 1
             limits:
-              {{ .Values.global.gpu.key}}: 1
+              {{ .Values.global.gpu.key }}: 1
+
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
-      {{ end }}
+{{- end }}
+
       volumes:
         - name: scripts-volume
           configMap:
             name: {{ .Values.ovms.script.name }}
             defaultMode: 0777
-      {{ if .Values.global.gpu.enabled }}
+
+        - name: shared-helper
+          configMap:
+            name: ovms-model-download-helper
+            defaultMode: 0777
+
+{{- if .Values.global.gpu.enabled }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: models-pvc
+
         - name: dri-device
           hostPath:
             path: /dev/dri
             type: Directory
+{{- else }}
         - name: workspace
           persistentVolumeClaim:
-            claimName: ovms-gpu-pvc
-      {{ else }}
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: ovms-pvc
-      {{ end }}
+            claimName: models-pvc
+{{- end }}

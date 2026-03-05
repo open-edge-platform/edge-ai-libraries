@@ -52,6 +52,9 @@ WORKDIR /my-app
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
+# Upgrade vulnerable build-time packages to patched versions
+RUN /usr/local/bin/pip install --upgrade pip setuptools wheel jaraco.context
+
 # Copy application code
 COPY app ./app
 

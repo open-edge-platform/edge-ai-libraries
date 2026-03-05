@@ -8,7 +8,7 @@ import prettierPlugin from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  globalIgnores(["dist", "src/api/api.generated.ts"]),
   {
     files: ["**/*.{ts,tsx,js,jsx}"],
     extends: [
