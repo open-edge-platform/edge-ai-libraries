@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Square, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -40,6 +41,12 @@ interface PipelineSelection {
   streams: number;
   isRemoving?: boolean;
   isNew?: boolean;
+}
+
+interface PipelineVariantReference {
+  rawKey: string;
+  pipelineId: string;
+  variantId: string | null;
 }
 
 export const PerformanceTests = () => {
@@ -74,6 +81,97 @@ export const PerformanceTests = () => {
   });
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
+
+  const parsePipelineVariantReference = (
+    value: string,
+  ): PipelineVariantReference => {
+    const variantPathMatch = value.match(
+      /^\/pipelines\/([^/]+)\/variants\/([^/]+)$/,
+    );
+    if (variantPathMatch) {
+      return {
+        rawKey: value,
+        pipelineId: variantPathMatch[1],
+        variantId: variantPathMatch[2],
+      };
+    }
+
+    return {
+      rawKey: value,
+      pipelineId: value,
+      variantId: null,
+    };
+  };
+
+  const selectedPipelineReferences = useMemo(() => {
+    const uniqueReferences = new Map<string, PipelineVariantReference>();
+
+    pipelineSelections.forEach((selection) => {
+      const rawKey = `/pipelines/${selection.pipelineId}/variants/${selection.variantId}`;
+      if (!uniqueReferences.has(rawKey)) {
+        uniqueReferences.set(rawKey, {
+          rawKey,
+          pipelineId: selection.pipelineId,
+          variantId: selection.variantId,
+        });
+      }
+    });
+
+    return Array.from(uniqueReferences.values());
+  }, [pipelineSelections]);
+
+  const getVariantDisplayName = (
+    pipelineId: string,
+    variantId: string | null,
+  ): string | null => {
+    if (!variantId) {
+      return null;
+    }
+
+    const pipeline = pipelines.find((item) => item.id === pipelineId);
+    const variant = pipeline?.variants.find((item) => item.id === variantId);
+
+    return variant?.name ?? variantId;
+  };
+
+  const renderPipelineVariantLabel = (
+    pipelineId: string,
+    variantId: string | null,
+  ) => {
+    const variantName = getVariantDisplayName(pipelineId, variantId);
+
+    return (
+      <>
+        <PipelineName pipelineId={pipelineId} />
+        {variantName ? ` • ${variantName}` : ""}
+      </>
+    );
+  };
+
+  const getLiveStreamUrl = (reference: PipelineVariantReference) => {
+    const urls = jobStatus?.live_stream_urls ?? {};
+
+    const directUrl =
+      urls[reference.rawKey] ??
+      urls[reference.pipelineId] ??
+      (reference.variantId
+        ? urls[`${reference.pipelineId}/${reference.variantId}`]
+        : undefined);
+
+    if (directUrl) {
+      return directUrl;
+    }
+
+    const matchedEntry = Object.entries(urls).find(([key]) => {
+      const parsed = parsePipelineVariantReference(key);
+      return (
+        parsed.pipelineId === reference.pipelineId &&
+        (!reference.variantId || parsed.variantId === reference.variantId)
+      );
+    });
+
+    return matchedEntry?.[1] ?? null;
+  };
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -362,7 +460,9 @@ export const PerformanceTests = () => {
                       }
                     }}
                   />
-                  <span className="text-sm font-medium">Save output</span>
+                  <span className="text-sm font-medium">
+                    Keep pipeline output
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -422,35 +522,35 @@ export const PerformanceTests = () => {
                 <p>Run test in loop mode for a selected duration</p>
               </TooltipContent>
             </Tooltip>
-          </div>
 
-          {loopingEnabled && (
-            <div className="ml-6 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Duration</span>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                value={loopingRuntimeSeconds}
-                disabled={isRunning}
-                onChange={(event) => {
-                  const value = event.target.valueAsNumber;
-                  setLoopingRuntimeSeconds(
-                    Number.isNaN(value)
-                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                      : value,
-                  );
-                }}
-                onBlur={() => {
-                  if (loopingRuntimeSeconds < 1) {
-                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
-                  }
-                }}
-                className="h-8 w-24 px-2 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">s</span>
-            </div>
-          )}
+            {loopingEnabled && (
+              <div className="flex items-center gap-2 h-[42px]">
+                <span className="text-xs text-muted-foreground">Duration</span>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={loopingRuntimeSeconds}
+                  disabled={isRunning}
+                  onChange={(event) => {
+                    const value = event.target.valueAsNumber;
+                    setLoopingRuntimeSeconds(
+                      Number.isNaN(value)
+                        ? DEFAULT_LOOPING_RUNTIME_SECONDS
+                        : value,
+                    );
+                  }}
+                  onBlur={() => {
+                    if (loopingRuntimeSeconds < 1) {
+                      setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
+                    }
+                  }}
+                  className="h-8 w-24 px-2 text-xs"
+                />
+                <span className="text-xs text-muted-foreground">s</span>
+              </div>
+            )}
+          </div>
 
           {videoOutputEnabled && <SaveOutputWarning />}
         </div>
@@ -487,6 +587,49 @@ export const PerformanceTests = () => {
                     Running performance test...
                   </span>
                 </div>
+
+                {livePreviewEnabled && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                      Live Preview:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedPipelineReferences.map((reference) => {
+                        const streamUrl = getLiveStreamUrl(reference);
+
+                        return (
+                          <div
+                            key={reference.rawKey}
+                            className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                          >
+                            <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                              <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                {renderPipelineVariantLabel(
+                                  reference.pipelineId,
+                                  reference.variantId,
+                                )}
+                              </p>
+                            </div>
+
+                            {streamUrl ? (
+                              <div className="w-full aspect-video bg-black">
+                                <WebRTCVideoPlayer
+                                  pipelineId={reference.pipelineId}
+                                  streamUrl={streamUrl}
+                                />
+                              </div>
+                            ) : (
+                              <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                Waiting for live stream to be published...
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <TestProgressIndicator />
               </div>
             )}
@@ -529,18 +672,23 @@ export const PerformanceTests = () => {
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(testResult.video_output_paths).map(
-                      ([pipelineId, paths]) => {
+                      ([pipelineRefKey, paths]) => {
+                        const reference =
+                          parsePipelineVariantReference(pipelineRefKey);
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
                         return (
                           <div
-                            key={pipelineId}
+                            key={pipelineRefKey}
                             className="border border-green-300 dark:border-green-700 overflow-hidden"
                           >
                             <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
                               <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                <PipelineName pipelineId={pipelineId} />
+                                {renderPipelineVariantLabel(
+                                  reference.pipelineId,
+                                  reference.variantId,
+                                )}
                               </p>
                             </div>
                             {videoPath ? (

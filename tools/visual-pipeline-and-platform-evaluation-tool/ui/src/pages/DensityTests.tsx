@@ -44,7 +44,7 @@ interface PipelineSelection {
 }
 
 export const DensityTests = () => {
-  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
   const pipelines = useAppSelector(selectPipelines);
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
@@ -352,9 +352,7 @@ export const DensityTests = () => {
         <Button
           onClick={handleAddPipeline}
           variant="outline"
-          disabled={
-            pipelineSelections.length >= pipelines.length || isRunning
-          }
+          disabled={pipelineSelections.length >= pipelines.length || isRunning}
         >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
@@ -376,7 +374,7 @@ export const DensityTests = () => {
           <span className="text-sm text-muted-foreground">FPS</span>
         </div>
 
-        <div className="my-4 flex flex-col">
+        <div className="my-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -401,7 +399,7 @@ export const DensityTests = () => {
           </div>
 
           {loopingEnabled && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="flex items-center gap-2 h-[42px]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
                 type="number"
