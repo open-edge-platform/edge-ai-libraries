@@ -79,33 +79,6 @@ def _assert_models_present_in_api(
         )
 
 
-def _assert_model_families_present_in_api(
-    api_models: list[ModelDict],
-    expected_models: list[ModelDict],
-) -> None:
-    """Assert every expected model family exists in API in at least one precision.
-
-    Used in smoke tests where environment can legitimately miss some precision
-    artifacts even after model installation.
-    """
-    expected_families = {
-        (m["name"], m["display_name"], m["type"]) for m in expected_models
-    }
-
-    for name, display_name, category in expected_families:
-        matches = [
-            m
-            for m in api_models
-            if m.get("name", "").startswith(name)
-            and m.get("display_name", "").startswith(display_name)
-            and m.get("category") == category
-        ]
-        assert matches, (
-            f"Model family '{name}' is missing from API response "
-            f"(expected at least one precision variant)"
-        )
-
-
 @pytest.mark.smoke
 def test_default_models_present_in_api(
     http_client: requests.Session,
@@ -123,7 +96,7 @@ def test_default_models_present_in_api(
         "Verifying %d default model variant(s) from config", len(default_models)
     )
 
-    _assert_model_families_present_in_api(api_models, default_models)
+    _assert_models_present_in_api(api_models, default_models)
 
 
 @pytest.mark.full
