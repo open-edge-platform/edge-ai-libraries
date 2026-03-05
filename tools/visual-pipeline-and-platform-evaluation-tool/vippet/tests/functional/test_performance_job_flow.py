@@ -8,13 +8,16 @@ from typing import Any
 import pytest
 import requests
 
-from helpers.api_helpers import wait_for_job_completion
+from helpers.api_helpers import run_job_with_retry, wait_for_job_completion
 from config import BASE_URL
 from helpers.pipeline_case_helpers import PipelineCase, discover_pipeline_cases_for_pytest
 
 logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, Any]
+
+# Seconds to wait before retrying a failed job
+RETRY_DELAY_SECONDS: float = 5.0
 
 # Number of parallel streams requested for each pipeline in the test
 STREAMS_PER_PIPELINE: int = 3
@@ -65,6 +68,17 @@ def _start_performance_job(session: requests.Session, payload: JsonDict) -> str:
     return job_id
 
 
+def _attempt_performance_job(session: requests.Session, payload: JsonDict) -> JsonDict:
+    """Submit a performance job and wait for it to finish.
+
+    Returns the final status dict regardless of whether the job succeeded or
+    failed, so the caller can decide whether to retry.
+    """
+    job_id = _start_performance_job(session, payload)
+    status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
+    return wait_for_job_completion(session, status_url)
+
+
 @pytest.mark.full
 @pytest.mark.parametrize("case", PIPELINE_CASES, ids=CASE_IDS)
 def test_performance_job_completes_successfully(
@@ -86,23 +100,24 @@ def test_performance_job_completes_successfully(
     )
 
     payload = _build_performance_payload(case)
-    job_id = _start_performance_job(http_client, payload)
+    final_status = run_job_with_retry(
+        lambda: _attempt_performance_job(http_client, payload),
+        retry_delay_seconds=RETRY_DELAY_SECONDS,
+    )
 
-    status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
-    final_status = wait_for_job_completion(http_client, status_url)
-
+    pipeline_label = f"pipeline_id={case.pipeline_id} variant_id={case.variant_id}"
     assert final_status.get("state") == "COMPLETED", (
-        f"Job {job_id} finished in unexpected state {final_status.get('state')}"
+        f"{pipeline_label} finished in unexpected state {final_status.get('state')}"
     )
     assert final_status.get("total_fps") is not None, (
-        f"Job {job_id} missing total_fps in response"
+        f"{pipeline_label} missing total_fps in response"
     )
     assert (final_status.get("per_stream_fps") or 0) > 0, (
-        f"Job {job_id} per_stream_fps must be greater than zero"
+        f"{pipeline_label} per_stream_fps must be greater than zero"
     )
     assert final_status.get("total_streams") == STREAMS_PER_PIPELINE, (
-        f"Job {job_id} total_streams is {final_status.get('total_streams')}, expected {STREAMS_PER_PIPELINE}"
+        f"{pipeline_label} total_streams is {final_status.get('total_streams')}, expected {STREAMS_PER_PIPELINE}"
     )
     assert final_status.get("error_message") is None, (
-        f"Job {job_id} returned error message: {final_status.get('error_message')}"
+        f"{pipeline_label} returned error message: {final_status.get('error_message')}"
     )

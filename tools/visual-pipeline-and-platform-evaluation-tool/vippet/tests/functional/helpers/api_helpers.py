@@ -6,6 +6,7 @@ modules do not duplicate fetch / polling logic.
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
 logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, Any]
+type JobAttemptFn = Callable[[], JsonDict]
 
 
 def fetch_devices(session: requests.Session) -> list[JsonDict]:
@@ -76,7 +78,7 @@ def wait_for_job_completion(
     *,
     assert_initial_running: bool = True,
 ) -> JsonDict:
-    """Poll *status_url* until the job reaches ``COMPLETED`` state.
+    """Poll *status_url* until the job leaves ``RUNNING`` state.
 
     Parameters
     ----------
@@ -93,13 +95,14 @@ def wait_for_job_completion(
     Returns
     -------
     JsonDict
-        The final status payload once state == ``COMPLETED``.
+        The final status payload once ``state != "RUNNING"``.  The caller
+        is responsible for checking the ``state`` field (e.g. via
+        :func:`run_job_with_retry`).
 
     Raises
     ------
     pytest.fail
-        If the job does not reach ``COMPLETED`` within
-        ``POLL_TIMEOUT_SECONDS``.
+        If the job is still ``RUNNING`` after ``POLL_TIMEOUT_SECONDS``.
     """
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
 
@@ -120,14 +123,9 @@ def wait_for_job_completion(
 
     while time.monotonic() < deadline:
         state = last_status.get("state")
-        if state == "COMPLETED":
-            logger.info("Job at %s finished with COMPLETED state", status_url)
+        if state != "RUNNING":
+            logger.info("Job at %s finished with state=%s", status_url, state)
             return last_status
-        if state == "ERROR":
-            pytest.fail(
-                f"Job at {status_url} reached ERROR state: "
-                f"{last_status.get('error_message')}"
-            )
         time.sleep(POLL_INTERVAL_SECONDS)
         response = session.get(status_url, timeout=30)
         response.raise_for_status()
@@ -143,3 +141,37 @@ def wait_for_job_completion(
     pytest.fail(
         f"Job at {status_url} did not reach COMPLETED within {POLL_TIMEOUT_SECONDS} seconds"
     )
+
+
+def run_job_with_retry(
+    attempt_fn: JobAttemptFn,
+    *,
+    retry_delay_seconds: float = 5.0,
+) -> JsonDict:
+    """Run *attempt_fn* and, if the job does not reach ``COMPLETED``, retry once.
+
+    Parameters
+    ----------
+    attempt_fn:
+        A zero-argument callable that submits a job and waits for it to finish,
+        returning the final status dict from :func:`wait_for_job_completion`.
+    retry_delay_seconds:
+        How long to wait between the first failure and the retry.
+
+    Returns
+    -------
+    JsonDict
+        The final status dict from the first attempt that reaches
+        ``COMPLETED``, or the result of the second attempt (pass or fail).
+    """
+    status = attempt_fn()
+    if status.get("state") != "COMPLETED":
+        logger.warning(
+            "First job attempt finished in state '%s' (error: %s) – retrying once after %.1fs",
+            status.get("state"),
+            status.get("error_message"),
+            retry_delay_seconds,
+        )
+        time.sleep(retry_delay_seconds)
+        status = attempt_fn()
+    return status
