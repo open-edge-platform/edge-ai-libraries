@@ -794,12 +794,17 @@ class TestOptimizationRunner(unittest.TestCase):
         self.fake_optimizer = types.SimpleNamespace()
         self.fake_optimizer.preprocess_pipeline = lambda pipeline: pipeline.upper()
 
-        self.fake_optimizer.get_optimized_pipeline = (
-            lambda pipeline, search_duration, sample_duration: (
-                pipeline + " ! OPTIMIZED",
-                99.9,
-            )
-        )
+        class FakeDLSOptimizer:
+            def set_search_duration(self, duration: int) -> None:
+                pass
+
+            def set_sample_duration(self, duration: int) -> None:
+                pass
+
+            def optimize_for_fps(self, pipeline: str):
+                return (pipeline + " ! OPTIMIZED", 99.9)
+
+        self.fake_optimizer.DLSOptimizer = FakeDLSOptimizer
 
         self.optimizer_patcher = patch.dict(
             "sys.modules", {"optimizer": self.fake_optimizer}
