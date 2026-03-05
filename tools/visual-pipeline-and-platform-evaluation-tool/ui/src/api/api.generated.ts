@@ -429,7 +429,7 @@ export type GetValidationJobStatusApiArg = {
   jobId: string;
 };
 export type GetModelsApiResponse =
-  /** status 200 Successful Response */ Model[];
+  /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
 export type GetPipelineTemplatesApiResponse =
   /** status 200 List of all available pipeline templates */ Pipeline[];
@@ -440,7 +440,7 @@ export type GetPipelineTemplateApiArg = {
   templateId: string;
 };
 export type GetPipelinesApiResponse =
-  /** status 200 Successful Response */ Pipeline[];
+  /** status 200 List of all pipelines including predefined and user-created */ Pipeline[];
 export type GetPipelinesApiArg = void;
 export type CreatePipelineApiResponse =
   /** status 201 Pipeline created */ PipelineCreationResponse;
@@ -453,56 +453,56 @@ export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
 export type GetPipelineApiResponse =
-  /** status 200 Successful Response */ Pipeline;
+  /** status 200 Pipeline details retrieved successfully */ Pipeline;
 export type GetPipelineApiArg = {
   pipelineId: string;
 };
 export type UpdatePipelineApiResponse =
-  /** status 200 Pipeline updated */ Pipeline;
+  /** status 200 Pipeline successfully updated */ Pipeline;
 export type UpdatePipelineApiArg = {
   pipelineId: string;
   pipelineUpdate: PipelineUpdate;
 };
 export type DeletePipelineApiResponse =
-  /** status 200 Pipeline deleted */ MessageResponse;
+  /** status 200 Pipeline successfully deleted */ MessageResponse;
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
 export type OptimizeVariantApiResponse =
-  /** status 202 Variant optimization started */ OptimizationJobResponse;
+  /** status 202 Optimization job successfully started */ OptimizationJobResponse;
 export type OptimizeVariantApiArg = {
   pipelineId: string;
   variantId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;
 };
 export type CreateVariantApiResponse =
-  /** status 201 Variant created */ Variant;
+  /** status 201 Variant successfully created */ Variant;
 export type CreateVariantApiArg = {
   pipelineId: string;
   variantCreate: VariantCreate;
 };
 export type DeleteVariantApiResponse =
-  /** status 200 Variant deleted */ MessageResponse;
+  /** status 200 Variant successfully deleted */ MessageResponse;
 export type DeleteVariantApiArg = {
   pipelineId: string;
   variantId: string;
 };
 export type UpdateVariantApiResponse =
-  /** status 200 Variant updated */ Variant;
+  /** status 200 Variant successfully updated */ Variant;
 export type UpdateVariantApiArg = {
   pipelineId: string;
   variantId: string;
   variantUpdate: VariantUpdate;
 };
 export type ConvertAdvancedToSimpleApiResponse =
-  /** status 200 Converted simple graph */ PipelineGraph;
+  /** status 200 Successfully converted to simplified graph */ PipelineGraph;
 export type ConvertAdvancedToSimpleApiArg = {
   pipelineId: string;
   variantId: string;
   pipelineGraph: PipelineGraph;
 };
 export type ConvertSimpleToAdvancedApiResponse =
-  /** status 200 Converted advanced graph */ PipelineGraph;
+  /** status 200 Successfully converted to advanced graph */ PipelineGraph;
 export type ConvertSimpleToAdvancedApiArg = {
   pipelineId: string;
   variantId: string;
@@ -595,7 +595,7 @@ export type Device = {
   device_family: DeviceFamily;
   gpu_id: number | null;
 };
-export type TestJobState = "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
+export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {
   /** Pipeline identifier - variant path or synthetic graph ID. */
   id: string;
@@ -607,6 +607,7 @@ export type PerformanceJobStatus = {
   start_time: number;
   elapsed_time: number;
   state: TestJobState;
+  details: string[];
   total_fps: number | null;
   per_stream_fps: number | null;
   total_streams: number | null;
@@ -614,7 +615,6 @@ export type PerformanceJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  error_message: string | null;
   live_stream_urls: {
     [key: string]: string;
   } | null;
@@ -630,6 +630,7 @@ export type DensityJobStatus = {
   start_time: number;
   elapsed_time: number;
   state: TestJobState;
+  details: string[];
   total_fps: number | null;
   per_stream_fps: number | null;
   total_streams: number | null;
@@ -637,7 +638,6 @@ export type DensityJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
-  error_message: string | null;
 };
 export type DensityJobSummary = {
   id: string;
@@ -646,17 +646,14 @@ export type DensityJobSummary = {
   };
 };
 export type OptimizationType = "preprocess" | "optimize";
-export type OptimizationJobState =
-  | "RUNNING"
-  | "COMPLETED"
-  | "ERROR"
-  | "ABORTED";
+export type OptimizationJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type OptimizationJobStatus = {
   id: string;
   type: OptimizationType | null;
   start_time: number;
   elapsed_time: number;
   state: OptimizationJobState;
+  details: string[];
   total_fps: number | null;
   original_pipeline_graph: PipelineGraph;
   original_pipeline_graph_simple: PipelineGraph;
@@ -664,7 +661,6 @@ export type OptimizationJobStatus = {
   optimized_pipeline_graph_simple: PipelineGraph | null;
   original_pipeline_description: string;
   optimized_pipeline_description: string | null;
-  error_message: string | null;
 };
 export type PipelineRequestOptimize = {
   type: OptimizationType;
@@ -676,14 +672,14 @@ export type OptimizationJobSummary = {
   id: string;
   request: PipelineRequestOptimize;
 };
-export type ValidationJobState = "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
+export type ValidationJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ValidationJobStatus = {
   id: string;
   start_time: number;
   elapsed_time: number;
   state: ValidationJobState;
+  details: string[];
   is_valid: boolean | null;
-  error_message: string[] | null;
 };
 export type PipelineValidation = {
   pipeline_graph: PipelineGraph;
@@ -708,7 +704,7 @@ export type Variant = {
   id: string;
   /** Variant name identifying the hardware target. */
   name: string;
-  /** Whether the variant is read-only. Can only be true for PREDEFINED pipelines. */
+  /** Whether the variant is read-only. Can only be true for PREDEFINED or TEMPLATE pipelines. */
   read_only?: boolean;
   /** Advanced graph view with all pipeline elements for this variant. */
   pipeline_graph: PipelineGraph;
