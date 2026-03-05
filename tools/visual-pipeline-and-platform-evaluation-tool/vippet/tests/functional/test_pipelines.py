@@ -48,9 +48,7 @@ def created_pipeline_ids(http_client: requests.Session):
 
 
 @pytest.mark.smoke
-def test_get_pipelines_predefined_variants_are_read_only(
-    http_client: requests.Session,
-) -> None:
+def test_get_pipelines_predefined_variants_are_read_only(http_client: requests.Session) -> None:
     pipelines = fetch_pipelines(http_client)
     predefined = [p for p in pipelines if p.get("source") == "PREDEFINED"]
 
@@ -68,8 +66,7 @@ def test_get_pipelines_predefined_variants_are_read_only(
 
 @pytest.mark.smoke
 def test_create_pipeline_with_default_variant_and_add_custom_variant(
-    http_client: requests.Session, created_pipeline_ids: list[str]
-) -> None:
+    http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
     default_variant_name = "CPU"
     custom_variant_name = "CUSTOM_GPU"
     unique_name = f"functional-pipeline-{uuid4().hex[:8]}"
@@ -130,21 +127,48 @@ def test_create_pipeline_with_default_variant_and_add_custom_variant(
 
 
 @pytest.mark.smoke
-def test_predefined_pipeline_modification_is_forbidden(
-    http_client: requests.Session,
-) -> None:
+def test_predefined_pipeline_modification_is_forbidden(http_client: requests.Session) -> None:
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
     variant_id = predefined_pipeline["variants"][0]["id"]
 
+    original_name = predefined_pipeline.get("name", "")
+    original_description = predefined_pipeline.get("description", "")
+    original_tags = predefined_pipeline.get("tags", [])
+
+    update_payload = {
+        "name": f"{original_name}-updated",
+        "description": f"{original_description} updated",
+        "tags": ["functional", "predefined"],
+    }
     update_pipeline_response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}",
-        json={"name": "forbidden-update"},
+        json=update_payload,
         timeout=30,
     )
-    assert update_pipeline_response.status_code == 400, (
-        f"Expected 400 for PREDEFINED pipeline update, got "
+    assert update_pipeline_response.status_code == 200, (
+        f"Expected 200 for PREDEFINED pipeline metadata update, got "
         f"{update_pipeline_response.status_code}, body={update_pipeline_response.text}"
+    )
+
+    updated_pipeline = update_pipeline_response.json()
+    assert updated_pipeline.get("name") == update_payload["name"]
+    assert updated_pipeline.get("description") == update_payload["description"]
+    assert updated_pipeline.get("tags") == update_payload["tags"]
+
+    # Restore original metadata to keep this test environment-friendly.
+    restore_response = http_client.patch(
+        f"{BASE_URL}/pipelines/{pipeline_id}",
+        json={
+            "name": original_name,
+            "description": original_description,
+            "tags": original_tags,
+        },
+        timeout=30,
+    )
+    assert restore_response.status_code == 200, (
+        f"Failed to restore PREDEFINED pipeline metadata. "
+        f"status={restore_response.status_code}, body={restore_response.text}"
     )
 
     delete_pipeline_response = http_client.delete(
@@ -157,11 +181,11 @@ def test_predefined_pipeline_modification_is_forbidden(
 
     update_variant_response = http_client.patch(
         f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
-        json={"name": "forbidden-variant-update"},
+        json={"pipeline_graph": _graph_dict()},
         timeout=30,
     )
     assert update_variant_response.status_code == 400, (
-        f"Expected 400 for read-only variant update, got "
+        f"Expected 400 for read-only variant graph update, got "
         f"{update_variant_response.status_code}, body={update_variant_response.text}"
     )
 
@@ -198,8 +222,7 @@ def test_create_pipeline_with_empty_name(http_client: requests.Session) -> None:
 
 @pytest.mark.smoke
 def test_create_pipeline_with_duplicate_variant_names(
-    http_client: requests.Session, created_pipeline_ids: list[str]
-) -> None:
+    http_client: requests.Session, created_pipeline_ids: list[str]) -> None:
     unique_name = f"functional-pipeline-dup-variants-{uuid4().hex[:8]}"
     duplicate_variant_name = "CPU"
     payload = {
