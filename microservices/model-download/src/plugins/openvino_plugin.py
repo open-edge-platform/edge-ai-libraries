@@ -168,8 +168,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         This is the main conversion method expected by the model manager.
         """        
         # Extract core parameters using helper (supports multiple sources)
-        weight_format = kwargs.get("precision","int8")
-        target_device = kwargs.get("device", "CPU")
+        weight_format = kwargs.get("precision",kwargs.get("weight-format"))
+        target_device = kwargs.get("device",kwargs.get("target_device"))
         cache_size = kwargs.get("cache_size", kwargs.get("cache", None))
         
         # Extract model metadata
@@ -179,6 +179,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Always use flat config structure for export, passthrough all config params
         config_for_export = kwargs.copy()
+        config_for_export.pop("weight-format")
+        config_for_export.pop("target_device")
         logger.info(f"Using flat config structure: {list(config_for_export.keys())}")
         logger.info(f"Extracted parameters - precision: {weight_format}, device: {target_device}, cache_size: {cache_size}")
         
@@ -471,7 +473,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         # Extract parameters to maintain consistent response structure
         config = kwargs.get("config", {})
-        weight_format = config.get("precision", kwargs.get("precision", "int8"))
+        weight_format = config.get("precision", kwargs.get("weight-format", "int8"))
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))

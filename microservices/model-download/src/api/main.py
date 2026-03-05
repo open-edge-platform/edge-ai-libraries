@@ -167,21 +167,27 @@ async def download_models(
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
-                if config['device'] is not None and config['device'].upper() == "NPU":
+                if config.get("device") is None and config.get("target_device") is not None:
+                    config["device"] = config.get("target_device").lower()
+                else:
+                    config["device"] = "int8"
+                if config.get("precision") is None and config.get("weight-format") is not None:
+                    config["precision"] = config.get("weight-format").lower()
+                else:
+                    config["precision"] = "int8" 
+
+                if (config.get('device') or config.get('target_device')) is not None and (config.get('device') or config.get('target_device')).upper() == "NPU":
                     logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
                     config['precision'] = "int4"
 
-                if config["device"] is None:
-                    config["device"] = "CPU"
-                if config["precision"] is None:
-                    config["precision"] = "int8" 
+                
                 # Create a unique output directory for the converted model
                 convert_output_dir = os.path.join(
                     models_dir,
                     download_path,
                     "openvino_models",
-                    config['device'],
-                    config['precision']
+                    config["device"],
+                    config["precision"]
                 ).lower()
 
                 # Register conversion job
