@@ -539,6 +539,15 @@ const DemoMode = () => {
     return { total, perStream };
   }, [performanceResult]);
 
+  const colorModes = {
+    first: "60,120,200",
+    second: "8,28,80",
+    third: "40,95,220",
+    fourth: "10,30,90",
+    fifth: "70,140,210",
+    sixth: "30,90,180",
+  };
+
   // UI color styles
   const colors = {
     headerTitle: "text-blue-500",
@@ -1118,15 +1127,22 @@ const DemoMode = () => {
         ? parsedReference
         : selectedPipelineVariants[index];
 
-    if (!referenceToRender) {
+    if (!referenceToRender || referenceToRender.variantId === null) {
       return null;
     }
 
-    return resolvePipelineVariantLabel(
+    const label = resolvePipelineVariantLabel(
       pipelines,
       referenceToRender.pipelineId,
       referenceToRender.variantId,
     );
+
+    return label
+      ? {
+          pipelineName: label.pipelineName,
+          variantName: label.variantName ?? null,
+        }
+      : null;
   };
 
   if (pipelines.length === 0) {
@@ -1139,15 +1155,33 @@ const DemoMode = () => {
 
   return (
     <div className="relative h-screen overflow-hidden text-white">
-      <div className="absolute inset-0 z-0 bg-slate-900">
-        <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rounded-full bg-blue-300/25 blur-3xl" />
-        <div className="absolute top-1/4 right-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-200/18 blur-3xl" />
-        <div className="absolute bottom-[-140px] left-1/3 h-[420px] w-[420px] rounded-full bg-indigo-300/18 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/10 via-transparent to-slate-950/25" />
+      {/* Static blurred background */}
+      <div className="absolute inset-0 z-10 overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
+            opacity: 0.90,
+          }}
+        />
+        <div
+          className="absolute -right-16 -top-44 w-[44rem] h-[44rem] rounded-full filter blur-3xl opacity-98"
+          style={{
+            background: `radial-gradient(circle at 30% 30%, rgba(${colorModes.first},0.95), rgba(${colorModes.second},0.22), transparent 45%)`,
+          }}
+        />
+
+        <div
+          className="absolute -left-44 -bottom-40 w-[40rem] h-[40rem] rounded-full filter blur-2xl opacity-92"
+          style={{
+            background: `radial-gradient(circle at 70% 70%, rgba(${colorModes.third},0.92), rgba(${colorModes.fourth},0.22), transparent 50%)`,
+          }}
+        />
       </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 h-full flex flex-col bg-slate-950/25 min-h-0">
+      <div className="relative z-10 h-full flex flex-col bg-transparent min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">

@@ -21,6 +21,7 @@ import {
   useCreatePipelineMutation,
   useGetPipelineTemplatesQuery,
   useGetValidationJobStatusQuery,
+  useGetVideosQuery,
   useToGraphMutation,
   useValidatePipelineMutation,
   type Pipeline,
@@ -87,6 +88,7 @@ export const CreatePipelineDialog = ({
 
   const { data: templates, isLoading: isLoadingTemplates } =
     useGetPipelineTemplatesQuery();
+  const { data: videos = [] } = useGetVideosQuery();
   const models = useAppSelector(selectModels);
 
   const {
@@ -113,6 +115,8 @@ export const CreatePipelineDialog = ({
   });
 
   const tags = watch("tags");
+
+  const videoOptions = videos.map((v) => v.filename);
 
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
@@ -602,12 +606,24 @@ export const CreatePipelineDialog = ({
                           <FieldLabel htmlFor="source-filename">
                             Source Filename
                           </FieldLabel>
-                          <Input
-                            id="source-filename"
-                            type="text"
-                            {...register("sourceFileName")}
-                            placeholder="Enter source filename..."
-                          />
+                          <Select
+                            value={watch("sourceFileName")}
+                            onValueChange={(value) => {
+                              setValue("sourceFileName", value);
+                              trigger("sourceFileName");
+                            }}
+                          >
+                            <SelectTrigger id="source-filename">
+                              <SelectValue placeholder="Select source filename" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {videoOptions.map((fn) => (
+                                <SelectItem key={fn} value={fn}>
+                                  {fn}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FieldError
                             errors={
                               errors.sourceFileName
