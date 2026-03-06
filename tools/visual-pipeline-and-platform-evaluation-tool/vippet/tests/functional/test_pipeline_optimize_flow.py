@@ -19,14 +19,14 @@ OPTIMIZATION_CASES = [
         "preprocess",
         {
             "type": "preprocess",
-            "parameters": {"search_duration": 30, "sample_duration": 5},
+            "parameters": {"search_duration": 10, "sample_duration": 3},
         },
     ),
     (
         "optimize",
         {
             "type": "optimize",
-            "parameters": {"search_duration": 30, "sample_duration": 5},
+            "parameters": {"search_duration": 10, "sample_duration": 3},
         },
     ),
 ]

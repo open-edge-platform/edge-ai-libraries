@@ -316,36 +316,6 @@ def test_update_nonexistent_pipeline(http_client: requests.Session) -> None:
 
 
 @pytest.mark.smoke
-def test_validate_pipeline_endpoint(http_client: requests.Session) -> None:
-    """Test POST /pipelines/validate endpoint."""
-    payload = {"pipeline_graph": _graph_dict(), "parameters": {"max-runtime": 10}}
-
-    response = http_client.post(
-        f"{BASE_URL}/pipelines/validate", json=payload, timeout=30
-    )
-    assert response.status_code == 202
-    assert "job_id" in response.json()
-
-
-@pytest.mark.smoke
-def test_optimize_variant_endpoint(http_client: requests.Session) -> None:
-    """Test POST /pipelines/{id}/variants/{id}/optimize endpoint."""
-    predefined_pipeline = _find_predefined_pipeline(http_client)
-    pipeline_id = predefined_pipeline["id"]
-    variant_id = predefined_pipeline["variants"][0]["id"]
-
-    payload = {"type": "optimize", "parameters": {"search_duration": 300}}
-
-    response = http_client.post(
-        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/optimize",
-        json=payload,
-        timeout=30,
-    )
-    assert response.status_code == 202
-    assert "job_id" in response.json()
-
-
-@pytest.mark.smoke
 def test_convert_advanced_to_simple_graph(http_client: requests.Session) -> None:
     """Test POST /pipelines/{id}/variants/{id}/convert-to-simple endpoint."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
@@ -377,3 +347,263 @@ def test_convert_simple_to_advanced_graph(http_client: requests.Session) -> None
     assert response.status_code == 200
     assert "nodes" in response.json()
     assert "edges" in response.json()
+
+
+@pytest.mark.smoke
+def test_get_nonexistent_pipeline_returns_404(http_client: requests.Session) -> None:
+    """Calls GET /pipelines/{id} with a random non-existent ID and asserts 404."""
+    nonexistent_id = f"does-not-exist-{uuid4().hex[:8]}"
+    response = http_client.get(f"{BASE_URL}/pipelines/{nonexistent_id}", timeout=30)
+
+    assert response.status_code == 404, (
+        f"Expected 404 for non-existent pipeline, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_create_variant_for_nonexistent_pipeline_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls POST /pipelines/{id}/variants with a non-existent pipeline ID and asserts 404."""
+    nonexistent_id = f"does-not-exist-{uuid4().hex[:8]}"
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{nonexistent_id}/variants",
+        json={
+            "name": "CPU",
+            "pipeline_graph": _graph_dict(),
+            "pipeline_graph_simple": _graph_dict(),
+        },
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for variant creation on non-existent pipeline, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_delete_user_created_variant_succeeds(
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
+    """Creates a pipeline with two variants, deletes one, and asserts it no longer appears in GET response."""
+    unique_name = f"functional-pipeline-del-variant-{uuid4().hex[:8]}"
+    create_payload = {
+        "name": unique_name,
+        "description": "Pipeline for variant deletion test",
+        "tags": ["functional"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            },
+            {
+                "name": "GPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            },
+        ],
+    }
+    create_response = http_client.post(
+        f"{BASE_URL}/pipelines", json=create_payload, timeout=30
+    )
+    assert create_response.status_code == 201
+    pipeline_id = create_response.json()["id"]
+    created_pipeline_ids.append(pipeline_id)
+
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    assert get_response.status_code == 200
+    variants = get_response.json()["variants"]
+    assert len(variants) == 2
+    variant_id_to_delete = variants[1]["id"]
+
+    delete_response = http_client.delete(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id_to_delete}",
+        timeout=30,
+    )
+    assert delete_response.status_code == 200, (
+        f"Expected 200 deleting variant, "
+        f"got {delete_response.status_code}, body={delete_response.text}"
+    )
+
+    get_after = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    remaining_ids = [v["id"] for v in get_after.json()["variants"]]
+    assert variant_id_to_delete not in remaining_ids, (
+        f"Deleted variant id={variant_id_to_delete} still present in pipeline"
+    )
+
+
+@pytest.mark.smoke
+def test_delete_last_remaining_variant_returns_400(
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
+    """Creates a pipeline with a single variant, attempts to delete it, and asserts 400."""
+    unique_name = f"functional-pipeline-last-variant-{uuid4().hex[:8]}"
+    create_payload = {
+        "name": unique_name,
+        "description": "Pipeline for last variant deletion test",
+        "tags": ["functional"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            }
+        ],
+    }
+    create_response = http_client.post(
+        f"{BASE_URL}/pipelines", json=create_payload, timeout=30
+    )
+    assert create_response.status_code == 201
+    pipeline_id = create_response.json()["id"]
+    created_pipeline_ids.append(pipeline_id)
+
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    variant_id = get_response.json()["variants"][0]["id"]
+
+    delete_response = http_client.delete(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
+        timeout=30,
+    )
+    assert delete_response.status_code == 400, (
+        f"Expected 400 when deleting last variant, "
+        f"got {delete_response.status_code}, body={delete_response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_delete_nonexistent_variant_returns_404(
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
+    """Calls DELETE /pipelines/{id}/variants/{id} with a valid pipeline but non-existent variant ID and asserts 404."""
+    unique_name = f"functional-pipeline-no-variant-{uuid4().hex[:8]}"
+    create_payload = {
+        "name": unique_name,
+        "description": "Pipeline for nonexistent variant deletion test",
+        "tags": ["functional"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            }
+        ],
+    }
+    create_response = http_client.post(
+        f"{BASE_URL}/pipelines", json=create_payload, timeout=30
+    )
+    assert create_response.status_code == 201
+    pipeline_id = create_response.json()["id"]
+    created_pipeline_ids.append(pipeline_id)
+
+    nonexistent_variant_id = f"does-not-exist-{uuid4().hex[:8]}"
+    delete_response = http_client.delete(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{nonexistent_variant_id}",
+        timeout=30,
+    )
+    assert delete_response.status_code == 404, (
+        f"Expected 404 for non-existent variant, "
+        f"got {delete_response.status_code}, body={delete_response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_update_user_created_variant_name_succeeds(
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
+    """Creates a pipeline, patches the variant name, and asserts 200 with the updated name."""
+    unique_name = f"functional-pipeline-upd-variant-{uuid4().hex[:8]}"
+    create_payload = {
+        "name": unique_name,
+        "description": "Pipeline for variant update test",
+        "tags": ["functional"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            }
+        ],
+    }
+    create_response = http_client.post(
+        f"{BASE_URL}/pipelines", json=create_payload, timeout=30
+    )
+    assert create_response.status_code == 201
+    pipeline_id = create_response.json()["id"]
+    created_pipeline_ids.append(pipeline_id)
+
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    variant_id = get_response.json()["variants"][0]["id"]
+    new_variant_name = "CPU-UPDATED"
+
+    patch_response = http_client.patch(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
+        json={"name": new_variant_name},
+        timeout=30,
+    )
+    assert patch_response.status_code == 200, (
+        f"Expected 200 updating variant name, "
+        f"got {patch_response.status_code}, body={patch_response.text}"
+    )
+    assert patch_response.json().get("name") == new_variant_name, (
+        f"Expected variant name={new_variant_name!r}, got {patch_response.json().get('name')!r}"
+    )
+
+
+@pytest.mark.smoke
+def test_update_variant_with_empty_name_returns_422(
+    http_client: requests.Session, created_pipeline_ids: list[str]
+) -> None:
+    """Calls PATCH /pipelines/{id}/variants/{id} with an empty name and asserts 422."""
+    unique_name = f"functional-pipeline-empty-variant-name-{uuid4().hex[:8]}"
+    create_payload = {
+        "name": unique_name,
+        "description": "Pipeline for empty variant name test",
+        "tags": ["functional"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_graph": _graph_dict(),
+                "pipeline_graph_simple": _graph_dict(),
+            }
+        ],
+    }
+    create_response = http_client.post(
+        f"{BASE_URL}/pipelines", json=create_payload, timeout=30
+    )
+    assert create_response.status_code == 201
+    pipeline_id = create_response.json()["id"]
+    created_pipeline_ids.append(pipeline_id)
+
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    variant_id = get_response.json()["variants"][0]["id"]
+
+    patch_response = http_client.patch(
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}",
+        json={"name": ""},
+        timeout=30,
+    )
+    assert patch_response.status_code == 422, (
+        f"Expected 422 for empty variant name, "
+        f"got {patch_response.status_code}, body={patch_response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_optimize_variant_for_nonexistent_pipeline_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls POST /pipelines/{id}/variants/{id}/optimize with a non-existent pipeline ID and asserts 404."""
+    nonexistent_pipeline_id = f"does-not-exist-{uuid4().hex[:8]}"
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/{nonexistent_pipeline_id}/variants/cpu/optimize",
+        json={"type": "preprocess", "parameters": {"search_duration": 5, "sample_duration": 2}},
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for optimize on non-existent pipeline, "
+        f"got {response.status_code}, body={response.text}"
+    )

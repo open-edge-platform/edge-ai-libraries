@@ -73,3 +73,32 @@ def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
     assert last_status.get("is_valid") is True, (
         f"Validation job {job_id} expected is_valid=True, got {last_status.get('is_valid')}"
     )
+
+
+@pytest.mark.smoke
+def test_validate_pipeline_with_invalid_max_runtime_returns_400(
+    http_client: requests.Session,
+) -> None:
+    """Posts a pipeline validation request with max-runtime=0 to POST /pipelines/validate and asserts 400."""
+    payload = {
+        "type": "GStreamer",
+        "pipeline_graph": {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        },
+        "parameters": {"max-runtime": 0},
+    }
+
+    response = http_client.post(
+        f"{BASE_URL}/pipelines/validate",
+        json=payload,
+        timeout=30,
+    )
+
+    assert response.status_code == 400, (
+        f"Expected 400 for max-runtime=0 validation request, "
+        f"got {response.status_code}, body={response.text}"
+    )

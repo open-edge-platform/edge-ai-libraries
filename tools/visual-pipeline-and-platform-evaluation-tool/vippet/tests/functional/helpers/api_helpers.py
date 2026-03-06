@@ -72,6 +72,32 @@ def fetch_models(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def fetch_cameras(session: requests.Session) -> list[JsonDict]:
+    """Return the raw list of cameras from GET /cameras."""
+    logger.info("Fetching cameras from %s/cameras", BASE_URL)
+    response = session.get(f"{BASE_URL}/cameras", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    logger.info("Retrieved %d cameras", len(payload))
+    return payload
+
+
+def fetch_pipeline_templates(session: requests.Session) -> list[JsonDict]:
+    """Return the raw list of pipeline templates from GET /pipeline-templates."""
+    logger.info("Fetching pipeline templates from %s/pipeline-templates", BASE_URL)
+    response = session.get(f"{BASE_URL}/pipeline-templates", timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload, list), (
+        f"Expected list response, got {type(payload).__name__}"
+    )
+    logger.info("Retrieved %d pipeline templates", len(payload))
+    return payload
+
+
 def wait_for_job_completion(
     session: requests.Session,
     status_url: str,

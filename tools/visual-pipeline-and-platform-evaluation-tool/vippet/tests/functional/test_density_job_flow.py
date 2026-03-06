@@ -129,3 +129,33 @@ def test_density_job_completes_successfully(
     assert final_status.get("error_message") is None, (
         f"{pipeline_label} returned error message: {final_status.get('error_message')}"
     )
+
+
+@pytest.mark.smoke
+def test_start_density_job_with_nonexistent_variant_returns_400(
+    http_client: requests.Session,
+) -> None:
+    """Posts a density test request referencing a non-existent variant and asserts 400."""
+    payload = {
+        "fps_floor": 30,
+        "pipeline_density_specs": [
+            {
+                "pipeline": {
+                    "source": "variant",
+                    "pipeline_id": "does-not-exist",
+                    "variant_id": "does-not-exist",
+                },
+                "stream_rate": 10,
+            }
+        ],
+        "execution_config": {"max_runtime": "5", "output_mode": "disabled"},
+    }
+
+    response = http_client.post(
+        f"{BASE_URL}/tests/density", json=payload, timeout=30
+    )
+
+    assert response.status_code == 400, (
+        f"Expected 400 for density job with non-existent variant, "
+        f"got {response.status_code}, body={response.text}"
+    )
