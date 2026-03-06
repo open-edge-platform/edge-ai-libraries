@@ -3,19 +3,13 @@ import type { Pipeline } from "@/api/api.generated";
 export interface PipelineVariantReference {
   rawKey: string;
   pipelineId: string;
-  variantId: string | null;
+  variantId: string | undefined;
 }
 
 export interface PipelineVariantLabel {
   pipelineName: string;
-  variantName: string | null;
+  variantName: string | undefined;
 }
-
-export const buildPipelineVariantRawKey = (
-  pipelineId: string,
-  variantId: string | null,
-): string =>
-  variantId ? `/pipelines/${pipelineId}/variants/${variantId}` : pipelineId;
 
 export const parsePipelineVariantReference = (
   value: string,
@@ -27,7 +21,7 @@ export const parsePipelineVariantReference = (
     return {
       rawKey: value,
       pipelineId: value,
-      variantId: null,
+      variantId: undefined,
     };
   }
 
@@ -43,7 +37,7 @@ export const parsePipelineVariantReference = (
 export const resolvePipelineVariantLabel = (
   pipelines: Pipeline[],
   pipelineId: string,
-  variantId: string | null,
+  variantId: string | undefined,
 ): PipelineVariantLabel => {
   const pipeline = pipelines.find((item) => item.id === pipelineId);
   const variant = variantId
@@ -61,9 +55,5 @@ export const resolvePipelineVariantLabelFromReference = (
   reference: string,
 ): PipelineVariantLabel => {
   const { pipelineId, variantId } = parsePipelineVariantReference(reference);
-  return resolvePipelineVariantLabel(
-    pipelines,
-    pipelineId,
-    variantId,
-  );
+  return resolvePipelineVariantLabel(pipelines, pipelineId, variantId);
 };

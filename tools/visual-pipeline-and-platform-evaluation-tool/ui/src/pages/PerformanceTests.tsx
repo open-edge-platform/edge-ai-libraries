@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
@@ -35,9 +35,7 @@ import {
 } from "@/lib/apiUtils";
 import { formatErrorMessage } from "@/lib/utils.ts";
 import {
-  buildPipelineVariantRawKey,
   parsePipelineVariantReference,
-  resolvePipelineVariantLabel,
   type PipelineVariantReference,
 } from "@/features/pipeline-tests/pipelineVariantReference";
 
@@ -85,57 +83,9 @@ export const PerformanceTests = () => {
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
 
-  const selectedPipelineReferences = useMemo(() => {
-    return Array.from(
-      new Set(
-        pipelineSelections.map((selection) =>
-          buildPipelineVariantRawKey(selection.pipelineId, selection.variantId),
-        ),
-      ),
-    ).map((rawKey) => parsePipelineVariantReference(rawKey));
-  }, [pipelineSelections]);
-
-  const renderPipelineVariantLabel = (
-    pipelineId: string,
-    variantId: string | null,
-  ) => {
-    const { variantName } = resolvePipelineVariantLabel(
-      pipelines,
-      pipelineId,
-      variantId,
-    );
-
-    return (
-      <>
-        <PipelineName pipelineId={pipelineId} />
-        {variantName ? ` • ${variantName}` : ""}
-      </>
-    );
-  };
-
   const getLiveStreamUrl = (reference: PipelineVariantReference) => {
     const urls = jobStatus?.live_stream_urls ?? {};
-
-    const directUrl =
-      urls[reference.rawKey] ??
-      urls[reference.pipelineId] ??
-      (reference.variantId
-        ? urls[`${reference.pipelineId}/${reference.variantId}`]
-        : undefined);
-
-    if (directUrl) {
-      return directUrl;
-    }
-
-    const matchedEntry = Object.entries(urls).find(([key]) => {
-      const parsed = parsePipelineVariantReference(key);
-      return (
-        parsed.pipelineId === reference.pipelineId &&
-        (!reference.variantId || parsed.variantId === reference.variantId)
-      );
-    });
-
-    return matchedEntry?.[1] ?? null;
+    return urls[reference.rawKey];
   };
 
   useEffect(() => {
@@ -571,48 +521,54 @@ export const PerformanceTests = () => {
                     Running performance test...
                   </span>
                 </div>
+                {livePreviewEnabled &&
+                  jobStatus &&
+                  "live_stream_urls" in jobStatus &&
+                  jobStatus.live_stream_urls && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                        Live Preview:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(jobStatus.live_stream_urls).map(
+                          ([pipelineRefKey]) => {
+                            const reference =
+                              parsePipelineVariantReference(pipelineRefKey);
+                            const streamUrl = getLiveStreamUrl(reference);
 
-                {livePreviewEnabled && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
-                      Live Preview:
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {selectedPipelineReferences.map((reference) => {
-                        const streamUrl = getLiveStreamUrl(reference);
+                            return (
+                              <div
+                                key={reference.rawKey}
+                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                              >
+                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                    <PipelineName
+                                      pipelineId={reference.pipelineId}
+                                      variantId={reference.variantId}
+                                    />
+                                  </p>
+                                </div>
 
-                        return (
-                          <div
-                            key={reference.rawKey}
-                            className="border border-blue-300 dark:border-blue-700 overflow-hidden"
-                          >
-                            <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
-                              <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
-                                {renderPipelineVariantLabel(
-                                  reference.pipelineId,
-                                  reference.variantId,
+                                {streamUrl ? (
+                                  <div className="w-full aspect-video bg-black">
+                                    <WebRTCVideoPlayer
+                                      pipelineId={reference.pipelineId}
+                                      streamUrl={streamUrl}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                    Waiting for live stream to be published...
+                                  </div>
                                 )}
-                              </p>
-                            </div>
-
-                            {streamUrl ? (
-                              <div className="w-full aspect-video bg-black">
-                                <WebRTCVideoPlayer
-                                  pipelineId={reference.pipelineId}
-                                  streamUrl={streamUrl}
-                                />
                               </div>
-                            ) : (
-                              <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
-                                Waiting for live stream to be published...
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            );
+                          },
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <TestProgressIndicator />
               </div>
@@ -669,10 +625,10 @@ export const PerformanceTests = () => {
                           >
                             <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
                               <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                {renderPipelineVariantLabel(
-                                  reference.pipelineId,
-                                  reference.variantId,
-                                )}
+                                <PipelineName
+                                  pipelineId={reference.pipelineId}
+                                  variantId={reference.variantId}
+                                />
                               </p>
                             </div>
                             {videoPath ? (
