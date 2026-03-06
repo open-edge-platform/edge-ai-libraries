@@ -43,7 +43,6 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
-import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
 import {
   Tooltip,
   TooltipContent,
@@ -523,12 +522,12 @@ const DemoMode = () => {
   }, [performanceResult]);
 
   const colorModes = {
-    first: "180,230,255",
-    second: "15,76,129",
-    third: "120,190,255",
-    fourth: "30,90,150",
-    fifth: "200,240,255",
-    sixth: "140,210,255",
+    first: "60,120,200",
+    second: "8,28,80",
+    third: "40,95,220",
+    fourth: "10,30,90",
+    fifth: "70,140,210",
+    sixth: "30,90,180",
   };
 
   // UI color styles
@@ -1095,15 +1094,34 @@ const DemoMode = () => {
 
   return (
     <div className="relative h-screen overflow-hidden text-white">
-      {/* Animated background */}
-      <BubbleBackground
-        interactive={true}
-        className="absolute inset-0 z-0"
-        colors={colorModes}
-      />
+      {/* Static blurred background */}
+      <div className="absolute inset-0 z-10 overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
+            opacity: 0.90,
+          }}
+        />
+        <div
+          className="absolute -right-16 -top-44 w-[44rem] h-[44rem] rounded-full filter blur-3xl opacity-98"
+          style={{
+            background: `radial-gradient(circle at 30% 30%, rgba(${colorModes.first},0.95), rgba(${colorModes.second},0.22), transparent 45%)`,
+          }}
+        />
+
+        <div
+          className="absolute -left-44 -bottom-40 w-[40rem] h-[40rem] rounded-full filter blur-2xl opacity-92"
+          style={{
+            background: `radial-gradient(circle at 70% 70%, rgba(${colorModes.third},0.92), rgba(${colorModes.fourth},0.22), transparent 50%)`,
+          }}
+        />
+  
+      </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 h-full flex flex-col bg-slate-950/80 min-h-0">
+      <div className="relative z-10 h-full flex flex-col bg-transparent min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
