@@ -43,8 +43,18 @@ const NodeDataPanel = ({
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
 
-  const cameraOptions = cameras.map((camera) => camera.device_name);
-  const videoOptions = videos.map((video) => video.filename);
+  const cameraOptions = cameras.map((camera) => {
+    const value =
+      camera.device_type === "USB"
+        ? (camera.details as any)?.device_path ?? ""
+        : (camera.details as any)?.best_profile?.rtsp_url ?? "";
+    return { label: camera.device_name, value };
+  });
+
+  const videoOptions = videos.map((video) => ({
+    label: video.filename,
+    value: video.filename,
+  }));
 
   useEffect(() => {
     if (selectedNode) {
@@ -191,8 +201,8 @@ const NodeDataPanel = ({
                         ? cameraOptions
                         : videoOptions
                     ).map((option) => (
-                      <option key={option} value={option}>
-                        {option}
+                      <option key={(option.value || option.label) as string} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
