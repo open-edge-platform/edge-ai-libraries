@@ -62,6 +62,9 @@ export const DensityTests = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
 
@@ -404,23 +407,39 @@ export const DensityTests = () => {
             <div className="ml-6 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
-                type="number"
-                min={1}
-                step={1}
-                value={loopingRuntimeSeconds}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loopingRuntimeInput}
                 disabled={isRunning}
                 onChange={(event) => {
-                  const value = event.target.valueAsNumber;
-                  setLoopingRuntimeSeconds(
-                    Number.isNaN(value)
-                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                      : value,
-                  );
+                  const value = event.target.value;
+
+                  if (value !== "" && !/^\d+$/.test(value)) {
+                    return;
+                  }
+
+                  setLoopingRuntimeInput(value);
+
+                  if (value === "") {
+                    return;
+                  }
+
+                  const parsedValue = Number.parseInt(value, 10);
+                  setLoopingRuntimeSeconds(parsedValue);
                 }}
                 onBlur={() => {
-                  if (loopingRuntimeSeconds < 1) {
-                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
-                  }
+                  const parsedValue =
+                    loopingRuntimeInput.trim().length === 0
+                      ? Number.NaN
+                      : Number.parseInt(loopingRuntimeInput, 10);
+                  const normalizedValue =
+                    Number.isFinite(parsedValue) && parsedValue >= 1
+                      ? parsedValue
+                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                  setLoopingRuntimeSeconds(normalizedValue);
+                  setLoopingRuntimeInput(String(normalizedValue));
                 }}
                 className="h-8 w-24 px-2 text-xs"
               />
