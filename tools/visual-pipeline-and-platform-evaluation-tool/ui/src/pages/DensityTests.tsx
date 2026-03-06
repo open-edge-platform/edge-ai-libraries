@@ -355,9 +355,7 @@ export const DensityTests = () => {
         <Button
           onClick={handleAddPipeline}
           variant="outline"
-          disabled={
-            pipelineSelections.length >= pipelines.length || isRunning
-          }
+          disabled={pipelineSelections.length >= pipelines.length || isRunning}
         >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
