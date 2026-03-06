@@ -1,4 +1,5 @@
 import { Slider } from "@/components/ui/slider.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface ParticipationSliderProps {
   value: number;
@@ -6,6 +7,7 @@ interface ParticipationSliderProps {
   min?: number;
   max?: number;
   disabled?: boolean;
+  valueInputClassName?: string;
 }
 
 export const ParticipationSlider = ({
@@ -14,6 +16,7 @@ export const ParticipationSlider = ({
   min = 0,
   max = 100,
   disabled = false,
+  valueInputClassName,
 }: ParticipationSliderProps) => {
   return (
     <div
@@ -50,7 +53,10 @@ export const ParticipationSlider = ({
         }}
         min={min}
         max={max}
-        className="w-[4rem] px-3 py-1.5 text-sm font-bold border border-border bg-background text-foreground dark:border-border/70 dark:bg-muted/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+        className={cn(
+          "w-[4rem] px-3 py-1.5 text-sm font-bold border border-border bg-background text-foreground dark:border-border/70 dark:bg-muted/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+          valueInputClassName,
+        )}
         style={{ textAlign: "center" }}
         disabled={disabled}
       />

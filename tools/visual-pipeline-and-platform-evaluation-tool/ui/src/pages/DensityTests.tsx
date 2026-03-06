@@ -44,7 +44,7 @@ interface PipelineSelection {
 }
 
 export const DensityTests = () => {
-  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
   const pipelines = useAppSelector(selectPipelines);
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
@@ -216,9 +216,7 @@ export const DensityTests = () => {
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
-        setErrorMessage(
-          formatErrorMessage(error?.error_message, "Test failed"),
-        );
+        setErrorMessage(formatErrorMessage(error?.details, "Test failed"));
       } else {
         const errorMessage = handleApiError(error, "Test failed");
         setErrorMessage(errorMessage);
@@ -377,7 +375,7 @@ export const DensityTests = () => {
           <span className="text-sm text-muted-foreground">FPS</span>
         </div>
 
-        <div className="my-4 flex flex-col">
+        <div className="my-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -391,18 +389,18 @@ export const DensityTests = () => {
                     }}
                   />
                   <span className="text-sm font-medium">
-                    Run pipeline in loop
+                    Set iteration duration
                   </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Run test in loop mode for a selected duration</p>
+                <p>Run test iteration for a selected duration</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
           {loopingEnabled && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="flex items-center gap-2 h-[42px]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
                 type="text"

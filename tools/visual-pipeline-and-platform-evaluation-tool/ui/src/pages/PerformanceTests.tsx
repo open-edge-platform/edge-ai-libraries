@@ -27,12 +27,17 @@ import { Input } from "@/components/ui/input";
 import { Plus, Square, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
   handleApiError,
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import {
+  parsePipelineVariantReference,
+  type PipelineVariantReference,
+} from "@/features/pipeline-tests/pipelineVariantReference";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -77,6 +82,11 @@ export const PerformanceTests = () => {
   });
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
+
+  const getLiveStreamUrl = (reference: PipelineVariantReference) => {
+    const urls = jobStatus?.live_stream_urls ?? {};
+    return urls[reference.rawKey];
+  };
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -363,7 +373,9 @@ export const PerformanceTests = () => {
                       }
                     }}
                   />
-                  <span className="text-sm font-medium">Save output</span>
+                  <span className="text-sm font-medium">
+                    Keep pipeline output
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -469,7 +481,11 @@ export const PerformanceTests = () => {
             </div>
           )}
 
-          {videoOutputEnabled && <SaveOutputWarning />}
+          {videoOutputEnabled && (
+            <div>
+              <SaveOutputWarning />
+            </div>
+          )}
         </div>
 
         {isRunning ? (
@@ -486,6 +502,7 @@ export const PerformanceTests = () => {
           <Button
             onClick={handleRunTest}
             disabled={isRunning || pipelineSelections.length === 0}
+            className="self-start"
           >
             {isRunning ? "Starting..." : "Run performance test"}
           </Button>
@@ -504,6 +521,55 @@ export const PerformanceTests = () => {
                     Running performance test...
                   </span>
                 </div>
+                {livePreviewEnabled &&
+                  jobStatus &&
+                  "live_stream_urls" in jobStatus &&
+                  jobStatus.live_stream_urls && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                        Live Preview:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(jobStatus.live_stream_urls).map(
+                          ([pipelineRefKey]) => {
+                            const reference =
+                              parsePipelineVariantReference(pipelineRefKey);
+                            const streamUrl = getLiveStreamUrl(reference);
+
+                            return (
+                              <div
+                                key={reference.rawKey}
+                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                              >
+                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                    <PipelineName
+                                      pipelineId={reference.pipelineId}
+                                      variantId={reference.variantId}
+                                    />
+                                  </p>
+                                </div>
+
+                                {streamUrl ? (
+                                  <div className="w-full aspect-video bg-black">
+                                    <WebRTCVideoPlayer
+                                      pipelineId={reference.pipelineId}
+                                      streamUrl={streamUrl}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                    Waiting for live stream to be published...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 <TestProgressIndicator />
               </div>
             )}
@@ -546,18 +612,23 @@ export const PerformanceTests = () => {
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(testResult.video_output_paths).map(
-                      ([pipelineId, paths]) => {
+                      ([pipelineRefKey, paths]) => {
+                        const reference =
+                          parsePipelineVariantReference(pipelineRefKey);
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
                         return (
                           <div
-                            key={pipelineId}
+                            key={pipelineRefKey}
                             className="border border-green-300 dark:border-green-700 overflow-hidden"
                           >
                             <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
                               <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                <PipelineName pipelineId={pipelineId} />
+                                <PipelineName
+                                  pipelineId={reference.pipelineId}
+                                  variantId={reference.variantId}
+                                />
                               </p>
                             </div>
                             {videoPath ? (

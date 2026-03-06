@@ -1,4 +1,5 @@
 import { Slider } from "@/components/ui/slider.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface StreamsSliderProps {
   value: number;
@@ -6,6 +7,7 @@ interface StreamsSliderProps {
   min?: number;
   max?: number;
   disabled?: boolean;
+  valueInputClassName?: string;
 }
 
 export const StreamsSlider = ({
@@ -14,6 +16,7 @@ export const StreamsSlider = ({
   min = 1,
   max = 64,
   disabled = false,
+  valueInputClassName,
 }: StreamsSliderProps) => {
   return (
     <div
@@ -50,7 +53,10 @@ export const StreamsSlider = ({
         }}
         min={min}
         max={max}
-        className="w-[4rem] px-3 py-1.5 text-sm font-bold border border-border bg-background text-foreground dark:border-border/70 dark:bg-muted/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+        className={cn(
+          "w-[4rem] px-3 py-1.5 text-sm font-bold border border-border bg-background text-foreground dark:border-border/70 dark:bg-muted/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+          valueInputClassName,
+        )}
         style={{ textAlign: "center" }}
         disabled={disabled}
       />

@@ -44,10 +44,29 @@ const NodeDataPanel = ({
   const { data: videos = [] } = useGetVideosQuery();
 
   const cameraOptions = cameras.map((camera) => {
-    const value =
-      camera.device_type === "USB"
-        ? (camera.details as any)?.device_path ?? ""
-        : (camera.details as any)?.best_profile?.rtsp_url ?? "";
+    const details = camera.details as Record<string, unknown> | undefined;
+    let value = "";
+
+    if (camera.device_type === "USB") {
+      const devicePath =
+        details && typeof details === "object" && "device_path" in details
+          ? details["device_path"]
+          : undefined;
+      value = typeof devicePath === "string" ? devicePath : "";
+    } else {
+      const bestProfile =
+        details && typeof details === "object" && "best_profile" in details
+          ? details["best_profile"]
+          : undefined;
+      const rtspUrl =
+        bestProfile &&
+        typeof bestProfile === "object" &&
+        "rtsp_url" in (bestProfile as Record<string, unknown>)
+          ? (bestProfile as Record<string, unknown>)["rtsp_url"]
+          : undefined;
+      value = typeof rtspUrl === "string" ? rtspUrl : "";
+    }
+
     return { label: camera.device_name, value };
   });
 
@@ -201,7 +220,10 @@ const NodeDataPanel = ({
                         ? cameraOptions
                         : videoOptions
                     ).map((option) => (
-                      <option key={(option.value || option.label) as string} value={option.value}>
+                      <option
+                        key={(option.value || option.label) as string}
+                        value={option.value}
+                      >
                         {option.label}
                       </option>
                     ))}
