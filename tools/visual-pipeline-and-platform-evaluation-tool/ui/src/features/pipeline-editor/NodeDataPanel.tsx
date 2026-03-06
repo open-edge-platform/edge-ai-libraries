@@ -43,7 +43,7 @@ const NodeDataPanel = ({
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
 
-  const cameraOptions = cameras.map((camera) => camera.device_id);
+  const cameraOptions = cameras.map((camera) => camera.device_name);
   const videoOptions = videos.map((video) => video.filename);
 
   useEffect(() => {
