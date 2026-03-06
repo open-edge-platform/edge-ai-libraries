@@ -21,6 +21,7 @@ import {
   useCreatePipelineMutation,
   useGetPipelineTemplatesQuery,
   useGetValidationJobStatusQuery,
+  useGetVideosQuery,
   useToGraphMutation,
   useValidatePipelineMutation,
   type Pipeline,
@@ -34,7 +35,6 @@ import {
 } from "@/lib/apiUtils.ts";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectModels } from "@/store/reducers/models";
-import { selectVideos } from "@/store/reducers/videos";
 import { Button } from "@/components/ui/button.tsx";
 import { Card } from "@/components/ui/card.tsx";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group.tsx";
@@ -88,7 +88,7 @@ export const CreatePipelineDialog = ({
 
   const { data: templates, isLoading: isLoadingTemplates } =
     useGetPipelineTemplatesQuery();
-  const videos = useAppSelector(selectVideos);
+  const { data: videos = [] } = useGetVideosQuery();
   const models = useAppSelector(selectModels);
 
   const {
