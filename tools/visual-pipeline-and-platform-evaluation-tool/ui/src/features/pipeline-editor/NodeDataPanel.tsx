@@ -9,8 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
-import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
-// import { usePipelineEditorContext } from "./PipelineEditorContext.ts";
+import { selectCameras } from "@/store/reducers/cameras";
+import { selectVideos } from "@/store/reducers/videos";
 
 type NodePropertyConfig = {
   key: string;
@@ -41,9 +41,8 @@ const NodeDataPanel = ({
 }: NodeDataPanelProps) => {
   const [editableData, setEditableData] = useState<Record<string, unknown>>({});
   const models = useAppSelector(selectModels);
-  const { data: cameras = [] } = useGetCamerasQuery();
-  const { data: videos = [] } = useGetVideosQuery();
-
+  const cameras = useAppSelector(selectCameras);
+  const videos = useAppSelector(selectVideos);
 
   const cameraOptions = cameras.map((camera) => camera.device_id);
   const videoOptions = videos.map((video) => video.filename);
