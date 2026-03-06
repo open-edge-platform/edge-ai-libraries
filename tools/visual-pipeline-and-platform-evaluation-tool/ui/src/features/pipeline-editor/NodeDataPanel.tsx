@@ -4,10 +4,12 @@ import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { sourceNodeConfig } from "./nodes/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
+import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
 
 type NodePropertyConfig = {
   key: string;
@@ -38,6 +40,8 @@ const NodeDataPanel = ({
 }: NodeDataPanelProps) => {
   const [editableData, setEditableData] = useState<Record<string, unknown>>({});
   const models = useAppSelector(selectModels);
+  const { data: cameras = [] } = useGetCamerasQuery();
+  const { data: videos = [] } = useGetVideosQuery();
 
   useEffect(() => {
     if (selectedNode) {
@@ -76,6 +80,8 @@ const NodeDataPanel = ({
         return gvaClassifyConfig;
       case "gvadetect":
         return gvaDetectConfig;
+      case "source":
+        return sourceNodeConfig;
       default:
         return null;
     }
@@ -166,6 +172,25 @@ const NodeDataPanel = ({
                     onChange={(val) => handleInputChange(keyStr, val)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   />
+                ) : selectedNode.type === "source" && keyStr === "source" ? (
+                  <select
+                    value={String(value ?? "")}
+                    onChange={(e) => handleInputChange(keyStr, e.target.value)}
+                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
+                  >
+                    <option value="">Select source</option>
+                    {(editableData.kind === "camera" ? cameras : videos)
+                      .map((item) => {
+                        const displayValue = editableData.kind === "camera" 
+                          ? (item as any).device_id || ""
+                          : (item as any).filename || "";
+                        return (
+                          <option key={displayValue} value={displayValue}>
+                            {displayValue}
+                          </option>
+                        );
+                      })}
+                  </select>
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
                     value={String(value ?? "")}
