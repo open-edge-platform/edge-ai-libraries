@@ -10,6 +10,7 @@ import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
 import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
+// import { usePipelineEditorContext } from "./PipelineEditorContext.ts";
 
 type NodePropertyConfig = {
   key: string;
@@ -42,6 +43,10 @@ const NodeDataPanel = ({
   const models = useAppSelector(selectModels);
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
+
+
+  const cameraOptions = cameras.map((camera) => camera.device_id);
+  const videoOptions = videos.map((video) => video.filename);
 
   useEffect(() => {
     if (selectedNode) {
@@ -172,24 +177,23 @@ const NodeDataPanel = ({
                     onChange={(val) => handleInputChange(keyStr, val)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   />
-                ) : selectedNode.type === "source" && keyStr === "source" ? (
+                ) : (selectedNode.type === "source" && keyStr === "source") || (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   <select
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    <option value="">Select source</option>
-                    {(editableData.kind === "camera" ? cameras : videos)
-                      .map((item) => {
-                        const displayValue = editableData.kind === "camera" 
-                          ? (item as any).device_id || ""
-                          : (item as any).filename || "";
-                        return (
-                          <option key={displayValue} value={displayValue}>
-                            {displayValue}
-                          </option>
-                        );
-                      })}
+                    <option value="">Select {propConfig?.label ?? keyStr}</option>
+                    {(selectedNode.type === "filesrc"
+                      ? videoOptions
+                      : editableData.kind === "camera"
+                      ? cameraOptions
+                      : videoOptions
+                    ).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
