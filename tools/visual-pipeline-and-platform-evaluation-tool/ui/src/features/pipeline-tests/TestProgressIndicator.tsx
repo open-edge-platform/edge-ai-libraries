@@ -266,8 +266,9 @@ export const TestProgressIndicator = ({
   // filter and prepare data for chart - only include available engines
   // and stabilize single zero drops to keep continuity like other GPU charts
   const gpuChartData = useMemo(() => {
-    const normalizedGpuChartData: Array<{ timestamp: number } & Record<string, number>> =
-      gpuData.map((point) => {
+    const normalizedGpuChartData: Array<
+      { timestamp: number } & Record<string, number>
+    > = gpuData.map((point) => {
       const chartPoint: { timestamp: number } & Record<string, number> = {
         timestamp: point.timestamp,
       };

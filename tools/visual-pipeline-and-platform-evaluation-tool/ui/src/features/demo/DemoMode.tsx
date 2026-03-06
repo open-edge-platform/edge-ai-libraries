@@ -1101,7 +1101,7 @@ const DemoMode = () => {
           style={{
             background:
               "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
-            opacity: 0.90,
+            opacity: 0.9,
           }}
         />
         <div
@@ -1117,7 +1117,6 @@ const DemoMode = () => {
             background: `radial-gradient(circle at 70% 70%, rgba(${colorModes.third},0.92), rgba(${colorModes.fourth},0.22), transparent 50%)`,
           }}
         />
-  
       </div>
 
       {/* CONTENT */}
