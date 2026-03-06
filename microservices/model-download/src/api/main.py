@@ -170,7 +170,7 @@ async def download_models(
                 if config.get("device") is None and config.get("target_device") is not None:
                     config["device"] = config.get("target_device").lower()
                 else:
-                    config["device"] = "int8"
+                    config["device"] = "CPU"
                 if config.get("precision") is None and config.get("weight-format") is not None:
                     config["precision"] = config.get("weight-format").lower()
                 else:
