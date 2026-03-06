@@ -1,6 +1,8 @@
 # Release Notes: Time Series Analytics 2025
 
-## Version 2025.2 - December 10, 2026
+## Version 2025.2
+
+**December 10, 2026**
 
 This release introduces comprehensive configuration improvements, GPU acceleration support,
 and enhanced security measures for the microservice. It offers two deployment options:
@@ -46,7 +48,9 @@ and enhanced security measures for the microservice. It offers two deployment op
 
 More details at [user-guide](../../user-guide/index.md)
 
-## Version v1.0.0 - August, 2026
+## Version v1.0.0
+
+**August, 2026**
 
 This is the first version of the `Time Series Analytics` microservice.
 It offers two deployment options:
