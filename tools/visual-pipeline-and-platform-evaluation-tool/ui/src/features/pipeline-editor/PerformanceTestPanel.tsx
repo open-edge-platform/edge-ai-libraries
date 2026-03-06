@@ -1,19 +1,44 @@
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 
 type PerformanceTestPanelProps = {
   isRunning: boolean;
   completedVideoPath: string | null;
+  pipelineId?: string;
+  livePreviewEnabled?: boolean;
+  liveStreamUrl?: string | null;
 };
 
 const PerformanceTestPanel = ({
   isRunning,
   completedVideoPath,
+  pipelineId,
+  livePreviewEnabled = false,
+  liveStreamUrl,
 }: PerformanceTestPanelProps) => {
   return (
     <div className="w-full h-full bg-background p-4 space-y-4">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <div className="space-y-4">
+        {livePreviewEnabled && (isRunning || !!liveStreamUrl) && (
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">
+              Live Preview
+            </h3>
+            {liveStreamUrl ? (
+              <WebRTCVideoPlayer
+                pipelineId={pipelineId}
+                streamUrl={liveStreamUrl}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Waiting for live stream to be published...
+              </p>
+            )}
+          </div>
+        )}
+
         {completedVideoPath && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">
