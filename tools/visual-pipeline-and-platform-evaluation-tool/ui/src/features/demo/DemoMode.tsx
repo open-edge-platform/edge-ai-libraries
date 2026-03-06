@@ -1101,7 +1101,7 @@ const DemoMode = () => {
           style={{
             background:
               "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
-            opacity: 0.9,
+            opacity: 0.90,
           }}
         />
         <div
