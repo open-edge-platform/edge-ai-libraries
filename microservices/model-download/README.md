@@ -15,6 +15,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building the microservice from source code.
+  - [Deploy with Helm Chart](docs/user-guide/deploy-with-helm-chart.md): Instructions for deploying the microservice using a Helm chart.
 
 - **Testing**
   - [Running Unit Tests](docs/user-guide/running-tests.md): Comprehensive guide for running the test suite.
