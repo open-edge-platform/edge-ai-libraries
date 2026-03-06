@@ -305,9 +305,15 @@ const DemoMode = () => {
   const selectedPipelineVariants = useMemo(() => {
     return pipelineSelections.map((selection) => ({
       pipelineId: selection.pipelineId,
-      variantId: getSelectedVariantForPipeline(selection.pipelineId)?.id ?? null,
+      variantId:
+        getSelectedVariantForPipeline(selection.pipelineId)?.id ?? null,
     }));
-  }, [pipelineSelections, pipelines, selectedVariantByPipelineId]);
+  }, [
+    pipelineSelections,
+    pipelines,
+    selectedVariantByPipelineId,
+    getSelectedVariantForPipeline,
+  ]);
   const inferenceNodeTypes = new Set([
     "gvadetect",
     "gvaclassify",
@@ -1162,7 +1168,7 @@ const DemoMode = () => {
           style={{
             background:
               "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
-            opacity: 0.90,
+            opacity: 0.9,
           }}
         />
         <div
@@ -2352,16 +2358,17 @@ const DemoMode = () => {
                                               }}
                                               onBlur={() => {
                                                 const parsedValue =
-                                                  densityIterationDurationInput
-                                                    .trim().length === 0
+                                                  densityIterationDurationInput.trim()
+                                                    .length === 0
                                                     ? Number.NaN
                                                     : Number.parseInt(
                                                         densityIterationDurationInput,
                                                         10,
                                                       );
                                                 const normalizedValue =
-                                                  Number.isFinite(parsedValue) &&
-                                                  parsedValue >= 1
+                                                  Number.isFinite(
+                                                    parsedValue,
+                                                  ) && parsedValue >= 1
                                                     ? parsedValue
                                                     : DEFAULT_DENSITY_ITERATION_DURATION_SECONDS;
 
