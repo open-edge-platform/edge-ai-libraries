@@ -1,20 +1,20 @@
 # Release Notes: Time Series Analytics
 
-## Version 2026.0 - March 27, 2026
+## Version 2026.0
 
+**March 27, 2026**
 This release improves deployment consistency, reliability, and documentation usability for
 Time Series Analytics.
 
-## New
+**New**
 - Standardized container image versioning across deployment methods.
 - Updated Helm chart versioning format for clearer chart tracking.
 
-## Improved
+**Improved**
 - Fixed issues in API utility and Docker test workflows.
 - Resolved unit test stability issues.
 - Simplified documentation by removing outdated Model Registry references.
 - Reorganized documentation structure and navigation for easier access.
-
 
 For older release notes, check out:
 - [December 2025](./release-notes/dec-2025.md)
