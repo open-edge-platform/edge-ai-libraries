@@ -2,8 +2,9 @@ name: "[SIV] Weekly Build Tagging"
 
 on:
   schedule:
-    - cron: '0 15 * * 2'  # Every Tuesday at 15:00 UTC
+  - cron: '0 15 * * 2' # Every Tuesday at 15:00 UTC
   workflow_dispatch:
+
 
 permissions: {}
 
@@ -104,8 +105,9 @@ jobs:
 
     - name: Push to current branch
       if: steps.submodule-status.outputs.has_changes == 'true'
+      env:
+        BRANCH_NAME: ${{ github.ref_name }}
       run: |
-        BRANCH_NAME="${{ github.ref_name }}"
         echo "🚀 Pushing changes to branch: $BRANCH_NAME"
         git push origin HEAD:$BRANCH_NAME
         echo "✅ Changes pushed successfully to $BRANCH_NAME"
