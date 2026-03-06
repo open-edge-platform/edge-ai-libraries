@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useAppSelector } from "@/store/hooks.ts";
 import {
   selectCpuMetric,
@@ -14,15 +15,27 @@ export const useMetrics = () => {
   const cpuDetailed = useAppSelector(selectCpuMetrics);
   const memory = useAppSelector(selectMemoryMetric);
   const allMetrics = useAppSelector(selectMetrics);
+  const previousAvailableGpuIdsRef = useRef<string[]>([]);
+  const previousGpuUsageRef = useRef<Record<string, number>>({});
+  const gpuZeroStreakRef = useRef<Record<string, number>>({});
 
   // dynamically get all available GPU IDs
-  const availableGpuIds = Array.from(
+  const rawAvailableGpuIds = Array.from(
     new Set(
       allMetrics
         .filter((m) => m.name === "gpu_engine_usage" && m.tags?.gpu_id)
         .map((m) => m.tags!.gpu_id!),
     ),
   ).sort();
+
+  if (rawAvailableGpuIds.length > 0) {
+    previousAvailableGpuIdsRef.current = rawAvailableGpuIds;
+  }
+
+  const availableGpuIds =
+    rawAvailableGpuIds.length > 0
+      ? rawAvailableGpuIds
+      : previousAvailableGpuIdsRef.current;
 
   // get detailed metrics for all GPUs
   const gpuDetailedMetrics = useAppSelector((state) => {
@@ -44,10 +57,28 @@ export const useMetrics = () => {
       metrics?.video ?? 0,
       metrics?.videoEnhance ?? 0,
     ];
-    const usage =
+    const rawUsage =
       engineUsages.length > 0
         ? Math.max(...engineUsages) // use max engine usage as overall GPU usage
         : 0;
+
+    const previousUsage = previousGpuUsageRef.current[gpuId] ?? 0;
+    const currentZeroStreak = gpuZeroStreakRef.current[gpuId] ?? 0;
+
+    let usage = rawUsage;
+    if (rawUsage === 0 && previousUsage > 0) {
+      const nextZeroStreak = currentZeroStreak + 1;
+      gpuZeroStreakRef.current[gpuId] = nextZeroStreak;
+      if (nextZeroStreak === 1) {
+        usage = previousUsage;
+      }
+    } else {
+      gpuZeroStreakRef.current[gpuId] = 0;
+    }
+
+    if (rawUsage > 0) {
+      previousGpuUsageRef.current[gpuId] = rawUsage;
+    }
 
     return {
       id: gpuId,

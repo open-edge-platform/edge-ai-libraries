@@ -1,6 +1,7 @@
 import { type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   type PipelineStreamSpec,
+  useGetVideosQuery,
   useGetDensityJobStatusQuery,
   useGetPerformanceJobStatusQuery,
   useRunDensityTestMutation,
@@ -185,6 +186,7 @@ const DemoMode = () => {
   useDevicesLoader();
   const pipelines = useAppSelector(selectPipelines);
   const models = useAppSelector(selectModels);
+  const { data: videos = [] } = useGetVideosQuery();
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
   const [runPerformanceTest, { isLoading: isPerformanceRunning }] =
@@ -263,6 +265,17 @@ const DemoMode = () => {
   >({});
   const [selectedVariantByPipelineId, setSelectedVariantByPipelineId] =
     useState<Record<string, string>>({});
+  const videoFilenames = useMemo(
+    () => videos.map((video) => video.filename),
+    [videos],
+  );
+  const getFilenameFromPath = (value: unknown): string => {
+    const stringValue = String(value ?? "");
+    if (!stringValue) return "";
+    const normalized = stringValue.replace(/\\/g, "/");
+    const segments = normalized.split("/");
+    return segments.at(-1) ?? stringValue;
+  };
   const getNodeEditKey = (
     pipelineId: string,
     variantId: string,
@@ -1027,7 +1040,7 @@ const DemoMode = () => {
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
-            max_runtime: 1800,
+            max_runtime: 10,
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => {
@@ -1693,6 +1706,12 @@ const DemoMode = () => {
                                                           );
                                                         const config =
                                                           propConfig as NodePropertyConfig | null;
+                                                        const isSourceLocationField =
+                                                          nodeTypeToTag[
+                                                            node.type
+                                                          ] === "Source" &&
+                                                          String(key) ===
+                                                            "location";
 
                                                         const inferenceRegionValue =
                                                           getEditedValue(
@@ -1767,6 +1786,47 @@ const DemoMode = () => {
                                                                       </option>
                                                                     ),
                                                                   )}
+                                                              </select>
+                                                            ) : isSourceLocationField &&
+                                                              videoFilenames.length >
+                                                                0 ? (
+                                                              <select
+                                                                value={getFilenameFromPath(
+                                                                  currentValue,
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                              >
+                                                                <option value="">
+                                                                  Select
+                                                                  filename
+                                                                </option>
+                                                                {videoFilenames.map(
+                                                                  (
+                                                                    filename,
+                                                                  ) => (
+                                                                    <option
+                                                                      key={
+                                                                        filename
+                                                                      }
+                                                                      value={
+                                                                        filename
+                                                                      }
+                                                                    >
+                                                                      {filename}
+                                                                    </option>
+                                                                  ),
+                                                                )}
                                                               </select>
                                                             ) : config?.type ===
                                                               "select" ? (

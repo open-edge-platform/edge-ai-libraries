@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 import uuid
-from typing import Optional
 
 from internal_types import (
     InternalPipelineValidation,
@@ -11,7 +10,7 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
-from pipeline_runner import PipelineRunner, PipelineValidationResult
+from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
 
@@ -34,7 +33,7 @@ class ValidationManager:
     Conversion to API types happens in the route layer.
     """
 
-    _instance: Optional["ValidationManager"] = None
+    _instance: "ValidationManager | None" = None
     _lock = threading.Lock()
 
     def __new__(cls) -> "ValidationManager":
@@ -153,6 +152,11 @@ class ValidationManager:
 
         The method uses :class:`PipelineRunner` in validation mode and updates
         the corresponding :class:`InternalValidationJob` accordingly.
+
+        Validity is determined by exit_code == 0 and no errors found in stderr.
+
+        The details list is cleared when transitioning to a new state, then
+        new entries for that state are appended.
         """
         try:
             # Create PipelineRunner in validation mode
@@ -165,13 +169,8 @@ class ValidationManager:
             # Run pipeline validation
             result = runner.run(pipeline_description)
 
-            # Type narrowing: PipelineRunner in validation mode returns PipelineValidationResult
-            if not isinstance(result, PipelineValidationResult):
-                self._update_job_error(
-                    job_id,
-                    "Unexpected result type from pipeline runner",
-                )
-                return
+            # Pipeline is valid only if exit code is 0 and no errors found
+            is_valid = result.exit_code == 0 and len(result.stderr) == 0
 
             with self._jobs_lock:
                 job = self.jobs.get(job_id)
@@ -181,43 +180,53 @@ class ValidationManager:
                     return
 
                 job.end_time = int(time.time() * 1000)
-                job.is_valid = result.is_valid
-                job.error_message = result.errors if result.errors else None
+                job.is_valid = is_valid
 
-                if result.is_valid:
+                if is_valid:
                     job.state = InternalValidationJobState.COMPLETED
+                    job.details = ["Pipeline is valid"]
                     self.logger.info(
-                        "Validation job %s completed successfully (pipeline is valid)",
+                        "Validation job %s completed: exit_code=%d, pipeline is valid",
                         job_id,
+                        result.exit_code,
                     )
                 else:
-                    job.state = InternalValidationJobState.ERROR
+                    job.state = InternalValidationJobState.FAILED
+                    job.details = []
+                    if result.stderr:
+                        for error in result.stderr:
+                            job.details.append(f"Pipeline validation failed: {error}")
+                    else:
+                        job.details.append(
+                            f"Pipeline validation failed with exit_code={result.exit_code}"
+                        )
                     self.logger.error(
-                        "Validation job %s failed with errors: %s",
+                        "Validation job %s failed: exit_code=%d, errors=%s",
                         job_id,
-                        result.errors,
+                        result.exit_code,
+                        result.stderr,
                     )
 
         except Exception as e:
-            # Any unexpected exception is treated as an ERROR state
+            # Any unexpected exception is treated as a FAILED state
             self._update_job_error(job_id, str(e))
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """
-        Mark the job as failed and persist the error message.
+        Mark the job as failed, clear the details list, and append the failure message.
+
+        The details list is cleared when transitioning to FAILED state,
+        then the new failure message is appended.
 
         Used for unexpected exceptions in the manager itself.
         """
         with self._jobs_lock:
             job = self.jobs.get(job_id)
             if job is not None:
-                job.state = InternalValidationJobState.ERROR
+                job.state = InternalValidationJobState.FAILED
+                job.details = [error_message]
                 job.end_time = int(time.time() * 1000)
-                if job.error_message is None:
-                    job.error_message = [error_message]
-                else:
-                    job.error_message.append(error_message)
-        self.logger.error("Validation job %s error: %s", job_id, error_message)
+        self.logger.error("Validation job %s failed: %s", job_id, error_message)
 
     def _build_job_status(
         self, job: InternalValidationJob
@@ -239,8 +248,8 @@ class ValidationManager:
             start_time=job.start_time,
             elapsed_time=elapsed_time,
             state=job.state,
+            details=list(job.details),
             is_valid=job.is_valid,
-            error_message=job.error_message,
         )
 
     def get_all_job_statuses(self) -> list[InternalValidationJobStatus]:
