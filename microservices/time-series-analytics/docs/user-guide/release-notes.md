@@ -1,6 +1,6 @@
-# Release Notes
+# Release Notes: Time Series Analytics
 
-## 2026.0 - March 2026
+## Version 2026.0 - March 27, 2026
 
 This release improves deployment consistency, reliability, and documentation usability for
 Time Series Analytics.
@@ -20,13 +20,13 @@ For older release notes, check out:
 - [December 2025](./release-notes/dec-2025.md)
 - [August 2025](./release-notes/aug-2025.md)
 
+
 <!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
 
-./release-notes/dec-2025.md
-./release-notes/aug-2025.md
+./release-notes/release-notes-2025.md
 
 ```
 hide_directive-->
