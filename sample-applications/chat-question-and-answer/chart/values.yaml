@@ -79,7 +79,7 @@ dataprepPgvector:
       port: 8000
       targetPort: 8000
     env:
-      ALLOWED_HOSTS: ".intel.com,google.com,.github.com"
+      ALLOWED_HOSTS: 
 
 tgiService:
   name: text-generation-service
