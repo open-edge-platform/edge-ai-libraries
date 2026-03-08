@@ -12,6 +12,17 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
+    {{- if .Values.global.affinity.enabled }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.global.affinity.key }}
+                operator: In
+                values:
+                - {{ .Values.global.affinity.value }}
+       {{- end }}
 
       {{- if .Values.global.gpu.enabled }}
       securityContext:
