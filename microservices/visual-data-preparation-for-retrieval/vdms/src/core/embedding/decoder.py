@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from fractions import Fraction
+from time import time
 from typing import Any
 from typing import Dict
 from typing import Generator
@@ -249,7 +250,7 @@ def decode_stream_and_batch_generator(
     batch: list[tuple[int, av.VideoFrame]] = []
     batch_id = 0
     global_frame_idx = 0
-
+    start_time = time.perf_counter()
     with container, ThreadPoolExecutor(max_workers=8) as thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
@@ -261,7 +262,8 @@ def decode_stream_and_batch_generator(
             for packet in container.demux(stream):
 
                 if shutdown_event and shutdown_event.is_set():
-                    yield (INTERRUPT, stream_id)
+                    end_time = time.perf_counter()
+                    yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                     break
 
                 if packet.dts is None:
@@ -273,6 +275,7 @@ def decode_stream_and_batch_generator(
                     # RTSP transient decode failure — continue
                     continue
 
+                batch_start_time = time.perf_counter()
                 for frame in frames:
                     if shutdown_event and shutdown_event.is_set():
                         break
@@ -285,21 +288,25 @@ def decode_stream_and_batch_generator(
                     global_frame_idx += 1
 
                     if len(batch) >= batch_size:
-                        yield flush_batch(batch, batch_id)
+                        yield flush_batch(batch, batch_id), (batch_start_time, time.perf_counter(), time.perf_counter() - batch_start_time)
+                        batch_start_time = time.perf_counter()
                         batch.clear()
                         batch_id += 1
 
             # Final drain (only on shutdown or true EOS)
             if batch:
-                yield flush_batch(batch, batch_id)
+                yield flush_batch(batch, batch_id), (batch_start_time, time.perf_counter(), time.perf_counter() - batch_start_time)
+                batch_start_time = time.perf_counter()
+                batch.clear()
 
         finally:
+            end_time = time.perf_counter()
             if shutdown_event and shutdown_event.is_set():
                 logger.info(f"Stream {stream_id} stopped by shutdown event")
             else:
                 logger.info(f"Stream {stream_id} ended")
 
-            yield (DONE, stream_id)
+            yield (DONE, stream_id, (start_time, end_time, end_time - start_time))  # end-of-stream sentinel
 
 
 def decode_and_batch_generator(
@@ -313,6 +320,7 @@ def decode_and_batch_generator(
     batch = []
     batch_id = 0
     _thread_pool = ThreadPoolExecutor(max_workers=8)
+    start_time = time.perf_counter()
     with container:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
@@ -320,11 +328,13 @@ def decode_and_batch_generator(
         if stream_config.keyframes_only:
             stream.skip_frame = "NONKEY"
 
+        batch_start_time = time.perf_counter()
         for frame_id, frame in enumerate(container.decode(video=0)):
 
             # TODO: Shutdown signal check
             if shutdown_event and shutdown_event.is_set():
-                yield (INTERRUPT, stream_id)
+                end_time = time.perf_counter()
+                yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                 break
 
             if frame_id % stream_config.frame_interval != 0:
@@ -340,9 +350,10 @@ def decode_and_batch_generator(
                 )
                 yield BatchFrameMetadata(
                     stream_id=stream_id, batch_id=batch_id, frames=frames_meta
-                ).to_dict()
+                ).to_dict(), (batch_start_time, time.perf_counter(), time.perf_counter() - batch_start_time)
 
                 batch = []
+                batch_start_time = time.perf_counter()
                 batch_id += 1
 
         if len(batch) > 0:
@@ -353,9 +364,11 @@ def decode_and_batch_generator(
             )
             yield BatchFrameMetadata(
                 stream_id=stream_id, batch_id=batch_id, frames=frames_meta
-            ).to_dict()
+            ).to_dict(), (batch_start_time, time.perf_counter(), time.perf_counter() - batch_start_time)
+            batch_start_time = time.perf_counter()
 
-        yield (DONE, stream_id)  # end-of-stream sentinel
+        end_time = time.perf_counter()
+        yield (DONE, stream_id, (start_time, end_time, end_time - start_time))  # end-of-stream sentinel
 
 
 def generator_to_queue(gen, result_queue):
@@ -455,12 +468,12 @@ class VideoFrameExtractor:
                                 else None
                             ),
                             duration=stream.duration,
-                        )
+                        ).to_dict()
                     )
 
-    def get_metadata(self) -> list[VideoStreamMetadata]:
+    def get_metadata(self) -> list[Dict[str, Any]]:
         """Return metadata for all video streams."""
-        return self.metadata_list[0] if self.metadata_list else None
+        return self.metadata_list
 
     def _open_video_source(self, video_input: VideoInput) -> av.container.Container:
         """Open video source based on type."""
@@ -541,11 +554,13 @@ class VideoFrameExtractor:
                 if isinstance(batch, tuple):
 
                     if batch[0] is INTERRUPT:
+                        logger.info(f"Interrupt signal received for stream {batch[1]}, shutting down...")
+                        logger.info(f"Timing info: start_time={batch[2][0]}, end_time={batch[2][1]}, duration={batch[2][2]}")
                         break
 
                     if batch[0] is DONE:
-                        _, stream_id = batch
-
+                        _, stream_id, timing_info = batch
+                        logger.info(f"Stream {stream_id} completed. Timing info: start_time={timing_info[0]}, end_time={timing_info[1]}, duration={timing_info[2]}")
                         finished_set.add(stream_id)
 
                         t = threads[stream_id]
