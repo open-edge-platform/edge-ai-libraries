@@ -2,7 +2,6 @@
 
 This section provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
 
-
 ## Hardware Platforms Used for Validation
 
 - Intel® Xeon® processor: Fourth and fifth generation.
@@ -27,6 +26,6 @@ The software requirements to install the sample application are provided in othe
 **Known Limitations**:
 - None
 
-
 ## Validation
-- Ensure that you have installed and configured all dependencies before proceeding to [Get Started](./get-started.md).
+
+- Ensure that you have installed and configured all dependencies before proceeding to [Get Started](../get-started.md).

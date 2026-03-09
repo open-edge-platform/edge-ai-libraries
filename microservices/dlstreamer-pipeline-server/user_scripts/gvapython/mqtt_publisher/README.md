@@ -1,4 +1,4 @@
-### MQTT Publisher:
+# MQTT Publisher
 
 This python script supports publishing frames and metadata to specified MQTT broker.
 
@@ -18,7 +18,6 @@ Add mqtt_publisher to the `properties` key in the `config.json` file as shown be
   }
 
 ```
-
 
 Sample REST request:
 
@@ -49,8 +48,9 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
 
 ```
 
-### Note:
-- Prerequisites for MQTT Publisher (setting up mqtt broker, subscriber) can be found [here](../../../eii/docs/mqtt_publish_doc.md#prerequisites-for-mqtt-publishing)
+## Configuration
+
+> **Note:** Prerequisites for MQTT Publisher (setting up mqtt broker, subscriber) can be found [here](../../../docs/user-guide/advanced-guide/detailed_usage/publisher/mqtt_publish.md#prerequisites-for-mqtt-publishing)
 
 - Configuration
 
