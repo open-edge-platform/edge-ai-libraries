@@ -333,20 +333,46 @@ def test_convert_advanced_to_simple_graph(http_client: requests.Session) -> None
 
 
 @pytest.mark.smoke
-def test_convert_simple_to_advanced_graph(http_client: requests.Session) -> None:
-    """Test POST /pipelines/{id}/variants/{id}/convert-to-advanced endpoint."""
+def test_convert_simple_to_advanced_graph_with_property_change(http_client: requests.Session) -> None:
+    """Test converting simple graph to advanced with property modifications."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
     variant_id = predefined_pipeline["variants"][0]["id"]
-
+    
+    # Get the current simple graph
+    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    assert get_response.status_code == 200
+    
+    variant = next(
+        v for v in get_response.json()["variants"] 
+        if v["id"] == variant_id
+    )
+    simple_graph = variant["pipeline_graph_simple"]
+    
+    # Modify properties in the simple graph
+    modified_graph = simple_graph.copy()
+    
+    for node in modified_graph.get("nodes", []):
+        if node.get("type") == "filesrc":
+            if "data" not in node:
+                node["data"] = {}
+            node["data"]["location"] = "/new/video/path.mp4"
+            break
+    
+    # Send conversion request
     response = http_client.post(
         f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
-        json=_graph_dict(),
+        json=modified_graph,
         timeout=30,
     )
+    
     assert response.status_code == 200
-    assert "nodes" in response.json()
-    assert "edges" in response.json()
+    advanced_graph = response.json()
+    
+    # Check that we received a valid advanced graph
+    assert "nodes" in advanced_graph
+    assert "edges" in advanced_graph
+    assert len(advanced_graph["nodes"]) >= len(simple_graph["nodes"])
 
 
 @pytest.mark.smoke
