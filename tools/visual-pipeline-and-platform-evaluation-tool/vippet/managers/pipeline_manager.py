@@ -466,6 +466,9 @@ class PipelineManager:
             pipeline_name = spec.pipeline_name
             base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
+            # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
+            base_graph.validate_camera_sources_followed_by_decodebin3()
+
             # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
             if base_graph.has_decodebin3():
                 codec = base_graph.determine_input_codec()

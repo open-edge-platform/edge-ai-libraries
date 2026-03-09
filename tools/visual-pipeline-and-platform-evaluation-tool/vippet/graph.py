@@ -363,7 +363,6 @@ class Graph:
         # Work on a deep copy of nodes to avoid mutating the original graph.
         nodes = copy.deepcopy(self.nodes)
         _validate_models_supported_on_devices(nodes)
-        _validate_camera_source_followed_by_decodebin3(nodes, self.edges)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
         _labels_name_to_path(nodes)
@@ -1576,6 +1575,58 @@ class Graph:
 
         return modified_graph
 
+    def validate_camera_sources_followed_by_decodebin3(self) -> None:
+        """
+        Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
+
+        This validation ensures that camera pipelines have the required decoder element
+        after the source element to properly handle the incoming stream.
+
+        This function only validates direct camera source nodes (v4l2src, rtspsrc) which
+        appear in advanced view.
+
+        Args:
+            self: The instance of the graph containing nodes and edges.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If any camera source is not followed by any element
+            ValueError: If any camera source is not followed by decodebin3
+
+        Example:
+            Validates that: rtspsrc -> decodebin3 or v4l2src -> decodebin3
+        """
+        # Build a mapping of node IDs to nodes for quick lookup
+        node_by_id = {node.id: node for node in self.nodes}
+
+        # Build adjacency map for outgoing edges
+        edges_from: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_from.setdefault(edge.source, []).append(edge.target)
+
+        for node in self.nodes:
+            if node.type not in {"v4l2src", "rtspsrc"}:
+                continue
+
+            next_nodes = edges_from.get(node.id, [])
+            if not next_nodes:
+                raise ValueError(
+                    f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                    "but no element follows the camera source"
+                )
+
+            next_node_id = next_nodes[0]
+            next_node = node_by_id.get(next_node_id)
+
+            if not next_node or next_node.type != "decodebin3":
+                next_type = next_node.type if next_node else "unknown"
+                raise ValueError(
+                    f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                    f"but found '{next_type}' instead"
+                )
+
     @staticmethod
     def _build_v4l2_caps_node(
         nodes: list[Node],
@@ -2552,63 +2603,6 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted rtspsrc to generic source (camera): {source_name}")
-
-
-def _validate_camera_source_followed_by_decodebin3(
-    nodes: list[Node],
-    edges: list[Edge],
-) -> None:
-    """
-    Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
-
-    This validation ensures that camera pipelines have the required decoder element
-    after the source element to properly handle the incoming stream.
-
-    This function only validates direct camera source nodes (v4l2src, rtspsrc) which
-    appear in advanced view.
-
-    Args:
-        nodes: List of all nodes in the graph
-        edges: List of all edges connecting the nodes
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If any camera source is not followed by any element
-        ValueError: If any camera source is not followed by decodebin3
-
-    Example:
-        Validates that: rtspsrc -> decodebin3 or v4l2src -> decodebin3
-    """
-    # Build a mapping of node IDs to nodes for quick lookup
-    node_by_id = {node.id: node for node in nodes}
-
-    # Build adjacency map for outgoing edges
-    edges_from: dict[str, list[str]] = {}
-    for edge in edges:
-        edges_from.setdefault(edge.source, []).append(edge.target)
-
-    for node in nodes:
-        if node.type not in {"v4l2src", "rtspsrc"}:
-            continue
-
-        next_nodes = edges_from.get(node.id, [])
-        if not next_nodes:
-            raise ValueError(
-                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
-                "but no element follows the camera source"
-            )
-
-        next_node_id = next_nodes[0]
-        next_node = node_by_id.get(next_node_id)
-
-        if not next_node or next_node.type != "decodebin3":
-            next_type = next_node.type if next_node else "unknown"
-            raise ValueError(
-                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
-                f"but found '{next_type}' instead"
-            )
 
 
 def _labels_path_to_display_name(nodes: list[Node]) -> None:

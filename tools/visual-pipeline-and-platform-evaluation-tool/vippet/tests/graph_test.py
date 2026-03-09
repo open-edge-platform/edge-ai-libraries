@@ -3502,7 +3502,7 @@ class TestNegativeCases(unittest.TestCase):
                 )
 
                 with self.assertRaises(ValueError) as cm:
-                    graph.to_pipeline_description()
+                    graph.validate_camera_sources_followed_by_decodebin3()
                 self.assertIn(
                     f"Camera source '{source_type}' requires a decodebin3 element to follow it, but found 'videoconvert' instead",
                     str(cm.exception),
