@@ -28,32 +28,44 @@ LIVE_STREAM_SERVER_PORT: str = os.environ.get(
 # Standard h264 encoder configurations for file output.
 # Maps device type to list of (search_element, full_element_string) tuples.
 # The first available encoder in the list is used.
+#
+# Bitrate units differ across encoders:
+#   - VAAPI encoders (vah264lpenc, vah264enc): bitrate in kbps
+#   - openh264enc: bitrate in bps
 ENCODER_CONFIG: Dict[str, List[Tuple[str, str]]] = {
     ENCODER_DEVICE_GPU: [
-        ("vah264lpenc", "vah264lpenc"),
-        ("vah264enc", "vah264enc"),
+        ("vah264lpenc", "vah264lpenc"),  # bitrate in kbps (default)
+        ("vah264enc", "vah264enc"),  # bitrate in kbps (default)
     ],
     ENCODER_DEVICE_CPU: [
-        ("openh264enc", "openh264enc bitrate=16000000 complexity=low"),
+        (
+            "openh264enc",
+            "openh264enc bitrate=16000000 complexity=low",
+        ),  # bitrate in bps (16 Mbps)
     ],
 }
 
 # Low-latency h264 encoder configurations for live-streaming output.
 # Uses settings optimized for RTSP streaming to media server.
+#
+# Bitrate units differ across encoders:
+#   - VAAPI encoders (vah264lpenc, vah264enc): bitrate in kbps
+#   - openh264enc: bitrate in bps
 STREAMING_ENCODER_CONFIG: Dict[str, List[Tuple[str, str]]] = {
     ENCODER_DEVICE_GPU: [
-        # vah264lpenc doesn't support tune property
         (
             "vah264lpenc",
-            "vah264lpenc bitrate=16000 target-usage=4 max-qp=30",
+            "vah264lpenc bitrate=16000 target-usage=4 max-qp=30",  # 16000 kbps = 16 Mbps
         ),
-        # vah264enc doesn't support tune property
-        ("vah264enc", "vah264enc bitrate=16000 target-usage=4 max-qp=30"),
+        (
+            "vah264enc",
+            "vah264enc bitrate=16000 target-usage=4 max-qp=30",  # 16000 kbps = 16 Mbps
+        ),
     ],
     ENCODER_DEVICE_CPU: [
         (
             "openh264enc",
-            "openh264enc bitrate=16000000 complexity=low usage-type=camera slice-mode=auto gop-size=25",
+            "openh264enc bitrate=16000000 complexity=low usage-type=camera slice-mode=auto gop-size=25",  # 16000000 bps = 16 Mbps
         ),
     ],
 }
