@@ -37,7 +37,7 @@ modeldownload:
   affinity:  #Optional: Provide node hostname label on which model download needs to be scheduled.
     enabled : false
     key: kubernetes.io/hostname
-    value:  
+    value: 
             
   service:
     type: NodePort
