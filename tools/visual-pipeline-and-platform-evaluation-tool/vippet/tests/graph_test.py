@@ -4153,7 +4153,7 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
     @patch("os.path.isfile", return_value=True)
     @patch("graph.VideosManager")
-    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_cls, mock_isfile):
+    def test_splitmuxsink_preserved_during_looping(self, mock_videos_cls, mock_isfile):
         """Test that splitmuxsink is preserved during looping modifications."""
         mock_videos_instance = MagicMock()
         mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"

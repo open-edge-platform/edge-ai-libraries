@@ -415,7 +415,7 @@ class Graph:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
         - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
-        - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
+        - Set default max-size-time and max-files on splitmuxsink if not already configured
 
         Returns:
             Modified Graph object with looping support
@@ -489,6 +489,7 @@ class Graph:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
 
+            # Set default max-size-time and max-files on splitmuxsink if not already configured
             elif node.type == "splitmuxsink":
                 if not node.data.get("max-size-time"):
                     node.data["max-size-time"] = "10000000000"
