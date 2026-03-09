@@ -90,3 +90,9 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: models-pvc
+        {{- if .Values.modeldownload.gpu.enabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+{{- end }}
