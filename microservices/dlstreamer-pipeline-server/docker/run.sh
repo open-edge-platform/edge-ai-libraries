@@ -51,7 +51,7 @@ ros2_prerequisites
 
 taskset_cmds=()
 case "$CORE_PINNING" in
-e-cores|p-cores|lp-cores)
+e-cores|p-cores|lpe-cores)
     . ./detect-cores.sh
     declare -n core_list="${CORE_PINNING/-/_}"
     [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
