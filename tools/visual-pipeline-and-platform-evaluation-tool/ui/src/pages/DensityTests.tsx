@@ -44,7 +44,7 @@ interface PipelineSelection {
 }
 
 export const DensityTests = () => {
-  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
   const pipelines = useAppSelector(selectPipelines);
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
@@ -61,6 +61,9 @@ export const DensityTests = () => {
   const [loopingEnabled, setLoopingEnabled] = useState(false);
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
+  );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
@@ -213,9 +216,7 @@ export const DensityTests = () => {
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
-        setErrorMessage(
-          formatErrorMessage(error?.error_message, "Test failed"),
-        );
+        setErrorMessage(formatErrorMessage(error?.details, "Test failed"));
       } else {
         const errorMessage = handleApiError(error, "Test failed");
         setErrorMessage(errorMessage);
@@ -352,9 +353,7 @@ export const DensityTests = () => {
         <Button
           onClick={handleAddPipeline}
           variant="outline"
-          disabled={
-            pipelineSelections.length >= pipelines.length || isRunning
-          }
+          disabled={pipelineSelections.length >= pipelines.length || isRunning}
         >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
@@ -376,7 +375,7 @@ export const DensityTests = () => {
           <span className="text-sm text-muted-foreground">FPS</span>
         </div>
 
-        <div className="my-4 flex flex-col">
+        <div className="my-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -390,37 +389,53 @@ export const DensityTests = () => {
                     }}
                   />
                   <span className="text-sm font-medium">
-                    Run pipeline in loop
+                    Set iteration duration
                   </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Run test in loop mode for a selected duration</p>
+                <p>Run test iteration for a selected duration</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
           {loopingEnabled && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="flex items-center gap-2 h-[42px]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
-                type="number"
-                min={1}
-                step={1}
-                value={loopingRuntimeSeconds}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loopingRuntimeInput}
                 disabled={isRunning}
                 onChange={(event) => {
-                  const value = event.target.valueAsNumber;
-                  setLoopingRuntimeSeconds(
-                    Number.isNaN(value)
-                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                      : value,
-                  );
+                  const value = event.target.value;
+
+                  if (value !== "" && !/^\d+$/.test(value)) {
+                    return;
+                  }
+
+                  setLoopingRuntimeInput(value);
+
+                  if (value === "") {
+                    return;
+                  }
+
+                  const parsedValue = Number.parseInt(value, 10);
+                  setLoopingRuntimeSeconds(parsedValue);
                 }}
                 onBlur={() => {
-                  if (loopingRuntimeSeconds < 1) {
-                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
-                  }
+                  const parsedValue =
+                    loopingRuntimeInput.trim().length === 0
+                      ? Number.NaN
+                      : Number.parseInt(loopingRuntimeInput, 10);
+                  const normalizedValue =
+                    Number.isFinite(parsedValue) && parsedValue >= 1
+                      ? parsedValue
+                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                  setLoopingRuntimeSeconds(normalizedValue);
+                  setLoopingRuntimeInput(String(normalizedValue));
                 }}
                 className="h-8 w-24 px-2 text-xs"
               />

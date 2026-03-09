@@ -111,6 +111,7 @@ class TestJobsAPI(unittest.TestCase):
                 start_time=now - 500,
                 type=InternalOptimizationType.OPTIMIZE,
                 end_time=now,
+                details=["Optimization completed successfully"],
                 total_fps=123.4,
                 optimized_pipeline_graph=mock_graph,
                 optimized_pipeline_graph_simple=mock_graph,
@@ -136,6 +137,7 @@ class TestJobsAPI(unittest.TestCase):
         self.assertIsNone(first["total_fps"])
         self.assertIn("original_pipeline_graph", first)
         self.assertIsNone(first["optimized_pipeline_graph"])
+        self.assertEqual(first["details"], [])
 
         # Spot-check second job
         self.assertEqual(second["id"], "job-2")
@@ -143,6 +145,7 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(second["state"], "COMPLETED")
         self.assertEqual(second["total_fps"], 123.4)
         self.assertEqual(second["optimized_pipeline_description"], "optimized-pipeline")
+        self.assertEqual(second["details"], ["Optimization completed successfully"])
 
     # ------------------------------------------------------------------
     # /jobs/optimization/{job_id}
@@ -237,6 +240,7 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(data["type"], "optimize")
         self.assertEqual(data["state"], "RUNNING")
         self.assertIn("original_pipeline_graph", data)
+        self.assertEqual(data["details"], [])
 
         mock_manager.get_job_status.assert_called_once_with("job-status-1")
 
@@ -286,16 +290,16 @@ class TestJobsAPI(unittest.TestCase):
                 start_time=1000,
                 elapsed_time=200,
                 state=InternalValidationJobState.RUNNING,
+                details=[],
                 is_valid=None,
-                error_message=None,
             ),
             InternalValidationJobStatus(
                 id="val-job-2",
                 start_time=2000,
                 elapsed_time=500,
-                state=InternalValidationJobState.ERROR,
+                state=InternalValidationJobState.FAILED,
+                details=["Pipeline validation failed: no element foo"],
                 is_valid=False,
-                error_message=["no element foo"],
             ),
         ]
         mock_validation_manager_cls.return_value = mock_manager
@@ -313,12 +317,14 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(first["id"], "val-job-1")
         self.assertEqual(first["state"], "RUNNING")
         self.assertIsNone(first["is_valid"])
-        self.assertIsNone(first["error_message"])
+        self.assertEqual(first["details"], [])
 
         self.assertEqual(second["id"], "val-job-2")
-        self.assertEqual(second["state"], "ERROR")
+        self.assertEqual(second["state"], "FAILED")
         self.assertFalse(second["is_valid"])
-        self.assertEqual(second["error_message"], ["no element foo"])
+        self.assertEqual(
+            second["details"], ["Pipeline validation failed: no element foo"]
+        )
 
     # ------------------------------------------------------------------
     # /jobs/validation/{job_id}
@@ -391,8 +397,8 @@ class TestJobsAPI(unittest.TestCase):
             start_time=123456,
             elapsed_time=1000,
             state=InternalValidationJobState.COMPLETED,
+            details=["Pipeline is valid"],
             is_valid=True,
-            error_message=None,
         )
         mock_validation_manager_cls.return_value = mock_manager
 
@@ -404,7 +410,7 @@ class TestJobsAPI(unittest.TestCase):
         self.assertEqual(data["id"], "val-status-1")
         self.assertEqual(data["state"], "COMPLETED")
         self.assertTrue(data["is_valid"])
-        self.assertIsNone(data["error_message"])
+        self.assertEqual(data["details"], ["Pipeline is valid"])
 
     @patch("api.routes.jobs.ValidationManager")
     def test_get_validation_job_status_not_found(self, mock_validation_manager_cls):

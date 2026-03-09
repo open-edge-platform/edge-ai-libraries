@@ -1,6 +1,7 @@
 import { type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   type PipelineStreamSpec,
+  useGetVideosQuery,
   useGetDensityJobStatusQuery,
   useGetPerformanceJobStatusQuery,
   useRunDensityTestMutation,
@@ -42,13 +43,16 @@ import { useModelsLoader } from "@/hooks/useModels.ts";
 import { useDevicesLoader } from "@/hooks/useDevices.ts";
 import { useStreamRateChange } from "@/hooks/useStreamRateChange.ts";
 import { Toaster } from "@/components/ui/sonner.tsx";
-import { BubbleBackground } from "@/components/ui/shadcn-io/bubble-background";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import {
+  parsePipelineVariantReference,
+  resolvePipelineVariantLabel,
+} from "@/features/pipeline-tests/pipelineVariantReference";
 
 const nodeTypeToTag: Record<string, string> = {
   // Sources
@@ -179,12 +183,14 @@ const CheckboxInfoHint = ({
 );
 
 const DemoMode = () => {
+  const DEFAULT_DENSITY_ITERATION_DURATION_SECONDS = 10;
   const navigate = useNavigate();
   usePipelinesLoader();
   useModelsLoader();
   useDevicesLoader();
   const pipelines = useAppSelector(selectPipelines);
   const models = useAppSelector(selectModels);
+  const { data: videos = [] } = useGetVideosQuery();
   const [runDensityTest, { isLoading: isRunning }] =
     useRunDensityTestMutation();
   const [runPerformanceTest, { isLoading: isPerformanceRunning }] =
@@ -195,6 +201,12 @@ const DemoMode = () => {
     PipelineSelection[]
   >([]);
   const [fpsFloor, setFpsFloor] = useState<number>(30);
+  const [densityIterationDurationEnabled, setDensityIterationDurationEnabled] =
+    useState(false);
+  const [densityIterationDurationSeconds, setDensityIterationDurationSeconds] =
+    useState(DEFAULT_DENSITY_ITERATION_DURATION_SECONDS);
+  const [densityIterationDurationInput, setDensityIterationDurationInput] =
+    useState(String(DEFAULT_DENSITY_ITERATION_DURATION_SECONDS));
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
@@ -263,6 +275,17 @@ const DemoMode = () => {
   >({});
   const [selectedVariantByPipelineId, setSelectedVariantByPipelineId] =
     useState<Record<string, string>>({});
+  const videoFilenames = useMemo(
+    () => videos.map((video) => video.filename),
+    [videos],
+  );
+  const getFilenameFromPath = (value: unknown): string => {
+    const stringValue = String(value ?? "");
+    if (!stringValue) return "";
+    const normalized = stringValue.replace(/\\/g, "/");
+    const segments = normalized.split("/");
+    return segments.at(-1) ?? stringValue;
+  };
   const getNodeEditKey = (
     pipelineId: string,
     variantId: string,
@@ -278,6 +301,19 @@ const DemoMode = () => {
       pipeline.variants[0]
     );
   };
+
+  const selectedPipelineVariants = useMemo(() => {
+    return pipelineSelections.map((selection) => ({
+      pipelineId: selection.pipelineId,
+      variantId:
+        getSelectedVariantForPipeline(selection.pipelineId)?.id ?? null,
+    }));
+  }, [
+    pipelineSelections,
+    pipelines,
+    selectedVariantByPipelineId,
+    getSelectedVariantForPipeline,
+  ]);
   const inferenceNodeTypes = new Set([
     "gvadetect",
     "gvaclassify",
@@ -510,12 +546,12 @@ const DemoMode = () => {
   }, [performanceResult]);
 
   const colorModes = {
-    first: "180,230,255",
-    second: "15,76,129",
-    third: "120,190,255",
-    fourth: "30,90,150",
-    fifth: "200,240,255",
-    sixth: "140,210,255",
+    first: "60,120,200",
+    second: "8,28,80",
+    third: "40,95,220",
+    fourth: "10,30,90",
+    fifth: "70,140,210",
+    sixth: "30,90,180",
   };
 
   // UI color styles
@@ -673,13 +709,8 @@ const DemoMode = () => {
       }
       setErrorMessage(null);
       setDensityJobId(null);
-    } else if (jobStatus?.state === "ERROR") {
-      console.error("Test failed:", jobStatus.error_message);
-      setErrorMessage(jobStatus.error_message || "Test failed");
-      setTestResult(null);
-      setDensityJobId(null);
-    } else if (jobStatus?.state === "ABORTED") {
-      // Test was stopped - always freeze metrics
+    } else if (jobStatus?.state === "FAILED") {
+      // Failed test - freeze metrics captured until failure
       if (
         testStartTimestamp &&
         densityJobId &&
@@ -692,7 +723,7 @@ const DemoMode = () => {
         setFrozenPerStreamFps(jobStatus.per_stream_fps ?? null);
       }
 
-      // Show results if available
+      // Show partial results if available
       if (jobStatus.per_stream_fps || jobStatus.total_streams) {
         setTestResult({
           per_stream_fps: jobStatus.per_stream_fps,
@@ -703,7 +734,13 @@ const DemoMode = () => {
       } else {
         setTestResult(null);
       }
-      setErrorMessage(null);
+
+      const failureMessage =
+        jobStatus.details.at(-1) ??
+        jobStatus.details.at(0) ??
+        "Density test failed";
+      console.error("Density test failed:", failureMessage);
+      setErrorMessage(failureMessage);
       setDensityJobId(null);
     }
   }, [
@@ -751,18 +788,8 @@ const DemoMode = () => {
       }
       setPerformanceErrorMessage(null);
       setPerformanceJobId(null);
-    } else if (performanceJobStatus?.state === "ERROR") {
-      console.error(
-        "Throughput test failed:",
-        performanceJobStatus.error_message,
-      );
-      setPerformanceErrorMessage(
-        performanceJobStatus.error_message || "Test failed",
-      );
-      setPerformanceResult(null);
-      setPerformanceJobId(null);
-    } else if (performanceJobStatus?.state === "ABORTED") {
-      // Test was stopped - always freeze metrics
+    } else if (performanceJobStatus?.state === "FAILED") {
+      // Failed test - freeze metrics captured until failure
       if (
         testStartTimestamp &&
         performanceJobId &&
@@ -779,7 +806,7 @@ const DemoMode = () => {
         );
       }
 
-      // Show results if available
+      // Show partial results if available
       if (
         performanceJobStatus.total_fps ||
         performanceJobStatus.per_stream_fps
@@ -793,7 +820,13 @@ const DemoMode = () => {
       } else {
         setPerformanceResult(null);
       }
-      setPerformanceErrorMessage(null);
+
+      const failureMessage =
+        performanceJobStatus.details.at(-1) ??
+        performanceJobStatus.details.at(0) ??
+        "Throughput test failed";
+      console.error("Throughput test failed:", failureMessage);
+      setPerformanceErrorMessage(failureMessage);
       setPerformanceJobId(null);
     }
   }, [
@@ -1027,17 +1060,34 @@ const DemoMode = () => {
         densityTestSpec: {
           execution_config: {
             output_mode: "disabled",
-            max_runtime: 1800,
+            max_runtime: densityIterationDurationEnabled
+              ? densityIterationDurationSeconds
+              : 0,
           },
           fps_floor: fpsFloor,
-          pipeline_density_specs: pipelineSelections.map((selection) => {
+          pipeline_density_specs: pipelineSelections.map((selection, index) => {
             const variant = getPipelineVariantForRun(selection.pipelineId);
             const pipelineGraph = preparePipelineGraph(selection.pipelineId);
+
+            const graphIdBase = [
+              "demo",
+              selection.pipelineId,
+              variant?.id ?? "default",
+              String(index),
+            ]
+              .join("-")
+              .toLowerCase()
+              .replace(/[^a-z0-9-]+/g, "-")
+              .replace(/-+/g, "-")
+              .replace(/^-|-$/g, "");
+            const graphId =
+              graphIdBase.length > 0 ? graphIdBase : `demo-${index}`;
 
             return {
               pipeline: pipelineGraph
                 ? {
                     source: "graph" as const,
+                    graph_id: graphId,
                     pipeline_id: selection.pipelineId,
                     variant_id: variant?.id ?? "",
                     pipeline_graph: pipelineGraph,
@@ -1072,6 +1122,35 @@ const DemoMode = () => {
     }
   };
 
+  const resolveStreamLabel = (item: PipelineStreamSpec, index: number) => {
+    const parsedReference = parsePipelineVariantReference(item.id);
+    const hasParsedPipeline = pipelines.some(
+      (pipeline) => pipeline.id === parsedReference.pipelineId,
+    );
+
+    const referenceToRender =
+      parsedReference.variantId || hasParsedPipeline
+        ? parsedReference
+        : selectedPipelineVariants[index];
+
+    if (!referenceToRender || referenceToRender.variantId === null) {
+      return null;
+    }
+
+    const label = resolvePipelineVariantLabel(
+      pipelines,
+      referenceToRender.pipelineId,
+      referenceToRender.variantId,
+    );
+
+    return label
+      ? {
+          pipelineName: label.pipelineName,
+          variantName: label.variantName ?? null,
+        }
+      : null;
+  };
+
   if (pipelines.length === 0) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1082,15 +1161,33 @@ const DemoMode = () => {
 
   return (
     <div className="relative h-screen overflow-hidden text-white">
-      {/* Animated background */}
-      <BubbleBackground
-        interactive={true}
-        className="absolute inset-0 z-0"
-        colors={colorModes}
-      />
+      {/* Static blurred background */}
+      <div className="absolute inset-0 z-10 overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, #000512 0%, #001633 50%, #00061a 100%)",
+            opacity: 0.9,
+          }}
+        />
+        <div
+          className="absolute -right-16 -top-44 w-[44rem] h-[44rem] rounded-full filter blur-3xl opacity-98"
+          style={{
+            background: `radial-gradient(circle at 30% 30%, rgba(${colorModes.first},0.95), rgba(${colorModes.second},0.22), transparent 45%)`,
+          }}
+        />
+
+        <div
+          className="absolute -left-44 -bottom-40 w-[40rem] h-[40rem] rounded-full filter blur-2xl opacity-92"
+          style={{
+            background: `radial-gradient(circle at 70% 70%, rgba(${colorModes.third},0.92), rgba(${colorModes.fourth},0.22), transparent 50%)`,
+          }}
+        />
+      </div>
 
       {/* CONTENT */}
-      <div className="relative z-10 h-full flex flex-col bg-slate-950/80 min-h-0">
+      <div className="relative z-10 h-full flex flex-col bg-transparent min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
@@ -1693,6 +1790,12 @@ const DemoMode = () => {
                                                           );
                                                         const config =
                                                           propConfig as NodePropertyConfig | null;
+                                                        const isSourceLocationField =
+                                                          nodeTypeToTag[
+                                                            node.type
+                                                          ] === "Source" &&
+                                                          String(key) ===
+                                                            "location";
 
                                                         const inferenceRegionValue =
                                                           getEditedValue(
@@ -1767,6 +1870,47 @@ const DemoMode = () => {
                                                                       </option>
                                                                     ),
                                                                   )}
+                                                              </select>
+                                                            ) : isSourceLocationField &&
+                                                              videoFilenames.length >
+                                                                0 ? (
+                                                              <select
+                                                                value={getFilenameFromPath(
+                                                                  currentValue,
+                                                                )}
+                                                                onChange={(e) =>
+                                                                  handleValueChange(
+                                                                    node.id,
+                                                                    String(key),
+                                                                    e.target
+                                                                      .value,
+                                                                  )
+                                                                }
+                                                                disabled={
+                                                                  isReadOnly
+                                                                }
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                              >
+                                                                <option value="">
+                                                                  Select
+                                                                  filename
+                                                                </option>
+                                                                {videoFilenames.map(
+                                                                  (
+                                                                    filename,
+                                                                  ) => (
+                                                                    <option
+                                                                      key={
+                                                                        filename
+                                                                      }
+                                                                      value={
+                                                                        filename
+                                                                      }
+                                                                    >
+                                                                      {filename}
+                                                                    </option>
+                                                                  ),
+                                                                )}
                                                               </select>
                                                             ) : config?.type ===
                                                               "select" ? (
@@ -2056,6 +2200,7 @@ const DemoMode = () => {
                                               min={1}
                                               max={64}
                                               disabled={isReadOnly}
+                                              valueInputClassName="rounded-lg border-slate-500/50 bg-slate-950/90 text-slate-100 focus-visible:ring-blue-500/50 focus-visible:ring-2"
                                             />
                                           </div>
                                         );
@@ -2125,6 +2270,7 @@ const DemoMode = () => {
                                               min={0}
                                               max={100}
                                               disabled={isReadOnly}
+                                              valueInputClassName="rounded-lg border-slate-500/50 bg-slate-950/90 text-slate-100 focus-visible:ring-blue-500/50 focus-visible:ring-2"
                                             />
                                           </div>
                                         );
@@ -2150,6 +2296,96 @@ const DemoMode = () => {
                                           placeholder="Minimum FPS threshold"
                                           min={0}
                                         />
+                                      </div>
+
+                                      <div className="space-y-2 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={
+                                              densityIterationDurationEnabled
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              setDensityIterationDurationEnabled(
+                                                checked === true,
+                                              )
+                                            }
+                                            disabled={isReadOnly}
+                                            className={colors.checkbox}
+                                          />
+                                          <label className="text-xs font-medium text-slate-300">
+                                            Set iteration duration
+                                          </label>
+                                          <CheckboxInfoHint description="Run test iteration for a selected duration." />
+                                        </div>
+
+                                        {densityIterationDurationEnabled && (
+                                          <div className="flex items-center gap-2 pl-6">
+                                            <span className="text-xs text-slate-400">
+                                              Duration
+                                            </span>
+                                            <input
+                                              type="text"
+                                              inputMode="numeric"
+                                              pattern="[0-9]*"
+                                              value={
+                                                densityIterationDurationInput
+                                              }
+                                              disabled={isReadOnly}
+                                              onChange={(event) => {
+                                                const value =
+                                                  event.target.value;
+
+                                                if (
+                                                  value !== "" &&
+                                                  !/^\d+$/.test(value)
+                                                ) {
+                                                  return;
+                                                }
+
+                                                setDensityIterationDurationInput(
+                                                  value,
+                                                );
+
+                                                if (value === "") {
+                                                  return;
+                                                }
+
+                                                const parsedValue =
+                                                  Number.parseInt(value, 10);
+                                                setDensityIterationDurationSeconds(
+                                                  parsedValue,
+                                                );
+                                              }}
+                                              onBlur={() => {
+                                                const parsedValue =
+                                                  densityIterationDurationInput.trim()
+                                                    .length === 0
+                                                    ? Number.NaN
+                                                    : Number.parseInt(
+                                                        densityIterationDurationInput,
+                                                        10,
+                                                      );
+                                                const normalizedValue =
+                                                  Number.isFinite(
+                                                    parsedValue,
+                                                  ) && parsedValue >= 1
+                                                    ? parsedValue
+                                                    : DEFAULT_DENSITY_ITERATION_DURATION_SECONDS;
+
+                                                setDensityIterationDurationSeconds(
+                                                  normalizedValue,
+                                                );
+                                                setDensityIterationDurationInput(
+                                                  String(normalizedValue),
+                                                );
+                                              }}
+                                              className={`w-20 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                            />
+                                            <span className="text-xs text-slate-400">
+                                              s
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -2474,6 +2710,7 @@ const DemoMode = () => {
                                     testResult.streams_per_pipeline
                                   }
                                   pipelines={pipelines ?? []}
+                                  streamLabelResolver={resolveStreamLabel}
                                 />
                               </div>
                             )}

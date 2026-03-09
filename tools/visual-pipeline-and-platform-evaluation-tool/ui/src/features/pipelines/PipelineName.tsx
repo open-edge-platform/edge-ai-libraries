@@ -1,11 +1,21 @@
-import { usePipelineName } from "@/hooks/usePipelines.ts";
+import { usePipelineName, useVariantName } from "@/hooks/usePipelines.ts";
 
 interface PipelineNameProps {
   pipelineId: string;
+  variantId?: string;
 }
 
-export const PipelineName = ({ pipelineId }: PipelineNameProps) => {
-  const name = usePipelineName(pipelineId);
+export const PipelineName = ({ pipelineId, variantId }: PipelineNameProps) => {
+  const pipelineName = usePipelineName(pipelineId);
+  const variantName = useVariantName(pipelineId, variantId);
 
-  return <>{name}</>;
+  if (variantName) {
+    return (
+      <>
+        {pipelineName} • {variantName}
+      </>
+    );
+  }
+
+  return <>{pipelineName}</>;
 };
