@@ -7,6 +7,7 @@ import threading
 import urllib.request
 import urllib.error
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import cv2
@@ -28,16 +29,21 @@ VIDEO_EXTENSIONS = (
 )
 
 # Default directories for input and output videos
-OUTPUT_VIDEO_DIR = "/videos/output"
-INPUT_VIDEO_DIR = "/videos/input"
+_OUTPUT_VIDEO_DIR = "/videos/output"
+_INPUT_VIDEO_DIR = "/videos/input"
 
-# Read RECORDINGS_PATH from environment variable
-RECORDINGS_PATH: str = os.path.normpath(
-    os.environ.get("RECORDINGS_PATH", INPUT_VIDEO_DIR)
+# Read paths from environment variables, falling back to defaults
+OUTPUT_VIDEO_DIR: str = os.path.normpath(
+    os.environ.get("OUTPUT_VIDEO_DIR", _OUTPUT_VIDEO_DIR)
+)
+INPUT_VIDEO_DIR: str = os.path.normpath(
+    os.environ.get("INPUT_VIDEO_DIR", _INPUT_VIDEO_DIR)
 )
 
-# Path to default recordings YAML file
-DEFAULT_RECORDINGS_FILE = "/videos/default_recordings.yaml"
+# Path to default recordings YAML file (sibling of INPUT_VIDEO_DIR)
+DEFAULT_RECORDINGS_FILE: str = os.path.join(
+    os.path.dirname(INPUT_VIDEO_DIR), "default_recordings.yaml"
+)
 
 logger = logging.getLogger("videos")
 
@@ -145,7 +151,7 @@ class Video:
 
 class VideosManager:
     """
-    Thread-safe singleton that manages all video files and their metadata in the RECORDINGS_PATH directory.
+    Thread-safe singleton that manages all video files and their metadata in the INPUT_VIDEO_DIR directory.
 
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with VideosManager() to get the shared singleton instance.
@@ -156,7 +162,7 @@ class VideosManager:
     3. Convert all non-TS videos to TS format for looping support
 
     Raises:
-        RuntimeError: If RECORDINGS_PATH is not a valid directory.
+        RuntimeError: If INPUT_VIDEO_DIR is not a valid directory.
     """
 
     _instance: Optional["VideosManager"] = None
@@ -173,7 +179,7 @@ class VideosManager:
     def __init__(self) -> None:
         """
         Initializes the VideosManager.
-        - Validates RECORDINGS_PATH exists
+        - Validates INPUT_VIDEO_DIR exists
         - Downloads videos from default_recordings.yaml if not already present
         - Scans directory and loads video metadata
         - Ensures all TS conversions exist
@@ -181,7 +187,7 @@ class VideosManager:
         Protected against multiple initialization.
 
         Raises:
-            RuntimeError: If RECORDINGS_PATH is not a valid directory.
+            RuntimeError: If INPUT_VIDEO_DIR is not a valid directory.
         """
         # Protect against multiple initialization
         if hasattr(self, "_initialized"):
@@ -189,11 +195,11 @@ class VideosManager:
         self._initialized = True
 
         logger.debug(
-            f"Initializing VideosManager with RECORDINGS_PATH={RECORDINGS_PATH}"
+            f"Initializing VideosManager with INPUT_VIDEO_DIR={INPUT_VIDEO_DIR}"
         )
-        if not os.path.isdir(RECORDINGS_PATH):
+        if not os.path.isdir(INPUT_VIDEO_DIR):
             raise RuntimeError(
-                f"RECORDINGS_PATH '{RECORDINGS_PATH}' does not exist or is not a directory."
+                f"INPUT_VIDEO_DIR '{INPUT_VIDEO_DIR}' does not exist or is not a directory."
             )
 
         self._videos: Dict[str, Video] = {}
@@ -278,7 +284,7 @@ class VideosManager:
         Returns:
             Path to the downloaded file, or None on error.
         """
-        target_path = os.path.join(RECORDINGS_PATH, filename)
+        target_path = os.path.join(INPUT_VIDEO_DIR, filename)
 
         # Skip if file already exists
         if os.path.isfile(target_path):
@@ -383,13 +389,13 @@ class VideosManager:
 
     def _scan_and_load_all_videos(self) -> None:
         """
-        Scans the RECORDINGS_PATH directory for video files and loads/extracts metadata.
+        Scans the INPUT_VIDEO_DIR directory for video files and loads/extracts metadata.
         Populates the _videos map with Video objects.
         """
-        logger.debug(f"Scanning directory '{RECORDINGS_PATH}' for video files.")
+        logger.debug(f"Scanning directory '{INPUT_VIDEO_DIR}' for video files.")
 
-        for entry in os.listdir(RECORDINGS_PATH):
-            file_path = os.path.join(RECORDINGS_PATH, entry)
+        for entry in os.listdir(INPUT_VIDEO_DIR):
+            file_path = os.path.join(INPUT_VIDEO_DIR, entry)
             if not os.path.isfile(file_path):
                 continue
 
@@ -534,7 +540,7 @@ class VideosManager:
             if ext in ("ts", "m2ts"):
                 continue
 
-            file_path = os.path.join(RECORDINGS_PATH, filename)
+            file_path = os.path.join(INPUT_VIDEO_DIR, filename)
             self.ensure_ts_file(file_path)
 
     def ensure_ts_file(self, source_path: str) -> Optional[str]:
@@ -561,7 +567,7 @@ class VideosManager:
 
         # Build TS path
         ts_filename = f"{os.path.splitext(source_filename)[0]}.ts"
-        ts_path = os.path.join(RECORDINGS_PATH, ts_filename)
+        ts_path = os.path.join(INPUT_VIDEO_DIR, ts_filename)
 
         # Check if TS file already exists
         if os.path.isfile(ts_path):
@@ -731,7 +737,7 @@ class VideosManager:
         if directory:
             source_path = filename
         else:
-            source_path = os.path.join(RECORDINGS_PATH, basename)
+            source_path = os.path.join(INPUT_VIDEO_DIR, basename)
 
         # If already TS, ensure metadata exists and return as-is
         if ext in ("ts", "m2ts"):
@@ -790,4 +796,57 @@ class VideosManager:
         if filename not in self._videos:
             return None
 
-        return os.path.join(RECORDINGS_PATH, filename)
+        return os.path.join(INPUT_VIDEO_DIR, filename)
+
+
+def collect_video_outputs_from_dirs(
+    pipeline_dirs: dict[str, str],
+) -> dict[str, list[str]]:
+    """
+    Scan pipeline output directories and collect video files.
+
+    For each pipeline directory, lists all files directly in that directory,
+    filters by VIDEO_EXTENSIONS, and ensures any file named "main_output.*"
+    appears at the end of the list.
+
+    Args:
+        pipeline_dirs: Mapping from pipeline ID to directory path.
+
+    Returns:
+        Mapping from pipeline ID to sorted list of video file paths.
+        Files named "main_output" are placed at the end of each list.
+    """
+    result: dict[str, list[str]] = {}
+
+    for pipeline_id, dir_path in pipeline_dirs.items():
+        if not os.path.isdir(dir_path):
+            logger.warning("Pipeline output directory does not exist: %s", dir_path)
+            result[pipeline_id] = []
+            continue
+
+        video_files: list[str] = []
+        main_output_files: list[str] = []
+
+        for entry in sorted(os.listdir(dir_path)):
+            full_path = os.path.join(dir_path, entry)
+            if not os.path.isfile(full_path):
+                continue
+
+            # Check extension against VIDEO_EXTENSIONS
+            entry_path = Path(entry)
+            ext = entry_path.suffix.lower().lstrip(".")
+            if ext not in VIDEO_EXTENSIONS:
+                continue
+
+            # Separate main_output files to append them at the end
+            stem = entry_path.stem
+            if stem == "main_output":
+                main_output_files.append(full_path)
+            else:
+                video_files.append(full_path)
+
+        # main_output files go at the end
+        video_files.extend(main_output_files)
+        result[pipeline_id] = video_files
+
+    return result

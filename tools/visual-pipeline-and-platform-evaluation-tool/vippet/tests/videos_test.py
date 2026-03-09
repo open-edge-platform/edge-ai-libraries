@@ -164,23 +164,18 @@ class TestVideosManager(unittest.TestCase):
     def setUp(self):
         """Create a temporary directory for testing and reset singleton."""
         self.temp_dir = tempfile.mkdtemp()
-        self.original_recordings_path = os.environ.get("RECORDINGS_PATH")
         # Reset singleton state before each test
         VideosManager._instance = None
 
     def tearDown(self):
-        """Clean up temporary directory, restore environment, and reset singleton."""
+        """Clean up temporary directory and reset singleton."""
         shutil.rmtree(self.temp_dir)
-        if self.original_recordings_path:
-            os.environ["RECORDINGS_PATH"] = self.original_recordings_path
-        else:
-            os.environ.pop("RECORDINGS_PATH", None)
         # Reset singleton state after each test
         VideosManager._instance = None
 
     def test_singleton_returns_same_instance(self):
         """VideosManager() should return the same instance on multiple calls."""
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             with patch.object(VideosManager, "_ensure_all_ts_conversions"):
                 with patch.object(VideosManager, "_download_default_videos"):
                     instance1 = VideosManager()
@@ -190,14 +185,14 @@ class TestVideosManager(unittest.TestCase):
     def test_videos_manager_invalid_directory(self):
         """Test VideosManager raises RuntimeError for invalid directory."""
         invalid_path = os.path.join(self.temp_dir, "nonexistent")
-        with patch("videos.RECORDINGS_PATH", invalid_path):
+        with patch("videos.INPUT_VIDEO_DIR", invalid_path):
             with self.assertRaises(RuntimeError) as context:
                 VideosManager()
             self.assertIn(
                 "does not exist or is not a directory", str(context.exception)
             )
 
-    @patch("videos.RECORDINGS_PATH")
+    @patch("videos.INPUT_VIDEO_DIR")
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     @patch.object(VideosManager, "_download_default_videos")
@@ -228,7 +223,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -272,7 +267,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -300,7 +295,7 @@ class TestVideosManager(unittest.TestCase):
             f.write("invalid json content")
 
         # Should skip the file due to invalid JSON
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
         self.assertEqual(len(videos), 0)
@@ -324,7 +319,7 @@ class TestVideosManager(unittest.TestCase):
         mock_cap.isOpened.return_value = False
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -357,7 +352,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -390,7 +385,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -410,7 +405,7 @@ class TestVideosManager(unittest.TestCase):
         with open(txt_file, "w") as f:
             f.write("text content")
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -427,7 +422,7 @@ class TestVideosManager(unittest.TestCase):
         subdir = os.path.join(self.temp_dir, "subdir")
         os.makedirs(subdir)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -456,7 +451,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             video = manager.get_video("test.mp4")
 
@@ -472,7 +467,7 @@ class TestVideosManager(unittest.TestCase):
         mock_ensure_ts.return_value = None
         mock_download.return_value = None
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             video = manager.get_video("nonexistent.mp4")
 
@@ -512,7 +507,7 @@ class TestVideosManager(unittest.TestCase):
                 raise OSError("Permission denied")
             return original_open(path, *args, **kwargs)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             with patch("builtins.open", side_effect=mock_open_func):
                 manager = VideosManager()
                 videos = manager.get_all_videos()
@@ -546,7 +541,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -581,7 +576,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -631,7 +626,7 @@ class TestVideosManager(unittest.TestCase):
         with open(ts_json_path, "w") as f:
             json.dump(ts_metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test mp4 to ts path conversion
@@ -651,7 +646,7 @@ class TestVideosManager(unittest.TestCase):
         mock_ensure_ts.return_value = None
         mock_download.return_value = None
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test unsupported extension
@@ -718,7 +713,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test with full path
@@ -756,7 +751,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test existing video
@@ -794,7 +789,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Call ensure_ts_file
