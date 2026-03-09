@@ -679,6 +679,11 @@ def _convert_performance_test_spec(
     if not spec.pipeline_performance_specs:
         raise ValueError("pipeline_performance_specs cannot be empty")
 
+    # Validate that at least one stream is requested across all pipelines
+    total_streams = sum(spec.streams for spec in spec.pipeline_performance_specs)
+    if total_streams == 0:
+        raise ValueError("At least one stream must be specified to run the pipeline.")
+
     # Convert all pipeline specs
     internal_specs: List[InternalPipelinePerformanceSpec] = []
     seen_pipeline_ids: set[str] = set()
