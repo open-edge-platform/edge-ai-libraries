@@ -16,6 +16,10 @@ global:
   RERANKER_MODEL:
   OTLP_ENDPOINT:
   OTLP_ENDPOINT_TRACE:
+  #Model Download Service Configuration
+  modelDownload:
+    serviceName: # REQUIRED: e.g., model-download (use service name for same cluster)
+    port: # REQUIRED: e.g., 8200 or 8000 (use service port, not NodePort)
   #Set either one of the below embedding model sever to true by defauly OVMS is enabled
   teiEmbeddingService:
     enabled: false
@@ -43,7 +47,7 @@ Chatqna:
   image:
     repository: intel/chatqna
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 8100
@@ -64,11 +68,14 @@ Chatqna:
     SEED: 40
 
 dataprepPgvector:
-  name: document-ingestion
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
+  dataprepPgvector:
+    name: document-ingestion
+    service:
+      type: ClusterIP
+      port: 8000
+      targetPort: 8000
+    env:
+      ALLOWED_HOSTS: ""
 
 tgiService:
   name: text-generation-service

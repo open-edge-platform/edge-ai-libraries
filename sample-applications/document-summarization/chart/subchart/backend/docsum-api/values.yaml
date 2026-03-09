@@ -4,7 +4,7 @@ docSumBackend:
   image:
     repository: "intel/document-summary"
     tag: "latest"
-    pullPolicy: "IfNotPresent"
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 8090

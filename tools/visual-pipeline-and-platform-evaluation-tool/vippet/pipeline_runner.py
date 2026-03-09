@@ -12,42 +12,51 @@ import logging
 import os
 import re
 import select
+import signal
 import subprocess
 import sys
 import time
-import psutil as ps
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from subprocess import PIPE, Popen
 
+import psutil as ps
+
 
 @dataclass
-class PipelineRunResult:
-    """Result of a pipeline run with FPS metrics."""
+class PipelineResult:
+    """Unified result of a pipeline run.
 
-    total_fps: float
-    per_stream_fps: float
-    num_streams: int
+    Used for both normal and validation modes. In normal mode, FPS fields
+    contain extracted metrics. In validation mode, FPS fields default to 0.0
+    and exit_code + stderr are used to determine validity.
+
+    Attributes:
+        total_fps: Total FPS across all streams (normal mode).
+        per_stream_fps: Average FPS per stream (normal mode).
+        num_streams: Number of streams detected in metrics (normal mode).
+        exit_code: Process exit code (0 = success).
+        cancelled: Whether the run was cancelled by the user.
+        stdout: Captured stdout lines from gst_runner.py.
+        stderr: Captured stderr lines from gst_runner.py.
+    """
+
+    total_fps: float = 0.0
+    per_stream_fps: float = 0.0
+    num_streams: int = 0
+    exit_code: int = 0
+    cancelled: bool = False
+    stdout: list[str] = field(default_factory=list)
+    stderr: list[str] = field(default_factory=list)
 
     def __repr__(self):
         return (
-            f"PipelineRunResult("
+            f"PipelineResult("
             f"total_fps={self.total_fps}, "
             f"per_stream_fps={self.per_stream_fps}, "
-            f"num_streams={self.num_streams}"
+            f"num_streams={self.num_streams}, "
+            f"exit_code={self.exit_code}, "
+            f"cancelled={self.cancelled}"
             f")"
-        )
-
-
-@dataclass
-class PipelineValidationResult:
-    """Result of a pipeline validation run."""
-
-    is_valid: bool
-    errors: list[str]
-
-    def __repr__(self):
-        return (
-            f"PipelineValidationResult(is_valid={self.is_valid}, errors={self.errors})"
         )
 
 
@@ -124,11 +133,9 @@ class PipelineRunner:
             if self.hard_timeout is None:
                 self.hard_timeout = int(self.max_runtime + 60)
 
-    def run(
-        self, pipeline_command: str, total_streams: int = 1
-    ) -> PipelineRunResult | PipelineValidationResult:
+    def run(self, pipeline_command: str, total_streams: int = 1) -> PipelineResult:
         """
-        Run a GStreamer pipeline and return results based on mode.
+        Run a GStreamer pipeline and return results.
 
         The pipeline is executed using gst_runner.py with the configured mode
         and max-runtime parameters.
@@ -139,8 +146,7 @@ class PipelineRunner:
                 (only used in normal mode for FPS extraction).
 
         Returns:
-            - In normal mode: PipelineRunResult with FPS metrics.
-            - In validation mode: PipelineValidationResult with validation status.
+            PipelineResult with FPS metrics, exit code, and captured output.
 
         Raises:
             RuntimeError: If pipeline execution fails in normal mode.
@@ -150,7 +156,7 @@ class PipelineRunner:
         else:
             return self._run_normal(pipeline_command, total_streams)
 
-    def _run_validation(self, pipeline_command: str) -> PipelineValidationResult:
+    def _run_validation(self, pipeline_command: str) -> PipelineResult:
         """
         Run pipeline in validation mode.
 
@@ -161,8 +167,7 @@ class PipelineRunner:
             pipeline_command: GStreamer pipeline description string.
 
         Returns:
-            PipelineValidationResult indicating whether the pipeline is valid
-            and any error messages encountered.
+            PipelineResult with exit_code and stderr for determining validity.
         """
         cmd = [
             sys.executable,
@@ -171,6 +176,8 @@ class PipelineRunner:
             "validation",
             "--max-runtime",
             str(self.max_runtime),
+            "--log-level",
+            self._get_log_level(),
             pipeline_command,
         ]
 
@@ -198,28 +205,26 @@ class PipelineRunner:
                 "gst_runner.py timed out after %s seconds, killing process",
                 self.hard_timeout,
             )
-            proc.kill()
+            self._graceful_terminate(proc)
             stdout, stderr = proc.communicate()
             errors = self._parse_validation_stderr(stderr)
             errors.append(
                 "Pipeline validation timed out: gst_runner.py did not finish "
                 "within the allowed time and had to be terminated."
             )
-            return PipelineValidationResult(is_valid=False, errors=errors)
+            return PipelineResult(
+                exit_code=proc.returncode if proc.returncode is not None else -1,
+                cancelled=False,
+                stdout=stdout.splitlines() if stdout else [],
+                stderr=errors,
+            )
 
-        self.logger.info(
-            "gst_runner.py finished with return code=%s, stdout=\n%s\nstderr=\n%s\n",
-            proc.returncode,
-            stdout,
-            stderr,
+        return PipelineResult(
+            exit_code=proc.returncode if proc.returncode is not None else -1,
+            cancelled=False,
+            stdout=stdout.splitlines() if stdout else [],
+            stderr=self._parse_validation_stderr(stderr),
         )
-
-        # Parse stderr for errors
-        errors = self._parse_validation_stderr(stderr)
-
-        # Pipeline is valid only if exit code is 0 and no errors found
-        is_valid = proc.returncode == 0 and len(errors) == 0
-        return PipelineValidationResult(is_valid=is_valid, errors=errors)
 
     def _parse_validation_stderr(self, raw_stderr: str) -> list[str]:
         """
@@ -256,9 +261,7 @@ class PipelineRunner:
 
         return messages
 
-    def _run_normal(
-        self, pipeline_command: str, total_streams: int
-    ) -> PipelineRunResult:
+    def _run_normal(self, pipeline_command: str, total_streams: int) -> PipelineResult:
         """
         Run pipeline in normal mode and extract FPS metrics.
 
@@ -273,10 +276,11 @@ class PipelineRunner:
             total_streams: Total number of streams to expect in metrics.
 
         Returns:
-            PipelineRunResult containing total_fps, per_stream_fps, and num_streams.
+            PipelineResult containing FPS metrics, exit code, and captured output.
 
         Raises:
-            RuntimeError: If pipeline execution fails.
+            RuntimeError: If pipeline execution fails (non-zero exit code without
+                cancellation, or inactivity timeout).
         """
         # Construct the command using gst_runner.py
         pipeline_cmd = [
@@ -286,6 +290,8 @@ class PipelineRunner:
             "normal",
             "--max-runtime",
             str(self.max_runtime),
+            "--log-level",
+            self._get_log_level(),
             pipeline_command,
         ]
 
@@ -317,8 +323,10 @@ class PipelineRunner:
             # Poll the process to check if it is still running
             while process.poll() is None:
                 if self.cancelled:
-                    process.terminate()
-                    self.logger.info("Process cancelled, terminating")
+                    self._graceful_terminate(process)
+                    self.logger.info(
+                        "Process cancelled, sent SIGINT for graceful shutdown"
+                    )
                     break
 
                 reads, _, _ = select.select(
@@ -385,15 +393,7 @@ class PipelineRunner:
                         "terminating pipeline as potentially hung",
                         self.inactivity_timeout,
                     )
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except Exception:
-                        self.logger.warning(
-                            "Process did not terminate gracefully after inactivity; killing it"
-                        )
-                        process.kill()
-                        process.wait()
+                    self._graceful_terminate(process, timeout=5.0)
 
                     raise RuntimeError(
                         f"Pipeline execution terminated due to inactivity timeout "
@@ -471,16 +471,21 @@ class PipelineRunner:
             if per_stream_fps is None:
                 per_stream_fps = 0.0
 
-            # Prepare output strings for error logging
-            stdout_str = "".join(
-                [line.decode("utf-8", errors="replace") for line in process_output]
-            )
-            stderr_str = "".join(
-                [line.decode("utf-8", errors="replace") for line in process_stderr]
-            )
+            # Prepare output strings
+            stdout_lines = [
+                line.decode("utf-8", errors="replace").rstrip("\n")
+                for line in process_output
+            ]
+            stderr_lines = [
+                line.decode("utf-8", errors="replace").rstrip("\n")
+                for line in process_stderr
+            ]
 
             # Log errors if exit code is non-zero
             if exit_code != 0:
+                stdout_str = "\n".join(stdout_lines)
+                stderr_str = "\n".join(stderr_lines)
+
                 self.logger.error("Pipeline failed with exit_code=%s", exit_code)
                 self.logger.error("STDOUT:\n%s", stdout_str)
                 self.logger.error("STDERR:\n%s", stderr_str)
@@ -490,15 +495,14 @@ class PipelineRunner:
                         f"Pipeline execution failed: {stderr_str.strip()}"
                     )
 
-            self.logger.info("Exit code: {}".format(exit_code))
-            self.logger.info("Total FPS is {}".format(total_fps))
-            self.logger.info("Per Stream FPS is {}".format(per_stream_fps))
-            self.logger.info("Num of Streams is {}".format(num_streams))
-
-            return PipelineRunResult(
+            return PipelineResult(
                 total_fps=total_fps,
                 per_stream_fps=per_stream_fps,
                 num_streams=num_streams,
+                exit_code=exit_code,
+                cancelled=self.is_cancelled(),
+                stdout=stdout_lines,
+                stderr=stderr_lines,
             )
 
         except Exception as e:
@@ -534,3 +538,31 @@ class PipelineRunner:
     def is_cancelled(self) -> bool:
         """Check if the pipeline run has been cancelled."""
         return self.cancelled
+
+    @staticmethod
+    def _get_log_level() -> str:
+        """Get the log level string from LOG_LEVEL env var, defaulting to INFO."""
+        level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        valid_levels = ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG")
+        if level not in valid_levels:
+            return "INFO"
+        return level
+
+    @staticmethod
+    def _graceful_terminate(proc: subprocess.Popen, timeout: float = 10.0) -> None:
+        """Send SIGINT for graceful shutdown, fall back to SIGKILL.
+
+        Args:
+            proc: The subprocess to terminate.
+            timeout: Seconds to wait after SIGINT before sending SIGKILL.
+        """
+        if proc.poll() is not None:
+            return
+        try:
+            proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        except OSError:
+            pass

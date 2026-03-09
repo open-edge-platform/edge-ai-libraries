@@ -4,7 +4,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import { downloadFile, MimeType } from "@/lib/fileUtils";
 import type { Edge, Node, Viewport } from "@xyflow/react";
 import { Download, FileJson, Terminal } from "lucide-react";
@@ -69,13 +69,7 @@ const ExportPipelineButton = ({
       toast.success("Pipeline description downloaded");
       setOpen(false);
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-
-      toast.error("Failed to generate pipeline description", {
-        description: errorMessage,
-      });
+      handleApiError(error, "Failed to generate pipeline description");
       console.error("Failed to generate description:", error);
     }
   };

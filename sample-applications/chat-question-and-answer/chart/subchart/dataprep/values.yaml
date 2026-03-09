@@ -20,7 +20,7 @@ dataprepPgvector:
   image:
     repository: intel/document-ingestion
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 8000
@@ -35,3 +35,4 @@ dataprepPgvector:
     MINIO_API_PORT: 9000
     MINIO_ACCESS_KEY: <dummy-user>
     MINIO_SECRET_KEY: <dummy-password>
+    ALLOWED_HOSTS: "" #Override this in parent values.yaml with a comma separated list of allowed hosts

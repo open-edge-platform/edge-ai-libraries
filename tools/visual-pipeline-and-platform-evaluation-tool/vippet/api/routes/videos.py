@@ -11,61 +11,67 @@ router = APIRouter()
 logger = logging.getLogger("api.routes.videos")
 
 
-@router.get("", operation_id="get_videos", response_model=List[schemas.Video])
+@router.get(
+    "",
+    operation_id="get_videos",
+    summary="List all available input videos",
+    response_model=List[schemas.Video],
+)
 def get_videos():
     """
-    List all discovered input videos with basic metadata.
+    **List all discovered input videos with metadata.**
 
-    Operation:
-        * Use VideosManager to scan ``RECORDINGS_PATH`` for supported video
-          files (only ``h264`` / ``h265`` codecs).
-        * Load or extract metadata (width, height, fps, frame_count, codec,
-          duration) for each file.
-        * Return the result as a list of Video schema objects.
+    ## Operation
 
-    Path / query parameters:
-        None.
+    1. VideosManager scans RECORDINGS_PATH for supported video files (h264/h265 codecs only)
+    2. Metadata is loaded or extracted for each file (resolution, fps, duration, codec)
+    3. Returns array of Video objects
 
-    Returns:
-        200 OK:
-            JSON array of Video objects. If no videos are found, an empty list
-            is returned.
+    ## Parameters
 
-    Success conditions:
-        * VideosManager is successfully initialized at application startup
-          (RECORDINGS_PATH exists and is a directory).
-        * The endpoint is able to iterate over the cached videos map.
+    None
 
-    Failure conditions:
-        * If VideosManager cannot be created (e.g. RECORDINGS_PATH invalid),
-          the application exits at startup and this endpoint will not be
-          available.
-        * Runtime errors inside VideosManager are not mapped to custom status
-          codes here and will surface as 500 responses from FastAPI.
+    ## Response Format
 
-    Successful response example (200):
-        .. code-block:: json
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of Video objects (empty if no videos found) |
+    | 500  | Runtime error during video listing |
 
-            [
-              {
-                "filename": "traffic_1080p_h264.mp4",
-                "width": 1920,
-                "height": 1080,
-                "fps": 30.0,
-                "frame_count": 900,
-                "codec": "h264",
-                "duration": 30.0
-              },
-              {
-                "filename": "people_720p_h265.mp4",
-                "width": 1280,
-                "height": 720,
-                "fps": 25.0,
-                "frame_count": 2500,
-                "codec": "h265",
-                "duration": 100.0
-              }
-            ]
+    ## Conditions
+
+    ### ✅ Success
+    - VideosManager successfully initialized at startup
+    - RECORDINGS_PATH exists and is a valid directory
+
+    ### ❌ Failure
+    - VideosManager initialization fails → application exits at startup
+    - Runtime errors → 500
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "filename": "traffic_1080p_h264.mp4",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0,
+        "frame_count": 900,
+        "codec": "h264",
+        "duration": 30.0
+      },
+      {
+        "filename": "people_720p_h265.mp4",
+        "width": 1280,
+        "height": 720,
+        "fps": 25.0,
+        "frame_count": 2500,
+        "codec": "h265",
+        "duration": 100.0
+      }
+    ]
+    ```
     """
     logger.debug("Received request for all videos.")
     try:

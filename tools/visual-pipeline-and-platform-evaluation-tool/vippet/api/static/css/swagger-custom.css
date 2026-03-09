@@ -1,0 +1,124 @@
+/* Color palette - Intel brand colors */
+:root {
+    --classic-blue: oklch(0.377 0.152 258.338); /* #0054AE */
+    --energy-blue: oklch(0.807 0.126 232.661); /* #00C7FD */
+    --carbon: oklch(0.577 0 0); /* #808080 */
+    --carbon-tint-2: oklch(0.927 0 0); /* #E9E9E9 */
+    --carbon-tint-1: oklch(0.725 0 0); /* #AEAEAE */
+    --carbon-shade-1: oklch(0.381 0 0); /* #525252 */
+    --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
+}
+
+/* Bold text - dark gray instead of purple */
+.swagger-ui .renderedMarkdown strong {
+    color: var(--carbon-shade-2) !important;
+    font-weight: 600;
+}
+
+/* Increased line height for paragraphs */
+.swagger-ui .renderedMarkdown p {
+    line-height: 1.6 !important;
+    margin-bottom: 12px !important;
+}
+
+/* Inline code - light gray background */
+.swagger-ui .renderedMarkdown code {
+    background-color: var(--carbon-tint-2) !important;
+    color: var(--carbon-shade-1) !important;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Headings */
+.swagger-ui .renderedMarkdown h2 {
+    color: var(--carbon-shade-2) !important;
+    margin-top: 24px !important;
+    margin-bottom: 16px !important;
+}
+
+.swagger-ui .renderedMarkdown h3 {
+    color: var(--carbon-shade-1) !important;
+    margin-top: 20px !important;
+    margin-bottom: 12px !important;
+}
+
+/* Tables */
+.swagger-ui .renderedMarkdown table {
+    margin: 16px 0 !important;
+    border-collapse: collapse !important;
+}
+
+.swagger-ui .renderedMarkdown table th {
+    background-color: var(--carbon-tint-2) !important;
+    color: var(--carbon-shade-1) !important;
+    font-weight: 600;
+    padding: 12px !important;
+    border: 1px solid var(--carbon-tint-1) !important;
+}
+
+.swagger-ui .renderedMarkdown table td {
+    padding: 8px 12px !important;
+    border: 1px solid var(--carbon-tint-1) !important;
+}
+
+/* Lists */
+.swagger-ui .renderedMarkdown ul, 
+.swagger-ui .renderedMarkdown ol {
+    margin-bottom: 16px !important;
+}
+
+.swagger-ui .renderedMarkdown li {
+    margin-bottom: 8px !important;
+}
+
+/* Code blocks */
+.swagger-ui .renderedMarkdown pre {
+    background-color: var(--carbon-tint-2) !important;
+    border: 1px solid var(--carbon-tint-1) !important;
+    border-radius: 6px !important;
+    padding: 16px !important;
+    margin: 16px 0 !important;
+}
+
+.swagger-ui .renderedMarkdown pre code {
+    background-color: transparent !important;
+    padding: 0 !important;
+    color: var(--carbon-shade-1) !important;
+}
+
+/* Quotes/note blocks */
+.swagger-ui .renderedMarkdown blockquote {
+    border-left: 4px solid var(--classic-blue) !important;
+    background-color: var(--carbon-tint-2) !important;
+    padding: 12px 16px !important;
+    margin: 16px 0 !important;
+    border-radius: 0 4px 4px 0 !important;
+}
+
+.swagger-ui .renderedMarkdown blockquote p {
+    margin-bottom: 0 !important;
+    color: var(--carbon-shade-1) !important;
+}
+
+/* Emojis in headings - better alignment */
+.swagger-ui .renderedMarkdown h2:before,
+.swagger-ui .renderedMarkdown h3:before {
+    margin-right: 8px;
+}
+
+/* Better spacing for sections */
+.swagger-ui .opblock-description-wrapper {
+    padding: 16px !important;
+}
+
+/* Responsive design for tables */
+@media (max-width: 768px) {
+    .swagger-ui .renderedMarkdown table {
+        font-size: 14px !important;
+    }
+    
+    .swagger-ui .renderedMarkdown table th,
+    .swagger-ui .renderedMarkdown table td {
+        padding: 6px 8px !important;
+    }
+}

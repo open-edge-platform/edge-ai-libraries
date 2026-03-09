@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setPipelines,
   selectPipelineNameById,
+  selectVariantNameById,
 } from "@/store/reducers/pipelines";
 
 /**
@@ -25,6 +26,18 @@ export const usePipelinesLoader = () => {
  * Hook to get a pipeline name by ID from the store.
  * Falls back to the ID if pipeline is not found.
  */
-export const usePipelineName = (pipelineId: string): string => {
-  return useAppSelector((state) => selectPipelineNameById(state, pipelineId));
-};
+export const usePipelineName = (pipelineId: string): string =>
+  useAppSelector((state) => selectPipelineNameById(state, pipelineId));
+
+/**
+ * Hook to get a variant name by pipeline ID and variant ID from the store.
+ * Falls back to the variant ID if pipeline or variant is not found.
+ * Returns undefined if variantId is not provided.
+ */
+export const useVariantName = (
+  pipelineId: string,
+  variantId?: string,
+): string | undefined =>
+  useAppSelector((state) =>
+    selectVariantNameById(state, pipelineId, variantId),
+  );

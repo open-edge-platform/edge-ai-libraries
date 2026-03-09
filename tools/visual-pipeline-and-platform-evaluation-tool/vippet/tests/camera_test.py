@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import CameraType, USBCameraDetails, NetworkCameraDetails
+from internal_types import (
+    InternalCameraType,
+    InternalUSBCameraDetails,
+    InternalNetworkCameraDetails,
+    InternalV4L2Format,
+    InternalV4L2FormatSize,
+    InternalCameraProfileInfo,
+)
 from camera import (
     USBCameraDiscovery,
     ONVIFCameraDiscovery,
@@ -14,11 +21,6 @@ from camera import (
     _score_capture_candidate,
     _select_best_from_v4l2_formats,
     _select_best_profile,
-)
-from api.api_schemas import (
-    V4L2Format,
-    V4L2FormatSize,
-    CameraProfileInfo,
 )
 
 
@@ -56,9 +58,11 @@ class TestScoringFunctions(unittest.TestCase):
     def test_select_best_from_v4l2_formats_single_format(self):
         """Single format should be selected."""
         formats = [
-            V4L2Format(
+            InternalV4L2Format(
                 fourcc="MJPG",
-                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+                sizes=[
+                    InternalV4L2FormatSize(width=1920, height=1080, fps_list=[30.0])
+                ],
             )
         ]
         result = _select_best_from_v4l2_formats(formats)
@@ -72,13 +76,17 @@ class TestScoringFunctions(unittest.TestCase):
     def test_select_best_from_v4l2_formats_prefers_h264(self):
         """H264 should be preferred over MJPG at same resolution and fps."""
         formats = [
-            V4L2Format(
+            InternalV4L2Format(
                 fourcc="MJPG",
-                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+                sizes=[
+                    InternalV4L2FormatSize(width=1920, height=1080, fps_list=[30.0])
+                ],
             ),
-            V4L2Format(
+            InternalV4L2Format(
                 fourcc="H264",
-                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[30.0])],
+                sizes=[
+                    InternalV4L2FormatSize(width=1920, height=1080, fps_list=[30.0])
+                ],
             ),
         ]
         result = _select_best_from_v4l2_formats(formats)
@@ -89,13 +97,13 @@ class TestScoringFunctions(unittest.TestCase):
     def test_select_best_from_v4l2_formats_prefers_acceptable_fps(self):
         """Should prefer formats with fps >= 15 over higher scoring low fps."""
         formats = [
-            V4L2Format(
+            InternalV4L2Format(
                 fourcc="H264",
-                sizes=[V4L2FormatSize(width=1920, height=1080, fps_list=[5.0])],
+                sizes=[InternalV4L2FormatSize(width=1920, height=1080, fps_list=[5.0])],
             ),
-            V4L2Format(
+            InternalV4L2Format(
                 fourcc="MJPG",
-                sizes=[V4L2FormatSize(width=1280, height=720, fps_list=[30.0])],
+                sizes=[InternalV4L2FormatSize(width=1280, height=720, fps_list=[30.0])],
             ),
         ]
         result = _select_best_from_v4l2_formats(formats)
@@ -113,7 +121,7 @@ class TestScoringFunctions(unittest.TestCase):
     def test_select_best_profile_skips_no_rtsp_url(self):
         """Profiles without rtsp_url should be skipped."""
         profiles = [
-            CameraProfileInfo(
+            InternalCameraProfileInfo(
                 name="Profile1",
                 rtsp_url="",
                 resolution="1920x1080",
@@ -128,7 +136,7 @@ class TestScoringFunctions(unittest.TestCase):
     def test_select_best_profile_selects_best(self):
         """Should select best profile based on scoring."""
         profiles = [
-            CameraProfileInfo(
+            InternalCameraProfileInfo(
                 name="LowRes",
                 rtsp_url="rtsp://192.168.1.100/low",
                 resolution="640x480",
@@ -136,7 +144,7 @@ class TestScoringFunctions(unittest.TestCase):
                 framerate=15,
                 bitrate=1024,
             ),
-            CameraProfileInfo(
+            InternalCameraProfileInfo(
                 name="HighRes",
                 rtsp_url="rtsp://192.168.1.100/high",
                 resolution="1920x1080",
@@ -393,10 +401,10 @@ Device Caps      : 0x84a00000
 
         # Verify camera details
         camera = cameras[0]
-        self.assertEqual(camera.device_type, CameraType.USB)
+        self.assertEqual(camera.device_type, InternalCameraType.USB)
         self.assertEqual(camera.device_name, "Integrated Camera")
 
-        usb_details = cast(USBCameraDetails, camera.details)
+        usb_details = cast(InternalUSBCameraDetails, camera.details)
         self.assertEqual(usb_details.device_path, "/dev/video0")
         self.assertIsNotNone(usb_details.best_capture)
         assert (
@@ -624,8 +632,8 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             cam1 = cameras[0]
             self.assertEqual(cam1.device_id, "network-camera-192.168.1.100-80")
             self.assertEqual(cam1.device_name, "ONVIF Camera 192.168.1.100")
-            self.assertEqual(cam1.device_type, CameraType.NETWORK)
-            net_details1 = cast(NetworkCameraDetails, cam1.details)
+            self.assertEqual(cam1.device_type, InternalCameraType.NETWORK)
+            net_details1 = cast(InternalNetworkCameraDetails, cam1.details)
             self.assertEqual(net_details1.ip, "192.168.1.100")
             self.assertEqual(net_details1.port, 80)
             self.assertEqual(net_details1.profiles, [])
@@ -633,7 +641,7 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             # Verify second camera
             cam2 = cameras[1]
             self.assertEqual(cam2.device_id, "network-camera-192.168.1.101-8080")
-            net_details2 = cast(NetworkCameraDetails, cam2.details)
+            net_details2 = cast(InternalNetworkCameraDetails, cam2.details)
             self.assertEqual(net_details2.ip, "192.168.1.101")
             self.assertEqual(net_details2.port, 8080)
 
@@ -760,8 +768,8 @@ class TestONVIFCameraDiscovery(unittest.TestCase):
             # Verify camera details
             self.assertEqual(camera.device_id, "network-camera-192.168.1.100-80")
             self.assertEqual(camera.device_name, "ONVIF Camera 192.168.1.100")
-            self.assertEqual(camera.device_type, CameraType.NETWORK)
-            net_details = cast(NetworkCameraDetails, camera.details)
+            self.assertEqual(camera.device_type, InternalCameraType.NETWORK)
+            net_details = cast(InternalNetworkCameraDetails, camera.details)
             self.assertEqual(net_details.ip, "192.168.1.100")
             self.assertEqual(net_details.port, 80)
 

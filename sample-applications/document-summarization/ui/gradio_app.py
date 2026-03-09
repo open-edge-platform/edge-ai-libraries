@@ -99,7 +99,7 @@ def create_ui():
                     label="Generated Summary",
                     lines=15,
                     max_lines=30,
-                    show_copy_button=True
+                    buttons=["copy"]
                 )
                 
         # Set up the event handler

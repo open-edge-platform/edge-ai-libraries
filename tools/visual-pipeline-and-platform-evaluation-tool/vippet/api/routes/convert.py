@@ -31,74 +31,84 @@ logger = logging.getLogger("api.routes.convert")
 )
 def to_graph(request: PipelineDescription):
     """
-    Convert a GStreamer-like pipeline description string into structured pipeline graphs.
+    **Convert GStreamer-like pipeline description into structured pipeline graphs.**
 
-    This endpoint parses the textual pipeline description, validates it and builds both
-    an advanced view (with all technical elements) and a simple view (with only meaningful
-    elements like sources, inference nodes, and sinks).
+    ## Operation
+    Parses the textual pipeline description, validates it, and builds both an advanced view
+    (with all technical elements) and a simple view (with only meaningful elements).
 
-    Args:
-        request: PipelineDescription body containing the ``pipeline_description`` string
-            to be converted.
+    1. Parse pipeline description string
+    2. Validate syntax and resolve references (models, videos)
+    3. Build advanced graph with all elements including technical plumbing
+    4. Generate simplified view with only visible elements (sources, inference, sinks)
+    5. Return both graph representations
 
-    Returns:
-        PipelineGraphResponse: On success (HTTP 200) both graph representations:
-            - pipeline_graph: Advanced view with all elements including technical plumbing
-            - pipeline_graph_simple: Simplified view with only visible elements
-        MessageResponse: On client or server error (HTTP 400 or 500) a message describing
-            the failure.
+    ## Request Body
+    **`PipelineDescription`** with:
+    - `pipeline_description` *(required)* - GStreamer-like pipeline string
 
-    Success criteria:
-        * The pipeline description is syntactically correct and all referenced models
-          and input videos can be resolved.
-        * The description can be mapped to a non-empty, acyclic graph with at least one
-          start node.
-        * Simple view can be generated from the advanced view.
+    ## Response Codes
 
-    Failure cases:
-        * 400 – invalid or unparsable pipeline description (syntax error, unsupported
-          token, missing required data, unknown model/video).
-        * 500 – unexpected internal error while converting the description.
+    | Code | Description |
+    |------|-------------|
+    | 200 | `PipelineGraphResponse` with both `pipeline_graph` and `pipeline_graph_simple` |
+    | 400 | `MessageResponse` - Invalid or unparsable pipeline description |
+    | 500 | `MessageResponse` - Unexpected internal error |
 
-    Request example:
-        .. code-block:: json
+    ## Conditions
 
-            {
-              "pipeline_description": "videotestsrc ! videoconvert ! autovideosink"
-            }
+    ### ✅ Success
+    - Pipeline description is syntactically correct
+    - All referenced models and input videos can be resolved
+    - Description maps to non-empty, acyclic graph with at least one start node
+    - Simple view can be generated from advanced view
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ❌ Failure
+    - Invalid or unparsable pipeline description (syntax error, unsupported token) → 400
+    - Missing required data, unknown model/video → 400
+    - Unexpected internal error → 500
 
-            {
-              "pipeline_graph": {
-                "nodes": [
-                  {"id": "0", "type": "videotestsrc", "data": {}},
-                  {"id": "1", "type": "videoconvert", "data": {}},
-                  {"id": "2", "type": "autovideosink", "data": {}}
-                ],
-                "edges": [
-                  {"id": "0", "source": "0", "target": "1"},
-                  {"id": "1", "source": "1", "target": "2"}
-                ]
-              },
-              "pipeline_graph_simple": {
-                "nodes": [
-                  {"id": "0", "type": "videotestsrc", "data": {}},
-                  {"id": "2", "type": "autovideosink", "data": {}}
-                ],
-                "edges": [
-                  {"id": "0", "source": "0", "target": "2"}
-                ]
-              }
-            }
+    ## Examples
 
-    Error response example (400):
-        .. code-block:: json
+    ### Request
+    ```json
+    {
+      "pipeline_description": "videotestsrc ! videoconvert ! autovideosink"
+    }
+    ```
 
-            {
-              "message": "Invalid pipeline description: Unrecognized token in pipeline description: '??'"
-            }
+    ### Success Response (200)
+    ```json
+    {
+      "pipeline_graph": {
+        "nodes": [
+          {"id": "0", "type": "videotestsrc", "data": {}},
+          {"id": "1", "type": "videoconvert", "data": {}},
+          {"id": "2", "type": "autovideosink", "data": {}}
+        ],
+        "edges": [
+          {"id": "0", "source": "0", "target": "1"},
+          {"id": "1", "source": "1", "target": "2"}
+        ]
+      },
+      "pipeline_graph_simple": {
+        "nodes": [
+          {"id": "0", "type": "videotestsrc", "data": {}},
+          {"id": "2", "type": "autovideosink", "data": {}}
+        ],
+        "edges": [
+          {"id": "0", "source": "0", "target": "2"}
+        ]
+      }
+    }
+    ```
+
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Invalid pipeline description: Unrecognized token in pipeline description: '??'"
+    }
+    ```
     """
     try:
         # Parse into advanced graph
@@ -141,61 +151,74 @@ def to_graph(request: PipelineDescription):
 )
 def to_description(request: PipelineGraph):
     """
-    Convert a structured pipeline graph into a GStreamer-like pipeline description string.
+    **Convert structured pipeline graph into GStreamer-like pipeline description string.**
 
-    This endpoint validates the input graph (advanced view) and serializes its nodes
-    and edges back into a single pipeline description line. The input should be an
-    advanced view graph containing all technical elements.
+    ## Operation
+    Validates the input graph (advanced view) and serializes its nodes and edges
+    back into a single pipeline description line.
 
-    Args:
-        request: PipelineGraph body containing nodes and edges that define the pipeline
-            (advanced view expected).
+    1. Validate input graph structure
+    2. Check for start nodes and acyclic structure
+    3. Map model and video display names back to real paths
+    4. Serialize nodes and edges into pipeline description string
 
-    Returns:
-        PipelineDescription: On success (HTTP 200) a textual ``pipeline_description``
-            that can be used to run the pipeline.
-        MessageResponse: On client or server error (HTTP 400 or 500) a message describing
-            the failure.
+    > **Note:** The input should be an advanced view graph containing all technical elements.
 
-    Success criteria:
-        * The graph is non-empty and contains at least one start node.
-        * The graph is a valid directed acyclic graph for a pipeline (no unresolved
-          references, no fully circular graph).
-        * All model and input video display names can be mapped back to real paths.
+    ## Request Body
+    **`PipelineGraph`** with:
+    - `nodes` *(required)* - Array of pipeline nodes (advanced view expected)
+    - `edges` *(required)* - Array of edges connecting the nodes
 
-    Failure cases:
-        * 400 – invalid graph structure (no start nodes, circular graph, missing nodes
-          for edges, unknown model/video, or empty graph).
-        * 500 – unexpected internal error while converting the graph.
+    ## Response Codes
 
-    Request example:
-        .. code-block:: json
+    | Code | Description |
+    |------|-------------|
+    | 200 | `PipelineDescription` with textual pipeline description |
+    | 400 | `MessageResponse` - Invalid graph structure |
+    | 500 | `MessageResponse` - Unexpected internal error |
 
-            {
-              "nodes": [
-                {"id": "0", "type": "videotestsrc", "data": {}},
-                {"id": "1", "type": "videoconvert", "data": {}},
-                {"id": "2", "type": "autovideosink", "data": {}}
-              ],
-              "edges": [
-                {"id": "0", "source": "0", "target": "1"},
-                {"id": "1", "source": "1", "target": "2"}
-              ]
-            }
+    ## Conditions
 
-    Successful response example (200):
-        .. code-block:: json
+    ### ✅ Success
+    - Graph is non-empty and contains at least one start node
+    - Graph is a valid directed acyclic graph (no unresolved references, no circular graph)
+    - All model and input video display names can be mapped back to real paths
 
-            {
-              "pipeline_description": "videotestsrc ! videoconvert ! autovideosink"
-            }
+    ### ❌ Failure
+    - Invalid graph structure (no start nodes, circular graph, missing nodes) → 400
+    - Unknown model/video or empty graph → 400
+    - Unexpected internal error → 500
 
-    Error response example (400):
-        .. code-block:: json
+    ## Examples
 
-            {
-              "message": "Invalid graph: circular graph detected or no start nodes found"
-            }
+    ### Request
+    ```json
+    {
+      "nodes": [
+        {"id": "0", "type": "videotestsrc", "data": {}},
+        {"id": "1", "type": "videoconvert", "data": {}},
+        {"id": "2", "type": "autovideosink", "data": {}}
+      ],
+      "edges": [
+        {"id": "0", "source": "0", "target": "1"},
+        {"id": "1", "source": "1", "target": "2"}
+      ]
+    }
+    ```
+
+    ### Success Response (200)
+    ```json
+    {
+      "pipeline_description": "videotestsrc ! videoconvert ! autovideosink"
+    }
+    ```
+
+    ### Error Response (400)
+    ```json
+    {
+      "message": "Invalid graph: circular graph detected or no start nodes found"
+    }
+    ```
     """
     try:
         graph = Graph.from_dict(request.model_dump())

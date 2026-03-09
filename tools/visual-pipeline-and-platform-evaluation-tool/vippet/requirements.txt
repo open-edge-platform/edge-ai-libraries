@@ -1,9 +1,9 @@
-fastapi[standard]==0.128.8
+fastapi[standard]==0.133.1
 opencv-python-headless==4.13.0.92
-openvino==2025.4.1
+openvino==2026.0.0
 psutil==7.2.2
 pydantic==2.12.5
 PyYAML==6.0.3
-uvicorn==0.40.0
+uvicorn==0.41.0
 onvif-zeep==0.2.12
 python-slugify==8.0.4

@@ -117,7 +117,7 @@ Other parameters that can be part of `mqtt_publisher` config are mentioned below
     More details on the QoS levels can be found [here](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
   - `protocol` protocol version to use which defaults to 4 i.e. MQTTv311. Values can be 3, 4, 5 based on the versions MQTTv3, MQTTv311, MQTTv5 respectively *(optional)*
 
-The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-start-dlsps-mqtt-publish.md) for an example.
+The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-guides/start-dlsps-mqtt-publish.md) for an example.
 
 ### Metadata filtering
 Below configuration can be used to optionally filter out messages sent to mqtt broker for classification and detection usecases.

@@ -3,9 +3,13 @@ import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader.ts";
 
 interface WebRTCVideoPlayerProps {
   pipelineId?: string;
+  streamUrl?: string;
 }
 
-const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
+const WebRTCVideoPlayer = ({
+  pipelineId,
+  streamUrl,
+}: WebRTCVideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [message, setMessage] = useState<string>("");
   const [defaultControls, setDefaultControls] = useState<boolean>(true);
@@ -38,17 +42,34 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
   }, []);
 
   useEffect(() => {
-    if (!pipelineId) {
+    if (!pipelineId && !streamUrl) {
       return;
     }
 
-    const baseUrl =
-      import.meta.env.VITE_MEDIAMTX_BASE_URL || `${window.location.origin}/`;
-    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    const url = new URL(`stream_${pipelineId}/whep`, normalizedBaseUrl);
+    let whepPath: string;
+    if (streamUrl) {
+      // Convert RTSP URL to WHEP URL
+      // RTSP format: rtsp://mediamtx:8554/stream-name
+      // Extract stream name and build relative WHEP URL for proxy
+      if (streamUrl.startsWith("rtsp://")) {
+        const rtspUrl = new URL(streamUrl);
+        const streamName = rtspUrl.pathname.substring(1); // Remove leading '/'
+        // Use relative URL to leverage Vite/nginx proxy
+        whepPath = `/${streamName}/whep`;
+      } else {
+        // Assume it's already a WHEP URL
+        whepPath = streamUrl;
+      }
+    } else {
+      // Build URL from pipelineId
+      whepPath = `/stream_${pipelineId}/whep`;
+    }
+
+    // Convert relative path to absolute URL
+    const absoluteUrl = new URL(whepPath, window.location.origin).toString();
 
     const reader = new MediaMTXWebRTCReader({
-      url: url.toString(),
+      url: absoluteUrl,
       onError: (err: string) => {
         setMessage(err);
         if (videoRef.current) videoRef.current.controls = false;
@@ -65,16 +86,20 @@ const WebRTCVideoPlayer = ({ pipelineId }: WebRTCVideoPlayerProps) => {
     return () => {
       reader?.close();
     };
-  }, [defaultControls, pipelineId]);
+  }, [defaultControls, pipelineId, streamUrl]);
 
-  if (!pipelineId) {
+  if (!pipelineId && !streamUrl) {
     return null;
   }
 
   return (
-    <div style={{ position: "relative" }}>
-      <video ref={videoRef} style={{ maxHeight: 430 }} />
-      {message && <div style={{ position: "absolute", top: 6 }}>{message}</div>}
+    <div className="relative h-full w-full">
+      <video ref={videoRef} className="h-full w-full object-cover" />
+      {message && (
+        <div className="absolute top-1.5 left-1.5 rounded bg-black/50 px-2 py-1 text-xs text-white">
+          {message}
+        </div>
+      )}
     </div>
   );
 };
