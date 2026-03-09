@@ -488,25 +488,21 @@ class PipelineManager:
 
             # prepare main video output path if output is enabled (file or live stream)
             if output_mode != InternalOutputMode.DISABLED:
-                # Retrieve input sources and recommended encoder device
-                input_sources = base_graph.get_input_sources()
+                # Retrieve recommended encoder device
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline, output_path = (
                         video_encoder.create_video_output_subpipeline(
-                            pipeline_id, encoder_device, input_sources, job_id
+                            pipeline_id, encoder_device, job_id
                         )
                     )
                     video_output_paths[pipeline_id].append(output_path)
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
-                            pipeline_id,
-                            encoder_device,
-                            input_sources,
-                            job_id,
+                            pipeline_id, encoder_device, job_id
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url

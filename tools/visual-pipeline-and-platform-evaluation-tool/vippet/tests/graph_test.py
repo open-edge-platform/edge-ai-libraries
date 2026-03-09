@@ -1822,7 +1822,7 @@ parse_test_cases = [
     ),
     # USB Camera as source
     ParseTestCase(
-        r"v4l2src device=/dev/video0 ! decodebin3 ! videoconvert ! video/x-raw ! x264enc ! h264parse ! "
+        r"v4l2src device=/dev/video0 ! decodebin3 ! videoconvert ! video/x-raw ! openh264enc ! h264parse ! "
         r"rtspclientsink protocols=tcp location=rtsp://mediamtx:8554/stream_pipeline-803f3975",
         Graph(
             nodes=[
@@ -1830,7 +1830,7 @@ parse_test_cases = [
                 Node(id="1", type="decodebin3", data={}),
                 Node(id="2", type="videoconvert", data={}),
                 Node(id="3", type="video/x-raw", data={}),
-                Node(id="4", type="x264enc", data={}),
+                Node(id="4", type="openh264enc", data={}),
                 Node(id="5", type="h264parse", data={}),
                 Node(
                     id="6",
@@ -1873,7 +1873,7 @@ parse_test_cases = [
     ),
     # RTSP Camera as source
     ParseTestCase(
-        r"rtspsrc location=rtsp://10.91.106.248:8554/cam ! decodebin3 ! videoconvert ! video/x-raw ! x264enc ! h264parse ! "
+        r"rtspsrc location=rtsp://10.91.106.248:8554/cam ! decodebin3 ! videoconvert ! video/x-raw ! openh264enc ! h264parse ! "
         r"rtspclientsink protocols=tcp location=rtsp://mediamtx:8554/stream_pipeline-803f3975",
         Graph(
             nodes=[
@@ -1885,7 +1885,7 @@ parse_test_cases = [
                 Node(id="1", type="decodebin3", data={}),
                 Node(id="2", type="videoconvert", data={}),
                 Node(id="3", type="video/x-raw", data={}),
-                Node(id="4", type="x264enc", data={}),
+                Node(id="4", type="openh264enc", data={}),
                 Node(id="5", type="h264parse", data={}),
                 Node(
                     id="6",
