@@ -471,11 +471,15 @@ class VideosManager:
             return None
 
         try:
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if frame_count <= 0:
+                frame_count = 0  # Avoid negative or zero frame counts
+
             return VideoFileInfo(
                 width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                 height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
                 fps=float(cap.get(cv2.CAP_PROP_FPS)),
-                frame_count=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+                frame_count=frame_count,
                 fourcc=int(cap.get(cv2.CAP_PROP_FOURCC)),
             )
         finally:
