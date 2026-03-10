@@ -244,6 +244,8 @@ When `--collect_resource_metrics=yes` is specified, the tool:
 
 > **Note**: Resource metrics collection requires additional system permissions and may increase profiling overhead.
 
+> **Important**: When using `--collect_resource_metrics=yes`, the sizing tool and the application being profiled must be running on the same machine. This ensures accurate measurement of system resources consumed by the application.
+
 ## Troubleshooting
 
 | Issue | Solution |
