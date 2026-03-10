@@ -2,7 +2,6 @@
 
 > Leveraging Intel® Hardware Acceleration and GStreamer-Based Video Analytics
 
-
 License Plate Recognition (LPR) systems have evolved from specialized hardware solutions to
 flexible, software-defined pipelines that can adapt to various deployment scenarios.
 
