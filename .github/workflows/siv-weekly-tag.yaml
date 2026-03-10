@@ -134,7 +134,7 @@ jobs:
 
         # Merge the PR
         echo "🔀 Merging Pull Request..."
-        gh pr merge "$PR_URL" --merge --delete-branch
+        gh pr merge "$PR_URL" --squash --delete-branch
         echo "✅ PR merged successfully"
 
         # Fetch to get the merge commit
