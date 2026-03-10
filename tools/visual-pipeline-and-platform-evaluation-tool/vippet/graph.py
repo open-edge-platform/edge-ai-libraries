@@ -631,34 +631,6 @@ class Graph:
 
         return self, output_paths
 
-    def get_input_sources(self) -> list[str]:
-        """
-        Retrieve a list of input sources from source nodes in the graph.
-
-        Supports multiple source types:
-        - Video files (filesrc): file paths or filenames
-        - RTSP cameras (rtspsrc): rtsp:// URLs
-        - USB cameras (v4l2src): /dev/videoX device paths
-
-        Returns:
-            list[str]: List of input sources (file paths, RTSP URLs, or device paths)
-
-        This intentionally skips sink nodes to avoid collecting output paths.
-        """
-        input_sources: list[str] = []
-
-        for node in self.nodes:
-            if node.type.endswith("sink"):
-                # Skip sinks to avoid collecting output paths
-                continue
-            for key in ("source", "location", "device"):
-                source = node.data.get(key)
-                if source is None:
-                    continue
-                input_sources.append(source)
-
-        return input_sources
-
     def unify_all_element_names(
         self, pipeline_index: int, stream_index: int
     ) -> "Graph":

@@ -6,19 +6,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
-from managers.camera_manager import CameraManager
 from utils import generate_unique_filename, slugify_text
-from videos import VideosManager, OUTPUT_VIDEO_DIR
+from videos import OUTPUT_VIDEO_DIR
 
 # Constants for encoder device types
 ENCODER_DEVICE_CPU = "CPU"
 ENCODER_DEVICE_GPU = "GPU"
-
-# Default codec for encoding
-DEFAULT_CODEC = "h264"
-
-# Placeholder for vaapi_suffix to be replaced at runtime
-VAAPI_SUFFIX_PLACEHOLDER = "{vaapi_suffix}"
 
 # Default live stream server configuration
 DEFAULT_LIVE_STREAM_SERVER_HOST = "mediamtx"
@@ -32,6 +25,51 @@ LIVE_STREAM_SERVER_PORT: str = os.environ.get(
     "LIVE_STREAM_SERVER_PORT", DEFAULT_LIVE_STREAM_SERVER_PORT
 )
 
+# Standard h264 encoder configurations for file output.
+# Maps device type to list of (search_element, full_element_string) tuples.
+# The first available encoder in the list is used.
+#
+# Bitrate units differ across encoders:
+#   - VAAPI encoders (vah264lpenc, vah264enc): bitrate in kbps
+#   - openh264enc: bitrate in bps
+ENCODER_CONFIG: Dict[str, List[Tuple[str, str]]] = {
+    ENCODER_DEVICE_GPU: [
+        ("vah264lpenc", "vah264lpenc"),  # bitrate in kbps (default)
+        ("vah264enc", "vah264enc"),  # bitrate in kbps (default)
+    ],
+    ENCODER_DEVICE_CPU: [
+        (
+            "openh264enc",
+            "openh264enc bitrate=16000000 complexity=low",
+        ),  # bitrate in bps (16 Mbps)
+    ],
+}
+
+# Low-latency h264 encoder configurations for live-streaming output.
+# Uses settings optimized for RTSP streaming to media server.
+#
+# Bitrate units differ across encoders:
+#   - VAAPI encoders (vah264lpenc, vah264enc): bitrate in kbps
+#   - openh264enc: bitrate in bps
+STREAMING_ENCODER_CONFIG: Dict[str, List[Tuple[str, str]]] = {
+    ENCODER_DEVICE_GPU: [
+        (
+            "vah264lpenc",
+            "vah264lpenc bitrate=16000 target-usage=4 max-qp=30",  # 16000 kbps = 16 Mbps
+        ),
+        (
+            "vah264enc",
+            "vah264enc bitrate=16000 target-usage=4 max-qp=30",  # 16000 kbps = 16 Mbps
+        ),
+    ],
+    ENCODER_DEVICE_CPU: [
+        (
+            "openh264enc",
+            "openh264enc bitrate=16000000 complexity=low usage-type=camera slice-mode=auto gop-size=25",  # 16000000 bps = 16 Mbps
+        ),
+    ],
+}
+
 logger = logging.getLogger("video_encoder")
 
 
@@ -43,9 +81,9 @@ class VideoEncoder:
     Create instances with VideoEncoder() to get the shared singleton instance.
 
     This class handles video encoding operations including:
-    - Selecting appropriate encoders based on device capabilities
+    - Selecting appropriate h264 encoders based on device capabilities
     - Replacing fakesink elements with video output or live-streaming
-    - Managing encoder configurations for different codecs
+    - Managing encoder configurations for CPU and GPU devices
     """
 
     _instance: Optional["VideoEncoder"] = None
@@ -61,7 +99,7 @@ class VideoEncoder:
 
     def __init__(self):
         """
-        Initialize VideoEncoder with GStreamer inspector and encoder configurations.
+        Initialize VideoEncoder with GStreamer inspector.
         Protected against multiple initialization.
         """
         # Protect against multiple initialization
@@ -71,87 +109,141 @@ class VideoEncoder:
 
         self.logger = logging.getLogger("VideoEncoder")
         self.gst_inspector = GstInspector()
-        self.videos_manager = VideosManager()
 
         # Count standalone fakesink elements (excludes embedded cases like video-sink=fakesink).
         # Pattern matches 'fakesink' when preceded by start-of-string/whitespace/'!', extending to next '!' or end-of-string.
         fakesink_pattern = r"(?:(?<=^)|(?<=[\s!]))fakesink[^!]*(?=!)|(?:(?<=^)|(?<=[\s!]))fakesink[^!]*$"
         self.re_pattern = re.compile(fakesink_pattern)
 
-        # Define encoder configurations for different codecs
-        # Standard encoders for file output (no looping support needed)
-        self.encoder_configs = {
-            "h264": {
-                ENCODER_DEVICE_GPU: [
-                    ("vah264lpenc", "vah264lpenc"),
-                    ("vah264enc", "vah264enc"),
-                ],
-                ENCODER_DEVICE_CPU: [
-                    ("x264enc", "x264enc bitrate=16000 speed-preset=superfast"),
-                ],
-            },
-            "h265": {
-                ENCODER_DEVICE_GPU: [
-                    ("vah265lpenc", "vah265lpenc"),
-                    ("vah265enc", "vah265enc"),
-                ],
-                ENCODER_DEVICE_CPU: [
-                    ("x265enc", "x265enc bitrate=16000 speed-preset=superfast"),
-                ],
-            },
-        }
-
-        # Low-latency encoders for live-streaming (used only for live_stream output mode)
-        self.streaming_encoder_configs = {
-            "h264": {
-                ENCODER_DEVICE_GPU: [
-                    # vah264lpenc doesn't support tune property
-                    (
-                        "vah264lpenc",
-                        "vah264lpenc bitrate=16000 target-usage=4 max-qp=30",
-                    ),
-                    # vah264enc doesn't support tune property
-                    ("vah264enc", "vah264enc bitrate=16000 target-usage=4 max-qp=30"),
-                ],
-                ENCODER_DEVICE_CPU: [
-                    (
-                        "x264enc",
-                        "x264enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25 bframes=0",
-                    ),
-                ],
-            },
-            "h265": {
-                ENCODER_DEVICE_GPU: [
-                    # vah265lpenc doesn't support tune property
-                    (
-                        "vah265lpenc",
-                        "vah265lpenc bitrate=16000 target-usage=4 max-qp=30",
-                    ),
-                    # vah265enc doesn't support tune property
-                    ("vah265enc", "vah265enc bitrate=16000 target-usage=4 max-qp=30"),
-                ],
-                ENCODER_DEVICE_CPU: [
-                    (
-                        "x265enc",
-                        "x265enc tune=zerolatency bitrate=16000 speed-preset=superfast key-int-max=25",
-                    ),
-                ],
-            },
-        }
-
-    def select_element(
+    def create_video_output_subpipeline(
         self,
-        field_dict: Dict[str, List[Tuple[str, str]]],
+        pipeline_id: str,
         encoder_device: str,
-    ) -> Optional[str]:
+        job_id: str,
+    ) -> Tuple[str, str]:
         """
-        Select an appropriate encoder element from available GStreamer elements.
+        Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
+
+        This method generates a GStreamer sub-pipeline containing all required elements
+        (h264 encoder, parser, muxer, and filesink) to replace one fakesink element.
+
+        Note: This method is only used for file output (output_mode=file), which does not
+        support looping. Standard encoders are always used.
 
         Args:
-            field_dict: Dictionary mapping device types to lists of (search, result) tuples
+            pipeline_id: Pipeline ID used to generate unique output filename
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
+            job_id: Unique job identifier used to generate unique output filename
+
+        Returns:
+            Tuple of (sub-pipeline string, output file path)
+
+        Raises:
+            ValueError: If encoder_device is invalid or no suitable encoder is found
+        """
+        # Select the best available h264 encoder element based on device type and
+        # installed GStreamer plugins (e.g., vah264enc for GPU, openh264enc for CPU)
+        encoder_element = self._select_element(encoder_device, streaming=False)
+
+        if encoder_element is None:
+            self.logger.error(
+                f"Failed to select encoder element for encoder_device: {encoder_device}"
+            )
+            raise ValueError(
+                f"No suitable encoder found for encoder_device: {encoder_device}"
+            )
+
+        filename = slugify_text(f"pipeline_output-{pipeline_id}-{job_id}")
+        # Generate unique output path using pipeline_id and job_id
+        output_filename = generate_unique_filename(f"{filename}.mp4")
+        output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
+
+        # Create sub-pipeline string with all required elements for replacing fakesink
+        video_output_subpipeline = (
+            f"{encoder_element} ! h264parse ! mp4mux ! filesink location={output_path}"
+        )
+
+        self.logger.debug(
+            f"Created video output sub-pipeline: {video_output_subpipeline}"
+        )
+
+        return video_output_subpipeline, output_path
+
+    def create_live_stream_output_subpipeline(
+        self,
+        pipeline_id: str,
+        encoder_device: str,
+        job_id: str,
+    ) -> Tuple[str, str]:
+        """
+        Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
+
+        This method generates a GStreamer sub-pipeline containing all required elements
+        (h264 encoder, parser, and RTSP client sink) to replace one fakesink element.
+
+        This method is used when output_mode is LIVE_STREAM. It uses low-latency
+        streaming h264 encoders optimized for RTSP streaming to media server.
+
+        Args:
+            pipeline_id: Pipeline ID used to generate unique stream name
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
+            job_id: Unique job identifier used to generate unique stream name
+
+        Returns:
+            Tuple of (sub-pipeline string, live stream URL)
+
+        Raises:
+            ValueError: If encoder_device is invalid or no suitable encoder is found
+        """
+        # Generate stream name from pipeline ID and job_id
+        stream_name = f"stream-{pipeline_id}-{job_id}"
+        stream_name = slugify_text(stream_name)
+
+        # Build live stream URL
+        stream_url = (
+            f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/{stream_name}"
+        )
+
+        # Select the best available h264 streaming encoder element based on device type
+        # and installed GStreamer plugins (e.g., vah264enc for GPU, openh264enc for CPU)
+        encoder_element = self._select_element(encoder_device, streaming=True)
+
+        if encoder_element is None:
+            self.logger.error(
+                f"Failed to select encoder element for encoder_device: {encoder_device}"
+            )
+            raise ValueError(
+                f"No suitable encoder found for encoder_device: {encoder_device}"
+            )
+
+        # Create sub-pipeline string with all required elements for replacing fakesink
+        live_stream_output_subpipeline = f"{encoder_element} ! h264parse ! rtspclientsink protocols=tcp location={stream_url}"
+
+        self.logger.debug(
+            f"Created live stream output sub-pipeline: {live_stream_output_subpipeline}"
+        )
+        return live_stream_output_subpipeline, stream_url
+
+    def _select_element(
+        self,
+        encoder_device: str,
+        streaming: bool = False,
+    ) -> Optional[str]:
+        """
+        Select an appropriate h264 encoder element from available GStreamer elements.
+
+        Uses ENCODER_CONFIG or STREAMING_ENCODER_CONFIG based on the streaming flag.
+
+        Args:
+            encoder_device: Target encoder device. Must be one of the module constants:
+                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
+                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
+            streaming: If True, use low-latency streaming encoder config.
+                If False, use standard file output encoder config.
 
         Returns:
             Selected encoder element string with properties, or None if not found
@@ -167,7 +259,8 @@ class VideoEncoder:
                 f"Must be one of: {', '.join(valid_devices)}"
             )
 
-        pairs = field_dict.get(encoder_device, [])
+        config = STREAMING_ENCODER_CONFIG if streaming else ENCODER_CONFIG
+        pairs = config.get(encoder_device, [])
 
         if not pairs:
             self.logger.warning(
@@ -184,245 +277,5 @@ class VideoEncoder:
         self.logger.warning(
             f"No matching encoder element found for encoder_device: {encoder_device}"
         )
+
         return None
-
-    def _detect_codec_from_input(self, input_sources: list[str]) -> str:
-        """
-        Detect output codec based on input sources.
-
-        Supports multiple input types:
-        - Video files (filesrc): Detects codec from file metadata via VideosManager
-        - RTSP cameras (rtspsrc): Detects codec from cached ONVIF profile encoding
-        - USB cameras (v4l2src): Always uses DEFAULT_CODEC (H.264)
-
-        Note: Detection uses three-pass priority (video files → RTSP cameras → USB cameras),
-        returning immediately upon first match, so mixed-type pipelines are decided by the
-        highest-priority source type present regardless of list order.
-
-        Args:
-            input_sources: List of input sources (file paths, RTSP URLs, or device paths)
-
-        Returns:
-            Detected codec name ("h264" or "h265")
-        """
-        if not input_sources:
-            self.logger.warning(
-                f"No input sources provided, defaulting to {DEFAULT_CODEC}"
-            )
-            return DEFAULT_CODEC
-
-        def _normalize(codec: str) -> str:
-            c = (codec or "").strip().lower()
-            if c in {"h264", "avc", "h.264"}:
-                return "h264"
-            if c in {"h265", "hevc", "h.265"}:
-                return "h265"
-            return c
-
-        # Check for video file sources (filesrc)
-        for source in input_sources:
-            if not source:
-                continue
-            video = self.videos_manager.get_video(source)
-            if video and getattr(video, "codec", None):
-                detected = _normalize(video.codec)
-                self.logger.debug(
-                    f"Detected codec '{detected}' from video file: {source}"
-                )
-                return detected
-
-        # Check for RTSP camera sources (rtspsrc)
-        camera_manager = CameraManager()
-        for source in input_sources:
-            if not source:
-                continue
-            if source.startswith("rtsp://"):
-                encoding = camera_manager.get_encoding_for_rtsp_url(source)
-                detected = _normalize(encoding) if encoding else ""
-                if detected in self.encoder_configs:
-                    self.logger.debug(
-                        f"Detected codec '{detected}' from RTSP camera profile: {source}"
-                    )
-                    return detected
-                if detected:
-                    self.logger.debug(
-                        "RTSP camera uses '%s' encoding (source: %s), output will be encoded to %s",
-                        detected,
-                        source,
-                        DEFAULT_CODEC,
-                    )
-                    return DEFAULT_CODEC
-
-        # Check for USB camera sources (v4l2src) - use default codec
-        for source in input_sources:
-            if not source:
-                continue
-            if source.startswith("/dev/video"):
-                self.logger.debug(
-                    f"USB camera detected ({source}), using default codec: {DEFAULT_CODEC}"
-                )
-                return DEFAULT_CODEC
-
-        # Unknown source type
-        self.logger.warning(
-            "Unknown source type (%s), using default codec: %s",
-            ", ".join([s for s in input_sources if s]),
-            DEFAULT_CODEC,
-        )
-        return DEFAULT_CODEC
-
-    def _validate_codec(self, codec: str) -> None:
-        """
-        Validate that codec is supported.
-
-        Args:
-            codec: Codec name to validate
-
-        Raises:
-            ValueError: If codec is not supported
-        """
-        if codec not in self.encoder_configs:
-            supported = ", ".join(self.encoder_configs.keys())
-            raise ValueError(f"Unsupported codec: {codec}. Supported: {supported}")
-
-    def create_video_output_subpipeline(
-        self,
-        pipeline_id: str,
-        encoder_device: str,
-        input_sources: list[str],
-        job_id: str,
-    ) -> Tuple[str, str]:
-        """
-        Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
-
-        This method generates a GStreamer sub-pipeline containing all required elements
-        (encoder, parser, muxer, and filesink) to replace one fakesink element.
-
-        Note: This method is only used for file output (output_mode=file), which does not
-        support looping. Standard encoders are always used.
-
-        Args:
-            pipeline_id: Pipeline ID used to generate unique output filename
-            encoder_device: Target encoder device. Must be one of the module constants:
-                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
-                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
-            input_sources: List of input sources (file paths, RTSP URLs, or device paths) to detect codec
-            job_id: Unique job identifier used to generate unique output filename
-
-        Returns:
-            Tuple of (sub-pipeline string, output file path)
-
-        Raises:
-            ValueError: If codec is not supported, encoder_device is invalid,
-                or no suitable encoder is found
-        """
-        # Detect codec from input sources (h264, h265, etc.)
-        codec = self._detect_codec_from_input(input_sources)
-        self._validate_codec(codec)
-
-        # Get encoder configuration for the detected codec (GPU/CPU variants) for file output (no looping support)
-        encoder_config = self.encoder_configs[codec]
-
-        # Select the best available encoder element based on device type and
-        # installed GStreamer plugins (e.g., vah264enc for GPU, x264enc for CPU)
-        encoder_element = self.select_element(
-            encoder_config,
-            encoder_device,
-        )
-
-        if encoder_element is None:
-            self.logger.error(
-                f"Failed to select encoder element for codec: {codec} and encoder_device: {encoder_device}"
-            )
-            raise ValueError(
-                f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
-            )
-
-        filename = slugify_text(f"pipeline_output-{pipeline_id}-{job_id}")
-        # Generate unique output path using pipeline_id and job_id
-        output_filename = generate_unique_filename(f"{filename}.mp4")
-        output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
-
-        # Create sub-pipeline string with all required elements for replacing fakesink
-        video_output_subpipeline = f"{encoder_element} ! {codec}parse ! mp4mux ! filesink location={output_path}"
-
-        self.logger.debug(
-            f"Created video output sub-pipeline: {video_output_subpipeline} (codec: {codec})"
-        )
-
-        return video_output_subpipeline, output_path
-
-    def create_live_stream_output_subpipeline(
-        self,
-        pipeline_id: str,
-        encoder_device: str,
-        input_sources: list[str],
-        job_id: str,
-    ) -> Tuple[str, str]:
-        """
-        Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
-
-        This method generates a GStreamer sub-pipeline containing all required elements
-        (encoder, parser, and RTSP client sink) to replace one fakesink element.
-
-        This method is used when output_mode is LIVE_STREAM. It uses low-latency
-        streaming encoders optimized for RTSP streaming to media server.
-
-        Args:
-            pipeline_id: Pipeline ID used to generate unique stream name
-            encoder_device: Target encoder device. Must be one of the module constants:
-                - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
-                - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
-            input_sources: List of input sources (file paths, RTSP URLs, or device paths) to detect codec
-            job_id: Unique job identifier used to generate unique stream name
-
-        Returns:
-            Tuple of (sub-pipeline string, live stream URL)
-
-        Raises:
-            ValueError: If codec is not supported, encoder_device is invalid,
-                or no suitable encoder is found
-        """
-        # Generate stream name from pipeline ID and job_id
-        stream_name = f"stream-{pipeline_id}-{job_id}"
-        stream_name = slugify_text(stream_name)
-
-        # Build live stream URL
-        stream_url = (
-            f"rtsp://{LIVE_STREAM_SERVER_HOST}:{LIVE_STREAM_SERVER_PORT}/{stream_name}"
-        )
-
-        # Detect codec from input sources (h264, h265, etc.)
-        codec = self._detect_codec_from_input(input_sources)
-        self._validate_codec(codec)
-
-        # Select streaming encoder configuration
-        encoder_config = self.streaming_encoder_configs.get(codec, {})
-        if not encoder_config:
-            self.logger.warning(
-                f"No streaming encoder config for codec {codec}, falling back to standard encoder"
-            )
-            encoder_config = self.encoder_configs[codec]
-
-        # Select the best available encoder element based on device type and
-        # installed GStreamer plugins (e.g., vah264enc for GPU, x264enc for CPU)
-        encoder_element = self.select_element(encoder_config, encoder_device)
-
-        if encoder_element is None:
-            self.logger.error(
-                f"Failed to select encoder element for codec: {codec} and encoder_device: {encoder_device}"
-            )
-            raise ValueError(
-                f"No suitable encoder found for codec: {codec} and encoder_device: {encoder_device}"
-            )
-
-        # Create sub-pipeline string with all required elements for replacing fakesink
-        live_stream_output_subpipeline = (
-            f"{encoder_element} ! {codec}parse ! "
-            f"rtspclientsink protocols=tcp location={stream_url}"
-        )
-
-        self.logger.debug(
-            f"Created live stream output sub-pipeline: {live_stream_output_subpipeline} (codec: {codec})"
-        )
-        return live_stream_output_subpipeline, stream_url
