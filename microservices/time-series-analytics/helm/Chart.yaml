@@ -33,7 +33,7 @@ type: application
 #
 # For RC builds, before pushing helm charts to a chart repository:
 # 1. Update this version to format: 2026.0.0-rcX-helm where X is the RC number
-version: 2026.0.0-rc1-helm
+version: 2026.0.0-rc2-helm
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
@@ -49,4 +49,4 @@ version: 2026.0.0-rc1-helm
 #
 # For RC builds, before pushing helm charts to a chart repository:
 # 1. Update this version same as Version field above
-appVersion: "2026.0.0-rc1-helm"
+appVersion: "2026.0.0-rc2-helm"
