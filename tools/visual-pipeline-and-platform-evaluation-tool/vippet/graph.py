@@ -1367,7 +1367,7 @@ class Graph:
             output_caps_type = "video/x-raw"
 
         # Determine if a v4l2src capsfilter node is needed
-        caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
+        v4l2_caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
 
         # Find max existing ID across all nodes and edges for generating new IDs
         max_id = 0
@@ -1404,7 +1404,11 @@ class Graph:
 
         for db_node_id in decodebin3_node_ids:
             if replacement_kind == "videoconvert":
-                replacements.append((db_node_id, "videoconvert", [], []))
+                if device_upper in {"GPU", "NPU"}:
+                    element_type = "vapostproc"
+                else:
+                    element_type = "videoconvert"
+                replacements.append((db_node_id, element_type, [], []))
 
             elif replacement_kind == "parsebin_decoder":
                 assert decoder_element is not None
@@ -1414,7 +1418,25 @@ class Graph:
                 next_id += 1
                 decoder_node = Node(id=decoder_node_id, type=decoder_element, data={})
 
-                # Output caps node after decoder
+                nodes_to_insert_list = [decoder_node]
+                edges_to_add_list = []
+                
+                # Determine the source for the caps node (either decoder or converter)
+                caps_source_id = decoder_node_id
+                
+                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera compatibility
+                if v4l2_caps_node_info is not None:
+                    converter_node_id = str(next_id)
+                    next_id += 1
+                    if device_upper in {"GPU", "NPU"}:
+                        converter_element = "vapostproc"
+                    else:
+                        converter_element = "videoconvert"
+                    converter_node = Node(id=converter_node_id, type=converter_element, data={})
+                    nodes_to_insert_list.append(converter_node)
+                    caps_source_id = converter_node_id
+
+                # Output caps node after decoder (or after converter if present)
                 caps_node_id = str(next_id)
                 next_id += 1
                 caps_node = Node(
@@ -1422,8 +1444,9 @@ class Graph:
                     type=output_caps_type,
                     data={NODE_KIND_KEY: NODE_KIND_CAPS},
                 )
+                nodes_to_insert_list.append(caps_node)
 
-                # Edges: parsebin → decoder → caps → (original target)
+                # Edges: parsebin → decoder → [converter] → caps → (original target)
                 # We need to know the original outgoing edge from decodebin3
                 # to rewire it. We'll handle that during phase 2, but we can
                 # pre-build the internal edges now.
@@ -1434,21 +1457,35 @@ class Graph:
                     source=db_node_id,  # parsebin (renamed decodebin3)
                     target=decoder_node_id,
                 )
+                edges_to_add_list.append(edge_parsebin_to_decoder)
 
-                edge_decoder_to_caps_id = str(next_id)
+                # If converter node exists, add edge decoder → converter
+                if v4l2_caps_node_info is not None:
+                    edge_decoder_to_converter_id = str(next_id)
+                    next_id += 1
+                    edge_decoder_to_converter = Edge(
+                        id=edge_decoder_to_converter_id,
+                        source=decoder_node_id,
+                        target=converter_node_id,
+                    )
+                    edges_to_add_list.append(edge_decoder_to_converter)
+
+                # Edge from caps source (decoder or converter) to caps
+                edge_to_caps_id = str(next_id)
                 next_id += 1
-                edge_decoder_to_caps = Edge(
-                    id=edge_decoder_to_caps_id,
-                    source=decoder_node_id,
+                edge_to_caps = Edge(
+                    id=edge_to_caps_id,
+                    source=caps_source_id,
                     target=caps_node_id,
                 )
+                edges_to_add_list.append(edge_to_caps)
 
                 replacements.append(
                     (
                         db_node_id,
                         "parsebin_decoder",
-                        [decoder_node, caps_node],
-                        [edge_parsebin_to_decoder, edge_decoder_to_caps],
+                        nodes_to_insert_list,
+                        edges_to_add_list,
                     )
                 )
 
@@ -1458,8 +1495,8 @@ class Graph:
         v4l2_edge: Optional[Edge] = None
         v4l2_node_id: Optional[str] = None
 
-        if caps_node_info is not None:
-            v4l2_node_id, caps_base_type, caps_data = caps_node_info
+        if v4l2_caps_node_info is not None:
+            v4l2_node_id, caps_base_type, caps_data = v4l2_caps_node_info
 
             v4l2_caps_node_id = str(next_id)
             next_id += 1
