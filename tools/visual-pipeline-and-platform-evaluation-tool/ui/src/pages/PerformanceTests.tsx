@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
+  useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
 import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
@@ -22,15 +23,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Square, X } from "lucide-react";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import SaveOutputWarning from "@/features/pipeline-tests/SaveOutputWarning.tsx";
+import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
   handleApiError,
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
 import { formatErrorMessage } from "@/lib/utils.ts";
+import {
+  parsePipelineVariantReference,
+  type PipelineVariantReference,
+} from "@/features/pipeline-tests/pipelineVariantReference";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -41,6 +48,8 @@ interface PipelineSelection {
 }
 
 export const PerformanceTests = () => {
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const pipelines = useAppSelector(selectPipelines);
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
@@ -53,16 +62,31 @@ export const PerformanceTests = () => {
     } | null;
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
+  const [livePreviewEnabled, setLivePreviewEnabled] = useState(false);
+  const [loopingEnabled, setLoopingEnabled] = useState(false);
+  const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
+    DEFAULT_LOOPING_RUNTIME_SECONDS,
+  );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
     execute: runTest,
-    isLoading,
+    isLoading: isRunning,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
     statusCheckHook: useGetPerformanceJobStatusQuery,
   });
+  const [stopPerformanceTest, { isLoading: isStopping }] =
+    useStopPerformanceTestJobMutation();
+
+  const getLiveStreamUrl = (reference: PipelineVariantReference) => {
+    const urls = jobStatus?.live_stream_urls ?? {};
+    return urls[reference.rawKey];
+  };
 
   useEffect(() => {
     if (pipelines.length > 0 && pipelineSelections.length === 0) {
@@ -155,8 +179,16 @@ export const PerformanceTests = () => {
       const status = await runTest({
         performanceTestSpec: {
           execution_config: {
-            output_mode: videoOutputEnabled ? "file" : "disabled",
-            max_runtime: 0,
+            output_mode: livePreviewEnabled
+              ? "live_stream"
+              : videoOutputEnabled
+                ? "file"
+                : "disabled",
+            max_runtime: livePreviewEnabled
+              ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+              : loopingEnabled
+                ? loopingRuntimeSeconds
+                : 0,
           },
           pipeline_performance_specs: pipelineSelections.map((selection) => ({
             pipeline: {
@@ -178,15 +210,26 @@ export const PerformanceTests = () => {
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
-        setErrorMessage(
-          formatErrorMessage(error?.error_message, "Test failed"),
-        );
+        setErrorMessage(formatErrorMessage(error?.details, "Test failed"));
       } else {
         const errorMessage = handleApiError(error, "Test failed");
         setErrorMessage(errorMessage);
       }
       console.error("Test failed:", error);
       setTestResult(null);
+    }
+  };
+
+  const handleStopTest = async () => {
+    if (!jobStatus?.id) return;
+
+    try {
+      await stopPerformanceTest({
+        jobId: jobStatus.id,
+      }).unwrap();
+    } catch (error) {
+      handleApiError(error, "Failed to stop test");
+      console.error("Failed to stop test:", error);
     }
   };
 
@@ -232,6 +275,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.pipelineId}
+                      disabled={isRunning}
                       onValueChange={(value) =>
                         handlePipelineChange(index, value)
                       }
@@ -255,6 +299,7 @@ export const PerformanceTests = () => {
                     </label>
                     <Select
                       value={selection.variantId}
+                      disabled={isRunning}
                       onValueChange={(value) =>
                         handleVariantChange(index, value)
                       }
@@ -281,6 +326,7 @@ export const PerformanceTests = () => {
                       onChange={(val) => handleStreamsChange(index, val)}
                       min={1}
                       max={64}
+                      disabled={isRunning}
                     />
                   </div>
                 </div>
@@ -291,6 +337,7 @@ export const PerformanceTests = () => {
                     variant="ghost"
                     size="icon"
                     className="text-destructive"
+                    disabled={isRunning}
                   >
                     <X className="w-5 h-5" />
                   </Button>
@@ -299,24 +346,36 @@ export const PerformanceTests = () => {
             );
           })}
 
-          <Button onClick={handleAddPipeline} variant="outline">
+          <Button
+            onClick={handleAddPipeline}
+            variant="outline"
+            disabled={isRunning}
+          >
             <Plus className="w-5 h-5" />
             <span>Add Pipeline</span>
           </Button>
         </div>
 
-        <div className="my-4 flex flex-col">
-          <div className="flex items-center">
+        <div className="my-4 flex flex-col gap-2">
+          <div className="flex items-center gap-6 flex-wrap">
             <Tooltip>
               <TooltipTrigger asChild>
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={videoOutputEnabled}
-                    onCheckedChange={(checked) =>
-                      setVideoOutputEnabled(checked === true)
-                    }
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setVideoOutputEnabled(isChecked);
+                      if (isChecked) {
+                        setLivePreviewEnabled(false);
+                        setLoopingEnabled(false);
+                      }
+                    }}
                   />
-                  <span className="text-sm font-medium">Save output</span>
+                  <span className="text-sm font-medium">
+                    Keep pipeline output
+                  </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -326,16 +385,128 @@ export const PerformanceTests = () => {
                 </p>
               </TooltipContent>
             </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={livePreviewEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLivePreviewEnabled(isChecked);
+                      if (isChecked) {
+                        setVideoOutputEnabled(false);
+                        setLoopingEnabled(false);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Enable live preview
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Stream pipeline output live instead of saving to file</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                  <Checkbox
+                    checked={loopingEnabled}
+                    disabled={isRunning}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setLoopingEnabled(isChecked);
+                      if (isChecked) {
+                        setVideoOutputEnabled(false);
+                        setLivePreviewEnabled(false);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Run pipeline in loop
+                  </span>
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Run test in loop mode for a selected duration</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          {videoOutputEnabled && <SaveOutputWarning />}
+
+          {loopingEnabled && (
+            <div className="ml-6 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Duration</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loopingRuntimeInput}
+                disabled={isRunning}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  if (value !== "" && !/^\d+$/.test(value)) {
+                    return;
+                  }
+
+                  setLoopingRuntimeInput(value);
+
+                  if (value === "") {
+                    return;
+                  }
+
+                  const parsedValue = Number.parseInt(value, 10);
+                  setLoopingRuntimeSeconds(parsedValue);
+                }}
+                onBlur={() => {
+                  const parsedValue =
+                    loopingRuntimeInput.trim().length === 0
+                      ? Number.NaN
+                      : Number.parseInt(loopingRuntimeInput, 10);
+                  const normalizedValue =
+                    Number.isFinite(parsedValue) && parsedValue >= 1
+                      ? parsedValue
+                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                  setLoopingRuntimeSeconds(normalizedValue);
+                  setLoopingRuntimeInput(String(normalizedValue));
+                }}
+                className="h-8 w-24 px-2 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">s</span>
+            </div>
+          )}
+
+          {videoOutputEnabled && (
+            <div>
+              <SaveOutputWarning />
+            </div>
+          )}
         </div>
 
-        <Button
-          onClick={handleRunTest}
-          disabled={isLoading || pipelineSelections.length === 0}
-        >
-          {isLoading ? "Running..." : "Run performance test"}
-        </Button>
+        {isRunning ? (
+          <button
+            onClick={handleStopTest}
+            disabled={isStopping}
+            className="w-[160px] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            title="Stop test"
+          >
+            <Square className="w-5 h-5" />
+            <span>{isStopping ? "Stopping..." : "Stop"}</span>
+          </button>
+        ) : (
+          <Button
+            onClick={handleRunTest}
+            disabled={isRunning || pipelineSelections.length === 0}
+            className="self-start"
+          >
+            {isRunning ? "Starting..." : "Run performance test"}
+          </Button>
+        )}
 
         {jobStatus && (
           <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
@@ -350,6 +521,55 @@ export const PerformanceTests = () => {
                     Running performance test...
                   </span>
                 </div>
+                {livePreviewEnabled &&
+                  jobStatus &&
+                  "live_stream_urls" in jobStatus &&
+                  jobStatus.live_stream_urls && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                        Live Preview:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(jobStatus.live_stream_urls).map(
+                          ([pipelineRefKey]) => {
+                            const reference =
+                              parsePipelineVariantReference(pipelineRefKey);
+                            const streamUrl = getLiveStreamUrl(reference);
+
+                            return (
+                              <div
+                                key={reference.rawKey}
+                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                              >
+                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                    <PipelineName
+                                      pipelineId={reference.pipelineId}
+                                      variantId={reference.variantId}
+                                    />
+                                  </p>
+                                </div>
+
+                                {streamUrl ? (
+                                  <div className="w-full aspect-video bg-black">
+                                    <WebRTCVideoPlayer
+                                      pipelineId={reference.pipelineId}
+                                      streamUrl={streamUrl}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                    Waiting for live stream to be published...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                 <TestProgressIndicator />
               </div>
             )}
@@ -392,18 +612,23 @@ export const PerformanceTests = () => {
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(testResult.video_output_paths).map(
-                      ([pipelineId, paths]) => {
+                      ([pipelineRefKey, paths]) => {
+                        const reference =
+                          parsePipelineVariantReference(pipelineRefKey);
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
                         return (
                           <div
-                            key={pipelineId}
+                            key={pipelineRefKey}
                             className="border border-green-300 dark:border-green-700 overflow-hidden"
                           >
                             <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
                               <p className="text-xs font-medium text-green-900 dark:text-green-100">
-                                <PipelineName pipelineId={pipelineId} />
+                                <PipelineName
+                                  pipelineId={reference.pipelineId}
+                                  variantId={reference.variantId}
+                                />
                               </p>
                             </div>
                             {videoPath ? (

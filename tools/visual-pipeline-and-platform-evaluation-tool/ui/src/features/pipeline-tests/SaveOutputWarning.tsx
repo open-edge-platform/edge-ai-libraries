@@ -1,8 +1,10 @@
 const SaveOutputWarning = () => {
   return (
-    <div className="text-muted-foreground dark:text-foreground/80 border border-amber-400 my-2 p-2 bg-amber-200/50 w-1/2">
-      <b>Note</b>: Selecting this option will negatively impact the performance
-      results.
+    <div className="mt-3 inline-flex max-w-sm min-w-0 text-xs text-popover-foreground bg-popover/95 border border-border px-3 py-2 items-start gap-2">
+      <p className="min-w-0 whitespace-normal break-words leading-relaxed">
+        <span className="font-semibold">Note:</span> This option may negatively
+        impact performance results.
+      </p>
     </div>
   );
 };

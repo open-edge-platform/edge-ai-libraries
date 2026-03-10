@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 import gi
@@ -17,13 +17,13 @@ class GStreamerWebRTCManager:
     _source_mediamtx = "appsrc name=webrtc_source format=GST_FORMAT_TIME "
     _WebRTCVideoPipeline = (
         " ! videoconvert ! gvawatermark "
-        " ! x264enc speed-preset=ultrafast name=h264enc"
+        " ! openh264enc complexity=low name=h264enc"
         " ! video/x-h264,profile=baseline "
         " ! whipclientsink signaller::whip-endpoint="
     )
     _WebRTCVideoPipeline_jpeg = (
         " ! jpegdec ! videoconvert ! gvawatermark "
-        " ! x264enc speed-preset=ultrafast name=h264enc "
+        " ! openh264enc complexity=low name=h264enc "
         " ! video/x-h264,profile=baseline "
         " ! whipclientsink signaller::whip-endpoint="
     )

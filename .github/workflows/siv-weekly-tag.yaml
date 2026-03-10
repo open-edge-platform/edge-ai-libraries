@@ -1,55 +1,171 @@
-name: SIV Weekly Build Tagging
+name: "[SIV] Weekly Build Tagging"
 
 on:
   schedule:
-    - cron: '0 15 * * 2'  # Every Tuesday at 15:00 UTC
+  - cron: '0 15 * * 2' # Every Tuesday at 15:00 UTC
   workflow_dispatch:
+
 
 permissions: {}
 
 jobs:
-  create-tag:
+  update-submodules-and-tag:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-    - name: Get latest commit SHA
-      id: get-sha
+    - name: Checkout repository with submodules
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
+      with:
+        token: ${{ secrets.SIV_USER_TOKEN_GH }}
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Configure Git
       run: |
-        echo "🔍 Getting latest commit SHA from main branch..."
-        
-        RESPONSE=$(curl -s -w "%{http_code}" -o commit.json \
-          -H "Authorization: Bearer ${{ secrets.SIV_USER_TOKEN_GH }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/${{ github.repository }}/commits/main)
-        
-        HTTP_CODE="${RESPONSE: -3}"
-        
-        if [ "$HTTP_CODE" -eq 200 ]; then
-          COMMIT_SHA=$(jq -r '.sha' commit.json)
-          echo "✅ Successfully retrieved commit SHA: $COMMIT_SHA"
-          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+        git config user.name "${{ secrets.SIV_USER }}"
+        git config user.email "${{ secrets.SIV_USER_EMAIL }}"
+
+    - name: Update all submodules to latest
+      run: |
+        echo "🧹 Resetting submodules to clean state..."
+        git submodule foreach --recursive git reset --hard
+        git submodule foreach --recursive git clean -fdx
+
+        echo "🔄 Updating submodules to their latest commits..."
+
+        # Get all submodule paths from .gitmodules
+        ALL_SUBMODULES=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
+
+        # Get shallow submodule paths
+        SHALLOW_SUBMODULES=$(git config -f .gitmodules --get-regexp '^submodule\..*\.shallow$' | grep 'true' | while read line; do
+          # Extract submodule name from "submodule.NAME.shallow true"
+          name=$(echo "$line" | sed 's/submodule\.\(.*\)\.shallow true/\1/')
+          # Get the path for this submodule
+          git config -f .gitmodules --get "submodule.${name}.path" || true
+        done)
+
+        echo "📋 Shallow submodules (will be skipped from --remote update):"
+        echo "$SHALLOW_SUBMODULES"
+        echo ""
+
+        # Update each top-level submodule individually
+        for submodule in $ALL_SUBMODULES; do
+          # Check if this submodule is shallow
+          if echo "$SHALLOW_SUBMODULES" | grep -qx "$submodule"; then
+            echo "⏭️  Skipping shallow submodule: $submodule"
+          else
+            echo "🔄 Updating: $submodule"
+            git submodule update --remote "$submodule" || echo "⚠️  Warning: Failed to update $submodule"
+          fi
+        done
+
+        echo "✅ Submodules updated successfully"
+
+    - name: Show submodule status
+      id: submodule-status
+      run: |
+        echo "📋 Submodule Status:"
+        echo "===================="
+        git submodule status --recursive
+        echo ""
+        echo "📝 Git Status:"
+        echo "=============="
+        git status
+        echo ""
+
+        # Check if there are any submodule pointer changes to commit
+        if git diff --quiet --ignore-submodules=dirty; then
+          echo "ℹ️ No submodule updates detected"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
         else
-          echo "❌ Failed to get commit SHA. HTTP Code: $HTTP_CODE"
-          echo "Response:"
-          cat commit.json
-          exit 1
+          echo "✅ Submodule changes detected"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo ""
+          echo "📊 Changed submodules:"
+          git diff --name-only
         fi
 
-    - name: Create lightweight tag via API
+    - name: Commit submodule updates
+      id: commit
+      if: steps.submodule-status.outputs.has_changes == 'true'
+      run: |
+        echo "📝 Creating commit with submodule updates..."
+        git add -A
+        git commit -m "[SIV] auto-update submodules to latest commits
+
+        Automated weekly update of all submodules to their latest upstream commits.
+
+        Updated on: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+        COMMIT_SHA=$(git rev-parse HEAD)
+        echo "✅ Commit created: $COMMIT_SHA"
+        echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+    - name: Push to current branch
+      if: steps.submodule-status.outputs.has_changes == 'true'
+      env:
+        BRANCH_NAME: ${{ github.ref_name }}
+      run: |
+        echo "🚀 Pushing changes to branch: $BRANCH_NAME"
+        git push origin HEAD:$BRANCH_NAME
+        echo "✅ Changes pushed successfully to $BRANCH_NAME"
+
+    - name: Get commit SHA for tagging
+      id: get-sha
+      run: |
+        if [ "${{ steps.submodule-status.outputs.has_changes }}" == "true" ]; then
+          COMMIT_SHA="${{ steps.commit.outputs.sha }}"
+        else
+          # If no changes, get the current HEAD SHA
+          COMMIT_SHA=$(git rev-parse HEAD)
+        fi
+        echo "📍 Commit SHA for tagging: $COMMIT_SHA"
+        echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+    - name: Create annotated tag via API
       run: |
         TAG_NAME="${{ vars.SIV_WEEKLY_BUILD_PREFIX }}-$(date +'%Y%m%d')"
         COMMIT_SHA="${{ steps.get-sha.outputs.sha }}"
-        
+        TAG_MESSAGE="Weekly Build - ${TAG_NAME}"
+
         echo "🚀 Creating tag: $TAG_NAME"
         echo "📍 Target commit: $COMMIT_SHA"
-        
+        echo "📝 Tag message: $TAG_MESSAGE"
+
         if [ "$COMMIT_SHA" = "" ] || [ "$COMMIT_SHA" = "null" ]; then
           echo "❌ Invalid commit SHA: $COMMIT_SHA"
           exit 1
         fi
-        
+
+        echo "📝 Creating annotated tag object..."
+        RESPONSE=$(curl -s -w "%{http_code}" -o tag_object.json \
+          -H "Authorization: Bearer ${{ secrets.SIV_USER_TOKEN_GH }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          -X POST \
+          https://api.github.com/repos/${{ github.repository }}/git/tags \
+          -d "{
+            \"tag\": \"${TAG_NAME}\",
+            \"message\": \"${TAG_MESSAGE}\",
+            \"object\": \"${COMMIT_SHA}\",
+            \"type\": \"commit\"
+          }")
+
+        HTTP_CODE="${RESPONSE: -3}"
+
+        if [ "$HTTP_CODE" -ne 201 ]; then
+          printf "❌ Failed to create tag object!\n"
+          printf "HTTP Code: %s\n" "$HTTP_CODE"
+          cat tag_object.json
+          exit 1
+        fi
+
+        TAG_SHA=$(jq -r '.sha' tag_object.json)
+        echo "✅ Tag object created: $TAG_SHA"
+
+        echo "🔗 Creating tag reference..."
         RESPONSE=$(curl -s -w "%{http_code}" -o tag.json \
           -H "Authorization: Bearer ${{ secrets.SIV_USER_TOKEN_GH }}" \
           -H "Accept: application/vnd.github.v3+json" \
@@ -58,11 +174,11 @@ jobs:
           https://api.github.com/repos/${{ github.repository }}/git/refs \
           -d "{
             \"ref\": \"refs/tags/${TAG_NAME}\",
-            \"sha\": \"${COMMIT_SHA}\"
+            \"sha\": \"${TAG_SHA}\"
           }")
-        
+
         HTTP_CODE="${RESPONSE: -3}"
-        
+
         if [ "$HTTP_CODE" -eq 201 ]; then
           printf "\n"
           printf "✅ Weekly Build Tag Created Successfully!\n"

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface AsyncJobStatus {
   id: string;
   start_time: number;
   elapsed_time: number;
-  state: "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
-  error_message?: string[] | string | null;
+  state: "RUNNING" | "COMPLETED" | "FAILED";
+  details?: string[];
 }
 
 interface AsyncJobResponse {
@@ -121,16 +121,19 @@ export function useAsyncJob<
     },
   );
 
+  const isJobCancelled = useCallback(
+    (status: TStatus): boolean =>
+      status.state === "COMPLETED" &&
+      status.details?.[0]?.includes("Cancelled by user") === true,
+    [],
+  );
+
   useEffect(() => {
     if (!jobStatus || !jobId) return;
 
     if (jobStatus.id !== jobId || lastJobIdRef.current === jobId) return;
 
-    if (
-      jobStatus.state !== "COMPLETED" &&
-      jobStatus.state !== "ERROR" &&
-      jobStatus.state !== "ABORTED"
-    ) {
+    if (jobStatus.state !== "COMPLETED" && jobStatus.state !== "FAILED") {
       return;
     }
 
@@ -139,13 +142,15 @@ export function useAsyncJob<
 
       try {
         if (jobStatus.state === "COMPLETED") {
-          await onSuccessRef.current?.(jobStatus);
-          jobResolveRef.current?.(jobStatus);
-        } else if (jobStatus.state === "ERROR") {
+          if (isJobCancelled(jobStatus)) {
+            onAbortRef.current?.(jobStatus);
+            jobResolveRef.current?.(jobStatus);
+          } else {
+            await onSuccessRef.current?.(jobStatus);
+            jobResolveRef.current?.(jobStatus);
+          }
+        } else if (jobStatus.state === "FAILED") {
           onErrorRef.current?.(jobStatus);
-          jobRejectRef.current?.(jobStatus);
-        } else if (jobStatus.state === "ABORTED") {
-          onAbortRef.current?.(jobStatus);
           jobRejectRef.current?.(jobStatus);
         }
       } finally {
@@ -157,7 +162,7 @@ export function useAsyncJob<
     };
 
     handleJobCompletion();
-  }, [jobStatus, jobId]);
+  }, [jobStatus, jobId, isJobCancelled]);
 
   const execute = async (args: TMutationArgs): Promise<TStatus> => {
     const response = await triggerMutation(args).unwrap();
@@ -182,15 +187,15 @@ export function useAsyncJob<
   const isPolling =
     !!jobId &&
     (!jobStatus ||
-      (jobStatus.state !== "COMPLETED" &&
-        jobStatus.state !== "ERROR" &&
-        jobStatus.state !== "ABORTED"));
+      (jobStatus.state !== "COMPLETED" && jobStatus.state !== "FAILED"));
 
   return {
     execute,
     isLoading: isMutating || isPolling,
     isMutating,
+    isPolling,
     jobStatus,
     reset,
+    isJobCancelled,
   };
 }

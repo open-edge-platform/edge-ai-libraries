@@ -6,8 +6,7 @@ from unittest.mock import MagicMock, patch, mock_open
 
 from pipeline_runner import (
     PipelineRunner,
-    PipelineRunResult,
-    PipelineValidationResult,
+    PipelineResult,
 )
 
 
@@ -29,17 +28,13 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     @patch("pipeline_runner.select.select")
     def test_run_pipeline_normal_mode(self, mock_select, mock_ps, mock_popen):
         """PipelineRunner in normal mode should execute gst_runner.py and extract FPS metrics."""
-        expected_result = PipelineRunResult(
-            total_fps=100.0, per_stream_fps=100.0, num_streams=1
-        )
-
         # Mock process
         process_mock = MagicMock()
         process_mock.poll.side_effect = [None, 0]
         # Avoid StopIteration by returning empty bytes forever after the real line
         process_mock.stdout.readline.side_effect = itertools.chain(
             [
-                f"FpsCounter(average 10.0sec): total={expected_result.total_fps} fps, number-streams={expected_result.num_streams}, per-stream={expected_result.per_stream_fps} fps\n".encode(
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n".encode(
                     "utf-8"
                 )
             ],
@@ -73,19 +68,17 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertIn(cmd[7], ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"))
         self.assertEqual(cmd[8], self.test_pipeline_command)
 
-        # Verify FPS extraction with type narrowing
-        assert isinstance(result, PipelineRunResult)  # Type narrowing
-        self.assertEqual(result.total_fps, expected_result.total_fps)
-        self.assertEqual(result.per_stream_fps, expected_result.per_stream_fps)
-        self.assertEqual(result.num_streams, expected_result.num_streams)
+        # Verify FPS extraction
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 100.0)
+        self.assertEqual(result.per_stream_fps, 100.0)
+        self.assertEqual(result.num_streams, 1)
+        self.assertEqual(result.exit_code, 0)
+        self.assertFalse(result.cancelled)
 
     @patch("pipeline_runner.Popen")
     def test_stop_pipeline_normal_mode(self, mock_popen):
         """PipelineRunner in normal mode should handle cancellation correctly."""
-        expected_result = PipelineRunResult(
-            total_fps=0, per_stream_fps=0, num_streams=0
-        )
-
         # Mock process
         process_mock = MagicMock()
         # First poll() returns None (main loop check: process running),
@@ -102,12 +95,12 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         )
 
         self.assertTrue(runner.is_cancelled())
-        self.assertIsInstance(result, PipelineRunResult)
-        # Type narrowing for accessing PipelineRunResult attributes
-        assert isinstance(result, PipelineRunResult)
-        self.assertEqual(result.total_fps, expected_result.total_fps)
-        self.assertEqual(result.per_stream_fps, expected_result.per_stream_fps)
-        self.assertEqual(result.num_streams, expected_result.num_streams)
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 0.0)
+        self.assertEqual(result.per_stream_fps, 0.0)
+        self.assertEqual(result.num_streams, 0)
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(result.cancelled)
 
         # Verify SIGINT was sent for graceful shutdown
         process_mock.send_signal.assert_called_once_with(signal.SIGINT)
@@ -149,15 +142,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self, mock_open_file, mock_select, mock_ps, mock_popen
     ):
         """PipelineRunner should write 0.0 to FPS file after successful completion."""
-        expected_result = PipelineRunResult(
-            total_fps=100.0, per_stream_fps=100.0, num_streams=1
-        )
-
         process_mock = MagicMock()
         process_mock.poll.side_effect = [None, 0]
         process_mock.stdout.readline.side_effect = itertools.chain(
             [
-                f"FpsCounter(average 10.0sec): total={expected_result.total_fps} fps, number-streams={expected_result.num_streams}, per-stream={expected_result.per_stream_fps} fps\n".encode(
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n".encode(
                     "utf-8"
                 )
             ],
@@ -179,10 +168,8 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
             pipeline_command=self.test_pipeline_command, total_streams=1
         )
 
-        # Verify result
-        self.assertIsInstance(result, PipelineRunResult)
-        assert isinstance(result, PipelineRunResult)
-        self.assertEqual(result.total_fps, expected_result.total_fps)
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 100.0)
 
         # Verify that current FPS (100.0) was written during execution
         # and 0.0 was written at the end (in finally block)
@@ -302,7 +289,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         )
 
         self.assertTrue(runner.is_cancelled())
-        self.assertIsInstance(result, PipelineRunResult)
+        self.assertIsInstance(result, PipelineResult)
 
         # Verify that 0.0 was written to FPS file (in finally block) after cancellation
         write_calls = [
@@ -342,7 +329,7 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
 
     @patch("pipeline_runner.subprocess.Popen")
     def test_run_validation_success(self, mock_popen):
-        """PipelineRunner in validation mode should return valid result on success."""
+        """PipelineRunner in validation mode should return PipelineResult with exit_code=0 and empty stderr on success."""
         process_mock = MagicMock()
         process_mock.communicate.return_value = (
             "gst_runner - INFO - Pipeline parsed successfully.\n",
@@ -354,15 +341,14 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
         runner = PipelineRunner(mode="validation", max_runtime=10)
         result = runner.run(self.test_pipeline_command)
 
-        self.assertIsInstance(result, PipelineValidationResult)
-        # Type narrowing for accessing PipelineValidationResult attributes
-        assert isinstance(result, PipelineValidationResult)
-        self.assertTrue(result.is_valid)
-        self.assertEqual(result.errors, [])
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.stderr, [])
+        self.assertFalse(result.cancelled)
 
     @patch("pipeline_runner.subprocess.Popen")
     def test_run_validation_failure(self, mock_popen):
-        """PipelineRunner in validation mode should return invalid result with errors."""
+        """PipelineRunner in validation mode should return PipelineResult with errors in stderr."""
         process_mock = MagicMock()
         process_mock.communicate.return_value = (
             "",
@@ -374,11 +360,10 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
         runner = PipelineRunner(mode="validation", max_runtime=10)
         result = runner.run(self.test_pipeline_command)
 
-        self.assertIsInstance(result, PipelineValidationResult)
-        # Type narrowing for accessing PipelineValidationResult attributes
-        assert isinstance(result, PipelineValidationResult)
-        self.assertFalse(result.is_valid)
-        self.assertEqual(result.errors, ["no element foo", "some other error"])
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.stderr, ["no element foo", "some other error"])
+        self.assertFalse(result.cancelled)
 
     @patch("pipeline_runner.subprocess.Popen")
     def test_run_validation_timeout(self, mock_popen):
@@ -400,11 +385,10 @@ class TestPipelineRunnerValidationMode(unittest.TestCase):
         runner = PipelineRunner(mode="validation", max_runtime=10)
         result = runner.run(self.test_pipeline_command)
 
-        self.assertIsInstance(result, PipelineValidationResult)
-        # Type narrowing for accessing PipelineValidationResult attributes
-        assert isinstance(result, PipelineValidationResult)
-        self.assertFalse(result.is_valid)
-        self.assertTrue(any("timed out" in err for err in result.errors))
+        self.assertIsInstance(result, PipelineResult)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertTrue(any("timed out" in err for err in result.stderr))
+        self.assertFalse(result.cancelled)
 
         # Verify SIGINT was sent for graceful shutdown
         process_mock.send_signal.assert_called_once_with(signal.SIGINT)

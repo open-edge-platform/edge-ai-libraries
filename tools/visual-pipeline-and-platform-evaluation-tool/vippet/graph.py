@@ -414,7 +414,7 @@ class Graph:
         Changes applied:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
-        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux, parsebin) with tsdemux
+        - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
         - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
 
         Returns:
@@ -485,7 +485,6 @@ class Graph:
                 "matroskademux",
                 "avidemux",
                 "flvdemux",
-                "parsebin",
             }:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
@@ -679,6 +678,107 @@ class Graph:
                 logger.debug(
                     f"Unified element name in node {node.id}: {old_name} -> {node.data['name']}"
                 )
+
+        return modified_graph
+
+    def strip_watermark_if_all_sinks_are_fake(self) -> "Graph":
+        """
+        Remove all gvawatermark nodes if every sink in the graph is a fakesink.
+
+        If the graph contains at least one OUTPUT_PLACEHOLDER node, it means
+        non-fakesink outputs will be added later, so the graph is returned
+        unchanged.
+
+        When all sink nodes (nodes whose type ends with "sink") are fakesink,
+        gvawatermark elements serve no purpose because there is no real video
+        output to render overlays on. Removing them avoids unnecessary
+        processing overhead.
+
+        For each removed gvawatermark node, incoming and outgoing edges are
+        reconnected so that the predecessor connects directly to the successor.
+
+        Returns:
+            Graph: New Graph instance with gvawatermark nodes removed, or self
+                if conditions are not met.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        # Early exit: if any OUTPUT_PLACEHOLDER exists, real sinks will be
+        # added later, so keep gvawatermark nodes intact.
+        for node in self.nodes:
+            if node.type == OUTPUT_PLACEHOLDER:
+                logger.debug(
+                    "Graph contains OUTPUT_PLACEHOLDER, skipping gvawatermark removal"
+                )
+                return self
+
+        # Collect all sink nodes (type ends with "sink")
+        sink_nodes = [node for node in self.nodes if node.type.endswith("sink")]
+
+        # If there are no sinks at all, nothing to decide — return unchanged.
+        if not sink_nodes:
+            return self
+
+        # Check if ALL sinks are fakesink
+        all_fakesink = all(node.type == "fakesink" for node in sink_nodes)
+        if not all_fakesink:
+            logger.debug("Not all sinks are fakesink, skipping gvawatermark removal")
+            return self
+
+        # Check if there are any gvawatermark nodes to remove.
+        watermark_ids = [node.id for node in self.nodes if node.type == "gvawatermark"]
+        if not watermark_ids:
+            return self
+
+        logger.debug(
+            f"All sinks are fakesink, removing {len(watermark_ids)} gvawatermark node(s)"
+        )
+
+        modified_graph = copy.deepcopy(self)
+
+        for wm_id in watermark_ids:
+            # Find incoming edges (edges targeting this watermark node)
+            incoming_edges = [e for e in modified_graph.edges if e.target == wm_id]
+            # Find outgoing edges (edges sourced from this watermark node)
+            outgoing_edges = [e for e in modified_graph.edges if e.source == wm_id]
+
+            # Collect source node IDs from incoming edges
+            source_ids = [e.source for e in incoming_edges]
+            # Collect target node IDs from outgoing edges
+            target_ids = [e.target for e in outgoing_edges]
+
+            # Remove all edges connected to the watermark node
+            modified_graph.edges = [
+                e
+                for e in modified_graph.edges
+                if e.source != wm_id and e.target != wm_id
+            ]
+
+            # Reconnect: create edges from each source to each target
+            # Find max edge ID for generating new unique IDs
+            max_edge_id = 0
+            for e in modified_graph.edges:
+                try:
+                    max_edge_id = max(max_edge_id, int(e.id))
+                except ValueError:
+                    pass
+
+            next_edge_id = max_edge_id + 1
+
+            for src in source_ids:
+                for tgt in target_ids:
+                    modified_graph.edges.append(
+                        Edge(id=str(next_edge_id), source=src, target=tgt)
+                    )
+                    logger.debug(
+                        f"Reconnected edge: {src} -> {tgt} (id={next_edge_id}) "
+                        f"after removing gvawatermark node {wm_id}"
+                    )
+                    next_edge_id += 1
+
+            # Remove the watermark node
+            modified_graph.nodes = [n for n in modified_graph.nodes if n.id != wm_id]
 
         return modified_graph
 
