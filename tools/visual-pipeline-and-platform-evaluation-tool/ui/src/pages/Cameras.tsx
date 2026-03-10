@@ -50,13 +50,13 @@ const formatCameraFramerate = (camera: Camera): string => {
     const networkDetails = getNetworkDetails(camera);
     const framerate = networkDetails?.best_profile?.framerate;
 
-    return framerate ? `${framerate} FPS` : "-";
+    return framerate != null ? `${framerate} FPS` : "-";
   }
 
   const usbDetails = getUsbDetails(camera);
   const fps = usbDetails?.best_capture?.fps;
 
-  return fps ? `${fps} FPS` : "-";
+  return fps != null ? `${fps} FPS` : "-";
 };
 
 export const Cameras = () => {
