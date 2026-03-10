@@ -1,4 +1,4 @@
-# Test Density
+# How to Test Density
 
 This article explains how to run density tests in ViPPET and interpret the results.
 A density test finds the maximum number of streams that can run while keeping the target
