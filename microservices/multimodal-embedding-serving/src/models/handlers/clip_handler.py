@@ -74,7 +74,7 @@ class CLIPHandler(BaseEmbeddingModel):
         self.use_openvino = model_config.get("use_openvino", True)
         self.device = model_config.get("device", "GPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
-        self.infer_batch_size = model_config.get("infer_batch_size", 1)
+        self.infer_batch_size = model_config.get("infer_batch_size", 64)
         
         # OpenVINO models
         self.infer_request = None
