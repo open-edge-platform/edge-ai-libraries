@@ -28,8 +28,8 @@ how to build and evaluate an ALPR pipeline on Intel® hardware.
 ./how-to-guides/use-video-generator
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
-./how-to-guides/density-testing
-./how-to-guides/license-plate-recognition-pipeline
+Run Density Tests <./how-to-guides/density-testing.md>
+Use Plates Recognition <./how-to-guides/license-plate-recognition-pipeline.md>
 
 :::
 hide_directive-->
