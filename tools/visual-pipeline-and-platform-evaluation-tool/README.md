@@ -111,58 +111,17 @@ configurations and optimization of settings.
 
 ## Example: Real-Time License Plate Recognition (ALPR)
 
-This example mirrors a common smart city workload and can be reproduced in ViPPET to compare Intel® platforms for
+This use case mirrors a common smart city workload and can be reproduced in ViPPET to compare Intel® platforms for
 license plate analytics.
 
-**Problem**: Detect vehicles, localize license plates, and read plate text from live or recorded video in real time.
+**Goal**: Detect vehicles, localize license plates, and read plate text from live or recorded video in real time.
 
-**ViPPET Pipeline Example**:
+For the complete architecture, hardware variants (CPU/GPU/GPU+NPU), pipeline examples, and benchmark guidance, see:
 
-1. **Vehicle Detection**: Run an object detection model to detect vehicles in each frame.
-2. **License Plate Detection**: Run a second model on vehicle regions to localize license plates.
-3. **Plate Recognition (OCR)**: Run an OCR/sequence recognition model on cropped plate images to decode text.
+- [License Plate Recognition Pipeline Guide](docs/user-guide/how-to-guides/license-plate-recognition-pipeline.md)
 
-**How to Evaluate in ViPPET**:
-
-- Configure input stream count and resolution (for example, 1080p single-stream vs multi-stream).
-- Select model variants and inference settings (FP16/INT8 where applicable).
-- Measure throughput, latency, CPU/GPU utilization, and power over the same test scenario.
-- Compare results across hardware targets to choose the best cost/performance configuration.
-
-**Expected Outcome**: A repeatable benchmark that shows whether a platform can sustain required ALPR accuracy and
-real-time performance under target deployment conditions.
-
-### Performance Results (1080p, End-to-End)
-
-Below table shows the end-to-end performance of processing 1080p videos with this sample application.
-
-TO DO: Add real values
-
-| Device | Number of streams | Batch Size | Total FPS |
-| --- | ---: | ---: | ---: |
-| Device 1 | 1 | 1 | 9.20 |
-| Device 2 | 3 | 3 | 80.31 |
-| Device 3 | 5 | 5 | 146.43 |
-| Device 4 | 5 | 5 | 341.65 |
-| Device 5 | 14 | 14 | 447.15 |
-
-
-### Density View (Derived from the same data, FPS floor = 30)
-
-This density-oriented view estimates how many streams can be sustained at a 30 FPS floor based on the measured
-Total FPS values above.
-
-TO DO: Add real values
-
-| Device | FPS Floor | Estimated Max Streams @ Floor | Estimated Per Stream FPS |
-| --- | ---: | ---: | ---: |
-| Device 1 | 30 | 0 | N/A |
-| Device 2 | 30 | 2 | 40.16 |
-| Device 3 | 30 | 4 | 36.61 |
-| Device 4 | 30 | 11 | 31.06 |
-| Device 5 | 30 | 14 | 31.94 |
-
-For ViPPET, use the built-in **Density Test** to report measured (not estimated) stream density directly per platform.
+Use ViPPET's built-in **Performance Test** and **Density Test** to collect measured platform-specific throughput,
+latency, utilization, and sustainable stream density.
 
 ## Learn More
 
@@ -170,6 +129,7 @@ For ViPPET, use the built-in **Density Test** to report measured (not estimated)
 - [Get Started](docs/user-guide/get-started.md)
 - [How to Build Source](docs/user-guide/get-started/build-from-source.md)
 - [How to Use ViPPET](docs/user-guide/use-vippet.md)
+- [How to Build License Plate Recognition Pipeline](docs/user-guide/how-to-guides/license-plate-recognition-pipeline.md)
 - [How to Run Performance Tests](docs/user-guide/how-to-guides/performance-testing.md)
 - [How to Run Density Tests](docs/user-guide/how-to-guides/density-testing.md)
 - [How to Use Video Generator](docs/user-guide/how-to-guides/use-video-generator.md)
