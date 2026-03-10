@@ -49,7 +49,7 @@ interface PipelineSelection {
 
 export const PerformanceTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
+  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 0;
   const pipelines = useAppSelector(selectPipelines);
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
