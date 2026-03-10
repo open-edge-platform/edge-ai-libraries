@@ -23,7 +23,7 @@ def get_videos():
 
     ## Operation
 
-    1. VideosManager scans RECORDINGS_PATH for supported video files (h264/h265 codecs only)
+    1. VideosManager scans INPUT_VIDEO_DIR for supported video files (h264/h265 codecs only)
     2. Metadata is loaded or extracted for each file (resolution, fps, duration, codec)
     3. Returns array of Video objects
 
@@ -42,7 +42,7 @@ def get_videos():
 
     ### ✅ Success
     - VideosManager successfully initialized at startup
-    - RECORDINGS_PATH exists and is a valid directory
+    - INPUT_VIDEO_DIR exists and is a valid directory
 
     ### ❌ Failure
     - VideosManager initialization fails → application exits at startup
