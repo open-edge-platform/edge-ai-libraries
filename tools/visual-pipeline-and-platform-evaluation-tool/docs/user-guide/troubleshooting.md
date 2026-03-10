@@ -1,7 +1,5 @@
 # Troubleshooting
 
-
-
 ## 1. Pipelines failing or missing bounding boxes when multiple devices/codecs are involved
 
 ViPPET lets you select the `device` for inference elements such as `gvadetect` and `gvaclassify`. However, in
@@ -81,8 +79,8 @@ DL Streamer repository:
 If this behavior is problematic in your environment (for example, it disrupts interactive work or automated
   workflows), avoid using pipeline optimization and instead:
 
-  - Use baseline, hand‑tuned pipelines.
-  - Adjust parameters manually rather than relying on DLSOptimizer.
+- Use baseline, hand‑tuned pipelines.
+- Adjust parameters manually rather than relying on DLSOptimizer.
 
 ---
 
@@ -122,43 +120,43 @@ existing pipeline. To avoid confusion and potential issues, use the following gu
 
 1. choose the encoding device
 
-  - Prefer the **same device that is already used by the downstream video elements** in your pipeline.
-  - In most cases, the most reliable choice is:
-    - The **device used by the element that is closest to the final `*sink`** in the pipeline,
-      for example, the last `va*` encoder or post‑processing element before a sink.
-  - Using a different device for encoding than the one used by the rest of the downstream path can:
-    - Introduce unnecessary copies between devices,
-    - Or, in some environments, cause pipeline negotiation or stability issues.
+   - Prefer the **same device that is already used by the downstream video elements** in your pipeline.
+   - In most cases, the most reliable choice is:
+     - The **device used by the element that is closest to the final `*sink`** in the pipeline,
+       for example, the last `va*` encoder or post‑processing element before a sink.
+   - Using a different device for encoding than the one used by the rest of the downstream path can:
+     - Introduce unnecessary copies between devices,
+     - Or, in some environments, cause pipeline negotiation or stability issues.
 
 2. Map devices (`GPU.X`) to DL Streamer elements
 
-  DL Streamer maps logical GPU devices (`GPU.0`, `GPU.1`, `GPU.2`, …) to specific element variants as follows:
+   DL Streamer maps logical GPU devices (`GPU.0`, `GPU.1`, `GPU.2`, …) to specific element variants as follows:
 
-  - **`GPU.0`** (or `GPU` in a single-GPU system) maps to the generic VA‑API elements:
-    - Decoders: `vah264dec`
-    - Post‑processing: `vapostproc`
-    - Encoders: `vah264enc`, `vah264lpenc`
-  - **`GPU.1`, `GPU.2`, …** map to per‑GPU elements whose names encode the GPU index, for example:
-    - For `GPU.1`: elements like `varenderD129h264dec`, `varenderD129postproc`, `varenderD129h264enc`
-    - For `GPU.2`: elements like `varenderD130h264dec`, `varenderD130postproc`, `varenderD130h264enc`
-    - And so on for additional GPUs.
+   - **`GPU.0`** (or `GPU` in a single-GPU system) maps to the generic VA‑API elements:
+     - Decoders: `vah264dec`
+     - Post‑processing: `vapostproc`
+     - Encoders: `vah264enc`, `vah264lpenc`
+   - **`GPU.1`, `GPU.2`, …** map to per‑GPU elements whose names encode the GPU index, for example:
+     - For `GPU.1`: elements like `varenderD129h264dec`, `varenderD129postproc`, `varenderD129h264enc`
+     - For `GPU.2`: elements like `varenderD130h264dec`, `varenderD130postproc`, `varenderD130h264enc`
+     - And so on for additional GPUs.
 
-  > **Note:** On systems with only one GPU, the device will be listed as simply `GPU` (not `GPU.0`) and you should always
-  > use the generic elements above (`vah264dec`, `vapostproc`, `vah264enc`, `vah264lpenc`).
+     > **Note:** On systems with only one GPU, the device will be listed as simply `GPU` (not `GPU.0`) and you should always
+     > use the generic elements above (`vah264dec`, `vapostproc`, `vah264enc`, `vah264lpenc`).
 
 3. When selecting the encoding device in the **“Save output”** dialog:
 
-  - If your pipeline uses **`vah264dec` / `vapostproc` / `vah264enc` / `vah264lpenc`** near the end of the pipeline,
-    it is typically running on **`GPU.0`** (or just `GPU` on a single-GPU system).
-    → In this case, choose **`GPU.0`** (or `GPU`) for encoding.
-  - If your pipeline uses elements like **`varenderD129*`**, **`varenderD130*`**, etc. near the end of the pipeline,
-    those typically correspond to **`GPU.1`**, **`GPU.2`**, and so on.
-    → In this case, choose the `GPU.X` device that matches the `varenderDXXX*` elements used by the final encoder or
-    post‑processing stage.
+   - If your pipeline uses **`vah264dec` / `vapostproc` / `vah264enc` / `vah264lpenc`** near the end of the pipeline,
+     it is typically running on **`GPU.0`** (or just `GPU` on a single-GPU system).
+     → In this case, choose **`GPU.0`** (or `GPU`) for encoding.
+   - If your pipeline uses elements like **`varenderD129*`**, **`varenderD130*`**, etc. near the end of the pipeline,
+     those typically correspond to **`GPU.1`**, **`GPU.2`**, and so on.
+     → In this case, choose the `GPU.X` device that matches the `varenderDXXX*` elements used by the final encoder or
+     post‑processing stage.
 
-  For precise and up‑to‑date mapping between `GPU.X` devices and `varenderDXXX*` elements on your platform,
-  as well as additional examples, see the DL Streamer GPU device selection guide:
-  [GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/  dev_guide/gpu_device_selection.html).
+     For precise and up‑to‑date mapping between `GPU.X` devices and `varenderDXXX*` elements on your platform,
+     as well as additional examples, see the DL Streamer GPU device selection guide:
+     [GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/dev_guide/gpu_device_selection.html).
 
 ---
 
@@ -330,5 +328,3 @@ port, e.g. `http://localhost:8081`:
       ports:
         - "8081:80"
   ```
-
----
