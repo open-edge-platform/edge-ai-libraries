@@ -166,10 +166,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         encoder_device = ENCODER_DEVICE_GPU
 
         with self.assertRaises(ValueError) as context:
-            encoder.create_video_output_subpipeline(
-                self.output_dir,
-                encoder_device
-            )
+            encoder.create_video_output_subpipeline(self.output_dir, encoder_device)
 
         self.assertIn("No suitable encoder found", str(context.exception))
 

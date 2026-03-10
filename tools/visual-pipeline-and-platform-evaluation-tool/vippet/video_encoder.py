@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
-from managers.camera_manager import CameraManager
 from utils import slugify_text
 
 # Constants for encoder device types
