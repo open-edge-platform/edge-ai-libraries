@@ -122,12 +122,12 @@ const ViewModeSwitcher = ({
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <label className="bg-background p-2 flex items-center gap-2 cursor-pointer">
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <span className="text-sm">Enable advanced mode</span>
             <Switch
               checked={!isSimpleMode}
               onCheckedChange={handleModeSwitch}
             />
-            <span className="text-sm font-medium">Advanced View</span>
           </label>
         </TooltipTrigger>
         <TooltipContent side="bottom">

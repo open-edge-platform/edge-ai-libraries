@@ -224,7 +224,7 @@ struct nmsExt
       const T * img = params.src_image_ptr + ay * step + ax;
 
       auto x = ax - params.group_pos_x_ptr[group_x].x();
-      auto y = ay - params.group_pos_x_ptr[group_y].x();
+      auto y = ay - params.group_pos_y_ptr[group_y].x();
       int s = cornerScore(img, step);
 
       if (

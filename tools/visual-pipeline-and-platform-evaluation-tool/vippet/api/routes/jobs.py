@@ -1,21 +1,33 @@
 import logging
-from typing import List
+import time
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from graph import Graph
+from internal_types import (
+    InternalDensityJobStatus,
+    InternalDensityJobSummary,
+    InternalOptimizationJobStatus,
+    InternalOptimizationJobSummary,
+    InternalPerformanceJobStatus,
+    InternalPerformanceJobSummary,
+    InternalPipelineStreamSpec,
+    InternalValidationJobStatus,
+    InternalValidationJobSummary,
+)
 from managers.optimization_manager import OptimizationManager
-from managers.tests_manager import DensityJob, PerformanceJob, TestsManager
+from managers.tests_manager import TestsManager
 from managers.validation_manager import ValidationManager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
 
 
-def get_job_status_or_404(job_id: str, job_type: str):
-    status = TestsManager().get_job_status(job_id)
-    if status is None:
+def get_test_job_status(job_id: str, job_type: str):
+    internal_status = TestsManager().get_job_status(job_id)
+    if internal_status is None:
         logger.warning("%s job %s not found", job_type, job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -23,7 +35,22 @@ def get_job_status_or_404(job_id: str, job_type: str):
             ).model_dump(),
             status_code=404,
         )
-    return status
+    # Convert internal status to API status
+    if isinstance(internal_status, InternalPerformanceJobStatus):
+        return _performance_job_to_api_status(internal_status)
+    elif isinstance(internal_status, InternalDensityJobStatus):
+        return _density_job_to_api_status(internal_status)
+    logger.error(
+        "Unexpected job status type %s for job %s",
+        type(internal_status).__name__,
+        job_id,
+    )
+    return JSONResponse(
+        content=schemas.MessageResponse(
+            message=f"Unexpected job status type for job {job_id}"
+        ).model_dump(),
+        status_code=500,
+    )
 
 
 def stop_test_job_handler(job_id: str):
@@ -74,7 +101,7 @@ def stop_test_job_handler(job_id: str):
     "/tests/performance/status",
     operation_id="get_performance_statuses",
     summary="List all performance test jobs",
-    response_model=List[schemas.PerformanceJobStatus],
+    response_model=list[schemas.PerformanceJobStatus],
 )
 def get_performance_statuses():
     """
@@ -113,6 +140,7 @@ def get_performance_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 120000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": 480.0,
         "per_stream_fps": 30.0,
         "total_streams": 16,
@@ -122,13 +150,19 @@ def get_performance_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
     """
-    return TestsManager().get_job_statuses_by_type(PerformanceJob)
+    internal_statuses = TestsManager().get_job_statuses_by_type(
+        InternalPerformanceJobStatus
+    )
+    return [
+        _performance_job_to_api_status(job)
+        for job in internal_statuses
+        if isinstance(job, InternalPerformanceJobStatus)
+    ]
 
 
 @router.get(
@@ -141,6 +175,7 @@ def get_performance_statuses():
             "model": schemas.PerformanceJobStatus,
         },
         404: {"description": "Job not found", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def get_performance_job_status(job_id: str):
@@ -161,6 +196,7 @@ def get_performance_job_status(job_id: str):
     |------|-------------|
     | 200  | PerformanceJobStatus with current state, timings, FPS and output paths |
     | 404  | Job with given id does not exist |
+    | 500  | Unexpected internal error |
 
     ## Conditions
 
@@ -169,6 +205,7 @@ def get_performance_job_status(job_id: str):
 
     ### ❌ Failure
     - Unknown job id → 404
+    - Unexpected job status type → 500
 
     ## Examples
 
@@ -179,6 +216,7 @@ def get_performance_job_status(job_id: str):
       "start_time": 1715000000000,
       "elapsed_time": 60000,
       "state": "COMPLETED",
+      "details": ["Pipeline completed successfully"],
       "total_fps": 480.0,
       "per_stream_fps": 30.0,
       "total_streams": 16,
@@ -188,8 +226,7 @@ def get_performance_job_status(job_id: str):
       ],
       "video_output_paths": {
         "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-      },
-      "error_message": null
+      }
     }
     ```
 
@@ -199,8 +236,15 @@ def get_performance_job_status(job_id: str):
       "message": "Performance job job123 not found"
     }
     ```
+
+    Error (500):
+    ```json
+    {
+      "message": "Unexpected job status type for job job123"
+    }
+    ```
     """
-    return get_job_status_or_404(job_id, "Performance")
+    return get_test_job_status(job_id, "Performance")
 
 
 @router.get(
@@ -259,8 +303,8 @@ def get_performance_job_summary(job_id: str):
     }
     ```
     """
-    summary = TestsManager().get_job_summary(job_id)
-    if summary is None:
+    internal_summary = TestsManager().get_job_summary(job_id)
+    if internal_summary is None:
         logger.warning("Performance job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -268,7 +312,7 @@ def get_performance_job_summary(job_id: str):
             ).model_dump(),
             status_code=404,
         )
-    return summary
+    return _test_summary_to_api(internal_summary)
 
 
 @router.delete(
@@ -349,7 +393,7 @@ def stop_performance_test_job(job_id: str):
     "/tests/density/status",
     operation_id="get_density_statuses",
     summary="List all density test jobs",
-    response_model=List[schemas.DensityJobStatus],
+    response_model=list[schemas.DensityJobStatus],
 )
 def get_density_statuses():
     """
@@ -383,6 +427,7 @@ def get_density_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 45000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "per_stream_fps": 28.5,
         "total_streams": 32,
@@ -392,13 +437,19 @@ def get_density_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job456-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
     """
-    return TestsManager().get_job_statuses_by_type(DensityJob)
+    internal_statuses = TestsManager().get_job_statuses_by_type(
+        InternalDensityJobStatus
+    )
+    return [
+        _density_job_to_api_status(job)
+        for job in internal_statuses
+        if isinstance(job, InternalDensityJobStatus)
+    ]
 
 
 @router.get(
@@ -411,6 +462,7 @@ def get_density_statuses():
             "model": schemas.DensityJobStatus,
         },
         404: {"description": "Job not found", "model": schemas.MessageResponse},
+        500: {"description": "Unexpected error", "model": schemas.MessageResponse},
     },
 )
 def get_density_job_status(job_id: str):
@@ -431,6 +483,7 @@ def get_density_job_status(job_id: str):
     |------|-------------|
     | 200  | DensityJobStatus for the given job |
     | 404  | Job id is unknown |
+    | 500  | Unexpected internal error |
 
     ## Conditions
 
@@ -439,16 +492,25 @@ def get_density_job_status(job_id: str):
 
     ### ❌ Failure
     - Unknown job id → 404
+    - Unexpected job status type → 500
 
-    ## Error Example
+    ## Examples
 
+    Error (404):
     ```json
     {
       "message": "Density job job456 not found"
     }
     ```
+
+    Error (500):
+    ```json
+    {
+      "message": "Unexpected job status type for job job456"
+    }
+    ```
     """
-    return get_job_status_or_404(job_id, "Density")
+    return get_test_job_status(job_id, "Density")
 
 
 @router.get(
@@ -509,8 +571,8 @@ def get_density_job_summary(job_id: str):
     }
     ```
     """
-    summary = TestsManager().get_job_summary(job_id)
-    if summary is None:
+    internal_summary = TestsManager().get_job_summary(job_id)
+    if internal_summary is None:
         logger.warning("Density job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -518,7 +580,7 @@ def get_density_job_summary(job_id: str):
             ).model_dump(),
             status_code=404,
         )
-    return summary
+    return _test_summary_to_api(internal_summary)
 
 
 @router.delete(
@@ -576,7 +638,7 @@ def stop_density_test_job(job_id: str):
     "/optimization/status",
     operation_id="get_optimization_statuses",
     summary="List all optimization jobs",
-    response_model=List[schemas.OptimizationJobStatus],
+    response_model=list[schemas.OptimizationJobStatus],
 )
 def get_optimization_statuses():
     """
@@ -611,19 +673,18 @@ def get_optimization_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 20000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "original_pipeline_graph": {"nodes": [], "edges": []},
         "optimized_pipeline_graph": null,
         "original_pipeline_description": "videotestsrc ! fakesink",
-        "optimized_pipeline_description": null,
-        "error_message": null
+        "optimized_pipeline_description": null
       }
     ]
     ```
     """
-    # Delegate to the manager; FastAPI takes care of serializing the
-    # resulting Pydantic models into JSON.
-    return OptimizationManager().get_all_job_statuses()
+    internal_statuses = OptimizationManager().get_all_job_statuses()
+    return [_optimization_job_to_api_status(job) for job in internal_statuses]
 
 
 @router.get(
@@ -676,21 +737,16 @@ def get_optimization_job_summary(job_id: str):
     }
     ```
     """
-    # Ask the manager for the summary.  It returns None when the job id
-    # is unknown, which we map to a 404 HTTP response.
-    summary = OptimizationManager().get_job_summary(job_id)
-    if summary is None:
+    internal_summary = OptimizationManager().get_job_summary(job_id)
+    if internal_summary is None:
         logger.warning("Optimization job summary requested for unknown job %s", job_id)
-        # The explicit JSONResponse is used instead of raising HTTPException
-        # to mirror the style used by other routes (e.g. pipelines.py) and
-        # to fully control the response payload.
         return JSONResponse(
             content=schemas.MessageResponse(
                 message=f"Optimization job {job_id} not found"
             ).model_dump(),
             status_code=404,
         )
-    return summary
+    return _optimization_summary_to_api(internal_summary)
 
 
 @router.get(
@@ -735,10 +791,8 @@ def get_optimization_job_status(job_id: str):
     ### ❌ Failure
     - Unknown job id → 404
     """
-    # Query the manager for the job status.  Unknown job ids are mapped
-    # to a 404 response, mirroring the behaviour of the summary endpoint.
-    status = OptimizationManager().get_job_status(job_id)
-    if status is None:
+    internal_status = OptimizationManager().get_job_status(job_id)
+    if internal_status is None:
         logger.warning("Optimization job status requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -746,14 +800,14 @@ def get_optimization_job_status(job_id: str):
             ).model_dump(),
             status_code=404,
         )
-    return status
+    return _optimization_job_to_api_status(internal_status)
 
 
 @router.get(
     "/validation/status",
     operation_id="get_validation_statuses",
     summary="List all validation jobs",
-    response_model=List[schemas.ValidationJobStatus],
+    response_model=list[schemas.ValidationJobStatus],
 )
 def get_validation_statuses():
     """
@@ -787,13 +841,14 @@ def get_validation_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 10000,
         "state": "RUNNING",
-        "is_valid": null,
-        "error_message": null
+        "details": [],
+        "is_valid": null
       }
     ]
     ```
     """
-    return ValidationManager().get_all_job_statuses()
+    internal_statuses = ValidationManager().get_all_job_statuses()
+    return [_validation_job_to_api_status(s) for s in internal_statuses]
 
 
 @router.get(
@@ -838,8 +893,8 @@ def get_validation_job_summary(job_id: str):
     ### ❌ Failure
     - Unknown job id → 404
     """
-    summary = ValidationManager().get_job_summary(job_id)
-    if summary is None:
+    internal_summary = ValidationManager().get_job_summary(job_id)
+    if internal_summary is None:
         logger.warning("Validation job summary requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -847,7 +902,7 @@ def get_validation_job_summary(job_id: str):
             ).model_dump(),
             status_code=404,
         )
-    return summary
+    return _validation_summary_to_api(internal_summary)
 
 
 @router.get(
@@ -871,7 +926,7 @@ def get_validation_job_status(job_id: str):
 
     ## Operation
 
-    Retrieves timings, state, is_valid flag and error_message list for a specific validation job.
+    Retrieves timings, state, is_valid flag and details list for a specific validation job.
 
     ## Path Parameters
 
@@ -881,7 +936,7 @@ def get_validation_job_status(job_id: str):
 
     | Code | Description |
     |------|-------------|
-    | 200  | ValidationJobStatus with timings, state, is_valid flag and error_message |
+    | 200  | ValidationJobStatus with timings, state, is_valid flag and details |
     | 404  | Job does not exist |
 
     ## Conditions
@@ -900,8 +955,8 @@ def get_validation_job_status(job_id: str):
     }
     ```
     """
-    status = ValidationManager().get_job_status(job_id)
-    if status is None:
+    internal_status = ValidationManager().get_job_status(job_id)
+    if internal_status is None:
         logger.warning("Validation job status requested for unknown job %s", job_id)
         return JSONResponse(
             content=schemas.MessageResponse(
@@ -909,4 +964,259 @@ def get_validation_job_status(job_id: str):
             ).model_dump(),
             status_code=404,
         )
-    return status
+    return _validation_job_to_api_status(internal_status)
+
+
+# ------------------------------------------------------------------
+# Conversion helpers: internal types -> API types
+#
+# These functions convert internal types returned by managers into
+# API schema types for HTTP responses. Managers work exclusively
+# with internal types; conversion to API types happens only here
+# in the route layer.
+# ------------------------------------------------------------------
+
+
+def _graph_to_api(graph: Graph) -> schemas.PipelineGraph:
+    """
+    Convert internal Graph to API PipelineGraph.
+
+    Args:
+        graph: Internal Graph object.
+
+    Returns:
+        PipelineGraph ready for API response.
+    """
+    return schemas.PipelineGraph.model_validate(graph.to_dict())
+
+
+def _convert_streams_per_pipeline(
+    internal_specs: list[InternalPipelineStreamSpec] | None,
+) -> list[schemas.PipelineStreamSpec] | None:
+    """
+    Convert internal stream specs to API PipelineStreamSpec for response.
+
+    Args:
+        internal_specs: List of InternalPipelineStreamSpec or None.
+
+    Returns:
+        List of API PipelineStreamSpec or None if input is None.
+    """
+    if internal_specs is None:
+        return None
+    return [
+        schemas.PipelineStreamSpec(id=spec.id, streams=spec.streams)
+        for spec in internal_specs
+    ]
+
+
+def _performance_job_to_api_status(
+    job: InternalPerformanceJobStatus,
+) -> schemas.PerformanceJobStatus:
+    """
+    Convert InternalPerformanceJobStatus to API PerformanceJobStatus.
+
+    Converts internal state enum to API state enum and
+    InternalPipelineStreamSpec to API PipelineStreamSpec.
+
+    Args:
+        job: Internal performance job status.
+
+    Returns:
+        PerformanceJobStatus ready for API response.
+    """
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.PerformanceJobStatus(
+        id=job.id,
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
+        total_fps=job.total_fps,
+        per_stream_fps=job.per_stream_fps,
+        total_streams=job.total_streams,
+        streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
+        video_output_paths=job.video_output_paths,
+        live_stream_urls=job.live_stream_urls,
+    )
+
+
+def _density_job_to_api_status(
+    job: InternalDensityJobStatus,
+) -> schemas.DensityJobStatus:
+    """
+    Convert InternalDensityJobStatus to API DensityJobStatus.
+
+    Converts internal state enum to API state enum and
+    InternalPipelineStreamSpec to API PipelineStreamSpec.
+
+    Note: DensityJobStatus does not include live_stream_urls because
+    density tests do not support live-streaming output mode.
+
+    Args:
+        job: Internal density job status.
+
+    Returns:
+        DensityJobStatus ready for API response.
+    """
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.DensityJobStatus(
+        id=job.id,
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
+        total_fps=job.total_fps,
+        per_stream_fps=job.per_stream_fps,
+        total_streams=job.total_streams,
+        streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
+        video_output_paths=job.video_output_paths,
+    )
+
+
+def _test_summary_to_api(
+    summary: InternalPerformanceJobSummary | InternalDensityJobSummary,
+) -> schemas.PerformanceJobSummary | schemas.DensityJobSummary:
+    """
+    Convert internal test job summary to API summary type.
+
+    Args:
+        summary: Internal performance or density job summary.
+
+    Returns:
+        PerformanceJobSummary or DensityJobSummary ready for API response.
+    """
+    if isinstance(summary, InternalPerformanceJobSummary):
+        return schemas.PerformanceJobSummary(
+            id=summary.id,
+            request=summary.request,
+        )
+    else:
+        return schemas.DensityJobSummary(
+            id=summary.id,
+            request=summary.request,
+        )
+
+
+def _optimization_job_to_api_status(
+    job: InternalOptimizationJobStatus,
+) -> schemas.OptimizationJobStatus:
+    """
+    Convert InternalOptimizationJobStatus to API OptimizationJobStatus.
+
+    Converts internal Graph objects to API PipelineGraph, and internal
+    state/type enums to API enums.
+
+    Args:
+        job: Internal optimization job status.
+
+    Returns:
+        OptimizationJobStatus ready for API response.
+    """
+    current_time = int(time.time() * 1000)
+    elapsed_time = (
+        job.end_time - job.start_time if job.end_time else current_time - job.start_time
+    )
+    return schemas.OptimizationJobStatus(
+        id=job.id,
+        type=schemas.OptimizationType(job.request.type.value),
+        start_time=job.start_time,
+        elapsed_time=elapsed_time,
+        state=schemas.OptimizationJobState(job.state.value),
+        details=list(job.details),
+        total_fps=job.total_fps,
+        original_pipeline_graph=_graph_to_api(job.original_pipeline_graph),
+        original_pipeline_graph_simple=_graph_to_api(
+            job.original_pipeline_graph_simple
+        ),
+        optimized_pipeline_graph=(
+            _graph_to_api(job.optimized_pipeline_graph)
+            if job.optimized_pipeline_graph
+            else None
+        ),
+        optimized_pipeline_graph_simple=(
+            _graph_to_api(job.optimized_pipeline_graph_simple)
+            if job.optimized_pipeline_graph_simple
+            else None
+        ),
+        original_pipeline_description=job.original_pipeline_description,
+        optimized_pipeline_description=job.optimized_pipeline_description,
+    )
+
+
+def _optimization_summary_to_api(
+    summary: InternalOptimizationJobSummary,
+) -> schemas.OptimizationJobSummary:
+    """
+    Convert InternalOptimizationJobSummary to API OptimizationJobSummary.
+
+    Converts internal optimization request type back to API type.
+
+    Args:
+        summary: Internal optimization job summary.
+
+    Returns:
+        OptimizationJobSummary ready for API response.
+    """
+    return schemas.OptimizationJobSummary(
+        id=summary.id,
+        request=schemas.PipelineRequestOptimize(
+            type=schemas.OptimizationType(summary.request.type.value),
+            parameters=summary.request.parameters,
+        ),
+    )
+
+
+def _validation_job_to_api_status(
+    status: InternalValidationJobStatus,
+) -> schemas.ValidationJobStatus:
+    """
+    Convert InternalValidationJobStatus to API ValidationJobStatus.
+
+    Converts internal state enum to API state enum.
+
+    Args:
+        status: Internal validation job status.
+
+    Returns:
+        ValidationJobStatus ready for API response.
+    """
+    return schemas.ValidationJobStatus(
+        id=status.id,
+        start_time=status.start_time,
+        elapsed_time=status.elapsed_time,
+        state=schemas.ValidationJobState(status.state.value),
+        details=list(status.details),
+        is_valid=status.is_valid,
+    )
+
+
+def _validation_summary_to_api(
+    summary: InternalValidationJobSummary,
+) -> schemas.ValidationJobSummary:
+    """
+    Convert InternalValidationJobSummary to API ValidationJobSummary.
+
+    Converts internal Graph back to API PipelineGraph for the request field.
+
+    Args:
+        summary: Internal validation job summary.
+
+    Returns:
+        ValidationJobSummary ready for API response.
+    """
+    return schemas.ValidationJobSummary(
+        id=summary.id,
+        request=schemas.PipelineValidation(
+            pipeline_graph=schemas.PipelineGraph.model_validate(
+                summary.request.pipeline_graph.to_dict()
+            ),
+            parameters=summary.request.parameters,
+        ),
+    )

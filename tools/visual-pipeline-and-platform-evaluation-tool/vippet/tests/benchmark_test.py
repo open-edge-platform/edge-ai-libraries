@@ -1,28 +1,23 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import (
-    PipelineStreamSpec,
-    PipelineGraph,
-    Node,
-    Edge,
-)
 from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
-from graph import Graph
+from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
     InternalPipelineDensitySpec,
+    InternalPipelineStreamSpec,
 )
-from pipeline_runner import PipelineRunResult
+from pipeline_runner import PipelineResult
 
 
 def create_simple_graph() -> Graph:
     """Helper to create a simple test pipeline Graph object."""
-    pipeline_graph = PipelineGraph(
+    return Graph(
         nodes=[
             Node(id="0", type="filesrc", data={"location": "/videos/test.mp4"}),
             Node(id="1", type="fakesink", data={}),
@@ -31,7 +26,6 @@ def create_simple_graph() -> Graph:
             Edge(id="0", source="0", target="1"),
         ],
     )
-    return Graph.from_dict(pipeline_graph.model_dump())
 
 
 def create_internal_density_spec(
@@ -83,15 +77,15 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
-        # Expected result uses PipelineStreamSpec with variant path format
+        # Expected result uses InternalPipelineStreamSpec with variant path format
         expected_result = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test1/variants/variant-1",
                     streams=2,
                 ),
-                PipelineStreamSpec(
+                InternalPipelineStreamSpec(
                     id="/pipelines/pipeline-test2/variants/variant-2",
                     streams=1,
                 ),
@@ -103,40 +97,28 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # First call with 1 stream
-                PipelineRunResult(
-                    total_fps=30,
-                    per_stream_fps=30,
-                    num_streams=1,
+                PipelineResult(
+                    total_fps=30, per_stream_fps=30, num_streams=1, exit_code=0
                 ),
                 # Second call with 2 streams
-                PipelineRunResult(
-                    total_fps=80,
-                    per_stream_fps=40,
-                    num_streams=2,
+                PipelineResult(
+                    total_fps=80, per_stream_fps=40, num_streams=2, exit_code=0
                 ),
                 # Third call with 4 streams
-                PipelineRunResult(
-                    total_fps=100,
-                    per_stream_fps=25,
-                    num_streams=4,
+                PipelineResult(
+                    total_fps=100, per_stream_fps=25, num_streams=4, exit_code=0
                 ),
                 # Fourth call with 3 streams
-                PipelineRunResult(
-                    total_fps=93,
-                    per_stream_fps=31,
-                    num_streams=3,
+                PipelineResult(
+                    total_fps=93, per_stream_fps=31, num_streams=3, exit_code=0
                 ),
                 # Fifth call with 3 streams
-                PipelineRunResult(
-                    total_fps=93,
-                    per_stream_fps=31,
-                    num_streams=3,
+                PipelineResult(
+                    total_fps=93, per_stream_fps=31, num_streams=3, exit_code=0
                 ),
                 # Sixth call with 4 streams
-                PipelineRunResult(
-                    total_fps=100,
-                    per_stream_fps=25,
-                    num_streams=4,
+                PipelineResult(
+                    total_fps=100, per_stream_fps=25, num_streams=4, exit_code=0
                 ),
             ]
 
@@ -177,30 +159,12 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # First call with 1 stream
-                PipelineRunResult(total_fps=0, per_stream_fps=30, num_streams=1),
+                PipelineResult(
+                    total_fps=0, per_stream_fps=30, num_streams=1, exit_code=0
+                ),
             ]
             with self.assertRaises(
                 RuntimeError, msg="Pipeline returned zero or invalid FPS metrics."
-            ):
-                _ = self.benchmark.run(
-                    self.pipeline_benchmark_specs,
-                    fps_floor=self.fps_floor,
-                    execution_config=create_internal_execution_config(),
-                    job_id=self.job_id,
-                )
-
-    @patch("benchmark.PipelineManager")
-    def test_pipeline_returns_none(self, mock_pipeline_manager_cls):
-        # Return tuple with 3 elements
-        mock_manager_instance = MagicMock()
-        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
-        mock_pipeline_manager_cls.return_value = mock_manager_instance
-
-        with patch.object(self.benchmark.runner, "run") as mock_runner:
-            mock_runner.side_effect = [None]
-
-            with self.assertRaises(
-                RuntimeError, msg="Pipeline runner returned invalid results."
             ):
                 _ = self.benchmark.run(
                     self.pipeline_benchmark_specs,
@@ -280,13 +244,21 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # Iter 1: n_streams=1, exponential phase
-                PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
+                PipelineResult(
+                    total_fps=30, per_stream_fps=30, num_streams=1, exit_code=0
+                ),
                 # Iter 2: n_streams=2, drops below floor, switch to binary search
-                PipelineRunResult(total_fps=40, per_stream_fps=20, num_streams=2),
+                PipelineResult(
+                    total_fps=40, per_stream_fps=20, num_streams=2, exit_code=0
+                ),
                 # Iter 3: n_streams=1 (binary search midpoint)
-                PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
+                PipelineResult(
+                    total_fps=30, per_stream_fps=30, num_streams=1, exit_code=0
+                ),
                 # Iter 4: n_streams=2 (binary search continues)
-                PipelineRunResult(total_fps=40, per_stream_fps=20, num_streams=2),
+                PipelineResult(
+                    total_fps=40, per_stream_fps=20, num_streams=2, exit_code=0
+                ),
             ]
 
             result = self.benchmark.run(
@@ -310,13 +282,21 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # Iter 1: n_streams=1, exponential phase
-                PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
+                PipelineResult(
+                    total_fps=30, per_stream_fps=30, num_streams=1, exit_code=0
+                ),
                 # Iter 2: n_streams=2, drops below floor, switch to binary search
-                PipelineRunResult(total_fps=40, per_stream_fps=20, num_streams=2),
+                PipelineResult(
+                    total_fps=40, per_stream_fps=20, num_streams=2, exit_code=0
+                ),
                 # Iter 3: n_streams=1 (binary search midpoint)
-                PipelineRunResult(total_fps=30, per_stream_fps=30, num_streams=1),
+                PipelineResult(
+                    total_fps=30, per_stream_fps=30, num_streams=1, exit_code=0
+                ),
                 # Iter 4: n_streams=2 (binary search continues)
-                PipelineRunResult(total_fps=40, per_stream_fps=20, num_streams=2),
+                PipelineResult(
+                    total_fps=40, per_stream_fps=20, num_streams=2, exit_code=0
+                ),
             ]
 
             result = self.benchmark.run(
@@ -349,13 +329,21 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # First run - above fps_floor
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
                 # Second run - drops below fps_floor
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
                 # Binary search midpoint
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
                 # Continue binary search
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
             ]
 
             result = self.benchmark.run(
@@ -381,10 +369,18 @@ class TestBenchmark(unittest.TestCase):
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
                 # Single iteration that meets fps_floor then exits
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
             ]
 
             result = self.benchmark.run(
@@ -396,6 +392,7 @@ class TestBenchmark(unittest.TestCase):
 
             # Check that all pipeline IDs use the variant path format
             for stream_spec in result.streams_per_pipeline:
+                self.assertIsInstance(stream_spec, InternalPipelineStreamSpec)
                 self.assertTrue(
                     stream_spec.id.startswith("/pipelines/"),
                     f"Expected pipeline ID to start with '/pipelines/', got: {stream_spec.id}",
@@ -429,10 +426,18 @@ class TestBenchmark(unittest.TestCase):
 
         with patch.object(self.benchmark.runner, "run") as mock_runner:
             mock_runner.side_effect = [
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
-                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
-                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=60, per_stream_fps=60, num_streams=1, exit_code=0
+                ),
+                PipelineResult(
+                    total_fps=50, per_stream_fps=25, num_streams=2, exit_code=0
+                ),
             ]
 
             result = self.benchmark.run(

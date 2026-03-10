@@ -16,11 +16,17 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        "/stream_": {
-          target: env.VITE_MEDIAMTX_URL || "http://localhost:8889",
+        "/assets/videos": {
+          target: "http://localhost:80",
           changeOrigin: true,
           secure: false,
           ws: false,
+        },
+        "/stream": {
+          target: env.VITE_MEDIAMTX_URL || "http://localhost:8889",
+          changeOrigin: true,
+          secure: false,
+          ws: true,
         },
         "/api": {
           target: env.VITE_API_URL || "http://localhost:7860",
@@ -33,12 +39,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true,
-        },
-        "/assets/videos": {
-          target: env.VITE_API_URL || "http://localhost:7860",
-          changeOrigin: true,
-          secure: false,
-          ws: false,
         },
       },
     },
