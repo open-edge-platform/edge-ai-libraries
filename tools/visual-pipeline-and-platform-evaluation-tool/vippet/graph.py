@@ -1420,10 +1420,10 @@ class Graph:
 
                 nodes_to_insert_list = [decoder_node]
                 edges_to_add_list = []
-                
+
                 # Determine the source for the caps node (either decoder or converter)
                 caps_source_id = decoder_node_id
-                
+
                 # Post-decoder converter (videoconvert/vapostproc) needed for USB camera compatibility
                 if v4l2_caps_node_info is not None:
                     converter_node_id = str(next_id)
@@ -1432,7 +1432,9 @@ class Graph:
                         converter_element = "vapostproc"
                     else:
                         converter_element = "videoconvert"
-                    converter_node = Node(id=converter_node_id, type=converter_element, data={})
+                    converter_node = Node(
+                        id=converter_node_id, type=converter_element, data={}
+                    )
                     nodes_to_insert_list.append(converter_node)
                     caps_source_id = converter_node_id
 
@@ -1466,7 +1468,7 @@ class Graph:
                     edge_decoder_to_converter = Edge(
                         id=edge_decoder_to_converter_id,
                         source=decoder_node_id,
-                        target=converter_node_id,
+                        target=caps_source_id,
                     )
                     edges_to_add_list.append(edge_decoder_to_converter)
 
@@ -1595,7 +1597,7 @@ class Graph:
         appear in advanced view.
 
         Args:
-            self: The instance of the graph containing nodes and edges.
+            None
 
         Returns:
             None
