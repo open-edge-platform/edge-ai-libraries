@@ -70,7 +70,7 @@ type UrlParams = {
 
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 0;
+  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
