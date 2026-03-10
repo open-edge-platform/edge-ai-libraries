@@ -1,4 +1,14 @@
-import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated.ts";
+import {
+  type Camera,
+  type NetworkCameraDetails,
+  type UsbCameraDetails,
+  useGetCamerasQuery,
+} from "@/api/api.generated.ts";
+import { Badge } from "@/components/ui/badge.tsx";
+import {
+  mockCameras,
+  useMockCameras,
+} from "@/features/cameras/mockCameras.ts";
 import {
   Table,
   TableBody,
@@ -8,64 +18,162 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
+import { CameraAuthDialog } from "@/features/cameras/CameraAuthDialog.tsx";
+
+const getUsbDetails = (camera: Camera): UsbCameraDetails | null =>
+  camera.device_type === "USB" ? (camera.details as UsbCameraDetails) : null;
+
+const getNetworkDetails = (camera: Camera): NetworkCameraDetails | null =>
+  camera.device_type === "NETWORK"
+    ? (camera.details as NetworkCameraDetails)
+    : null;
+
+const formatCameraResolution = (camera: Camera): string => {
+  if (camera.device_type === "NETWORK") {
+    const networkDetails = getNetworkDetails(camera);
+
+    return networkDetails?.best_profile?.resolution ?? "-";
+  }
+
+  const usbDetails = getUsbDetails(camera);
+  const bestCapture = usbDetails?.best_capture;
+
+  if (!bestCapture) {
+    return "-";
+  }
+
+  return `${bestCapture.width}x${bestCapture.height}`;
+};
+
+const formatCameraFramerate = (camera: Camera): string => {
+  if (camera.device_type === "NETWORK") {
+    const networkDetails = getNetworkDetails(camera);
+    const framerate = networkDetails?.best_profile?.framerate;
+
+    return framerate ? `${framerate} FPS` : "-";
+  }
+
+  const usbDetails = getUsbDetails(camera);
+  const fps = usbDetails?.best_capture?.fps;
+
+  return fps ? `${fps} FPS` : "-";
+};
 
 export const Cameras = () => {
-    const { data: cameras, isSuccess } = useGetCamerasQuery();
+  const {
+    data: cameras,
+    isSuccess,
+    isLoading,
+    isError,
+    refetch,
+  } = useGetCamerasQuery(undefined, { skip: useMockCameras });
 
-    if (isSuccess && cameras.length > 0) {
+  const resolvedCameras = useMockCameras ? mockCameras : (cameras ?? []);
+  const resolvedIsSuccess = useMockCameras ? true : isSuccess;
+  const resolvedIsLoading = useMockCameras ? false : isLoading;
+  const resolvedIsError = useMockCameras ? false : isError;
+  const refetchCameras = useMockCameras ? () => Promise.resolve() : refetch;
+
+  if (resolvedIsSuccess && resolvedCameras.length > 0) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Cameras</h1>
           <p className="text-muted-foreground mt-2">
-            Ready-to-use camera feeds available in the platform
+            Cameras discovered in the platform
           </p>
         </div>
         <Table>
           <TableCaption>A list of loaded cameras.</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[25%]">Camera name</TableHead>
+              <TableHead className="w-[24%]">Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Resolution</TableHead>
-              <TableHead>Number of frames</TableHead>
-              <TableHead>Codec</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead></TableHead>
+              <TableHead>Framerate</TableHead>
+              <TableHead className="w-[28%]">Authorization</TableHead>
             </TableRow>
           </TableHeader>
-          {/* <TableBody>
-            {cameras.map((camera) => (
-              <TableRow key={camera.id}>
-                <TableCell className="font-medium">{camera.name}</TableCell>
-                <TableCell>
-                  {camera.width}x{camera.height}
-                </TableCell>
-                <TableCell>{camera.frame_count}</TableCell>
-                <TableCell>{camera.codec}</TableCell>
-                <TableCell>
-                  {formatElapsedTimeSeconds(camera.duration)}
-                </TableCell>
-                <TableCell>
-                  <video
-                    src={`/assets/videos/input/${camera.filename}`}
-                    controls
-                    className="w-48 h-auto"
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody> */}
+          <TableBody>
+            {resolvedCameras.map((camera) => {
+              const isNetworkCamera = camera.device_type === "NETWORK";
+              const networkDetails = getNetworkDetails(camera);
+              const usbDetails = getUsbDetails(camera);
+
+              return (
+                <TableRow key={camera.device_id}>
+                  <TableCell className="font-medium">
+                    {camera.device_name}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={isNetworkCamera ? "secondary" : "outline"}>
+                      {camera.device_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {isNetworkCamera
+                      ? `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`
+                      : (usbDetails?.device_path ?? "-")}
+                  </TableCell>
+                  <TableCell>
+                    {formatCameraResolution(camera)}
+                  </TableCell>
+                  <TableCell>
+                    {formatCameraFramerate(camera)}
+                  </TableCell>
+                  <TableCell>
+                    {isNetworkCamera ? (
+                      (networkDetails?.profiles.length ?? 0) > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Authorized</Badge>
+                        </div>
+                      ) : (
+                        <CameraAuthDialog
+                          cameraId={camera.device_id}
+                          cameraName={camera.device_name}
+                          onSuccess={() => void refetchCameras()}
+                        />
+                      )
+                    ) : (
+                      <span className="text-muted-foreground text-sm">
+                        Not required
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
         </Table>
       </div>
     );
   }
+
+  if (resolvedIsLoading) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="container mx-auto py-10 pl-6">Loading cameras...</div>
+      </div>
+    );
+  }
+
+  if (resolvedIsError) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="container mx-auto py-10 pl-6 text-destructive">
+          Failed to load cameras.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10">Loading cameras...</div>
+      <div className="container mx-auto py-10 pl-6">
+        <h1 className="text-3xl font-bold">Cameras</h1>
+        <p className="text-muted-foreground mt-2">No cameras discovered.</p>
+      </div>
     </div>
   );
-
-}
+};

@@ -276,7 +276,7 @@ const DemoMode = () => {
   const [selectedVariantByPipelineId, setSelectedVariantByPipelineId] =
     useState<Record<string, string>>({});
   const videoFilenames = useMemo(
-    () => videos.map((video) => video.filename),
+    () => videos.filter(video => !video.filename.endsWith('.ts')).map((video) => video.filename),
     [videos],
   );
   const getFilenameFromPath = (value: unknown): string => {

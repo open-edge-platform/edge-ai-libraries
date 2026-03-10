@@ -247,9 +247,8 @@ export const DensityTests = () => {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container pl-16 mx-auto py-10">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Density Tests</h1>
         <p className="text-muted-foreground mt-2">
           Density test finds the maximum number of streams per pipeline for the
           specified minimum FPS per stream

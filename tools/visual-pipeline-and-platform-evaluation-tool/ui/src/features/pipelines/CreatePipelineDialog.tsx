@@ -116,7 +116,7 @@ export const CreatePipelineDialog = ({
 
   const tags = watch("tags");
 
-  const videoOptions = videos.map((v) => v.filename);
+  const videoOptions = videos.filter(v => !v.filename.endsWith('.ts')).map((v) => v.filename);
 
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
