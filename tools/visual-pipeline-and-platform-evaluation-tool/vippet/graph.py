@@ -1552,10 +1552,10 @@ class Graph:
             if db_node is None:
                 continue
 
-            if kind == "videoconvert":
-                db_node.type = "videoconvert"
+            if kind in {"videoconvert", "vapostproc"}:
+                db_node.type = kind
                 logger.debug(
-                    f"Replaced decodebin3 (node {db_node_id}) with videoconvert "
+                    f"Replaced decodebin3 (node {db_node_id}) with {kind} "
                     f"for raw format '{codec}'"
                 )
 
