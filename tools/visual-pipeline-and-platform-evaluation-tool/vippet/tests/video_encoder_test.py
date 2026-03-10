@@ -1,9 +1,11 @@
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 from video_encoder import (
     ENCODER_DEVICE_CPU,
     ENCODER_DEVICE_GPU,
+    ENCODER_CONFIG,
+    STREAMING_ENCODER_CONFIG,
     LIVE_STREAM_SERVER_HOST,
     LIVE_STREAM_SERVER_PORT,
     VideoEncoder,
@@ -22,206 +24,97 @@ class TestVideoEncoderClass(unittest.TestCase):
         """Reset singleton after each test."""
         VideoEncoder._instance = None
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_initialization(self, mock_gst_inspector, mock_videos_manager):
+    def test_initialization(self, mock_gst_inspector):
         """Test VideoEncoder initialization."""
         encoder = VideoEncoder()
         self.assertIsNotNone(encoder.gst_inspector)
-        self.assertIsNotNone(encoder.videos_manager)
-        self.assertIn("h264", encoder.encoder_configs)
-        self.assertIn("h264", encoder.streaming_encoder_configs)
         mock_gst_inspector.assert_called_once()
-        mock_videos_manager.assert_called_once()
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_singleton_returns_same_instance(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_singleton_returns_same_instance(self, mock_gst_inspector):
         """Test that VideoEncoder returns same instance (singleton)."""
         encoder1 = VideoEncoder()
         encoder2 = VideoEncoder()
         self.assertIs(encoder1, encoder2)
 
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_streaming_encoder_configs_exist(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test that streaming encoder configs are defined for h264 and h265."""
-        encoder = VideoEncoder()
-        self.assertIn("h264", encoder.streaming_encoder_configs)
-        self.assertIn("h265", encoder.streaming_encoder_configs)
-        self.assertIn(ENCODER_DEVICE_GPU, encoder.streaming_encoder_configs["h264"])
-        self.assertIn(ENCODER_DEVICE_CPU, encoder.streaming_encoder_configs["h264"])
+    def test_encoder_config_has_cpu_and_gpu(self):
+        """Test that ENCODER_CONFIG has entries for CPU and GPU."""
+        self.assertIn(ENCODER_DEVICE_GPU, ENCODER_CONFIG)
+        self.assertIn(ENCODER_DEVICE_CPU, ENCODER_CONFIG)
 
-    @patch("video_encoder.VideosManager")
+    def test_streaming_encoder_config_has_cpu_and_gpu(self):
+        """Test that STREAMING_ENCODER_CONFIG has entries for CPU and GPU."""
+        self.assertIn(ENCODER_DEVICE_GPU, STREAMING_ENCODER_CONFIG)
+        self.assertIn(ENCODER_DEVICE_CPU, STREAMING_ENCODER_CONFIG)
+
     @patch("video_encoder.GstInspector")
-    def test_select_element_gpu_0(self, mock_gst_inspector, mock_videos_manager):
-        """Test selecting encoder for GPU 0."""
+    def test_select_element_gpu(self, mock_gst_inspector):
+        """Test selecting encoder for GPU."""
         mock_gst_inspector_instance = MagicMock()
         mock_gst_inspector_instance.elements = [("elem1", "vah264enc")]
         mock_gst_inspector.return_value = mock_gst_inspector_instance
 
         encoder = VideoEncoder()
 
-        encoder_device = ENCODER_DEVICE_GPU
-        encoder_dict = {
-            ENCODER_DEVICE_GPU: [("vah264enc", "vah264enc")],
-            ENCODER_DEVICE_CPU: [("x264enc", "x264enc")],
-        }
-
-        result = encoder.select_element(encoder_dict, encoder_device)
+        result = encoder._select_element(ENCODER_DEVICE_GPU)
         self.assertEqual(result, "vah264enc")
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input(self, mock_gst_inspector, mock_videos_manager):
-        """Test codec detection from input videos."""
-        mock_video = Mock()
-        mock_video.codec = "h265"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
+    def test_select_element_cpu(self, mock_gst_inspector):
+        """Test selecting encoder for CPU."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [("elem1", "openh264enc")]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
 
         encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["video1.mp4"])
-        self.assertEqual(codec, "h265")
 
-    @patch("video_encoder.VideosManager")
+        result = encoder._select_element(ENCODER_DEVICE_CPU)
+        assert result is not None  # Type narrowing for static analysis
+        self.assertIn("openh264enc", result)
+
     @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input_defaults_to_h264(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test codec detection defaults to h264 when video not found."""
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = None
-        mock_videos_manager.return_value = mock_videos_manager_instance
+    def test_select_element_streaming(self, mock_gst_inspector):
+        """Test selecting streaming encoder."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [("elem1", "openh264enc")]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
 
         encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["video1.mp4"])
-        self.assertEqual(codec, "h264")
 
-    @patch("video_encoder.CameraManager")
-    @patch("video_encoder.VideosManager")
+        result = encoder._select_element(ENCODER_DEVICE_CPU, streaming=True)
+        assert result is not None  # Type narrowing for static analysis
+        self.assertIn("openh264enc", result)
+        # Streaming config should include low-latency settings
+        self.assertIn("usage-type=camera", result)
+
     @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input_rtsp_uses_camera_profiles(
-        self, mock_gst_inspector, mock_videos_manager, mock_camera_manager
-    ):
-        """RTSP inputs should use cached ONVIF profile encoding when available."""
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = None
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        mock_camera_manager_instance = MagicMock()
-        mock_camera_manager_instance.get_encoding_for_rtsp_url.return_value = "H265"
-        mock_camera_manager.return_value = mock_camera_manager_instance
-
+    def test_select_element_invalid_device_raises(self, mock_gst_inspector):
+        """Test that invalid encoder_device raises ValueError."""
         encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["rtsp://example/cam/stream"])
-        self.assertEqual(codec, "h265")
-        mock_camera_manager_instance.get_encoding_for_rtsp_url.assert_called_once_with(
-            "rtsp://example/cam/stream"
-        )
 
-    @patch("video_encoder.CameraManager")
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input_rtsp_unsupported_encoding_defaults(
-        self, mock_gst_inspector, mock_videos_manager, mock_camera_manager
-    ):
-        """RTSP inputs with unsupported ONVIF encoding should fall back to default codec."""
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = None
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        mock_camera_manager_instance = MagicMock()
-        mock_camera_manager_instance.get_encoding_for_rtsp_url.return_value = "MJPEG"
-        mock_camera_manager.return_value = mock_camera_manager_instance
-
-        encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["rtsp://example/cam/stream"])
-        self.assertEqual(codec, "h264")
-        mock_camera_manager_instance.get_encoding_for_rtsp_url.assert_called_once_with(
-            "rtsp://example/cam/stream"
-        )
-
-    @patch("video_encoder.CameraManager")
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input_rtsp_defaults_when_unknown(
-        self, mock_gst_inspector, mock_videos_manager, mock_camera_manager
-    ):
-        """RTSP inputs should fall back to default when no profile matches."""
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = None
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        mock_camera_manager_instance = MagicMock()
-        mock_camera_manager_instance.get_encoding_for_rtsp_url.return_value = None
-        mock_camera_manager.return_value = mock_camera_manager_instance
-
-        encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["rtsp://example/cam/stream"])
-        self.assertEqual(codec, "h264")
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_detect_codec_empty_list(self, mock_gst_inspector, mock_videos_manager):
-        """Test codec detection with empty list."""
-        encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input([])
-        self.assertEqual(codec, "h264")
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_detect_codec_from_input_usb_camera(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """USB camera inputs should always use default codec (H.264)."""
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = None
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        encoder = VideoEncoder()
-        codec = encoder._detect_codec_from_input(["/dev/video0"])
-        self.assertEqual(codec, "h264")
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_validate_codec_valid(self, mock_gst_inspector, mock_videos_manager):
-        """Test codec validation with valid codec."""
-        encoder = VideoEncoder()
-        # Should not raise
-        encoder._validate_codec("h264")
-        encoder._validate_codec("h265")
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_validate_codec_invalid(self, mock_gst_inspector, mock_videos_manager):
-        """Test codec validation with invalid codec."""
-        encoder = VideoEncoder()
         with self.assertRaises(ValueError) as context:
-            encoder._validate_codec("av1")
-        self.assertIn("Unsupported codec", str(context.exception))
-        self.assertIn("av1", str(context.exception))
+            encoder._select_element("INVALID")
+        self.assertIn("Invalid encoder_device", str(context.exception))
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_video_output_subpipeline(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_select_element_no_match_returns_none(self, mock_gst_inspector):
+        """Test that None is returned when no encoder matches."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = []  # No elements available
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
+
+        encoder = VideoEncoder()
+
+        result = encoder._select_element(ENCODER_DEVICE_GPU)
+        self.assertIsNone(result)
+
+    @patch("video_encoder.GstInspector")
+    def test_create_video_output_subpipeline(self, mock_gst_inspector):
         """Test creating video output subpipeline."""
         mock_gst_inspector_instance = MagicMock()
         mock_gst_inspector_instance.elements = [("elem", "vah264enc")]
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
 
@@ -229,7 +122,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_id = "test-pipeline-123"
 
         subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
+            pipeline_id, encoder_device, self.job_id
         )
 
         self.assertIn("vah264enc", subpipeline)
@@ -238,49 +131,12 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIn("filesink location=", subpipeline)
         self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_video_output_subpipeline_h265_codec(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test creating video output subpipeline with H265 codec."""
-        mock_gst_inspector_instance = MagicMock()
-        mock_gst_inspector_instance.elements = [("elem", "vah265enc")]
-        mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h265"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        encoder = VideoEncoder()
-
-        encoder_device = ENCODER_DEVICE_GPU
-        pipeline_id = "test-pipeline-456"
-
-        subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
-        )
-
-        self.assertIn("vah265enc", subpipeline)
-        self.assertIn("h265parse", subpipeline)
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_create_video_output_subpipeline_cpu_encoder(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_create_video_output_subpipeline_cpu_encoder(self, mock_gst_inspector):
         """Test creating video output subpipeline with CPU encoder."""
         mock_gst_inspector_instance = MagicMock()
-        mock_gst_inspector_instance.elements = [("elem", "x264enc")]
+        mock_gst_inspector_instance.elements = [("elem", "openh264enc")]
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
 
@@ -288,56 +144,22 @@ class TestVideoEncoderClass(unittest.TestCase):
         pipeline_id = "test-pipeline-789"
 
         subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
+            pipeline_id, encoder_device, self.job_id
         )
 
         # Verify CPU encoder is used
-        self.assertIn("x264enc", subpipeline)
+        self.assertIn("openh264enc", subpipeline)
         self.assertIn("h264parse", subpipeline)
         self.assertIn("mp4mux", subpipeline)
         self.assertIn("filesink location=", subpipeline)
         self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_video_output_subpipeline_unsupported_codec(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test that unsupported codec raises ValueError."""
-        mock_video = Mock()
-        mock_video.codec = "av1"  # Unsupported codec
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        encoder = VideoEncoder()
-        encoder_device = ENCODER_DEVICE_GPU
-
-        with self.assertRaises(ValueError) as context:
-            encoder.create_video_output_subpipeline(
-                "test-pipeline-999",
-                encoder_device,
-                ["input.mp4"],
-                self.job_id,
-            )
-
-        self.assertIn("Unsupported codec", str(context.exception))
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_create_video_output_subpipeline_no_encoder_found(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_create_video_output_subpipeline_no_encoder_found(self, mock_gst_inspector):
         """Test that no encoder found raises ValueError."""
         mock_gst_inspector_instance = MagicMock()
         mock_gst_inspector_instance.elements = []
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
         encoder_device = ENCODER_DEVICE_GPU
@@ -346,7 +168,6 @@ class TestVideoEncoderClass(unittest.TestCase):
             encoder.create_video_output_subpipeline(
                 "test-pipeline-000",
                 encoder_device,
-                ["input.mp4"],
                 self.job_id,
             )
 
@@ -365,21 +186,12 @@ class TestLiveStreamOutput(unittest.TestCase):
         """Reset singleton after each test."""
         VideoEncoder._instance = None
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_live_stream_output_subpipeline_basic(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_create_live_stream_output_subpipeline_basic(self, mock_gst_inspector):
         """Test creating live stream output subpipeline."""
         mock_gst_inspector_instance = MagicMock()
-        mock_gst_inspector_instance.elements = [("elem", "x264enc")]
+        mock_gst_inspector_instance.elements = [("elem", "openh264enc")]
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
 
@@ -387,11 +199,11 @@ class TestLiveStreamOutput(unittest.TestCase):
         pipeline_id = "test-pipeline-live"
 
         subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
+            pipeline_id, encoder_device, self.job_id
         )
 
         # Verify encoder and RTSP sink are in the subpipeline
-        self.assertIn("x264enc", subpipeline)
+        self.assertIn("openh264enc", subpipeline)
         self.assertIn("h264parse", subpipeline)
         self.assertIn("rtspclientsink", subpipeline)
         self.assertIn("protocols=tcp", subpipeline)
@@ -401,50 +213,12 @@ class TestLiveStreamOutput(unittest.TestCase):
         self.assertEqual(stream_url, expected_url)
         self.assertIn(stream_url, subpipeline)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_create_live_stream_output_subpipeline_h265(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
-        """Test live stream output subpipeline with H265 codec."""
-        mock_gst_inspector_instance = MagicMock()
-        mock_gst_inspector_instance.elements = [("elem", "x265enc")]
-        mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h265"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
-
-        encoder = VideoEncoder()
-
-        encoder_device = ENCODER_DEVICE_CPU
-        pipeline_id = "test-pipeline-h265"
-
-        subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
-        )
-
-        self.assertIn("x265enc", subpipeline)
-        self.assertIn("h265parse", subpipeline)
-        self.assertIn("rtspclientsink", subpipeline)
-
-    @patch("video_encoder.VideosManager")
-    @patch("video_encoder.GstInspector")
-    def test_create_live_stream_output_subpipeline_gpu(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_create_live_stream_output_subpipeline_gpu(self, mock_gst_inspector):
         """Test live stream output subpipeline with GPU encoder."""
         mock_gst_inspector_instance = MagicMock()
         mock_gst_inspector_instance.elements = [("elem", "vah264lpenc")]
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
 
@@ -452,27 +226,20 @@ class TestLiveStreamOutput(unittest.TestCase):
         pipeline_id = "test-pipeline-gpu"
 
         subpipeline, stream_url = encoder.create_live_stream_output_subpipeline(
-            pipeline_id, encoder_device, ["input.mp4"], self.job_id
+            pipeline_id, encoder_device, self.job_id
         )
 
         self.assertIn("vah264lpenc", subpipeline)
         self.assertIn("rtspclientsink", subpipeline)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
     def test_create_live_stream_output_subpipeline_no_encoder_found(
-        self, mock_gst_inspector, mock_videos_manager
+        self, mock_gst_inspector
     ):
         """Test that ValueError is raised when no encoder is found."""
         mock_gst_inspector_instance = MagicMock()
         mock_gst_inspector_instance.elements = []  # No encoders available
         mock_gst_inspector.return_value = mock_gst_inspector_instance
-
-        mock_video = Mock()
-        mock_video.codec = "h264"
-        mock_videos_manager_instance = MagicMock()
-        mock_videos_manager_instance.get_video.return_value = mock_video
-        mock_videos_manager.return_value = mock_videos_manager_instance
 
         encoder = VideoEncoder()
 
@@ -481,7 +248,7 @@ class TestLiveStreamOutput(unittest.TestCase):
 
         with self.assertRaises(ValueError) as context:
             encoder.create_live_stream_output_subpipeline(
-                pipeline_id, encoder_device, ["input.mp4"], self.job_id
+                pipeline_id, encoder_device, self.job_id
             )
 
         self.assertIn("No suitable encoder found", str(context.exception))
@@ -498,53 +265,40 @@ class TestFakesinkPattern(unittest.TestCase):
         """Reset singleton after each test."""
         VideoEncoder._instance = None
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_fakesink_pattern_matches_standalone(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_fakesink_pattern_matches_standalone(self, mock_gst_inspector):
         """Test that pattern matches standalone fakesink."""
         encoder = VideoEncoder()
         pipeline_str = "videotestsrc ! fakesink"
         matches = encoder.re_pattern.findall(pipeline_str)
         self.assertEqual(len(matches), 1)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_fakesink_pattern_matches_multiple(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_fakesink_pattern_matches_multiple(self, mock_gst_inspector):
         """Test that pattern matches multiple fakesinks."""
         encoder = VideoEncoder()
         pipeline_str = "videotestsrc ! fakesink ! fakesink"
         matches = encoder.re_pattern.findall(pipeline_str)
         self.assertEqual(len(matches), 2)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_fakesink_pattern_ignores_embedded(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_fakesink_pattern_ignores_embedded(self, mock_gst_inspector):
         """Test that pattern ignores fakesink embedded in properties."""
         encoder = VideoEncoder()
         pipeline_str = "playbin video-sink=fakesink"
         matches = encoder.re_pattern.findall(pipeline_str)
         self.assertEqual(len(matches), 0)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_fakesink_pattern_matches_with_properties(
-        self, mock_gst_inspector, mock_videos_manager
-    ):
+    def test_fakesink_pattern_matches_with_properties(self, mock_gst_inspector):
         """Test that pattern matches fakesink with properties."""
         encoder = VideoEncoder()
         pipeline_str = "videotestsrc ! fakesink sync=false"
         matches = encoder.re_pattern.findall(pipeline_str)
         self.assertEqual(len(matches), 1)
 
-    @patch("video_encoder.VideosManager")
     @patch("video_encoder.GstInspector")
-    def test_fakesink_pattern_at_start(self, mock_gst_inspector, mock_videos_manager):
+    def test_fakesink_pattern_at_start(self, mock_gst_inspector):
         """Test that pattern matches fakesink at start of string."""
         encoder = VideoEncoder()
         pipeline_str = "fakesink"
