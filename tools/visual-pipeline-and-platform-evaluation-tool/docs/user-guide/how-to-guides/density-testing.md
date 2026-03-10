@@ -2,16 +2,10 @@
 
 This article explains how to run density tests in ViPPET and interpret the results.
 A density test finds the maximum number of streams that can run while keeping the target
-minimum FPS per stream.
-
-## What is a density test
-
-Use a density test when you want to answer this question:
+minimum FPS per stream. Compared to a standard performance test (fixed stream count),
+density testing increases the load and searches for the highest stable stream count that still meets your FPS requirement. Therefore, it answers the question:
 
 "How many concurrent streams can this platform sustain at my required FPS floor?"
-
-Compared with a standard performance test (fixed stream count), density testing increases
-load and searches for the highest stable stream count that still meets your FPS requirement.
 
 ## Configure a density test in the UI
 
