@@ -16,6 +16,9 @@ as well as multiple pipelines running concurrently.
 The [density testing article](./how-to-guides/density-testing.md) explains how to find the maximum sustainable stream
 density for a target FPS floor.
 
+The [license plate recognition pipeline article](./how-to-guides/license-plate-recognition-pipeline.md) explains
+how to build and evaluate an ALPR pipeline on Intel® hardware.
+
 <!--hide_directive
 :::{toctree}
 :maxdepth: 2
@@ -26,6 +29,7 @@ density for a target FPS floor.
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
 ./how-to-guides/density-testing
+./how-to-guides/license-plate-recognition-pipeline
 
 :::
 hide_directive-->
