@@ -4,11 +4,16 @@
 
 ## Introduction
 
-License Plate Recognition (LPR) systems have evolved from specialized hardware solutions to flexible, software-defined pipelines that can adapt to various deployment scenarios.
+License Plate Recognition (LPR) systems have evolved from specialized hardware solutions to
+flexible, software-defined pipelines that can adapt to various deployment scenarios.
 
-The Visual Pipeline and Platform Evaluation Tool (ViPPET) introduces a powerful approach to LPR through its **Simple Video Structurization (D-T-C)** pipeline—a versatile, use case-agnostic solution that delivers enterprise-grade performance across Intel® hardware platforms.
+The Visual Pipeline and Platform Evaluation Tool (ViPPET) introduces a powerful approach to LPR
+through its **Simple Video Structurization (D-T-C)** pipeline—a versatile, use case-agnostic
+solution that delivers enterprise-grade performance across Intel® hardware platforms.
 
-Unlike traditional ALPR solutions that require expensive proprietary hardware, ViPPET's pipeline architecture leverages GStreamer video processing and OpenVINO™ optimized inference to deliver superior performance on standard Intel® computing platforms.
+Unlike traditional ALPR solutions that require expensive proprietary hardware, ViPPET's pipeline
+architecture leverages GStreamer video processing and OpenVINO™ optimized inference to deliver
+superior performance on standard Intel® computing platforms.
 
 ## ViPPET's Advanced Pipeline Architecture
 
@@ -72,7 +77,7 @@ gvametapublish method=file file-path=/dev/null !
 fakesink name=default_output_sink
 ```
 
-**Key Features**
+#### Key Features
 
 - OpenCV-based preprocessing for maximum compatibility.
 - Optimized for Intel® CPU architectures.
@@ -115,7 +120,7 @@ gvametapublish method=file file-path=/dev/null !
 fakesink name=default_output_sink
 ```
 
-**Advanced Features**
+#### Advanced Features
 
 - VA-API surface sharing for zero-copy operations.
 - Intel® GPU acceleration for parallel processing.
@@ -158,7 +163,7 @@ gvametapublish method=file file-path=/dev/null !
 fakesink name=default_output_sink
 ```
 
-**Next-Generation Capabilities**
+#### Next-Generation Capabilities
 
 - GPU handles detection workloads.
 - NPU optimized for OCR classification tasks.
@@ -182,7 +187,7 @@ detection_model = {
 }
 ```
 
-**Performance Characteristics**
+#### Performance Characteristics
 
 - Accuracy: 94.2% mAP on diverse license plate datasets.
 - Speed: 45ms inference time on Intel® Core™ i7.
@@ -203,7 +208,7 @@ ocr_model = {
 }
 ```
 
-**Advanced Features**
+#### Advanced Features
 
 - Multi-language support (English, Chinese, European).
 - Robust character segmentation.
@@ -246,7 +251,7 @@ gvadetect
   nireq=0 !
 ```
 
-**Optimization Parameters**
+#### Optimization Parameters
 
 - `inference-interval=3`: Process every 3rd frame for efficiency.
 - `batch-size=0`: Dynamic batching based on available resources.
@@ -273,7 +278,7 @@ gvaclassify
   reclassify-interval=1 !
 ```
 
-**Smart Classification Features**
+#### Smart Classification Features
 
 - ROI-based inference for computational efficiency.
 - Adaptive reclassification based on tracking confidence.
@@ -296,7 +301,7 @@ gvametapublish method=file file-path=/dev/null !
 ### Single Stream Performance
 
 | Hardware Configuration | Resolution | FPS | Latency (ms) | Power (W) |
-|---|---:|---:|---:|---:|
+| --- | ---: | ---: | ---: | ---: |
 | Intel® Core™ i5-12400 (CPU) | 1080p | 28 | 85 | 35 |
 | Intel® Core™ i7-12700K + Iris® Xe (GPU) | 1080p | 45 | 52 | 65 |
 | Intel® Core™ Ultra 7 (GPU+NPU) | 1080p | 52 | 38 | 45 |
@@ -304,7 +309,7 @@ gvametapublish method=file file-path=/dev/null !
 ### Multi-Stream Scalability
 
 | Hardware Platform | Concurrent Streams | Total FPS | CPU Usage | Memory (GB) |
-|---|---:|---:|---:|---:|
+| --- | ---: | ---: | ---: | ---: |
 | Intel® Xeon® Gold 6248 | 8 | 180 | 75% | 12 |
 | Intel® Data Center GPU Flex 170 | 16 | 480 | 45% | 16 |
 | Intel® Gaudi® 2 | 32 | 1024 | 60% | 32 |
@@ -413,7 +418,9 @@ preprocessing_config = {
 
 ## Conclusion
 
-ViPPET's License Plate Recognition solution represents a paradigm shift in video analytics, combining the flexibility of software-defined pipelines with the performance of Intel®-optimized hardware acceleration.
+ViPPET's License Plate Recognition solution represents a paradigm shift in video analytics,
+combining the flexibility of software-defined pipelines with the performance of Intel®-optimized
+hardware acceleration.
 
 The Simple Video Structurization (D-T-C) architecture provides:
 
@@ -431,7 +438,9 @@ The Simple Video Structurization (D-T-C) architecture provides:
 - Scalable Performance: Linear scaling from single streams to enterprise deployments.
 - Operational Excellence: Comprehensive monitoring and automated optimization.
 
-Whether you're implementing smart parking systems, traffic enforcement solutions, or logistics automation, ViPPET provides the foundation for building world-class license plate recognition applications that scale with your business needs.
+Whether you're implementing smart parking systems, traffic enforcement solutions, or logistics
+automation, ViPPET provides the foundation for building world-class license plate recognition
+applications that scale with your business needs.
 
 ## Get Started with ViPPET LPR
 
@@ -442,4 +451,5 @@ Ready to transform your video analytics capabilities?
 - Community Support: Intel® Developer Forums
 - Enterprise Solutions: Contact Intel® AI Solutions Team
 
-Experience the future of license plate recognition with Intel®-powered AI performance and ViPPET's advanced pipeline architecture.
+Experience the future of license plate recognition with Intel®-powered AI performance and
+ViPPET's advanced pipeline architecture.

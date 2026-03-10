@@ -95,7 +95,8 @@ This eliminates guesswork in capacity planning and ensures deployments meet perf
 
 **Capacity Planning Support**:
 Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions.
-Results show exactly how many concurrent video streams each hardware configuration can process while maintaining quality thresholds.
+Results show exactly how many concurrent video streams each hardware configuration can process
+while maintaining quality thresholds.
 
 ### **Workflow Overview**
 
