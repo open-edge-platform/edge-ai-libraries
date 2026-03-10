@@ -39,9 +39,45 @@
 #define __DEVICE_MEMORY_IMPL__
 #include "device_memory.h"
 
+#include <cstdlib>
+#include <mutex>
+#include <sstream>
+#include <thread>
+
 #include "device_impl.h"
 #include "dpct/dpct.hpp"
 #include "gpu_memory_manager.h"
+
+// Debug instrumentation for GPU memory tracking
+// Enable by setting environment variable: export GPU_MEM_DEBUG=1
+static bool gpu_mem_debug_enabled()
+{
+  static int enabled = -1;
+  if (enabled < 0) {
+    const char * env = std::getenv("GPU_MEM_DEBUG");
+    enabled = (env && (std::string(env) == "1" || std::string(env) == "true")) ? 1 : 0;
+  }
+  return enabled == 1;
+}
+
+static std::mutex g_debug_mutex;
+static std::mutex g_free_mutex;  // Protect free operations from race conditions
+
+static std::string get_thread_id_str()
+{
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  return oss.str();
+}
+
+#define GPU_MEM_DEBUG(fmt, ...)                                                                  \
+  do {                                                                                           \
+    if (gpu_mem_debug_enabled()) {                                                               \
+      std::lock_guard<std::mutex> lock(g_debug_mutex);                                           \
+      fprintf(stderr, "[GPU_MEM tid=%s] " fmt "\n", get_thread_id_str().c_str(), ##__VA_ARGS__); \
+      fflush(stderr);                                                                            \
+    }                                                                                            \
+  } while (0)
 
 thread_local std::shared_ptr<GpuMemoryManager> memoryManagerShared[MAX_DEVICES] = {nullptr};
 thread_local std::shared_ptr<GpuMemoryManager> memoryManagerDevice[MAX_DEVICES] = {nullptr};
@@ -160,39 +196,93 @@ DeviceMemory & DeviceMemory::operator=(const DeviceMemory & other_arg)
   return *this;
 }
 
+// Check if memory pooling is disabled (safer but slower)
+static bool use_direct_alloc()
+{
+  static int enabled = -1;
+  if (enabled < 0) {
+    const char * env = std::getenv("GPU_NO_POOL");
+    enabled = (env && (std::string(env) == "1" || std::string(env) == "true")) ? 1 : 0;
+    if (enabled) {
+      fprintf(stderr, "[GPU_MEM] Memory pooling DISABLED (GPU_NO_POOL=1)\n");
+    }
+  }
+  return enabled == 1;
+}
+
 void DeviceMemory::create_(std::size_t sizeBytes, MemoryType type)
 {
+  GPU_MEM_DEBUG(
+    "create_ START: this=%p, sizeBytes=%zu, type=%d", (void *)this, sizeBytes, (int)type);
+
   if (dev_ == nullptr) {
+    GPU_MEM_DEBUG("create_: dev_ was null, creating new Device");
     dev_ = std::make_shared<Device>();
   }
   int dev_id = dev_->GetDeviceIndex();
+  GPU_MEM_DEBUG("create_: dev_id=%d", dev_id);
 
-  if (!memoryManagerDevice[dev_id])
+  // Direct allocation mode (bypasses memory pool for stability)
+  if (use_direct_alloc() || dev_id < 0 || dev_id >= MAX_DEVICES) {
+    GPU_MEM_DEBUG("create_: using direct allocation (no pool)");
+    switch (type) {
+      case DEVICE_MEMORY:
+        data_ = dev_->GetDeviceImpl()->malloc_device(sizeBytes);
+        break;
+      case SHARED_MEMORY:
+        data_ = dev_->GetDeviceImpl()->malloc_shared(sizeBytes);
+        break;
+      case HOST_MEMORY:
+        data_ = dev_->GetDeviceImpl()->malloc_host(sizeBytes);
+        break;
+      default:
+        break;
+    }
+    refcount_ = new std::atomic<int>(1);
+    type_ = type;  // Make sure type is set for release()
+    GPU_MEM_DEBUG("create_ (direct) END: this=%p, data_=%p", (void *)this, data_);
+    return;
+  }
+
+  if (!memoryManagerDevice[dev_id]) {
+    GPU_MEM_DEBUG("create_: creating new GpuMemoryManager(device) for dev_id=%d", dev_id);
     memoryManagerDevice[dev_id] = std::make_shared<GpuMemoryManager>(false);
+  }
 
-  if (!memoryManagerShared[dev_id])
+  if (!memoryManagerShared[dev_id]) {
+    GPU_MEM_DEBUG("create_: creating new GpuMemoryManager(shared) for dev_id=%d", dev_id);
     memoryManagerShared[dev_id] = std::make_shared<GpuMemoryManager>(true);
+  }
 
   switch (type) {
     case DEVICE_MEMORY:
+      GPU_MEM_DEBUG("create_: DEVICE_MEMORY allocation, sizeBytes=%zu", sizeBytes);
       memoryManagerDevice[dev_id]->InitializeQueue(dev_);
-      // mtx.lock();
       memoryManagerDevice[dev_id]->GetMemory((void **)&data_, sizeBytes);
-      // mtx.unlock();
       refcount_ = new std::atomic<int>(1);
+      GPU_MEM_DEBUG(
+        "create_: DEVICE_MEMORY allocated data_=%p, refcount_=%p", data_, (void *)refcount_);
       break;
     case SHARED_MEMORY:
+      GPU_MEM_DEBUG("create_: SHARED_MEMORY allocation, sizeBytes=%zu", sizeBytes);
       memoryManagerShared[dev_id]->InitializeQueue(dev_);
       memoryManagerShared[dev_id]->GetMemory((void **)&data_, sizeBytes);
       refcount_ = new std::atomic<int>(1);
+      GPU_MEM_DEBUG(
+        "create_: SHARED_MEMORY allocated data_=%p, refcount_=%p", data_, (void *)refcount_);
       break;
     case HOST_MEMORY:
+      GPU_MEM_DEBUG("create_: HOST_MEMORY allocation, sizeBytes=%zu", sizeBytes);
       data_ = dev_->GetDeviceImpl()->malloc_host(sizeBytes);
       refcount_ = new std::atomic<int>(1);
+      GPU_MEM_DEBUG(
+        "create_: HOST_MEMORY allocated data_=%p, refcount_=%p", data_, (void *)refcount_);
       break;
     default:
+      GPU_MEM_DEBUG("create_: UNKNOWN type=%d", (int)type);
       break;
   }
+  GPU_MEM_DEBUG("create_ END: this=%p, data_=%p", (void *)this, data_);
 }
 
 void DeviceMemory::create(std::size_t sizeBytes_arg)
@@ -241,12 +331,13 @@ void DeviceMemory::resize(std::size_t sizeBytes_arg)
 
 void DeviceMemory::resize(std::size_t sizeBytes_arg, std::shared_ptr<Device> dev)
 {
-  dev_ = dev;
+  // Pass in dev directly to create function
+  //dev_ = dev;
 
   if (sizeBytes_arg <= sizeBytes_) {
     sizeBytes_ = sizeBytes_arg;
   } else {
-    create(sizeBytes_arg);
+    create(sizeBytes_arg, dev);
   }
 }
 
@@ -272,23 +363,87 @@ void DeviceMemory::copyTo(DeviceMemory & other, std::size_t sizeBytes_arg)
 
 void DeviceMemory::release()
 {
-  if (refcount_ && refcount_->fetch_sub(1) == 1) {
-    delete refcount_;
+  GPU_MEM_DEBUG(
+    "release START: this=%p, data_=%p, refcount_=%p, type=%d", (void *)this, data_,
+    (void *)refcount_, (int)type_);
 
-    int dev_id = dev_->GetDeviceIndex();
+  if (refcount_) {
+    int prev_count = refcount_->fetch_sub(1);
+    GPU_MEM_DEBUG("release: prev refcount was %d", prev_count);
 
-    switch (type_) {
-      case DEVICE_MEMORY:
-        memoryManagerDevice[dev_id]->ReleaseMemory(data_);
-        break;
-      case SHARED_MEMORY:
-        memoryManagerShared[dev_id]->ReleaseMemory(data_);
-        break;
-      case HOST_MEMORY:
-        dev_->GetDeviceImpl()->free(data_);
-        break;
-      default:
-        break;
+    if (prev_count == 1) {
+      GPU_MEM_DEBUG("release: refcount reached 0, freeing memory");
+      delete refcount_;
+      refcount_ = nullptr;  // Mark as deleted to prevent double-free attempts
+
+      // Skip if data is already null (nothing to free)
+      if (!data_) {
+        GPU_MEM_DEBUG("release: data_ is already null, nothing to free");
+      } else if (!dev_) {
+        GPU_MEM_DEBUG("release ERROR: dev_ is null but we need to free data_=%p!", data_);
+        // Cannot free - will leak memory but better than crash
+      } else if (!dev_->GetDeviceImpl()) {
+        GPU_MEM_DEBUG("release ERROR: GetDeviceImpl() is null, cannot free data_=%p!", data_);
+        // Cannot free - will leak memory but better than crash
+      } else {
+        // Lock to prevent race conditions during free
+        std::lock_guard<std::mutex> free_lock(g_free_mutex);
+
+        int dev_id = dev_->GetDeviceIndex();
+        GPU_MEM_DEBUG("release: dev_id=%d, freeing data_=%p", dev_id, data_);
+
+        // Direct free mode or invalid dev_id - always free directly
+        if (use_direct_alloc() || dev_id < 0 || dev_id >= MAX_DEVICES) {
+          GPU_MEM_DEBUG("release: direct free mode, freeing directly");
+          dev_->GetDeviceImpl()->free(data_);
+        } else {
+          switch (type_) {
+            case DEVICE_MEMORY:
+              GPU_MEM_DEBUG(
+                "release: DEVICE_MEMORY, memoryManagerDevice[%d]=%p", dev_id,
+                (void *)memoryManagerDevice[dev_id].get());
+              if (memoryManagerDevice[dev_id]) {
+                if (!memoryManagerDevice[dev_id]->ReleaseMemory(data_)) {
+                  // Cross-thread release: pointer not in this thread's pool, free directly
+                  GPU_MEM_DEBUG("release: cross-thread release DEVICE_MEMORY, freeing directly");
+                  dev_->GetDeviceImpl()->free(data_);
+                } else {
+                  GPU_MEM_DEBUG("release: returned to DEVICE_MEMORY pool");
+                }
+              } else {
+                // No manager on this thread, free directly
+                GPU_MEM_DEBUG("release: no manager on thread, freeing DEVICE_MEMORY directly");
+                dev_->GetDeviceImpl()->free(data_);
+              }
+              break;
+            case SHARED_MEMORY:
+              GPU_MEM_DEBUG(
+                "release: SHARED_MEMORY, memoryManagerShared[%d]=%p", dev_id,
+                (void *)memoryManagerShared[dev_id].get());
+              if (memoryManagerShared[dev_id]) {
+                if (!memoryManagerShared[dev_id]->ReleaseMemory(data_)) {
+                  // Cross-thread release: pointer not in this thread's pool, free directly
+                  GPU_MEM_DEBUG("release: cross-thread release SHARED_MEMORY, freeing directly");
+                  dev_->GetDeviceImpl()->free(data_);
+                } else {
+                  GPU_MEM_DEBUG("release: returned to SHARED_MEMORY pool");
+                }
+              } else {
+                // No manager on this thread, free directly
+                GPU_MEM_DEBUG("release: no manager on thread, freeing SHARED_MEMORY directly");
+                dev_->GetDeviceImpl()->free(data_);
+              }
+              break;
+            case HOST_MEMORY:
+              GPU_MEM_DEBUG("release: HOST_MEMORY, freeing directly");
+              dev_->GetDeviceImpl()->free(data_);
+              break;
+            default:
+              GPU_MEM_DEBUG("release: UNKNOWN type=%d", (int)type_);
+              break;
+          }
+        }
+      }
     }
   }
 
@@ -298,33 +453,82 @@ void DeviceMemory::release()
   dev_.reset();
   refcount_ = nullptr;
   // event_.reset();
+  GPU_MEM_DEBUG("release END: this=%p", (void *)this);
 }
 
 void DeviceMemory::updateTempSize(std::size_t size) { sizeBytesTemp_ = size; }
 
 void DeviceMemory::syncEvent()
 {
+  GPU_MEM_DEBUG(
+    "syncEvent START: this=%p, event_=%p, data_=%p, dev_=%p, refcount_=%p", (void *)this,
+    (void *)event_.get(), data_, (void *)dev_.get(), (void *)refcount_);
   if (event_) {
-    for (auto event : event_->events) event.wait();
+    GPU_MEM_DEBUG("syncEvent: event_ has %zu events to wait on", event_->events.size());
+    size_t idx = 0;
+    for (auto event : event_->events) {
+      GPU_MEM_DEBUG("syncEvent: waiting on event[%zu]", idx);
+      try {
+        event.wait();
+        GPU_MEM_DEBUG("syncEvent: event[%zu] completed", idx);
+      } catch (const std::exception & e) {
+        GPU_MEM_DEBUG("syncEvent ERROR: event[%zu] threw exception: %s", idx, e.what());
+        throw;
+      }
+      idx++;
+    }
+  } else {
+    GPU_MEM_DEBUG("syncEvent: event_ is null, nothing to wait on");
   }
+  // Validate state after sync
+  GPU_MEM_DEBUG(
+    "syncEvent END: this=%p, data_=%p valid=%d, dev_ valid=%d", (void *)this, data_,
+    (data_ != nullptr), (dev_ != nullptr));
 }
 
-void DeviceMemory::setEvent(DeviceEvent::Ptr event) { event_ = event; }
+void DeviceMemory::setEvent(DeviceEvent::Ptr event)
+{
+  GPU_MEM_DEBUG(
+    "setEvent: this=%p, old event_=%p, new event=%p", (void *)this, (void *)event_.get(),
+    (void *)event.get());
+  event_ = event;
+}
 
-void DeviceMemory::clearEvent() { event_->events.clear(); }
+void DeviceMemory::clearEvent()
+{
+  GPU_MEM_DEBUG("clearEvent: this=%p, event_=%p", (void *)this, (void *)event_.get());
+  if (event_) {
+    GPU_MEM_DEBUG("clearEvent: clearing %zu events", event_->events.size());
+    event_->events.clear();
+  } else {
+    GPU_MEM_DEBUG("clearEvent WARNING: event_ is null!");
+  }
+}
 
 DeviceEvent::Ptr DeviceMemory::getEvent() { return event_; }
 
 void DeviceMemory::clear()
 {
-  if (data_) dev_->GetDeviceImpl()->memset(data_, 0, sizeBytes_);
+  GPU_MEM_DEBUG(
+    "clear: this=%p, data_=%p, dev_=%p, sizeBytes_=%zu", (void *)this, data_, (void *)dev_.get(),
+    sizeBytes_);
+  if (data_) {
+    if (!dev_) {
+      GPU_MEM_DEBUG("clear ERROR: dev_ is null but data_ is not!");
+      return;
+    }
+    dev_->GetDeviceImpl()->memset(data_, 0, sizeBytes_);
+  }
 }
 
 void DeviceMemory::upload(const void * host_ptr_arg, std::size_t sizeBytes_arg)
 {
+  GPU_MEM_DEBUG(
+    "upload: this=%p, host_ptr=%p, sizeBytes=%zu", (void *)this, host_ptr_arg, sizeBytes_arg);
   create(sizeBytes_arg);
 
   dev_->GetDeviceImpl()->memcpy(data_, host_ptr_arg, sizeBytes_);
+  GPU_MEM_DEBUG("upload DONE: this=%p, data_=%p", (void *)this, data_);
 }
 
 bool DeviceMemory::upload(
@@ -377,19 +581,49 @@ bool DeviceMemory::upload_async(
 
 void DeviceMemory::download(void * host_ptr_arg)
 {
-  if (host_ptr_arg && data_) dev_->GetDeviceImpl()->memcpy(host_ptr_arg, data_, sizeBytes_);
+  GPU_MEM_DEBUG(
+    "download: this=%p, host_ptr=%p, data_=%p, sizeBytes_=%zu, dev_=%p", (void *)this, host_ptr_arg,
+    data_, sizeBytes_, (void *)dev_.get());
+  if (host_ptr_arg && data_) {
+    if (!dev_) {
+      GPU_MEM_DEBUG("download ERROR: dev_ is null!");
+      return;
+    }
+    dev_->GetDeviceImpl()->memcpy(host_ptr_arg, data_, sizeBytes_);
+    GPU_MEM_DEBUG("download DONE: this=%p", (void *)this);
+  } else {
+    GPU_MEM_DEBUG("download SKIPPED: host_ptr=%p, data_=%p", host_ptr_arg, data_);
+  }
 }
 
 bool DeviceMemory::download(void * host_ptr_arg, std::size_t num_bytes)
 {
-  if (host_ptr_arg && data_) dev_->GetDeviceImpl()->memcpy(host_ptr_arg, data_, num_bytes);
+  GPU_MEM_DEBUG(
+    "download(num): this=%p, host_ptr=%p, data_=%p, num_bytes=%zu, dev_=%p", (void *)this,
+    host_ptr_arg, data_, num_bytes, (void *)dev_.get());
+  if (host_ptr_arg && data_) {
+    if (!dev_) {
+      GPU_MEM_DEBUG("download(num) ERROR: dev_ is null!");
+      return false;
+    }
+    dev_->GetDeviceImpl()->memcpy(host_ptr_arg, data_, num_bytes);
+    GPU_MEM_DEBUG("download(num) DONE: this=%p", (void *)this);
+  } else {
+    GPU_MEM_DEBUG("download(num) SKIPPED: host_ptr=%p, data_=%p", host_ptr_arg, data_);
+  }
 
   return true;
 }
 
 bool DeviceMemory::download_async(void * host_ptr_arg, std::size_t num_bytes)
 {
-  if ((host_ptr_arg == nullptr) || (data_ == nullptr)) return false;
+  GPU_MEM_DEBUG(
+    "download_async: this=%p, host_ptr=%p, data_=%p, num_bytes=%zu", (void *)this, host_ptr_arg,
+    data_, num_bytes);
+  if ((host_ptr_arg == nullptr) || (data_ == nullptr)) {
+    GPU_MEM_DEBUG("download_async SKIPPED: host_ptr=%p, data_=%p", host_ptr_arg, data_);
+    return false;
+  }
 
   if (event_ == nullptr) {
     event_ = DeviceEvent::create();
@@ -398,6 +632,7 @@ bool DeviceMemory::download_async(void * host_ptr_arg, std::size_t num_bytes)
   auto sycl_event = dev_->GetDeviceImpl()->memcpy_async(host_ptr_arg, data_, num_bytes);
 
   event_->add(sycl_event);
+  GPU_MEM_DEBUG("download_async QUEUED: this=%p", (void *)this);
 
   return true;
 }

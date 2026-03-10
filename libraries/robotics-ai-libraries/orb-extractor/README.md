@@ -4,17 +4,14 @@ Copyright (C) 2025 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# GPU ORB Extractor Feature Overview
+# ORB Extractor (GPU ORB Feature Extractor)
 
-This repository provides tutorials and usage guides for the GPU ORB Extractor
-Feature, supporting both OpenCV-based and OpenCV-free workflows. The GPU ORB
-Extractor library enables fast, thread-safe `keypoint` extraction for
-visual SLAM and computer vision applications, with support for multiple
-cameras and multi-threaded processing.
+## Overview
 
-## Features
+A high-performance GPU-accelerated ORB keypoint extraction library for visual SLAM and computer vision applications. The library provides fast, thread-safe keypoint extraction with support for both OpenCV-based and OpenCV-free workflows, enabling efficient multi-camera and multi-threaded processing.
 
-- High-performance GPU-accelerated ORB keypoint extraction
+Key features:
+- GPU-accelerated ORB keypoint extraction
 - Supports both OpenCV (`cv::Mat`, `cv::KeyPoint`) and OpenCV-free data structures
 - Thread-safe API for multi-camera and multi-threaded use cases
 - Flexible configuration for single or multiple ORB extractor objects
@@ -23,7 +20,7 @@ cameras and multi-threaded processing.
 
 ### System Requirements
 
-Prepare the target system following the [official documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html).
+Prepare the target system following the [official documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html)
 
 **Intel oneAPI Requirements:**
 - Intel oneAPI 2025.3 with SYCL compiler support
@@ -126,7 +123,13 @@ For detailed usage instructions and pre-requisites, refer to the [ORB Extractor 
 
 ## Documentation
 
+Comprehensive documentation on this component is available here:
+
+- [ORB Extractor Index](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html)
 - [API Usage](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/api-use.html)
 - [OpenCV-free Usage](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/orbocvfree-use.html)
 - [Limitations](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/limitation.html)
-For more details, see the GPU ORB Extractor [index page](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/tutorials_amr/perception/orb-extractor/index.html).
+
+## License
+
+`orb-extractor` is licensed under [Apache 2.0 License](./LICENSES/Apache-2.0.txt).
