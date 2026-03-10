@@ -1,6 +1,8 @@
 import logging
+import os
 import threading
 from copy import deepcopy
+from datetime import datetime
 from typing import Optional, List
 
 from graph import Graph, OUTPUT_PLACEHOLDER
@@ -18,8 +20,10 @@ from utils import (
     generate_unique_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
+    slugify_text,
 )
 from video_encoder import VideoEncoder
+from videos import OUTPUT_VIDEO_DIR
 
 logger = logging.getLogger("pipeline_manager")
 
@@ -400,7 +404,7 @@ class PipelineManager:
         pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
         execution_config: InternalExecutionConfig,
         job_id: str,
-    ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
+    ) -> tuple[str, dict[str, str], dict[str, str]]:
         """
         Build a complete executable GStreamer pipeline command from internal specifications.
 
@@ -408,15 +412,20 @@ class PipelineManager:
         stream counts, and constructs a complete GStreamer command line that can be executed
         to run all specified pipelines with all their streams.
 
+        Creates a job output directory structure:
+            OUTPUT_VIDEO_DIR/<timestamp>_<job_id>/<pipeline_id>/
+
+        Each pipeline's output files (intermediate and main) are placed in its own directory.
+
         Args:
             pipeline_performance_specs: List of InternalPipelinePerformanceSpec with
                 resolved pipeline_id, pipeline_name, pipeline_graph (as Graph object), and streams.
             execution_config: InternalExecutionConfig for output generation and runtime limits.
-            job_id: Unique job identifier used for generating output filenames and stream names.
+            job_id: Unique job identifier used for directory naming and stream names.
 
         Returns:
             tuple: (Complete GStreamer command string,
-                    dictionary mapping pipeline IDs to output file paths,
+                    dictionary mapping pipeline IDs to their output directory paths,
                     dictionary mapping pipeline IDs to live stream URLs)
 
             Note: live_stream_urls will be empty for density tests since they do not
@@ -448,8 +457,13 @@ class PipelineManager:
                 "or use output_mode='disabled' or 'live_stream' for time-limited execution."
             )
 
+        # Create job output directory: OUTPUT_VIDEO_DIR/<timestamp>_<job_id>/
+        job_dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id}"
+        job_dir = os.path.join(OUTPUT_VIDEO_DIR, slugify_text(job_dir_name))
+        os.makedirs(job_dir, exist_ok=True)
+
         pipeline_parts = []
-        video_output_paths: dict[str, List[str]] = {}
+        video_output_paths: dict[str, str] = {}
         live_stream_urls: dict[str, str] = {}
         output_subpipeline: str | None = None
 
@@ -466,6 +480,13 @@ class PipelineManager:
             pipeline_name = spec.pipeline_name
             base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
+            # Create pipeline output directory: <job_dir>/<pipeline_id>/
+            pipeline_dir = os.path.join(job_dir, slugify_text(pipeline_id))
+            os.makedirs(pipeline_dir, exist_ok=True)
+
+            # Store the pipeline directory path for later video file collection
+            video_output_paths[pipeline_id] = pipeline_dir
+
             # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
             if base_graph.has_decodebin3():
                 codec = base_graph.determine_input_codec()
@@ -478,27 +499,18 @@ class PipelineManager:
             if needs_looping:
                 base_graph = base_graph.apply_looping_modifications()
 
-            base_graph, intermediate_output_paths = (
-                base_graph.prepare_intermediate_output_sinks(pipeline_id, job_id)
-            )
-
-            video_output_paths[pipeline_id] = intermediate_output_paths
-
             output_mode = execution_config.output_mode
 
-            # prepare main video output path if output is enabled (file or live stream)
+            # Prepare main video output subpipeline if output is enabled (file or live stream)
             if output_mode != InternalOutputMode.DISABLED:
                 # Retrieve recommended encoder device
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
-                    output_subpipeline, output_path = (
-                        video_encoder.create_video_output_subpipeline(
-                            pipeline_id, encoder_device, job_id
-                        )
+                    output_subpipeline = video_encoder.create_video_output_subpipeline(
+                        pipeline_dir, encoder_device
                     )
-                    video_output_paths[pipeline_id].append(output_path)
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
@@ -510,6 +522,11 @@ class PipelineManager:
             # Build pipeline parts for all streams of this pipeline specification
             for stream_index in range(spec.streams):
                 graph_instance = deepcopy(base_graph)
+
+                # Prepare intermediate output sinks per stream
+                graph_instance = graph_instance.prepare_intermediate_output_sinks(
+                    pipeline_dir, stream_index
+                )
 
                 if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
@@ -696,8 +713,8 @@ class PipelineManager:
             pipeline_graph: Optional new advanced graph as Graph object. When provided, simple view
                 is auto-generated from it. Mutually exclusive with pipeline_graph_simple.
             pipeline_graph_simple: Optional modified simple graph as Graph object with property changes only.
-                When provided, changes are merged into advanced view using
-                apply_simple_view_changes(), and both views are regenerated.
+                When provided, changes are merged into advanced view using validate_and_convert_simple_to_advanced(),
+                and both views are regenerated.
                 Structural changes (add/remove nodes or edges) are not allowed.
                 Mutually exclusive with pipeline_graph.
 

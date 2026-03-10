@@ -4153,8 +4153,8 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
     @patch("os.path.isfile", return_value=True)
     @patch("graph.VideosManager")
-    def test_splitmuxsink_replaced_with_appsink(self, mock_videos_cls, mock_isfile):
-        """Test that splitmuxsink is replaced with fakesink."""
+    def test_splitmuxsink_preserved_during_looping(self, mock_videos_cls, mock_isfile):
+        """Test that splitmuxsink is preserved during looping modifications."""
         mock_videos_instance = MagicMock()
         mock_videos_instance.get_ts_path.return_value = "/videos/input/video.ts"
         mock_videos_cls.return_value = mock_videos_instance
@@ -4177,11 +4177,11 @@ class TestApplyLoopingModifications(unittest.TestCase):
 
         result = graph.apply_looping_modifications()
 
-        # Check splitmuxsink is replaced with fakesink
-        self.assertEqual(result.nodes[2].type, "fakesink")
-        # Check old properties are cleared
-        self.assertNotIn("location", result.nodes[2].data)
-        self.assertNotIn("max-size-time", result.nodes[2].data)
+        # splitmuxsink should be preserved (not replaced)
+        self.assertEqual(result.nodes[2].type, "splitmuxsink")
+        # Properties should remain unchanged
+        self.assertEqual(result.nodes[2].data["location"], "/output/file_%02d.mp4")
+        self.assertEqual(result.nodes[2].data["max-size-time"], "10")
 
     @patch("os.path.isfile", return_value=True)
     @patch("graph.VideosManager")
@@ -4371,8 +4371,9 @@ class TestApplyLoopingModifications(unittest.TestCase):
         # Check qtdemux -> tsdemux
         self.assertEqual(result.nodes[1].type, "tsdemux")
 
-        # Check splitmuxsink -> fakesink
-        self.assertEqual(result.nodes[5].type, "fakesink")
+        # Check splitmuxsink is preserved (not replaced)
+        self.assertEqual(result.nodes[5].type, "splitmuxsink")
+        self.assertEqual(result.nodes[5].data["location"], "/output/file.mp4")
 
         # Check other nodes are unchanged
         self.assertEqual(result.nodes[3].type, "tee")
@@ -5362,6 +5363,257 @@ class TestPrepareMainOutputPlaceholder(unittest.TestCase):
             graph.prepare_main_output_placeholder()
 
         self.assertIn("No fakesink found", str(context.exception))
+
+
+class TestPrepareIntermediateOutputSinks(unittest.TestCase):
+    """Test cases for Graph.prepare_intermediate_output_sinks method."""
+
+    def test_filesink_location_updated_with_correct_naming(self):
+        """Test that filesink location is updated with the intermediate naming convention."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(
+                    id="1",
+                    type="filesink",
+                    data={"location": "/tmp/output-video.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/job/pipeline", 0)
+
+        self.assertEqual(
+            result.nodes[1].data["location"],
+            "/output/job/pipeline/intermediate_stream000_output-video.mp4",
+        )
+
+    def test_stream_index_is_zero_padded_three_digits(self):
+        """Test that stream index is zero-padded to three digits."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 5)
+        self.assertIn("stream005", result.nodes[0].data["location"])
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 42)
+        self.assertIn("stream042", result.nodes[0].data["location"])
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 123)
+        self.assertIn("stream123", result.nodes[0].data["location"])
+
+    def test_extension_defaults_to_mp4_when_missing(self):
+        """Test that .mp4 is used as default extension when location has no extension."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="filesink",
+                    data={"location": "/tmp/outputfile"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertTrue(result.nodes[0].data["location"].endswith(".mp4"))
+
+    def test_original_extension_preserved(self):
+        """Test that original file extension from location is preserved."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="filesink",
+                    data={"location": "/tmp/output.avi"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertTrue(result.nodes[0].data["location"].endswith(".avi"))
+
+    def test_splitmuxsink_with_max_files_gets_pattern(self):
+        """Test that splitmuxsink with max-files > 0 gets _%03d pattern in filename."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/recording.mp4", "max-files": "5"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertIn("_%03d", result.nodes[0].data["location"])
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream000_recording_%03d.mp4",
+        )
+
+    def test_splitmuxsink_without_max_files_no_pattern(self):
+        """Test that splitmuxsink without max-files does not get the pattern."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/recording.mp4"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertNotIn("_%03d", result.nodes[0].data["location"])
+
+    def test_splitmuxsink_with_max_files_zero_no_pattern(self):
+        """Test that splitmuxsink with max-files=0 does not get the pattern."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/recording.mp4", "max-files": "0"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertNotIn("_%03d", result.nodes[0].data["location"])
+
+    def test_non_sink_nodes_are_not_modified(self):
+        """Test that non-sink nodes are not affected."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "/tmp/input.mp4"}),
+                Node(id="1", type="queue", data={}),
+                Node(
+                    id="2",
+                    type="filesink",
+                    data={"location": "/tmp/output.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        # filesrc location should not be changed
+        self.assertEqual(result.nodes[0].data["location"], "/tmp/input.mp4")
+        # queue should remain unchanged
+        self.assertEqual(result.nodes[1].data, {})
+
+    def test_sink_without_location_is_not_modified(self):
+        """Test that sink nodes without location property are skipped."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesink", data={"sync": "false"}),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        # fakesink has no location, so it should remain unchanged
+        self.assertEqual(result.nodes[0].data, {"sync": "false"})
+
+    def test_file_stem_is_slugified(self):
+        """Test that the file stem from location is slugified."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="filesink",
+                    data={"location": "/tmp/My Output File (1).mp4"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        location = result.nodes[0].data["location"]
+        # Slugified stem should not contain spaces or special characters
+        self.assertNotIn(" ", location)
+        self.assertIn("intermediate_stream000_", location)
+
+    def test_multiple_sinks_all_updated(self):
+        """Test that all sink nodes with location are updated."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "video.mp4"}),
+                Node(id="1", type="tee", data={"name": "t"}),
+                Node(
+                    id="2",
+                    type="splitmuxsink",
+                    data={"location": "/tmp/split.mp4", "max-files": "3"},
+                ),
+                Node(
+                    id="3",
+                    type="filesink",
+                    data={"location": "/tmp/full.mp4"},
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="1", target="3"),
+            ],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 2)
+
+        # splitmuxsink with max-files > 0 should have pattern
+        self.assertEqual(
+            result.nodes[2].data["location"],
+            "/output/dir/intermediate_stream002_split_%03d.mp4",
+        )
+        # filesink should not have pattern
+        self.assertEqual(
+            result.nodes[3].data["location"],
+            "/output/dir/intermediate_stream002_full.mp4",
+        )
+
+    def test_returns_self(self):
+        """Test that method returns the Graph object for chaining."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="filesink",
+                    data={"location": "/tmp/out.mp4"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertIs(result, graph)
 
 
 if __name__ == "__main__":
