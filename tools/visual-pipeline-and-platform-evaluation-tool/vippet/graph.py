@@ -15,9 +15,9 @@ from resources import (
     get_public_model_proc_manager,
     get_scripts_manager,
 )
-from utils import generate_unique_filename, slugify_text
+from utils import slugify_text
 from video_decoder import VideoDecoder
-from videos import OUTPUT_VIDEO_DIR, VideosManager
+from videos import VideosManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
@@ -415,7 +415,7 @@ class Graph:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
         - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
-        - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
+        - Set default max-size-time and max-files on splitmuxsink if not already configured
 
         Returns:
             Modified Graph object with looping support
@@ -489,11 +489,12 @@ class Graph:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
 
-            # Replace splitmuxsink with fakesink (no output files during looping)
+            # Set default max-size-time and max-files on splitmuxsink if not already configured
             elif node.type == "splitmuxsink":
-                node.data.clear()  # Clear all properties to avoid invalid args for fakesink
-                node.type = "fakesink"
-                logger.debug("Replaced splitmuxsink with fakesink for looping support")
+                if not node.data.get("max-size-time"):
+                    node.data["max-size-time"] = "10000000000"
+                if not node.data.get("max-files"):
+                    node.data["max-files"] = "100"
 
         return modified_graph
 
@@ -575,27 +576,29 @@ class Graph:
         return modified_graph
 
     def prepare_intermediate_output_sinks(
-        self, pipeline_id: str, job_id: str
-    ) -> tuple["Graph", list[str]]:
+        self, output_dir: str, stream_index: int
+    ) -> "Graph":
         """
-        Prepare intermediate output sink nodes with unique filenames in the output directory.
+        Prepare intermediate output sink nodes with filenames in the given output directory.
 
-        This method handles intermediate/simulation output sinks (e.g., video recorder simulation)
+        This method handles intermediate output sinks (e.g., video recorder simulation)
         that are part of the pipeline definition. These are distinct from main output sinks
         which replace fakesink elements for user viewing (live stream or file output).
 
+        Filename format: intermediate_stream{streamidx}_{file_name}{_splitmuxsink_pattern}{ext}
+        - streamidx: three-digit zero-padded stream index
+        - file_name: slugified stem from the original location property
+        - _splitmuxsink_pattern: "_%03d" appended only for splitmuxsink nodes with max-files > 0
+        - ext: slugified original extension (defaults to ".mp4" when missing)
+
         Args:
-            pipeline_id: Pipeline identifier used in output filename generation.
-            job_id: Job identifier used in output filename generation.
+            output_dir: Directory path where intermediate output files will be placed.
+            stream_index: Stream index used in filename generation.
 
         Returns:
-            tuple: (Graph object with updated sink nodes, list of intermediate output file paths)
-
-        Iterates through all sink nodes in the pipeline graph, generates unique filenames with
-        timestamp and random suffix, updates the location to the output directory, and collects
-        the output paths.
+            Graph object with updated sink node locations.
         """
-        output_paths: list[str] = []
+        stream_idx_str = f"{stream_index:03d}"
 
         for node in self.nodes:
             # Check if node is a sink type
@@ -608,28 +611,30 @@ class Graph:
                 continue
 
             path = Path(location)
-            stem = Path(path.name).stem
-            ext = path.suffix
+            file_name = slugify_text(Path(path.name).stem)
+            ext = path.suffix if path.suffix else ".mp4"
+            ext = slugify_text(ext)
 
-            filename = slugify_text(
-                f"{stem}-intermediate_output-{pipeline_id}-{job_id}"
-            )
+            # Add splitmuxsink pattern only for splitmuxsink with max-files > 0
+            splitmux_pattern = ""
+            if node.type == "splitmuxsink":
+                max_files = node.data.get("max-files")
+                if max_files is not None:
+                    try:
+                        if int(max_files) > 0:
+                            splitmux_pattern = "_%03d"
+                    except (ValueError, TypeError):
+                        pass
 
-            # Create new filename with timestamp and suffix
-            new_filename = generate_unique_filename(f"{filename}{ext}")
-
-            # Construct new full path
-            new_path = str(Path(OUTPUT_VIDEO_DIR) / new_filename)
+            filename = f"intermediate_stream{stream_idx_str}_{file_name}{splitmux_pattern}{ext}"
+            new_path = str(Path(output_dir) / filename)
 
             # Update node's location
             node.data["location"] = new_path
 
-            # Add to output paths list
-            output_paths.append(new_path)
-
             logger.debug(f"Updated sink node {node.id}: {location} -> {new_path}")
 
-        return self, output_paths
+        return self
 
     def unify_all_element_names(
         self, pipeline_index: int, stream_index: int
@@ -2423,8 +2428,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
     """
     Convert logical video filenames back into absolute paths for file-based source nodes.
 
-    This is performed when creating a runnable pipeline description from a
-    stored graph. Only processes nodes that actually read from video files.
+    This is performed when creating a runnable pipeline description from a stored graph. Only processes nodes that actually read from video files.
 
     Args:
         nodes: List of nodes to process (modified in place)

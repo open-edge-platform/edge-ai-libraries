@@ -18,6 +18,7 @@ class TestVideoEncoderClass(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures and reset singleton."""
         VideoEncoder._instance = None
+        self.output_dir = "/tmp/test-output-dir"
         self.job_id = "test-job-123"
 
     def tearDown(self):
@@ -119,17 +120,17 @@ class TestVideoEncoderClass(unittest.TestCase):
         encoder = VideoEncoder()
 
         encoder_device = ENCODER_DEVICE_GPU
-        pipeline_id = "test-pipeline-123"
 
-        subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, self.job_id
+        subpipeline = encoder.create_video_output_subpipeline(
+            self.output_dir, encoder_device
         )
 
         self.assertIn("vah264enc", subpipeline)
         self.assertIn("h264parse", subpipeline)
         self.assertIn("mp4mux", subpipeline)
         self.assertIn("filesink location=", subpipeline)
-        self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
+        self.assertIn("main_output.mp4", subpipeline)
+        self.assertIn(self.output_dir, subpipeline)
 
     @patch("video_encoder.GstInspector")
     def test_create_video_output_subpipeline_cpu_encoder(self, mock_gst_inspector):
@@ -141,10 +142,9 @@ class TestVideoEncoderClass(unittest.TestCase):
         encoder = VideoEncoder()
 
         encoder_device = ENCODER_DEVICE_CPU
-        pipeline_id = "test-pipeline-789"
 
-        subpipeline, output_path = encoder.create_video_output_subpipeline(
-            pipeline_id, encoder_device, self.job_id
+        subpipeline = encoder.create_video_output_subpipeline(
+            self.output_dir, encoder_device
         )
 
         # Verify CPU encoder is used
@@ -152,7 +152,8 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIn("h264parse", subpipeline)
         self.assertIn("mp4mux", subpipeline)
         self.assertIn("filesink location=", subpipeline)
-        self.assertIn(f"pipeline_output-{pipeline_id}-{self.job_id}", output_path)
+        self.assertIn("main_output.mp4", subpipeline)
+        self.assertIn(self.output_dir, subpipeline)
 
     @patch("video_encoder.GstInspector")
     def test_create_video_output_subpipeline_no_encoder_found(self, mock_gst_inspector):
@@ -165,11 +166,7 @@ class TestVideoEncoderClass(unittest.TestCase):
         encoder_device = ENCODER_DEVICE_GPU
 
         with self.assertRaises(ValueError) as context:
-            encoder.create_video_output_subpipeline(
-                "test-pipeline-000",
-                encoder_device,
-                self.job_id,
-            )
+            encoder.create_video_output_subpipeline(self.output_dir, encoder_device)
 
         self.assertIn("No suitable encoder found", str(context.exception))
 
