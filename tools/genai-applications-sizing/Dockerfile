@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 FROM python:3.11-slim
 
 RUN groupadd -g 1000 appuser && \
