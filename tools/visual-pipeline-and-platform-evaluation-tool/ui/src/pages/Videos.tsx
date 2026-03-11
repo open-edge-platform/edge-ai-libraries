@@ -9,12 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
+import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
 
   if (isSuccess && videos.length > 0) {
-    const filteredVideos = videos.filter(video => !video.filename.endsWith('.ts'));
+    const filteredVideos = filterOutTransportStreams(videos);
     
     return (
       <div className="container pl-16 mx-auto py-10">

@@ -10,6 +10,7 @@ import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
 import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
+import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 type NodePropertyConfig = {
   key: string;
@@ -85,7 +86,7 @@ const NodeDataPanel = ({
     };
   });
 
-  const videoOptions = videos.filter(video => !video.filename.endsWith('.ts')).map((video) => ({
+  const videoOptions = filterOutTransportStreams(videos).map((video) => ({
     label: video.filename,
     value: video.filename,
   }));

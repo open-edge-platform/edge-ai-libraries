@@ -153,7 +153,7 @@ export const Cameras = () => {
   if (resolvedIsLoading) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-6">Loading cameras...</div>
+        <div className="container mx-auto py-10 pl-16">Loading cameras...</div>
       </div>
     );
   }
@@ -161,7 +161,7 @@ export const Cameras = () => {
   if (resolvedIsError) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-6 text-destructive">
+        <div className="container mx-auto py-10 pl-16 text-destructive">
           Failed to load cameras.
         </div>
       </div>
@@ -170,7 +170,7 @@ export const Cameras = () => {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10 pl-6">
+      <div className="container mx-auto py-10 pl-16">
         <h1 className="text-3xl font-bold">Cameras</h1>
         <p className="text-muted-foreground mt-2">No cameras discovered.</p>
       </div>

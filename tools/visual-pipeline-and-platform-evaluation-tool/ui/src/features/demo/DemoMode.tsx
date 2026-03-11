@@ -53,6 +53,7 @@ import {
   parsePipelineVariantReference,
   resolvePipelineVariantLabel,
 } from "@/features/pipeline-tests/pipelineVariantReference";
+import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 const nodeTypeToTag: Record<string, string> = {
   // Sources
@@ -276,7 +277,7 @@ const DemoMode = () => {
   const [selectedVariantByPipelineId, setSelectedVariantByPipelineId] =
     useState<Record<string, string>>({});
   const videoFilenames = useMemo(
-    () => videos.filter(video => !video.filename.endsWith('.ts')).map((video) => video.filename),
+    () => filterOutTransportStreams(videos).map((video) => video.filename),
     [videos],
   );
   const getFilenameFromPath = (value: unknown): string => {
