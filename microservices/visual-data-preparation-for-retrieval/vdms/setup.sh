@@ -29,6 +29,7 @@ export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
@@ -69,6 +70,20 @@ export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
 
 # Model storage configuration for object detection
 export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"

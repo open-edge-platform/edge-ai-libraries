@@ -51,7 +51,8 @@ services:
       retries: 40
       start_period: 5s
     devices:
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     networks:
       - my_network
     volumes:

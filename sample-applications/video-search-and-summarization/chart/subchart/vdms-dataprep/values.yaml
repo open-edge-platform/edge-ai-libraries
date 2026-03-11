@@ -132,12 +132,14 @@ embedding:
   processingMode: "sdk"
   sdkUseOpenVino: true
   device: "CPU"
+  embeddingDevice: ""
   ovModelsDir: "/app/ov_models"
   ovPerformanceMode: "THROUGHPUT"
 frameProcessing:
   frameInterval: 15
   enableObjectDetection: true
   detectionConfidence: 0.85
+  detectionDevice: ""
   detectionModelDir: "/app/models/yolox"
   framesTempDir: "/tmp/dataprep"
 sdkPipeline:

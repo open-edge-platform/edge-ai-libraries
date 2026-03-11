@@ -332,8 +332,8 @@ fi
 configure_device() {
     local device=${1:-"CPU"}
 
-    echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: embedding model, and object detection${NC}"
+    echo -e "${BLUE}Configuring baseline processing device: ${YELLOW}${device}${NC}"
+    echo -e "${BLUE}   This sets VDMS_DATAPREP_DEVICE and acts as fallback for embedding/detection unless explicitly overridden${NC}"
 
     if [[ "${device}" == GPU* ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
@@ -356,9 +356,9 @@ configure_device() {
         export VDMS_DATAPREP_DEVICE="${device}"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
-        echo -e "${GREEN}GPU mode configured for all components:${NC}"
+        echo -e "${GREEN}GPU baseline mode configured:${NC}"
         echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
+        echo -e "   • Baseline Processing Device: ${YELLOW}GPU${NC} (used as fallback for embedding/detection)"
         echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
         
     else
@@ -375,6 +375,8 @@ else
 fi
 
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
+echo -e "[vdms-dataprep] ${BLUE}Device resolution:${NC} VDMS_DATAPREP_DEVICE is the single source of truth unless EMBEDDING_DEVICE and/or DETECTION_DEVICE are explicitly overridden."
 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
@@ -401,6 +403,8 @@ if [ $1 != "--summary" ]; then
 
     echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
     echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+    echo -e "   • [vdms-dataprep] Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC}"
+    echo -e "   • [vdms-dataprep] Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC}"
     if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
         echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
     fi
@@ -544,10 +548,10 @@ fi
 # Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists (for NPU)
 if [ -e /dev/accel/accel0 ]; then
     export ACCEL_MOUNT_PATH="/dev/accel/accel0"
-    echo -e "${GREEN}/dev/accel/accel0 found. NPU device available.${NC}"
+    echo -e "${GREEN}/dev/accel/accel0 found. NPU device available and will be mounted.${NC}"
 else
     export ACCEL_MOUNT_PATH="/dev/null"
-    echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available.${NC}"
+    echo -e "${YELLOW}/dev/accel/accel0 not found, NPU not available. Will mount /dev/null instead.${NC}"
 fi
 
 # Function to convert object detection models

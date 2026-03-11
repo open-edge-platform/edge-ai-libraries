@@ -270,6 +270,43 @@ Before running the application, you need to set several environment variables:
 
     > **Note**: SDK mode is recommended for most deployments as it avoids inter-container HTTP overhead. Set `EMBEDDING_PROCESSING_MODE=api` if you need the embedding model served as a standalone microservice.
 
+12. **Select devices per processing component (Search and Unified UI mode)**:
+
+    You can keep a baseline device with `VDMS_DATAPREP_DEVICE`, then override embedding and detection independently when needed.
+
+    ```bash
+    # Baseline fallback for DataPrep runtime
+    export VDMS_DATAPREP_DEVICE=CPU
+
+    # Optional per-component overrides
+    export EMBEDDING_DEVICE=GPU
+    export DETECTION_DEVICE=CPU
+    ```
+
+    `VDMS_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection unless you explicitly override component-level execution with `EMBEDDING_DEVICE` and/or `DETECTION_DEVICE`.
+
+    If `EMBEDDING_DEVICE` or `DETECTION_DEVICE` is not set, each one inherits `VDMS_DATAPREP_DEVICE` automatically.
+
+    > **Mode note:** `EMBEDDING_DEVICE` applies to embedding execution when `EMBEDDING_PROCESSING_MODE=sdk` (in-process DataPrep embedding). When `EMBEDDING_PROCESSING_MODE=api`, embeddings run in the multimodal embedding microservice, and `ENABLE_EMBEDDING_GPU=true` is the effective switch to move that service to GPU.
+
+13. **Set advanced VLM configuration options (Summary and Dual UI mode)**:
+
+    The following environment variable provides additional control over VLM inference behavior and logging.
+
+    ```bash
+    # (Optional) OpenVINO configuration for VLM inference optimization
+    # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
+    # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
+    # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
+
+    # Throughput-optimized configuration
+    export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
+    ```
+
+    > **_IMPORTANT:_** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
+    > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
+    > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
+
 **🔐 Work with Gated Models**
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
@@ -516,6 +553,16 @@ Follow these steps to run the application:
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Intel/neural-chat-7b-v3-3 source setup.sh --summary-and-search
    ```
 
+> **Note:** In `EMBEDDING_PROCESSING_MODE=sdk`, embedding execution follows `EMBEDDING_DEVICE` in DataPrep. In `EMBEDDING_PROCESSING_MODE=api`, embedding execution is handled by the embedding microservice and `ENABLE_EMBEDDING_GPU=true` controls GPU offload there.
+
+To offload only specific DataPrep components during search (for example, keep baseline on CPU and move detection to GPU):
+
+```bash
+VDMS_DATAPREP_DEVICE=CPU EMBEDDING_DEVICE=CPU DETECTION_DEVICE=GPU source setup.sh --search
+```
+
+To verify the configuration and resolved environment variables without running the application:
+
 #### Use NPU acceleration for the final-summary LLM (split-model mode):
 
    ```bash
@@ -563,7 +610,14 @@ Follow these steps to run the application:
    ENABLE_EMBEDDING_GPU=true source setup.sh config --search --summary        # for Dual UI mode
    ```
 
+   ```bash
+   # For component-specific offload in DataPrep
+   VDMS_DATAPREP_DEVICE=CPU EMBEDDING_DEVICE=CPU DETECTION_DEVICE=GPU source setup.sh --search config
+   ```
+
 > **Tip:** `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
+
+> **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
 
 ## Access the Application
 

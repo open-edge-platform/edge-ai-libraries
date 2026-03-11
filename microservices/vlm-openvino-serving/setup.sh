@@ -37,6 +37,20 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
+
 export VLM_SERVICE_PORT=${VLM_SERVICE_PORT:-9764}
 export VLM_SEED=${VLM_SEED:-42}
 export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}

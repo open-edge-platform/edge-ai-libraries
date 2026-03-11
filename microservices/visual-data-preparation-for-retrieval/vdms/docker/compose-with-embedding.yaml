@@ -66,6 +66,7 @@ services:
             - EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-sdk}
             - SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
             - VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-CPU}
+            - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
             - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
             - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-32}
             - MAX_PARALLEL_WORKERS=${MAX_PARALLEL_WORKERS:-}
@@ -90,6 +91,7 @@ services:
 
             # Object detection model directory
             - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            - DETECTION_DEVICE=${DETECTION_DEVICE:-CPU}
 
             # ROI consolidation settings
             - ROI_CONSOLIDATION_ENABLED=${ROI_CONSOLIDATION_ENABLED:-false}
@@ -112,7 +114,12 @@ services:
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
-            - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
         depends_on:
             - minio-server
             # - multimodal-embedding-serving
@@ -128,7 +135,7 @@ services:
             http_proxy: ${http_proxy}
             https_proxy: ${https_proxy}
             EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
-            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-CPU}
             EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
             EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
             DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
@@ -148,7 +155,8 @@ services:
             retries: 40
             start_period: 5s
         devices:
-            - /dev/dri:/dev/dri
+            - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+            - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
         networks:
             - default
         volumes:

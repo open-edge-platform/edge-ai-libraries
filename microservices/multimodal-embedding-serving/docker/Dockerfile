@@ -63,6 +63,15 @@ RUN chmod +x /tmp/install_gpu_drivers.sh && \
 /tmp/install_gpu_drivers.sh && \
 apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
+RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
+    apt-get update && apt-get install -y --no-install-recommends libtbb12 && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.28.0/linux-npu-driver-v1.28.0.20251218-20347000698-ubuntu2404.tar.gz && \
+    tar -xf linux-npu-driver-v1.28.0.20251218-20347000698-ubuntu2404.tar.gz && \
+    curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u24.04_amd64.deb ; \
+    dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
+    apt-get clean ; \
+    rm -rf /var/lib/apt/lists/*
+
 # Optionally download copyleft sources if requested
 RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         apt-get update && \

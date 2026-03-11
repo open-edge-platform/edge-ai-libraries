@@ -41,7 +41,54 @@ services:
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
       AUDIO_HOST: ${AUDIO_ENDPOINT}
       AUDIO_DEVICE: CPU
-      SUMMARY_FEATURE: "FEATURE_ON"
+      SEARCH_ENDPOINT: ""
+      SEARCH_DATAPREP_ENDPOINT: ""
+      SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
+      SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
+      USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
+      WORKERS: ${WORKERS:-1}
+
+  vlm-openvino-serving:
+    image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
+    ipc: host
+    ports:
+      - "${VLM_HOST_PORT}:8000"
+    environment:
+      no_proxy: ${no_proxy},${MINIO_HOST},localhost
+      no_proxy_env: ${no_proxy},${MINIO_HOST},localhost
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      VLM_MODEL_NAME: ${VLM_MODEL_NAME}
+      VLM_COMPRESSION_WEIGHT_FORMAT: ${VLM_COMPRESSION_WEIGHT_FORMAT}
+      VLM_DEVICE: ${VLM_DEVICE}
+      VLM_SEED: ${VLM_SEED}
+      WORKERS: ${WORKERS:-1}
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+      OV_CONFIG: ${OV_CONFIG}
+      VLM_LOG_LEVEL: ${VLM_LOG_LEVEL:-info}
+      OPENVINO_LOG_LEVEL: ${VLM_OPENVINO_LOG_LEVEL:-1}
+      VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
+      VLM_TELEMETRY_PATH: ${VLM_TELEMETRY_PATH:-/opt/vlm_telemetry.jsonl}
+      VLM_TELEMETRY_MAX_RECORDS: ${VLM_TELEMETRY_MAX_RECORDS:-100}
+    restart: unless-stopped
+    devices:
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+      - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
+    group_add:
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
+    volumes:
+      - ov-models:/home/appuser/.cache/huggingface
+      - ov-models:/app/ov-model
+    networks:
+      - vs_network
 
   ovms-service:
     image: openvino/model_server:2026.1
@@ -161,6 +208,10 @@ services:
     depends_on:
       minio-service:
         condition: service_healthy
+    group_add:
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
     devices:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     restart: unless-stopped

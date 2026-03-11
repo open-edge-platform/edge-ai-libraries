@@ -30,8 +30,14 @@ data:
   SDK_USE_OPENVINO: "true"
   VDMS_DATAPREP_DEVICE: "GPU"
   DEVICE: "GPU"
+  {{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.env.EMBEDDING_DEVICE | default "GPU" }}
+  {{- $detectionDevice := .Values.frameProcessing.detectionDevice | default .Values.global.env.DETECTION_DEVICE | default "GPU" }}
+  EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
+  DETECTION_DEVICE: {{ $detectionDevice | quote }}
   {{- else }}
   {{- $dataprepDevice := .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default .Values.global.env.VDMS_DATAPREP_DEVICE | default .Values.global.env.DEVICE | default "CPU" }}
+  {{- $embeddingDevice := .Values.embedding.embeddingDevice | default .Values.global.env.EMBEDDING_DEVICE | default $dataprepDevice }}
+  {{- $detectionDevice := .Values.frameProcessing.detectionDevice | default .Values.global.env.DETECTION_DEVICE | default $dataprepDevice }}
   {{- if hasKey .Values.embedding "sdkUseOpenVino" }}
   SDK_USE_OPENVINO: {{ printf "%v" .Values.embedding.sdkUseOpenVino | quote }}
   {{- else if hasKey .Values.global.env "SDK_USE_OPENVINO" }}
@@ -41,6 +47,8 @@ data:
   {{- end }}
   VDMS_DATAPREP_DEVICE: {{ $dataprepDevice | quote }}
   DEVICE: {{ $dataprepDevice | quote }}
+  EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
+  DETECTION_DEVICE: {{ $detectionDevice | quote }}
   {{- end }}
   OV_MODELS_DIR: {{ .Values.embedding.ovModelsDir | default .Values.global.env.OV_MODELS_DIR | default "/app/ov_models" | quote }}
   OV_PERFORMANCE_MODE: {{ .Values.embedding.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}

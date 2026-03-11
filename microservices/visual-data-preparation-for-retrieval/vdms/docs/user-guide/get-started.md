@@ -29,7 +29,9 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
-| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
+| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Baseline processing device used as fallback for embedding and detection when per-component overrides are not set (`CPU`, `GPU`, or `NPU`). |
+| `EMBEDDING_DEVICE` | Optional | `VDMS_DATAPREP_DEVICE` | Explicit device override for embedding execution (`CPU`, `GPU`, or `NPU`). |
+| `DETECTION_DEVICE` | Optional | `VDMS_DATAPREP_DEVICE` | Explicit device override for object detection execution (`CPU`, `GPU`, or `NPU`). |
 | `EMBEDDING_BATCH_SIZE` | Optional | `32` | Number of items sent per SDK embedding batch. |
 | `MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for SDK parallel workers when auto-scaling is too aggressive for the host. |
 | `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
@@ -54,6 +56,8 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
 | `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
+`VDMS_DATAPREP_DEVICE` is the single source of truth for DataPrep device selection unless you explicitly override component-level execution with `EMBEDDING_DEVICE` and/or `DETECTION_DEVICE`.
+
 ### Advanced tuning
 
 Additional environment variables are available for high-throughput scenarios:
@@ -73,6 +77,8 @@ export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
 export EMBEDDING_PROCESSING_MODE="sdk"
+export EMBEDDING_DEVICE="CPU"
+export DETECTION_DEVICE="CPU"
 source ./setup.sh --nosetup
 ```
 
@@ -251,4 +257,4 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, `VDMS_DATAPREP_DEVICE=GPU`, and `SDK_USE_OPENVINO=true`.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`VDMS_DATAPREP_DEVICE`, `EMBEDDING_DEVICE`, or `DETECTION_DEVICE`) to `GPU`, and keep `SDK_USE_OPENVINO=true`.

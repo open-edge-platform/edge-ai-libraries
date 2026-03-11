@@ -61,8 +61,8 @@ export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 configure_device() {
     local device=${1:-"CPU"}
     
-    echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: decord video processing, embedding model, and object detection${NC}"
+    echo -e "${BLUE}Configuring baseline processing device: ${YELLOW}${device}${NC}"
+    echo -e "${BLUE}   VDMS_DATAPREP_DEVICE is the single source of truth unless EMBEDDING_DEVICE or DETECTION_DEVICE is explicitly set${NC}"
     
     if [[ "${device}" == "GPU" ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
@@ -85,13 +85,13 @@ configure_device() {
         export VDMS_DATAPREP_DEVICE="GPU"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
-        echo -e "${GREEN}GPU mode configured for all components:${NC}"
+        echo -e "${GREEN}GPU baseline mode configured:${NC}"
         echo -e "   • OpenVINO: ${YELLOW}enabled${NC} (required for GPU)"
-        echo -e "   • Processing Device: ${YELLOW}GPU${NC} (decord, embedding, detection)"
+        echo -e "   • Baseline Processing Device: ${YELLOW}GPU${NC} (used unless embedding/detection overrides are set)"
         echo -e "   • Video decoding: ${YELLOW}GPU-accelerated${NC}"
         
     else
-        echo -e "${BLUE} CPU mode configured for all components${NC}"
+        echo -e "${BLUE} CPU baseline mode configured${NC}"
         export VDMS_DATAPREP_DEVICE="CPU"
     fi
 }
@@ -103,8 +103,9 @@ else
     configure_device "CPU"
 fi
 
-# Align EMBEDDING_DEVICE with resolved device for SDK runtime configuration
+# VDMS_DATAPREP_DEVICE remains the single source of truth unless explicitly overridden below
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
+export DETECTION_DEVICE=${DETECTION_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
@@ -148,6 +149,20 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
+
 # Model path configuration
 # Note: All OpenVINO models use the same directory for consistency
 
@@ -171,7 +186,9 @@ echo -e "${BLUE}Current Configuration:${NC}"
 echo -e "   Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
 echo -e "   Registry: ${YELLOW}${REGISTRY}${NC}"
 echo -e "   Model: ${YELLOW}${EMBEDDING_MODEL_NAME}${NC}"
-echo -e "   Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC}"
+echo -e "   DataPrep Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC}"
+echo -e "   Embedding Device: ${YELLOW}${EMBEDDING_DEVICE}${NC}"
+echo -e "   Detection Device: ${YELLOW}${DETECTION_DEVICE}${NC}"
 echo -e "   OpenVINO: ${YELLOW}${SDK_USE_OPENVINO}${NC}"
 echo -e "   OpenVINO Performance Mode: ${YELLOW}${OV_PERFORMANCE_MODE}${NC}"
 echo -e "   DataPrep Log Level: ${YELLOW}${VDMS_DATAPREP_LOG_LEVEL}${NC}"
@@ -181,6 +198,8 @@ echo -e "   • To use SDK mode (optimized memory usage, default): ${YELLOW}expo
 echo -e "   • To use API mode: ${YELLOW}export EMBEDDING_PROCESSING_MODE=api${NC}"
 echo -e "   • For GPU acceleration: ${YELLOW}export VDMS_DATAPREP_DEVICE=GPU${NC} (requires Intel GPU)"
 echo -e "   • For CPU processing: ${YELLOW}export VDMS_DATAPREP_DEVICE=CPU${NC}"
+echo -e "   • To offload embedding independently: ${YELLOW}export EMBEDDING_DEVICE=GPU${NC}"
+echo -e "   • To offload detection independently: ${YELLOW}export DETECTION_DEVICE=GPU${NC}"
 echo -e "   • For OpenVINO optimization: ${YELLOW}export SDK_USE_OPENVINO=true${NC} (default)"
 echo -e "   • To set DataPrep log level: ${YELLOW}export VDMS_DATAPREP_LOG_LEVEL=DEBUG${NC}"
 
