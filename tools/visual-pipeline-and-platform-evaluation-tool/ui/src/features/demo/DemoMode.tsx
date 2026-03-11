@@ -1892,10 +1892,6 @@ const DemoMode = () => {
                                                                 }
                                                                 className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                               >
-                                                                <option value="">
-                                                                  Select
-                                                                  filename
-                                                                </option>
                                                                 {videoFilenames.map(
                                                                   (
                                                                     filename,

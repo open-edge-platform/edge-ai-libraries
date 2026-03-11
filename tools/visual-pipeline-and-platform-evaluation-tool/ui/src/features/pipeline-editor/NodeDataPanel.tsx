@@ -227,9 +227,6 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    <option value="">
-                      Select {propConfig?.label ?? keyStr}
-                    </option>
                     {(selectedNode.type === "filesrc"
                       ? videoOptions
                       : editableData.kind === "camera"
@@ -263,7 +260,6 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    <option value="">Select {propConfig?.label}</option>
                     {propConfig?.options?.map((option) => (
                       <option key={option} value={option}>
                         {option}
