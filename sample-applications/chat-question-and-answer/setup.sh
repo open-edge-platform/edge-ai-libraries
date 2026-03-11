@@ -193,12 +193,7 @@ download_ovms_model() {
 
     # Submit download request
     local POST_RESPONSE
-    local EXTRA_CONFIG=""
-    if [[ "$MODEL_TYPE" == "embeddings" ]]; then
-        EXTRA_CONFIG=', "extra_quantization_params": "--library sentence_transformers"'
-    fi
-
-    POST_RESPONSE=$( \
+    POST_RESPONSE=$(
         curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -211,11 +206,11 @@ download_ovms_model() {
                         \"config\": {
                             \"precision\": \"${WEIGHT_FORMAT}\",
                             \"device\": \"${DEVICE}\",
-                            \"cache_size\": \"${OVMS_CACHE_SIZE}\"${EXTRA_CONFIG}
+                            \"cache_size\": \"${OVMS_CACHE_SIZE}\"
                         }
                     }
                 ]
-            }" \
+            }"
     )
 
     # Check if POST_RESPONSE is empty or contains an error
