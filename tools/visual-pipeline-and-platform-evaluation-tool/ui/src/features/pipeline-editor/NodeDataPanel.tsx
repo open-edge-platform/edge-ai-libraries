@@ -240,7 +240,9 @@ const NodeDataPanel = ({
                         key={(option.value || option.label) as string}
                         value={option.value}
                         disabled={
-                          "disabled" in option ? Boolean(option.disabled) : false
+                          "disabled" in option
+                            ? Boolean(option.disabled)
+                            : false
                         }
                         className={
                           "disabled" in option && option.disabled

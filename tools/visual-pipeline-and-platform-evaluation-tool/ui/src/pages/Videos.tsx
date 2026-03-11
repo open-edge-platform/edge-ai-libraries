@@ -13,10 +13,10 @@ import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
-  const filteredVideos = isSuccess && videos ? filterOutTransportStreams(videos) : [];
+  const filteredVideos =
+    isSuccess && videos ? filterOutTransportStreams(videos) : [];
 
   if (isSuccess && filteredVideos.length > 0) {
-    
     return (
       <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">

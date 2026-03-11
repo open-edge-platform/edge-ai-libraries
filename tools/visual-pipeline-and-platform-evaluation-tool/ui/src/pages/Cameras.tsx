@@ -72,7 +72,9 @@ export const Cameras = () => {
   const resolvedIsSuccess = isCameraMockEnabled ? true : isSuccess;
   const resolvedIsLoading = isCameraMockEnabled ? false : isLoading;
   const resolvedIsError = isCameraMockEnabled ? false : isError;
-  const refetchCameras = isCameraMockEnabled ? () => Promise.resolve() : refetch;
+  const refetchCameras = isCameraMockEnabled
+    ? () => Promise.resolve()
+    : refetch;
 
   if (resolvedIsSuccess && resolvedCameras.length > 0) {
     return (
@@ -116,12 +118,8 @@ export const Cameras = () => {
                       ? `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`
                       : (usbDetails?.device_path ?? "-")}
                   </TableCell>
-                  <TableCell>
-                    {formatCameraResolution(camera)}
-                  </TableCell>
-                  <TableCell>
-                    {formatCameraFramerate(camera)}
-                  </TableCell>
+                  <TableCell>{formatCameraResolution(camera)}</TableCell>
+                  <TableCell>{formatCameraFramerate(camera)}</TableCell>
                   <TableCell>
                     {isNetworkCamera ? (
                       (networkDetails?.profiles?.length ?? 0) > 0 ? (

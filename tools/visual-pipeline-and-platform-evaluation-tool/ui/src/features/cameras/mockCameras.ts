@@ -6,7 +6,8 @@ const isMockCamerasFromQuery =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("mockCameras") === "1";
 
-export const isCameraMockEnabled = isMockCamerasFromEnv || isMockCamerasFromQuery;
+export const isCameraMockEnabled =
+  isMockCamerasFromEnv || isMockCamerasFromQuery;
 
 export const mockCameras: Camera[] = [
   {
