@@ -107,8 +107,8 @@ Each entry in `pipeline_density_specs` can use one of the following pipeline sou
 
 Common request validation errors:
 
-- `pipeline_density_specs cannot be empty`
-- `Pipeline stream_rate ratios must sum to 100%`
+- `Pipeline` field cannot be empty`
+- `Participation Rate` -  must sum to 100% for all pipelines
 - Duplicate pipeline identifier in one request
 
 ## Result interpretation
