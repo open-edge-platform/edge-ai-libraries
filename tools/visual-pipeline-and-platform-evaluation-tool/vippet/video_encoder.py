@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
-from utils import generate_unique_filename, slugify_text
-from videos import OUTPUT_VIDEO_DIR
+from utils import slugify_text
 
 # Constants for encoder device types
 ENCODER_DEVICE_CPU = "CPU"
@@ -117,28 +116,28 @@ class VideoEncoder:
 
     def create_video_output_subpipeline(
         self,
-        pipeline_id: str,
+        output_dir: str,
         encoder_device: str,
-        job_id: str,
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
         Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
 
         This method generates a GStreamer sub-pipeline containing all required elements
         (h264 encoder, parser, muxer, and filesink) to replace one fakesink element.
 
+        The output file is always named "main_output.mp4" and placed in the given output directory.
+
         Note: This method is only used for file output (output_mode=file), which does not
         support looping. Standard encoders are always used.
 
         Args:
-            pipeline_id: Pipeline ID used to generate unique output filename
+            output_dir: Directory path where the main output file will be placed.
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
-            job_id: Unique job identifier used to generate unique output filename
 
         Returns:
-            Tuple of (sub-pipeline string, output file path)
+            Sub-pipeline string for replacing fakesink.
 
         Raises:
             ValueError: If encoder_device is invalid or no suitable encoder is found
@@ -155,10 +154,8 @@ class VideoEncoder:
                 f"No suitable encoder found for encoder_device: {encoder_device}"
             )
 
-        filename = slugify_text(f"pipeline_output-{pipeline_id}-{job_id}")
-        # Generate unique output path using pipeline_id and job_id
-        output_filename = generate_unique_filename(f"{filename}.mp4")
-        output_path = str(Path(OUTPUT_VIDEO_DIR) / output_filename)
+        # Fixed output filename placed in the pipeline output directory
+        output_path = str(Path(output_dir) / "main_output.mp4")
 
         # Create sub-pipeline string with all required elements for replacing fakesink
         video_output_subpipeline = (
@@ -169,7 +166,7 @@ class VideoEncoder:
             f"Created video output sub-pipeline: {video_output_subpipeline}"
         )
 
-        return video_output_subpipeline, output_path
+        return video_output_subpipeline
 
     def create_live_stream_output_subpipeline(
         self,
