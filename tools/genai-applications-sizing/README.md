@@ -26,8 +26,6 @@ tools/genai-applications-sizing/
 │   └── utils.py               # Common utility functions
 ├── data/                      # Sample input data
 │   └── file.txt               # Sample text file for profiling
-├── docs/                      # Documentation
-│   └── user-guide/            # User guides and tutorials
 ├── profiles/                  # Configuration profiles
 │   ├── profiles.yaml          # Input profiles definitions (videos, queries, prompts)
 │   ├── chatqna-config.yaml    # Configuration for ChatQnA modular application
