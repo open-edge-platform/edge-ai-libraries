@@ -27,6 +27,11 @@ export interface MetricChartProps {
   showLegend?: boolean;
   labels?: string[];
   maxDataPoints?: number;
+  isSummary?: boolean;
+  hideSummaryBorder?: boolean;
+  forceDark?: boolean;
+  useDemoStyles?: boolean;
+  wrapLegend?: boolean;
 }
 
 export const MetricChart = ({
@@ -40,6 +45,11 @@ export const MetricChart = ({
   showLegend = true,
   labels,
   maxDataPoints = 60,
+  isSummary = false,
+  hideSummaryBorder = false,
+  forceDark = false,
+  useDemoStyles = false,
+  wrapLegend = false,
 }: MetricChartProps) => {
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
@@ -105,18 +115,58 @@ export const MetricChart = ({
     return `${seconds}s`;
   };
 
+  const isCompact = className?.includes("!h-");
+  const hasTitle = title.trim().length > 0;
+
   return (
     <div
-      className={`bg-background shadow-md p-4 max-w-full overflow-hidden ${className}`}
+      className={`${
+        useDemoStyles
+          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          : "bg-background"
+      } ${useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md"} ${isCompact ? "p-4 pb-6" : "p-4"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
+        isSummary && !hideSummaryBorder
+          ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+          : useDemoStyles
+            ? forceDark
+              ? "border border-neutral-800/50"
+              : "border border-border"
+            : ""
+      } ${className}`}
     >
-      <h3 className="text-sm font-medium text-foreground mb-8">{title}</h3>
+      {hasTitle && (
+        <h3
+          className={`${
+            useDemoStyles
+              ? `text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
+                  isSummary && !hideSummaryBorder
+                    ? "text-energy-blue-tint-1"
+                    : "text-neutral-400"
+                }`
+              : "text-sm font-medium text-foreground mb-5"
+          }`}
+        >
+          {title}
+        </h3>
+      )}
       <div className="relative">
         <ChartContainer
           config={chartConfig}
-          className={showLegend ? "h-[230px] w-full" : "h-[200px] w-full"}
+          className={
+            isCompact
+              ? "h-[80px] w-full"
+              : useDemoStyles
+                ? "h-[250px] w-full"
+                : "h-[230px] w-full"
+          }
         >
           <AreaChart data={formattedData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#404040"
+              opacity={0.3}
+            />
             <XAxis
               dataKey="time"
               tickLine={false}
@@ -125,6 +175,7 @@ export const MetricChart = ({
               tickFormatter={() => ""}
               minTickGap={40}
               interval="preserveStartEnd"
+              stroke="#737373"
             />
             <YAxis
               tickLine={false}
@@ -134,10 +185,19 @@ export const MetricChart = ({
               tickFormatter={(value) => `${value}${unit}`}
               width={80}
               allowDecimals={false}
+              stroke="#737373"
+              tickCount={isCompact ? 3 : undefined}
             />
             <ChartTooltip
               content={
                 <ChartTooltipContent
+                  className={
+                    useDemoStyles
+                      ? forceDark
+                        ? "bg-neutral-900 border-neutral-700 text-white"
+                        : "bg-popover border-border text-popover-foreground"
+                      : "bg-neutral-900 border-neutral-700 text-white"
+                  }
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
@@ -150,7 +210,15 @@ export const MetricChart = ({
                 />
               }
             />
-            {showLegend && <ChartLegend content={<ChartLegendContent />} />}
+            {showLegend && (
+              <ChartLegend
+                content={
+                  <ChartLegendContent
+                    className={`${useDemoStyles ? (forceDark ? "text-white" : "text-foreground") : "text-foreground"} text-[8px] ${wrapLegend ? "flex-wrap gap-x-3 gap-y-1" : ""}`}
+                  />
+                }
+              />
+            )}
             {dataKeys.map((key, index) => (
               <Area
                 key={key}
@@ -158,20 +226,21 @@ export const MetricChart = ({
                 dataKey={key}
                 stroke={colors[index]}
                 fill={colors[index]}
-                fillOpacity={0.2}
-                strokeWidth={2}
+                fillOpacity={0.3}
+                strokeWidth={2.5}
                 isAnimationActive={false}
               />
             ))}
           </AreaChart>
         </ChartContainer>
         <div
-          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : "bottom-0"}`}
+          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : isCompact ? "bottom-[-8px]" : "bottom-0"}`}
         >
-          <span className="text-xs text-muted-foreground">{totalTime}</span>
+          <span className="text-xs text-neutral-500 font-semibold">
+            {totalTime}
+          </span>
         </div>
       </div>
-      {!showLegend && <div className="h-[30px]" />}
     </div>
   );
 };

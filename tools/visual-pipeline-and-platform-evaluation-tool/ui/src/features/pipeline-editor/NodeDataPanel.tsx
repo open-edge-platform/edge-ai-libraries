@@ -4,10 +4,12 @@ import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { sourceNodeConfig } from "./nodes/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
+import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
 
 type NodePropertyConfig = {
   key: string;
@@ -38,6 +40,40 @@ const NodeDataPanel = ({
 }: NodeDataPanelProps) => {
   const [editableData, setEditableData] = useState<Record<string, unknown>>({});
   const models = useAppSelector(selectModels);
+  const { data: cameras = [] } = useGetCamerasQuery();
+  const { data: videos = [] } = useGetVideosQuery();
+
+  const cameraOptions = cameras.map((camera) => {
+    const details = camera.details as Record<string, unknown> | undefined;
+    let value = "";
+
+    if (camera.device_type === "USB") {
+      const devicePath =
+        details && typeof details === "object" && "device_path" in details
+          ? details["device_path"]
+          : undefined;
+      value = typeof devicePath === "string" ? devicePath : "";
+    } else {
+      const bestProfile =
+        details && typeof details === "object" && "best_profile" in details
+          ? details["best_profile"]
+          : undefined;
+      const rtspUrl =
+        bestProfile &&
+        typeof bestProfile === "object" &&
+        "rtsp_url" in (bestProfile as Record<string, unknown>)
+          ? (bestProfile as Record<string, unknown>)["rtsp_url"]
+          : undefined;
+      value = typeof rtspUrl === "string" ? rtspUrl : "";
+    }
+
+    return { label: camera.device_name, value };
+  });
+
+  const videoOptions = videos.map((video) => ({
+    label: video.filename,
+    value: video.filename,
+  }));
 
   useEffect(() => {
     if (selectedNode) {
@@ -76,6 +112,8 @@ const NodeDataPanel = ({
         return gvaClassifyConfig;
       case "gvadetect":
         return gvaDetectConfig;
+      case "source":
+        return sourceNodeConfig;
       default:
         return null;
     }
@@ -166,6 +204,30 @@ const NodeDataPanel = ({
                     onChange={(val) => handleInputChange(keyStr, val)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   />
+                ) : (selectedNode.type === "source" && keyStr === "source") ||
+                  (selectedNode.type === "filesrc" && keyStr === "location") ? (
+                  <select
+                    value={String(value ?? "")}
+                    onChange={(e) => handleInputChange(keyStr, e.target.value)}
+                    className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
+                  >
+                    <option value="">
+                      Select {propConfig?.label ?? keyStr}
+                    </option>
+                    {(selectedNode.type === "filesrc"
+                      ? videoOptions
+                      : editableData.kind === "camera"
+                        ? cameraOptions
+                        : videoOptions
+                    ).map((option) => (
+                      <option
+                        key={(option.value || option.label) as string}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
                     value={String(value ?? "")}

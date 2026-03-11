@@ -24,7 +24,7 @@
 #include <mutex>
 #include <queue>
 
-#define MAX_DEVICES 16
+#define MAX_DEVICES 256  // Increased from 16 to handle many DeviceMemory objects
 
 enum MemoryType
 {
@@ -148,9 +148,9 @@ private:
 
   DeviceType type_;
 
-  DeviceImpl * devImpl_;
+  DeviceImpl * devImpl_ = nullptr;
 
-  int devId_;
+  int devId_ = -1;  // Initialize to -1 (not allocated)
 
   DeviceSlotQueue global_slots;
 };

@@ -44,4 +44,15 @@ export const selectPipelineById = (state: RootState, pipelineId: string) =>
 export const selectPipelineNameById = (state: RootState, pipelineId: string) =>
   selectPipelinesMap(state).get(pipelineId)?.name ?? pipelineId;
 
+export const selectVariantNameById = (
+  state: RootState,
+  pipelineId: string,
+  variantId?: string,
+) => {
+  if (!variantId) return undefined;
+  const pipeline = selectPipelinesMap(state).get(pipelineId);
+  const variant = pipeline?.variants.find((v) => v.id === variantId);
+  return variant?.name ?? variantId;
+};
+
 export default pipelinesSlice.reducer;

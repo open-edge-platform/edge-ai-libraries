@@ -110,20 +110,17 @@ def fetch_images_per_category(base_dir, config):
 
 
 def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
-    """Generate a video from images with multiple encoders (x264, x265, vp8, vp9, av1, mpeg4, prores, mpeg2, theora)."""
+    """Generate a video from images with multiple encoders (openh264, vp8, vp9, mpeg4, prores)."""
     caps = f"image/jpeg,framerate={frame_rate}/1"
     decoding = "jpegdec"
 
     # Parser and muxer mappings for each encoder (all lowercase keys)
     parser_muxer_map = {
         "h264": ("h264parse", "mp4mux"),
-        "hevc": ("h265parse", "mp4mux"),
         "vp8": ("", "webmmux"),
         "vp9": ("", "webmmux"),
-        "av1": ("", "matroskamux"),
         "mpeg4": ("", "avimux"),
         "prores": ("", "qtmux"),
-        "theora": ("", "oggmux"),
     }
 
     # Convert the encoding to lowercase for case-insensitive comparison
@@ -135,40 +132,27 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
     parser, muxer = parser_muxer_map[encoding_lower]
 
     # Encoder settings with dynamic bitrate
+    # Note: openh264enc uses bitrate in bps (bitrate * 1000)
     encoder_settings = {
         "h264": [
-            "x264enc",
-            f"bitrate={bitrate}",
-            "speed-preset=fast",
-            "tune=zerolatency",
-        ],
-        "hevc": [
-            "x265enc",
-            f"bitrate={bitrate}",
-            "speed-preset=fast",
-            "tune=zerolatency",
-            "!",
-            "h265parse",
+            "openh264enc",
+            f"bitrate={bitrate * 1000}",
+            "complexity=low",
         ],
         "vp8": ["vp8enc", f"target-bitrate={bitrate}", "deadline=1000000"],
         "vp9": ["vp9enc", f"target-bitrate={bitrate}", "deadline=1000000"],
-        "av1": ["av1enc", f"target-bitrate={bitrate}"],
         "mpeg4": ["avenc_mpeg4", f"bitrate={bitrate}"],
         "prores": ["avenc_prores", f"bitrate={bitrate}"],
-        "theora": ["theoraenc", f"bitrate={bitrate}"],
     }
 
     # Automatically append the extension based on encoding if not provided
     if "." not in output_file:
         extension_map = {
             "h264": ".mp4",
-            "hevc": ".mp4",
             "vp8": ".webm",
             "vp9": ".webm",
-            "av1": ".mkv",
             "mpeg4": ".avi",
             "prores": ".mov",
-            "theora": ".ogg",
         }
         output_file += extension_map.get(encoding_lower, ".mp4")
 
@@ -186,6 +170,13 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
         "videoconvert",
         "!",
         *encoder_settings[encoding_lower],
+    ]
+
+    # Add parser element if defined (e.g., h264parse between encoder and muxer)
+    if parser:
+        gst_command += ["!", parser]
+
+    gst_command += [
         "!",
         muxer,
         "!",
