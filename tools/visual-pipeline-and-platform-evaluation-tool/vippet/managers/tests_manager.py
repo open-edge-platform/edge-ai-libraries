@@ -22,6 +22,7 @@ from internal_types import (
 from pipeline_runner import PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
+from videos import collect_video_outputs_from_dirs
 
 logger = logging.getLogger("tests_manager")
 
@@ -317,6 +318,9 @@ class TestsManager:
         The details list is cleared when transitioning to a new state, then
         new entries for that state are appended.
 
+        After pipeline completes, output directory paths are scanned to collect
+        the actual video file lists using collect_video_outputs_from_dirs().
+
         Args:
             job_id: Job identifier.
             internal_spec: Internal test specification with resolved pipeline information.
@@ -345,7 +349,8 @@ class TestsManager:
                 return
 
             # Build pipeline command from specs
-            pipeline_command, video_output_paths, live_stream_urls = (
+            # video_output_dirs maps pipeline IDs to their output directory paths
+            pipeline_command, video_output_dirs, live_stream_urls = (
                 self.pipeline_manager.build_pipeline_command(
                     internal_spec.pipeline_performance_specs,
                     internal_spec.execution_config,
@@ -393,6 +398,9 @@ class TestsManager:
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
             )
+
+            # Collect actual video file lists from output directories after pipeline completes
+            video_output_paths = collect_video_outputs_from_dirs(video_output_dirs)
 
             # Update job with results
             with self._jobs_lock:
@@ -473,6 +481,10 @@ class TestsManager:
         regardless of exit code, because partial benchmark results are
         not meaningful.
 
+        After benchmark completes, output directory paths from the best result
+        are scanned to collect the actual video file lists using
+        collect_video_outputs_from_dirs().
+
         The details list is cleared when transitioning to a new state, then
         new entries for that state are appended.
 
@@ -510,6 +522,11 @@ class TestsManager:
                 job_id=job_id,
             )
 
+            # Collect actual video file lists from output directories after benchmark completes
+            video_output_paths = collect_video_outputs_from_dirs(
+                results.video_output_paths
+            )
+
             # Update job with results
             with self._jobs_lock:
                 if job_id in self.jobs:
@@ -539,7 +556,7 @@ class TestsManager:
                         job.per_stream_fps = results.per_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
-                        job.video_output_paths = results.video_output_paths
+                        job.video_output_paths = video_output_paths
 
                 # Clean up benchmark after completion regardless of outcome
                 self.runners.pop(job_id, None)

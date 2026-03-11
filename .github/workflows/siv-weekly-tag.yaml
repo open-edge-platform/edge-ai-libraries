@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
     - name: Checkout repository with submodules
@@ -103,20 +104,51 @@ jobs:
         echo "✅ Commit created: $COMMIT_SHA"
         echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
-    - name: Push to current branch
+    - name: Create PR and merge changes
       if: steps.submodule-status.outputs.has_changes == 'true'
       env:
-        BRANCH_NAME: ${{ github.ref_name }}
+        GH_TOKEN: ${{ secrets.SIV_USER_TOKEN_GH }}
+        TARGET_BRANCH: ${{ github.ref_name }}
       run: |
-        echo "🚀 Pushing changes to branch: $BRANCH_NAME"
-        git push origin HEAD:$BRANCH_NAME
-        echo "✅ Changes pushed successfully to $BRANCH_NAME"
+        # Create a unique branch name for the PR
+        PR_BRANCH="siv-auto-update-submodules-$(date +'%Y%m%d-%H%M%S')"
+        echo "🌿 Creating branch: $PR_BRANCH"
+
+        # Push to the new branch
+        git push origin HEAD:$PR_BRANCH
+        echo "✅ Changes pushed to branch: $PR_BRANCH"
+
+        # Create the PR
+        echo "📝 Creating Pull Request..."
+        PR_URL=$(gh pr create \
+          --base "$TARGET_BRANCH" \
+          --head "$PR_BRANCH" \
+          --title "[SIV] Auto-update submodules to latest commits" \
+          --body "Automated weekly update of all submodules to their latest upstream commits.
+
+        Updated on: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+        This PR was automatically created by the weekly build workflow.")
+
+        echo "✅ PR created: $PR_URL"
+
+        # Merge the PR
+        echo "🔀 Merging Pull Request..."
+        gh pr merge "$PR_URL" --squash --delete-branch
+        echo "✅ PR merged successfully"
+
+        # Fetch to get the merge commit
+        git fetch origin "$TARGET_BRANCH"
 
     - name: Get commit SHA for tagging
       id: get-sha
+      env:
+        TARGET_BRANCH: ${{ github.ref_name }}
       run: |
         if [ "${{ steps.submodule-status.outputs.has_changes }}" == "true" ]; then
-          COMMIT_SHA="${{ steps.commit.outputs.sha }}"
+          # Get the latest commit from the target branch after merge
+          git fetch origin "$TARGET_BRANCH"
+          COMMIT_SHA=$(git rev-parse origin/$TARGET_BRANCH)
         else
           # If no changes, get the current HEAD SHA
           COMMIT_SHA=$(git rev-parse HEAD)

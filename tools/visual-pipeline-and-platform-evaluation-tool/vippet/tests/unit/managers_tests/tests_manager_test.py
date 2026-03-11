@@ -549,13 +549,19 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch.object(
-            PipelineRunner,
-            "run",
-            return_value=PipelineResult(
-                total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+                ),
+            ) as mock_run,
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
             ),
-        ) as mock_run:
+        ):
             manager._execute_performance_test(job_id, internal_spec)
             self.assertIn(job_id, manager.jobs)
             mock_run.assert_called_once()
@@ -602,11 +608,17 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch.object(
-            PipelineRunner,
-            "run",
-            return_value=PipelineResult(
-                total_fps=300.0, per_stream_fps=100.0, num_streams=3, exit_code=0
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=300.0, per_stream_fps=100.0, num_streams=3, exit_code=0
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
             ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
@@ -635,9 +647,10 @@ class TestTestsManager(unittest.TestCase):
     ):
         """When cancelled and exit code is 0, job should be COMPLETED with result data saved."""
         mock_pipeline_manager_instance = MagicMock()
+        # build_pipeline_command now returns dict[str, str] (directory paths)
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
             "fakesrc ! fakesink",
-            {"/pipelines/p/variants/v": ["/tmp/out.mp4"]},
+            {"/pipelines/p/variants/v": "/tmp/output/pipeline_dir"},
             {},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
@@ -655,15 +668,26 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch.object(
-            PipelineRunner,
-            "run",
-            return_value=PipelineResult(
-                total_fps=100.0,
-                per_stream_fps=100.0,
-                num_streams=1,
-                exit_code=0,
-                cancelled=True,
+        # collect_video_outputs_from_dirs converts dir paths to file lists
+        collected_files = {
+            "/pipelines/p/variants/v": ["/tmp/output/pipeline_dir/main_output.mp4"]
+        }
+
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0,
+                    per_stream_fps=100.0,
+                    num_streams=1,
+                    exit_code=0,
+                    cancelled=True,
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value=collected_files,
             ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
@@ -676,6 +700,10 @@ class TestTestsManager(unittest.TestCase):
         self.assertEqual(updated.per_stream_fps, 100.0)
         self.assertEqual(updated.total_streams, 1)
         self.assertIsNotNone(updated.video_output_paths)
+        self.assertEqual(
+            updated.video_output_paths,
+            {"/pipelines/p/variants/v": ["/tmp/output/pipeline_dir/main_output.mp4"]},
+        )
         self.assertNotIn(job_id, manager.runners)
 
     @patch("managers.tests_manager.PipelineManager")
@@ -704,15 +732,21 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        with patch.object(
-            PipelineRunner,
-            "run",
-            return_value=PipelineResult(
-                total_fps=0.0,
-                per_stream_fps=0.0,
-                num_streams=1,
-                exit_code=1,
-                cancelled=True,
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=0.0,
+                    per_stream_fps=0.0,
+                    num_streams=1,
+                    exit_code=1,
+                    cancelled=True,
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
             ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
@@ -762,6 +796,7 @@ class TestTestsManager(unittest.TestCase):
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         mock_benchmark_instance = MagicMock()
+        # BenchmarkResult.video_output_paths is now dict[str, str] (directory paths)
         mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
@@ -804,7 +839,10 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        manager._execute_density_test(job_id, internal_spec)
+        with patch(
+            "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
+        ):
+            manager._execute_density_test(job_id, internal_spec)
 
         mock_benchmark_instance.run.assert_called_once()
         call_kwargs = mock_benchmark_instance.run.call_args[1]
@@ -827,6 +865,7 @@ class TestTestsManager(unittest.TestCase):
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         mock_benchmark_instance = MagicMock()
+        # BenchmarkResult.video_output_paths is now dict[str, str] (directory paths)
         mock_benchmark_instance.run.return_value = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
@@ -854,7 +893,10 @@ class TestTestsManager(unittest.TestCase):
         )
         manager.jobs[job_id] = job
 
-        manager._execute_density_test(job_id, internal_spec)
+        with patch(
+            "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
+        ):
+            manager._execute_density_test(job_id, internal_spec)
 
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalTestJobState.FAILED)
@@ -1258,11 +1300,17 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
-        with patch.object(
-            PipelineRunner,
-            "run",
-            return_value=PipelineResult(
-                total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
             ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
@@ -1313,7 +1361,10 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             state=InternalTestJobState.RUNNING,
         )
         manager.jobs[job_id] = job
-        manager._execute_performance_test(job_id, internal_spec)
+        with patch(
+            "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
         mock_pipeline_runner_cls.assert_called_once_with(mode="normal", max_runtime=120)
 
 
@@ -1426,6 +1477,10 @@ class TestInlineGraphSupport(unittest.TestCase):
                 ),
             ),
             patch.object(PipelineRunner, "is_cancelled", return_value=False),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
         updated = manager.jobs[job_id]
@@ -1476,6 +1531,10 @@ class TestInlineGraphSupport(unittest.TestCase):
                 ),
             ),
             patch.object(PipelineRunner, "is_cancelled", return_value=False),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
         ):
             manager._execute_performance_test(job_id, internal_spec)
         updated = manager.jobs[job_id]
