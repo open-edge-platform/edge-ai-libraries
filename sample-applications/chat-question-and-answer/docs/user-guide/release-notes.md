@@ -1,6 +1,6 @@
-# Release Notes - Chat QnA 2026
+# Release Notes: Chat Q&A
 
-## Version 2026.0
+## Version 2.1.0
 
 **April 1, 2026**
 

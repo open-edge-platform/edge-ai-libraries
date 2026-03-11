@@ -1,4 +1,4 @@
-# Release Notes: Chat QnA 2025
+# Release Notes: Chat Q&A 2025
 
 ## Version 2.0.1
 
