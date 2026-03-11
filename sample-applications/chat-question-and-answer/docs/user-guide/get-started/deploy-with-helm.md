@@ -81,6 +81,9 @@ For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment sc
 | `global.GPU.enabled` | For model server deployed on GPU | false |
 | `global.GPU.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
+| `global.affinity.enabled`| Default is false, true to enable affinity | `false` |
+| `global.affinity.key` | Provide the key for the affinity,default is kubernetes.io/hostname | `kubernetes.io/hostname`  |
+| `global.affinity.value` | Provide the values for the respective key | | 
 | `dataprepPgvector.env.ALLOWED_HOSTS` | Mandatory comma-separated trusted domains for URL ingestion (SSRF mitigation) | `example.com,subdomain.example.com` |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |

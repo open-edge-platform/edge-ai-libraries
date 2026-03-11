@@ -168,18 +168,17 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
         logger.info("Checking for export_model.py script...")
         # THIS IS COMMENTED FOR FUTURE UPDATES
-        # export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/4/demos/common/export_models/export_model.py"
+        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/releases/2026/0/demos/common/export_models/export_model.py"
       
-        # if not os.path.exists("export_model.py"):
-        #     logger.info(f"Downloading export_model.py script...")
-        #     try:
-        #         subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
-        #     except subprocess.CalledProcessError as e:
-        #         raise RuntimeError(f"Failed to download export script: {str(e)}")
-        # else:
-        #     logger.info("export_model.py already exists, skipping download.")
+        if not os.path.exists("scripts/export_model.py"):
+            logger.info(f"Downloading export_model.py script...")
+            try:
+                subprocess.run(["curl", export_script_url, "-o", "scripts/export_model.py"], check=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to download export script: {str(e)}")
+        else:
+            logger.info("export_model.py already exists, skipping download.")
 
-        # Step 4: Export the model using the virtual environment's Python
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
 
         # Ensure models directory exists

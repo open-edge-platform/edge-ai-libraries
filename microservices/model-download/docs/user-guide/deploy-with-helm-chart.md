@@ -74,7 +74,11 @@ The following is a summary of key configuration options available in the `values
 | `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, openvino and geti`) or `all` to enable all available plugins | `all` | Yes |
 | `image.repository`	| image repository url	| intel/model-download | Yes |
 | `image.tag`	        | latest image tag	    | latest            | Yes |
-
+| `gpu.enabled`       |For model download deployed on GPU | false |
+| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
+| `affinity.enabled`| Default is false, true to enable affinity | `false` |
+| `affinity.key` | Provide the key for the affinity,default is kubernetes.io/hostname | `kubernetes.io/hostname`  |
+| `affinity.value` | Provide the values for the respective key | | 
 
 > **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
 
