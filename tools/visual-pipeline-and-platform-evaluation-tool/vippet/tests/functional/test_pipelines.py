@@ -334,7 +334,9 @@ def test_convert_advanced_to_simple_graph(http_client: requests.Session) -> None
 
 
 @pytest.mark.smoke
-def test_convert_simple_to_advanced_graph_with_property_change(http_client: requests.Session) -> None:
+def test_convert_simple_to_advanced_graph_with_property_change(
+    http_client: requests.Session,
+) -> None:
     """Test POST convert-to-advanced maps a camera source node to v4l2src."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
@@ -343,9 +345,9 @@ def test_convert_simple_to_advanced_graph_with_property_change(http_client: requ
     advanced_graph = predefined_pipeline["variants"][0]["pipeline_graph"]
 
     # Precondition: the predefined advanced graph uses a file-based source
-    assert any(node.get("type") == "filesrc" for node in advanced_graph.get("nodes", [])), (
-        "Expected filesrc node in predefined advanced graph"
-    )
+    assert any(
+        node.get("type") == "filesrc" for node in advanced_graph.get("nodes", [])
+    ), "Expected filesrc node in predefined advanced graph"
 
     # Build a modified simple graph that switches the source to a camera device
     modified_simple_graph = copy.deepcopy(simple_graph)
@@ -622,7 +624,10 @@ def test_optimize_variant_for_nonexistent_pipeline_returns_404(
     nonexistent_pipeline_id = f"does-not-exist-{uuid4().hex[:8]}"
     response = http_client.post(
         f"{BASE_URL}/pipelines/{nonexistent_pipeline_id}/variants/cpu/optimize",
-        json={"type": "preprocess", "parameters": {"search_duration": 5, "sample_duration": 2}},
+        json={
+            "type": "preprocess",
+            "parameters": {"search_duration": 5, "sample_duration": 2},
+        },
         timeout=30,
     )
 

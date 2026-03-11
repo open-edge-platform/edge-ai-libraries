@@ -1,7 +1,6 @@
 """Functional tests for job management endpoints (status, summary, stop)."""
 
 import logging
-import time
 from typing import Any
 from uuid import uuid4
 
@@ -20,7 +19,6 @@ _NONEXISTENT_JOB_ID = f"does-not-exist-{uuid4().hex[:8]}"
 
 PIPELINE_ID = "age-gender-recognition"
 PIPELINE_VARIANT = "cpu"
-
 
 
 def _start_performance_job(session: requests.Session) -> str:
@@ -85,7 +83,6 @@ def _start_optimization_job(session: requests.Session) -> str:
     return job_id
 
 
-
 @pytest.mark.smoke
 def test_get_performance_job_status_for_nonexistent_job_returns_404(
     http_client: requests.Session,
@@ -118,7 +115,6 @@ def test_stop_performance_job_for_nonexistent_job_returns_404(
     )
 
 
-
 @pytest.mark.full
 def test_get_all_performance_job_statuses_returns_list(
     http_client: requests.Session,
@@ -126,9 +122,7 @@ def test_get_all_performance_job_statuses_returns_list(
     """After submitting a performance job, GET /jobs/tests/performance/status returns a non-empty list containing the job."""
     job_id = _start_performance_job(http_client)
 
-    response = http_client.get(
-        f"{BASE_URL}/jobs/tests/performance/status", timeout=30
-    )
+    response = http_client.get(f"{BASE_URL}/jobs/tests/performance/status", timeout=30)
 
     assert response.status_code == 200, (
         f"Expected 200 from /jobs/tests/performance/status, "
@@ -185,7 +179,6 @@ def test_stop_completed_performance_job_returns_409(
     )
 
 
-
 @pytest.mark.smoke
 def test_get_density_job_status_for_nonexistent_job_returns_404(
     http_client: requests.Session,
@@ -218,7 +211,6 @@ def test_stop_density_job_for_nonexistent_job_returns_404(
     )
 
 
-
 @pytest.mark.full
 def test_get_all_density_job_statuses_returns_list(
     http_client: requests.Session,
@@ -226,9 +218,7 @@ def test_get_all_density_job_statuses_returns_list(
     """After submitting a density job, GET /jobs/tests/density/status returns a non-empty list containing the job."""
     job_id = _start_density_job(http_client)
 
-    response = http_client.get(
-        f"{BASE_URL}/jobs/tests/density/status", timeout=30
-    )
+    response = http_client.get(f"{BASE_URL}/jobs/tests/density/status", timeout=30)
 
     assert response.status_code == 200, (
         f"Expected 200 from /jobs/tests/density/status, "
@@ -250,9 +240,7 @@ def test_get_density_job_summary_returns_correct_request(
     """After submitting a density job, GET /jobs/tests/density/{job_id} echoes back the original request."""
     job_id = _start_density_job(http_client)
 
-    response = http_client.get(
-        f"{BASE_URL}/jobs/tests/density/{job_id}", timeout=30
-    )
+    response = http_client.get(f"{BASE_URL}/jobs/tests/density/{job_id}", timeout=30)
 
     assert response.status_code == 200, (
         f"Expected 200 for density job summary, "
@@ -285,7 +273,6 @@ def test_stop_completed_density_job_returns_409(
     )
 
 
-
 @pytest.mark.smoke
 def test_get_optimization_job_status_for_nonexistent_job_returns_404(
     http_client: requests.Session,
@@ -302,7 +289,6 @@ def test_get_optimization_job_status_for_nonexistent_job_returns_404(
     )
 
 
-
 @pytest.mark.full
 def test_get_all_optimization_job_statuses_returns_list(
     http_client: requests.Session,
@@ -310,9 +296,7 @@ def test_get_all_optimization_job_statuses_returns_list(
     """After an optimization job, GET /jobs/optimization/status returns a non-empty list containing the job."""
     job_id = _start_optimization_job(http_client)
 
-    response = http_client.get(
-        f"{BASE_URL}/jobs/optimization/status", timeout=30
-    )
+    response = http_client.get(f"{BASE_URL}/jobs/optimization/status", timeout=30)
 
     assert response.status_code == 200, (
         f"Expected 200 from /jobs/optimization/status, "
@@ -334,9 +318,7 @@ def test_get_optimization_job_summary_returns_correct_request(
     """After an optimization job, GET /jobs/optimization/{job_id} echoes back the original request."""
     job_id = _start_optimization_job(http_client)
 
-    response = http_client.get(
-        f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30
-    )
+    response = http_client.get(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
 
     assert response.status_code == 200, (
         f"Expected 200 for optimization job summary, "

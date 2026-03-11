@@ -68,7 +68,9 @@ def test_convert_invalid_pipeline_description_returns_400(
     """Posts a syntactically invalid description to POST /convert/to-graph and asserts 400."""
     response = http_client.post(
         f"{BASE_URL}/convert/to-graph",
-        json={"pipeline_description": "video/x-raw,width="}, # Invalid caps property without value
+        json={
+            "pipeline_description": "video/x-raw,width="
+        },  # Invalid caps property without value
         timeout=30,
     )
 

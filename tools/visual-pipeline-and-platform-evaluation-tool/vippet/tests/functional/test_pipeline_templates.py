@@ -28,8 +28,12 @@ def test_get_pipeline_templates_returns_list(http_client: requests.Session) -> N
         f"Expected 200 from /pipeline-templates, "
         f"got {response.status_code}, body={response.text}"
     )
-    assert isinstance(response.json(), list), "Pipeline templates response must be a list"
-    logger.info("Pipeline templates endpoint returned %d template(s)", len(response.json()))
+    assert isinstance(response.json(), list), (
+        "Pipeline templates response must be a list"
+    )
+    logger.info(
+        "Pipeline templates endpoint returned %d template(s)", len(response.json())
+    )
 
 
 @pytest.mark.smoke

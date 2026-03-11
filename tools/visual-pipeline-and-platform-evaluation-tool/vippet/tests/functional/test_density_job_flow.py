@@ -151,9 +151,7 @@ def test_start_density_job_with_nonexistent_variant_returns_400(
         "execution_config": {"max_runtime": "5", "output_mode": "disabled"},
     }
 
-    response = http_client.post(
-        f"{BASE_URL}/tests/density", json=payload, timeout=30
-    )
+    response = http_client.post(f"{BASE_URL}/tests/density", json=payload, timeout=30)
 
     assert response.status_code == 400, (
         f"Expected 400 for density job with non-existent variant, "

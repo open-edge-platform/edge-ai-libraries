@@ -177,6 +177,7 @@ def test_performance_file_output_job_completes_successfully(
         video_output_paths,
     )
 
+
 @pytest.mark.full
 @pytest.mark.parametrize("case", PIPELINE_CASES, ids=CASE_IDS)
 def test_performance_live_stream_output_job_completes_successfully(
@@ -276,4 +277,3 @@ def test_start_performance_job_with_nonexistent_variant_returns_400(
         f"Expected 400 for performance job with non-existent variant, "
         f"got {response.status_code}, body={response.text}"
     )
-
