@@ -419,3 +419,11 @@ The Simple Video Structurization (D-T-C) architecture provides:
 Whether you're implementing smart parking systems, traffic enforcement solutions, or logistics
 automation, ViPPET provides the foundation for building world-class license plate recognition
 applications that scale with your business needs.
+
+## Next Steps
+
+You can use the predefined License Plate Recognition pipeline described in this guide,
+or configure your own custom pipeline in ViPPET:
+
+- [Predefined License Plate Recognition pipeline](./license-plate-recognition-pipeline.md)
+- [Configure your own pipeline](./configure-pipelines.md)
