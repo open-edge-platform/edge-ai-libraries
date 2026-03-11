@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.pipelinemanager.name }}
+  labels:
+    app: {{ .Values.pipelinemanager.name }}
+spec:
+  type: {{ .Values.pipelinemanager.service.type }}
+  ports:
+    - port: {{ .Values.pipelinemanager.service.port }}
+      targetPort: {{ .Values.pipelinemanager.containerPortName }}
+      protocol: TCP
+  selector:
+    app: {{ .Values.pipelinemanager.name }}
+
+{{- if .Values.pipelinemanager.aliasServiceName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.pipelinemanager.aliasServiceName }}
+  labels:
+    app: {{ .Values.pipelinemanager.name }}
+spec:
+  type: {{ .Values.pipelinemanager.service.type }}
+  ports:
+    - port: {{ .Values.pipelinemanager.service.port }}
+      targetPort: {{ .Values.pipelinemanager.containerPortName }}
+      protocol: TCP
+  selector:
+    app: {{ .Values.pipelinemanager.name }}
+{{- end }}

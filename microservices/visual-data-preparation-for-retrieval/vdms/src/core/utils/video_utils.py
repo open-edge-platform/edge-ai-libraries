@@ -291,7 +291,9 @@ def process_video_with_frame_extraction(
                                         crop_index=j,
                                         detection_confidence=det_meta['confidence'],
                                         crop_bbox=tuple(det_meta['bbox']),
-                                        detected_label=det_meta.get('class_name')
+                                        detected_label=det_meta.get('class_name'),
+                                        merged_boxes_count=det_meta.get('merged_boxes_count'),
+                                        context_expansion_applied=det_meta.get('context_expansion_applied')
                                     )
                                     frame_info_list.append(crop_info)
                                 

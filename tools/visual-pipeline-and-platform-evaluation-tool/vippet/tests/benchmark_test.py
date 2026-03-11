@@ -1,22 +1,78 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from api.api_schemas import ExecutionConfig, OutputMode
+from api.api_schemas import (
+    PipelineStreamSpec,
+    PipelineGraph,
+    Node,
+    Edge,
+)
 from benchmark import (
     Benchmark,
     BenchmarkResult,
-    PipelineDensitySpec,
-    PipelinePerformanceSpec,
+)
+from graph import Graph
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelineDensitySpec,
 )
 from pipeline_runner import PipelineRunResult
+
+
+def create_simple_graph() -> Graph:
+    """Helper to create a simple test pipeline Graph object."""
+    pipeline_graph = PipelineGraph(
+        nodes=[
+            Node(id="0", type="filesrc", data={"location": "/videos/test.mp4"}),
+            Node(id="1", type="fakesink", data={}),
+        ],
+        edges=[
+            Edge(id="0", source="0", target="1"),
+        ],
+    )
+    return Graph.from_dict(pipeline_graph.model_dump())
+
+
+def create_internal_density_spec(
+    pipeline_id: str, pipeline_name: str, stream_rate: int = 100
+) -> InternalPipelineDensitySpec:
+    """Helper to create InternalPipelineDensitySpec for testing."""
+    return InternalPipelineDensitySpec(
+        pipeline_id=pipeline_id,
+        pipeline_name=pipeline_name,
+        pipeline_graph=create_simple_graph(),
+        stream_rate=stream_rate,
+    )
+
+
+def create_internal_execution_config(
+    output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
+    max_runtime: float = 0,
+) -> InternalExecutionConfig:
+    """Helper to create InternalExecutionConfig for testing."""
+    return InternalExecutionConfig(
+        output_mode=output_mode,
+        max_runtime=max_runtime,
+    )
 
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.fps_floor = 30
+        self.job_id = "test-job-123"
+        # Use internal types with resolved pipeline information
         self.pipeline_benchmark_specs = [
-            PipelineDensitySpec(id="pipeline-test1", stream_rate=50),
-            PipelineDensitySpec(id="pipeline-test2", stream_rate=50),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-test1/variants/variant-1",
+                pipeline_name="Test Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-test2/variants/variant-2",
+                pipeline_name="Test Pipeline 2",
+                stream_rate=50,
+            ),
         ]
         self.benchmark = Benchmark()
 
@@ -27,15 +83,16 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
         mock_pipeline_manager_cls.return_value = mock_manager_instance
 
+        # Expected result uses PipelineStreamSpec with variant path format
         expected_result = BenchmarkResult(
             n_streams=3,
             streams_per_pipeline=[
-                PipelinePerformanceSpec(
-                    id="pipeline-test1",
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test1/variants/variant-1",
                     streams=2,
                 ),
-                PipelinePerformanceSpec(
-                    id="pipeline-test2",
+                PipelineStreamSpec(
+                    id="/pipelines/pipeline-test2/variants/variant-2",
                     streams=1,
                 ),
             ],
@@ -86,7 +143,8 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
             self.assertEqual(result, expected_result)
@@ -105,7 +163,8 @@ class TestBenchmark(unittest.TestCase):
             self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
             )
 
     @patch("benchmark.PipelineManager")
@@ -126,7 +185,8 @@ class TestBenchmark(unittest.TestCase):
                 _ = self.benchmark.run(
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
-                    execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                    execution_config=create_internal_execution_config(),
+                    job_id=self.job_id,
                 )
 
     @patch("benchmark.PipelineManager")
@@ -145,14 +205,28 @@ class TestBenchmark(unittest.TestCase):
                 _ = self.benchmark.run(
                     self.pipeline_benchmark_specs,
                     fps_floor=self.fps_floor,
-                    execution_config=ExecutionConfig(output_mode=OutputMode.DISABLED),
+                    execution_config=create_internal_execution_config(),
+                    job_id=self.job_id,
                 )
 
     def test_calculate_streams_per_pipeline(self):
+        # Use internal types with resolved pipeline information
         pipeline_benchmark_specs = [
-            PipelineDensitySpec(id="pipeline-1", stream_rate=50),
-            PipelineDensitySpec(id="pipeline-2", stream_rate=30),
-            PipelineDensitySpec(id="pipeline-3", stream_rate=20),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-1/variants/variant-1",
+                pipeline_name="Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-2/variants/variant-2",
+                pipeline_name="Pipeline 2",
+                stream_rate=30,
+            ),
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-3/variants/variant-3",
+                pipeline_name="Pipeline 3",
+                stream_rate=20,
+            ),
         ]
 
         # Test with total_streams = 10
@@ -181,7 +255,10 @@ class TestBenchmark(unittest.TestCase):
             self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(output_mode=OutputMode.LIVE_STREAM),
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.LIVE_STREAM
+                ),
+                job_id=self.job_id,
             )
 
         self.assertIn(
@@ -195,7 +272,7 @@ class TestBenchmark(unittest.TestCase):
         mock_manager_instance = MagicMock()
         mock_manager_instance.build_pipeline_command.return_value = (
             "",
-            {"pipeline-test1": ["/output/file.mp4"]},
+            {"/pipelines/pipeline-test1/variants/variant-1": ["/output/file.mp4"]},
             {},
         )
         mock_pipeline_manager_cls.return_value = mock_manager_instance
@@ -215,9 +292,10 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(
-                    output_mode=OutputMode.FILE, max_runtime=0
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.FILE, max_runtime=0
                 ),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)
@@ -244,12 +322,133 @@ class TestBenchmark(unittest.TestCase):
             result = self.benchmark.run(
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
-                execution_config=ExecutionConfig(
-                    output_mode=OutputMode.DISABLED, max_runtime=60
+                execution_config=create_internal_execution_config(
+                    output_mode=InternalOutputMode.DISABLED, max_runtime=60
                 ),
+                job_id=self.job_id,
             )
 
             self.assertIsInstance(result, BenchmarkResult)
+
+    @patch("benchmark.PipelineManager")
+    def test_run_with_inline_graph(self, mock_pipeline_manager_cls):
+        """Test benchmark run with inline graph pipeline source."""
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
+        # Create specs with inline graph format (synthetic ID)
+        inline_specs = [
+            create_internal_density_spec(
+                pipeline_id="__graph-1234567890abcdef",
+                pipeline_name="__graph-1234567890abcdef",
+                stream_rate=100,
+            ),
+        ]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                # First run - above fps_floor
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                # Second run - drops below fps_floor
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                # Binary search midpoint
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                # Continue binary search
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                inline_specs,
+                fps_floor=self.fps_floor,
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
+            )
+
+            self.assertIsInstance(result, BenchmarkResult)
+            # Check that pipeline ID starts with __graph- prefix for inline graphs
+            self.assertTrue(result.streams_per_pipeline[0].id.startswith("__graph-"))
+
+    @patch("benchmark.PipelineManager")
+    def test_result_pipeline_ids_use_variant_path_format(
+        self, mock_pipeline_manager_cls
+    ):
+        """Test that result pipeline IDs use the correct variant path format."""
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                # Single iteration that meets fps_floor then exits
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                self.pipeline_benchmark_specs,
+                fps_floor=self.fps_floor,
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
+            )
+
+            # Check that all pipeline IDs use the variant path format
+            for stream_spec in result.streams_per_pipeline:
+                self.assertTrue(
+                    stream_spec.id.startswith("/pipelines/"),
+                    f"Expected pipeline ID to start with '/pipelines/', got: {stream_spec.id}",
+                )
+                self.assertIn(
+                    "/variants/",
+                    stream_spec.id,
+                    f"Expected pipeline ID to contain '/variants/', got: {stream_spec.id}",
+                )
+
+    @patch("benchmark.PipelineManager")
+    def test_mixed_variant_and_inline_specs(self, mock_pipeline_manager_cls):
+        """Test benchmark with mixed variant reference and inline graph specs."""
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.build_pipeline_command.return_value = ("", {}, {})
+        mock_pipeline_manager_cls.return_value = mock_manager_instance
+
+        # Mix of variant reference format and inline graph format
+        mixed_specs = [
+            create_internal_density_spec(
+                pipeline_id="/pipelines/pipeline-1/variants/variant-1",
+                pipeline_name="Pipeline 1",
+                stream_rate=50,
+            ),
+            create_internal_density_spec(
+                pipeline_id="__graph-abcdef1234567890",
+                pipeline_name="__graph-abcdef1234567890",
+                stream_rate=50,
+            ),
+        ]
+
+        with patch.object(self.benchmark.runner, "run") as mock_runner:
+            mock_runner.side_effect = [
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+                PipelineRunResult(total_fps=60, per_stream_fps=60, num_streams=1),
+                PipelineRunResult(total_fps=50, per_stream_fps=25, num_streams=2),
+            ]
+
+            result = self.benchmark.run(
+                mixed_specs,
+                fps_floor=self.fps_floor,
+                execution_config=create_internal_execution_config(),
+                job_id=self.job_id,
+            )
+
+            self.assertIsInstance(result, BenchmarkResult)
+            self.assertEqual(len(result.streams_per_pipeline), 2)
+
+            # First should be variant path format
+            self.assertTrue(result.streams_per_pipeline[0].id.startswith("/pipelines/"))
+            # Second should be inline graph format
+            self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ const App: FC = () => {
 
   const dispatch = useAppDispatch();
 
-  const connectedSockets: Set<string> = new Set<string>();
+  const connectedSocketsRef = useRef<Set<string>>(new Set<string>());
   const searchListenerAttachedRef = useRef(false);
   const connectionLoggedRef = useRef(false);
 
@@ -43,6 +43,8 @@ const App: FC = () => {
   });
 
   useEffect(() => {
+    const connectedSockets = connectedSocketsRef.current;
+
     if (summaryIds.length > 0) {
       for (const summaryId of summaryIds) {
         if (!connectedSockets.has(summaryId)) {
@@ -132,7 +134,7 @@ const App: FC = () => {
       });
       searchListenerAttachedRef.current = true;
     }
-  }, [connectedSockets, dispatch, summaryIds]);
+  }, [dispatch, summaryIds]);
 
   return (
     <>

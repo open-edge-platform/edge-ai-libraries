@@ -14,6 +14,7 @@ import { AppEvents } from 'src/events/app.events';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
+import { StateActionStatus } from '../models/state.model';
 
 @Injectable()
 export class SummaryQueueService {
@@ -34,6 +35,20 @@ export class SummaryQueueService {
 
   @OnEvent(PipelineEvents.SUMMARY_TRIGGER)
   streamTrigger({ stateId }: PipelineDTOBase) {
+    const state = this.$state.fetch(stateId);
+
+    const alreadyQueued =
+      this.waiting.some((el) => el.stateId === stateId) ||
+      this.processing.some((el) => el.stateId === stateId);
+
+    if (
+      alreadyQueued ||
+      state?.status.summarizing === StateActionStatus.IN_PROGRESS ||
+      state?.status.summarizing === StateActionStatus.COMPLETE
+    ) {
+      return;
+    }
+
     this.waiting.push({ stateId });
   }
 

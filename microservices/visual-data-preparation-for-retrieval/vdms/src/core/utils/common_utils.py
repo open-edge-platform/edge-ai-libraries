@@ -29,6 +29,8 @@ class FrameInfo(NamedTuple):
     detection_confidence: Optional[float] = None
     crop_bbox: Optional[Tuple[int, int, int, int]] = None
     detected_label: Optional[str] = None
+    merged_boxes_count: Optional[int] = None
+    context_expansion_applied: Optional[bool] = None
 
 
 def sanitize_input(input: str) -> str | None:

@@ -1,7 +1,9 @@
 // Copyright (C) 2025 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
-//
+
+#ifndef OPENCV_FREE
+
 #include <unistd.h>
 
 #include <chrono>
@@ -10,7 +12,6 @@
 
 #include "TestUtil.h"
 #include "gtest/gtest.h"
-#include "opencv2/core/base.hpp"
 #include "orb_extractor.h"
 
 using namespace cv;
@@ -100,3 +101,5 @@ void stereoTest()
 }
 
 TEST(StereoTest, Positive) { stereoTest(); }
+
+#endif  // OPENCV_FREE

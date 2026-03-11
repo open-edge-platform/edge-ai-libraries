@@ -401,13 +401,19 @@ class TestPipelineRunner(unittest.TestCase):
             mock_loop = mock.Mock()
             mock_glib.MainLoop.return_value = mock_loop
 
-            runner = gst_runner._PipelineRunner(
-                fake_pipeline, max_run_time_sec=0.001, mode="normal"
-            )
+            # Mock Gst.Event methods to avoid GStreamer initialization requirement
+            with mock.patch.object(gst_runner.Gst, "Event") as mock_event:
+                mock_event.new_flush_start.return_value = mock.Mock()
+                mock_event.new_flush_stop.return_value = mock.Mock()
+                mock_event.new_eos.return_value = mock.Mock()
 
-            # Mock time.sleep to avoid actual waiting
-            with mock.patch.object(gst_runner.time, "sleep"):
-                runner._max_runtime_enforcement_thread(mock_loop)
+                runner = gst_runner._PipelineRunner(
+                    fake_pipeline, max_run_time_sec=0.001, mode="normal"
+                )
+
+                # Mock time.sleep to avoid actual waiting
+                with mock.patch.object(gst_runner.time, "sleep"):
+                    runner._max_runtime_enforcement_thread(mock_loop)
 
             # Verify shutdown_in_progress was set
             self.assertTrue(runner._state.shutdown_in_progress)

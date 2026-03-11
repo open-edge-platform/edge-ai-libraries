@@ -3,20 +3,25 @@ import threading
 import time
 from dataclasses import dataclass
 import uuid
-from typing import Optional
+from typing import Any, Dict, Optional
+from graph import Graph
 
 from api.api_schemas import (
     DensityJobStatus,
     DensityJobSummary,
-    DensityTestSpec,
-    ExecutionConfig,
-    OutputMode,
     PerformanceJobStatus,
     PerformanceJobSummary,
-    PerformanceTestSpec,
-    PipelinePerformanceSpec,
+    PipelineStreamSpec,
     TestJobState,
     TestsJobStatus,
+)
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalDensityTestSpec,
+    InternalPerformanceTestSpec,
+    InternalPipelinePerformanceSpec,
+    InternalPipelineDensitySpec,
 )
 from pipeline_runner import PipelineRunner, PipelineRunResult
 from benchmark import Benchmark
@@ -32,17 +37,35 @@ class PerformanceJob:
 
     This mirrors what is exposed through :class:`PerformanceJobStatus`
     and :class:`PerformanceJobSummary`, with a few runtime-only fields.
+
+    The streams_per_pipeline field contains pipeline IDs in the format:
+    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+    * For inline graph: "__graph-{16-char-hash}"
+
+    Attributes:
+        id: Unique job identifier.
+        request: Original API request as serialized dict (for summary endpoint).
+        state: Current job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        total_fps: Total FPS across all streams.
+        per_stream_fps: Average FPS per stream.
+        total_streams: Number of active streams.
+        streams_per_pipeline: List of pipeline IDs with stream counts.
+        video_output_paths: Mapping from pipeline ID to output file paths.
+        live_stream_urls: Mapping from pipeline ID to live stream URL.
+        error_message: Error description when state is ERROR or ABORTED.
     """
 
     id: str
-    request: PerformanceTestSpec
+    request: Dict[str, Any]
     state: TestJobState
     start_time: int
     end_time: int | None = None
     total_fps: float | None = None
     per_stream_fps: float | None = None
     total_streams: int | None = None
-    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    streams_per_pipeline: list[PipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
     error_message: str | None = None
@@ -56,19 +79,36 @@ class DensityJob:
     This mirrors what is exposed through :class:`DensityJobStatus`
     and :class:`DensityJobSummary`, with a few runtime-only fields.
 
+    The streams_per_pipeline field contains pipeline IDs in the format:
+    * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
+    * For inline graph: "__graph-{16-char-hash}"
+
     Note: live_stream_urls is not included because density tests do not support
     live-streaming output mode.
+
+    Attributes:
+        id: Unique job identifier.
+        request: Original API request as serialized dict (for summary endpoint).
+        state: Current job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        total_fps: Total FPS across all streams.
+        per_stream_fps: Average FPS per stream.
+        total_streams: Number of active streams.
+        streams_per_pipeline: List of pipeline IDs with stream counts.
+        video_output_paths: Mapping from pipeline ID to output file paths.
+        error_message: Error description when state is ERROR or ABORTED.
     """
 
     id: str
-    request: DensityTestSpec
+    request: Dict[str, Any]
     state: TestJobState
     start_time: int
     end_time: int | None = None
     total_fps: float | None = None
     per_stream_fps: float | None = None
     total_streams: int | None = None
-    streams_per_pipeline: list[PipelinePerformanceSpec] | None = None
+    streams_per_pipeline: list[PipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     error_message: str | None = None
 
@@ -85,6 +125,10 @@ class TestsManager:
     * create and track :class:`PerformanceJob` and :class:`DensityJob` instances,
     * run tests asynchronously in background threads,
     * expose job status and summaries in a thread-safe manner.
+
+    Note: This manager works with internal types (InternalPerformanceTestSpec,
+    InternalDensityTestSpec) for execution. Original API requests are stored
+    inside internal specs and extracted for summary endpoints.
     """
 
     _instance: Optional["TestsManager"] = None
@@ -121,89 +165,108 @@ class TestsManager:
         """
         return uuid.uuid1().hex
 
-    def _start_job(
+    def test_performance(
         self,
-        test_request: PerformanceTestSpec | DensityTestSpec,
-        target_func,
+        internal_spec: InternalPerformanceTestSpec,
     ) -> str:
         """
-        Helper to start a performance or density test and return the job ID.
+        Start a performance test job in the background and return its job id.
 
-        The method:
+        The method creates a new :class:`PerformanceJob` and spawns a
+        background thread that executes the performance test.
 
-        * creates a new job record with RUNNING state,
-        * spawns a background thread that executes the test.
+        Args:
+            internal_spec: Validated and converted internal test specification
+                with resolved pipeline information. Contains original_request
+                dict for summary endpoint.
+
+        Returns:
+            Job ID of the created performance job.
         """
         job_id = self._generate_job_id()
 
-        # Create job record
-        job: PerformanceJob | DensityJob
-        if isinstance(test_request, PerformanceTestSpec):
-            job = PerformanceJob(
-                id=job_id,
-                request=test_request,
-                state=TestJobState.RUNNING,
-                start_time=int(time.time() * 1000),  # milliseconds
-            )
-        else:  # DensityTestSpec
-            job = DensityJob(
-                id=job_id,
-                request=test_request,
-                state=TestJobState.RUNNING,
-                start_time=int(time.time() * 1000),  # milliseconds
-            )
+        # Create job record with original request dict from internal spec
+        job = PerformanceJob(
+            id=job_id,
+            request=internal_spec.original_request,
+            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),  # milliseconds
+        )
 
         with self._jobs_lock:
             self.jobs[job_id] = job
 
         # Start execution in background thread
         thread = threading.Thread(
-            target=target_func,
-            args=(job_id, test_request),
+            target=self._execute_performance_test,
+            args=(job_id, internal_spec),
             daemon=True,
         )
         thread.start()
 
-        self.logger.info(
-            f"{'Test density' if target_func == self._execute_density_test else 'Test performance'} started for job {job_id}"
-        )
+        self.logger.info(f"Performance test started for job {job_id}")
 
         return job_id
 
-    def test_performance(self, performance_request: PerformanceTestSpec) -> str:
-        """
-        Start a performance test job in the background and return its job id.
-
-        The method creates a new :class:`PerformanceJob` and spawns a
-        background thread that executes the performance test.
-        """
-        return self._start_job(performance_request, self._execute_performance_test)
-
-    def test_density(self, density_request: DensityTestSpec) -> str:
+    def test_density(
+        self,
+        internal_spec: InternalDensityTestSpec,
+    ) -> str:
         """
         Start a density test job in the background and return its job id.
 
         The method creates a new :class:`DensityJob` and spawns a
         background thread that executes the density test.
+
+        Args:
+            internal_spec: Validated and converted internal test specification
+                with resolved pipeline information. Contains original_request
+                dict for summary endpoint.
+
+        Returns:
+            Job ID of the created density job.
         """
-        return self._start_job(density_request, self._execute_density_test)
+        job_id = self._generate_job_id()
+
+        # Create job record with original request dict from internal spec
+        job = DensityJob(
+            id=job_id,
+            request=internal_spec.original_request,
+            state=TestJobState.RUNNING,
+            start_time=int(time.time() * 1000),  # milliseconds
+        )
+
+        with self._jobs_lock:
+            self.jobs[job_id] = job
+
+        # Start execution in background thread
+        thread = threading.Thread(
+            target=self._execute_density_test,
+            args=(job_id, internal_spec),
+            daemon=True,
+        )
+        thread.start()
+
+        self.logger.info(f"Density test started for job {job_id}")
+
+        return job_id
 
     def _validate_execution_config(
-        self, execution_config: ExecutionConfig, is_density_test: bool = False
+        self, execution_config: InternalExecutionConfig, is_density_test: bool = False
     ) -> None:
         """
         Validate execution_config for invalid combinations.
 
         Args:
-            execution_config: ExecutionConfig to validate
-            is_density_test: If True, also validate that live_stream is not used
+            execution_config: InternalExecutionConfig to validate.
+            is_density_test: If True, also validate that live_stream is not used.
 
         Raises:
-            ValueError: If output_mode=file is combined with max_runtime>0
-            ValueError: If output_mode=live_stream is used for density tests
+            ValueError: If output_mode=file is combined with max_runtime>0.
+            ValueError: If output_mode=live_stream is used for density tests.
         """
         if (
-            execution_config.output_mode == OutputMode.FILE
+            execution_config.output_mode == InternalOutputMode.FILE
             and execution_config.max_runtime > 0
         ):
             raise ValueError(
@@ -212,33 +275,137 @@ class TestsManager:
                 "or use output_mode='disabled' or 'live_stream' for time-limited execution."
             )
 
-        if is_density_test and execution_config.output_mode == OutputMode.LIVE_STREAM:
+        if (
+            is_density_test
+            and execution_config.output_mode == InternalOutputMode.LIVE_STREAM
+        ):
             raise ValueError(
                 "Density tests do not support output_mode='live_stream'. "
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
+    def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
+        """
+        Get list of USB camera device paths from a pipeline graph.
+
+        Args:
+            pipeline_graph: Graph object containing pipeline nodes.
+
+        Returns:
+            list[str]: List of USB camera device paths (e.g., ['/dev/video0']).
+                      Empty list if no USB cameras are found.
+        """
+        devices = []
+        for node in pipeline_graph.nodes:
+            if node.type == "v4l2src":
+                device = node.data.get("device", "/dev/video0")
+                devices.append(device)
+        return devices
+
+    def _validate_usb_camera_for_performance(
+        self, pipeline_performance_specs: list[InternalPipelinePerformanceSpec]
+    ) -> None:
+        """
+        Validate USB camera usage in performance tests.
+
+        Each USB camera device can only be used in a single pipeline with a single stream
+        because the underlying hardware device can only be opened by one process at a time.
+
+        Args:
+            pipeline_performance_specs: List of InternalPipelinePerformanceSpec objects.
+
+        Raises:
+            ValueError: If any USB camera device is used with multiple streams or in multiple pipelines.
+        """
+        device_usage = {}
+
+        for spec in pipeline_performance_specs:
+            devices = self._get_usb_camera_devices(spec.pipeline_graph)
+            for device in devices:
+                if device not in device_usage:
+                    device_usage[device] = []
+                device_usage[device].append((spec.pipeline_name, spec.streams))
+
+        # Validate each USB camera device is used only once with one stream
+        errors = []
+        for device, usages in device_usage.items():
+            total_streams = sum(streams for _, streams in usages)
+            pipeline_names = [name for name, _ in usages]
+
+            # Each device can only be in one pipeline with one stream
+            if len(usages) > 1 or total_streams > 1:
+                errors.append(
+                    f"USB camera device '{device}' can only be used in one pipeline with one stream. "
+                    f"Found in {len(usages)} pipeline(s) with total {total_streams} stream(s): "
+                    f"{', '.join(pipeline_names)}"
+                )
+
+        if errors:
+            raise ValueError("\n".join(errors))
+
+    def _validate_no_usb_camera_for_density(
+        self, pipeline_density_specs: list[InternalPipelineDensitySpec]
+    ) -> None:
+        """
+        Validate that no pipeline uses USB camera in density tests.
+
+        Density tests are not compatible with USB cameras because they require
+        spawning multiple pipeline instances, but USB camera devices can only
+        be opened by one process at a time.
+
+        Args:
+            pipeline_density_specs: List of InternalPipelineDensitySpec objects.
+
+        Raises:
+            ValueError: If any pipeline uses a USB camera source.
+        """
+        pipelines_with_usb = []
+
+        for spec in pipeline_density_specs:
+            devices = self._get_usb_camera_devices(spec.pipeline_graph)
+            if devices:
+                pipelines_with_usb.append(
+                    f"{spec.pipeline_name} (devices: {', '.join(devices)})"
+                )
+
+        if pipelines_with_usb:
+            raise ValueError(
+                f"USB camera input sources are not supported in density tests. "
+                f"USB camera devices can only be opened by one process at a time, "
+                f"which is incompatible with density testing that spawns multiple pipeline instances. "
+                f"Pipelines with USB camera: {'; '.join(pipelines_with_usb)}"
+            )
+
     def _execute_performance_test(
         self,
         job_id: str,
-        performance_request: PerformanceTestSpec,
+        internal_spec: InternalPerformanceTestSpec,
     ):
         """
         Execute the performance test in a background thread.
 
-        The method builds the pipeline command, executes it using
-        :class:`PipelineRunner` and then updates the corresponding
+        The method builds the pipeline command using internal types, executes it
+        using :class:`PipelineRunner` and then updates the corresponding
         :class:`PerformanceJob` accordingly.
+
+        Args:
+            job_id: Job identifier.
+            internal_spec: Internal test specification with resolved pipeline information.
         """
         try:
             # Validate execution_config (performance tests support all output modes)
             self._validate_execution_config(
-                performance_request.execution_config, is_density_test=False
+                internal_spec.execution_config, is_density_test=False
+            )
+
+            # Validate USB camera usage for performance tests
+            self._validate_usb_camera_for_performance(
+                internal_spec.pipeline_performance_specs
             )
 
             # Calculate total streams
             total_streams = sum(
-                spec.streams for spec in performance_request.pipeline_performance_specs
+                spec.streams for spec in internal_spec.pipeline_performance_specs
             )
 
             if total_streams == 0:
@@ -251,18 +418,16 @@ class TestsManager:
             # Build pipeline command from specs
             pipeline_command, video_output_paths, live_stream_urls = (
                 self.pipeline_manager.build_pipeline_command(
-                    performance_request.pipeline_performance_specs,
-                    performance_request.execution_config,
+                    internal_spec.pipeline_performance_specs,
+                    internal_spec.execution_config,
+                    job_id,
                 )
             )
 
-            # Build streams distribution per pipeline
+            # Build streams_per_pipeline from internal specs (pipeline_id already resolved)
             streams_per_pipeline = [
-                PipelinePerformanceSpec(
-                    id=spec.id,
-                    streams=spec.streams,
-                )
-                for spec in performance_request.pipeline_performance_specs
+                PipelineStreamSpec(id=spec.pipeline_id, streams=spec.streams)
+                for spec in internal_spec.pipeline_performance_specs
             ]
 
             # Update job with live_stream_urls and streams_per_pipeline immediately
@@ -285,7 +450,7 @@ class TestsManager:
             # Initialize PipelineRunner in normal mode with max_runtime from execution_config
             runner = PipelineRunner(
                 mode="normal",
-                max_runtime=performance_request.execution_config.max_runtime,
+                max_runtime=internal_spec.execution_config.max_runtime,
             )
 
             # Store runner for this job so that a future extension could cancel it.
@@ -349,7 +514,7 @@ class TestsManager:
     def _execute_density_test(
         self,
         job_id: str,
-        density_request: DensityTestSpec,
+        internal_spec: InternalDensityTestSpec,
     ):
         """
         Execute the density test in a background thread.
@@ -358,11 +523,20 @@ class TestsManager:
         updates the corresponding :class:`DensityJob` accordingly.
 
         Note: Density tests do not support live-streaming output mode.
+
+        Args:
+            job_id: Job identifier.
+            internal_spec: Internal test specification with resolved pipeline information.
         """
         try:
             # Validate execution_config (density tests do not support live_stream)
             self._validate_execution_config(
-                density_request.execution_config, is_density_test=True
+                internal_spec.execution_config, is_density_test=True
+            )
+
+            # Validate that no pipeline uses USB camera for density tests
+            self._validate_no_usb_camera_for_density(
+                internal_spec.pipeline_density_specs
             )
 
             # Initialize Benchmark
@@ -374,9 +548,10 @@ class TestsManager:
 
             # Run the benchmark
             results = benchmark.run(
-                pipeline_benchmark_specs=density_request.pipeline_density_specs,
-                fps_floor=density_request.fps_floor,
-                execution_config=density_request.execution_config,
+                pipeline_density_specs=internal_spec.pipeline_density_specs,
+                fps_floor=internal_spec.fps_floor,
+                execution_config=internal_spec.execution_config,
+                job_id=job_id,
             )
 
             # Update job with results

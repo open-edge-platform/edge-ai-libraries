@@ -191,7 +191,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "--source_model", model_name,
                 "--weight-format", weight_format,
                 "--pipeline_type", "VLM",
-                "--config_file_path", f"{model_directory}/config.json",
+                "--config_file_path", f"{model_directory}/config_all.json",
                 "--model_repository_path", f"{model_directory}/",
                 "--target_device", target_device
             ]
@@ -201,7 +201,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "python3", "scripts/export_model.py", export_type,
                 "--source_model", model_name,
                 "--weight-format", weight_format,
-                "--config_file_path", f"{model_directory}/config.json",
+                "--config_file_path", f"{model_directory}/config_all.json",
                 "--model_repository_path", f"{model_directory}/",
                 "--target_device", target_device
             ]
@@ -210,6 +210,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 command += ["--version", version]
             if export_type == "text_generation" and cache_size is not None:
                 command += ["--cache_size", f"{cache_size}"]
+            if  export_type == "embeddings_ov":
+                command += ["--extra_quantization_params", f"--library sentence_transformers"]
 
         logger.info(f"Executing command with virtual environment: {command}")
         try:

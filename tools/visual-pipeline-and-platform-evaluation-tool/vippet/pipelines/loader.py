@@ -28,3 +28,13 @@ class PipelineLoader:
         # At this point, config_path_real is guaranteed to exist and be within pipelines_dir
         with open(config_path_real, "r", encoding="utf-8") as f:
             return yaml.safe_load(f.read())
+
+    @staticmethod
+    def get_pipelines_directory() -> str:
+        """
+        Get the absolute path to the pipelines directory.
+
+        Returns:
+            str: Absolute path to the directory containing pipeline configuration files.
+        """
+        return os.path.dirname(os.path.abspath(__file__))

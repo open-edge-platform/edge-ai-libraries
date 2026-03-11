@@ -19,6 +19,7 @@ import GVAWatermarkNode, {
 } from "./GVAWatermarkNode.tsx";
 import H264ParseNode from "./H264ParseNode.tsx";
 import Mp4MuxNode from "./Mp4MuxNode.tsx";
+import ParsebinNode from "./ParsebinNode.tsx";
 import QtdemuxNode from "./QtdemuxNode.tsx";
 import Queue2Node from "./Queue2Node.tsx";
 import QueueNode from "./QueueNode.tsx";
@@ -37,6 +38,7 @@ import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
 import AvDecH264Node from "./AvDecH264Node.tsx";
+import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -60,12 +62,14 @@ export const nodeTypes = {
   filesink: FileSinkNode,
   vah264enc: VAH264EncNode,
   decodebin3: Decodebin3Node,
+  parsebin: ParsebinNode,
   queue: QueueNode,
   gvaclassify: GVAClassifyNode,
   vaapidecodebin: VaapiDecodebinNode,
   tee: TeeNode,
   splitmuxsink: SplitMuxSinkNode,
   videoscale: VideoScaleNode,
+  source: SourceNode,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -78,6 +82,7 @@ export const nodeWidths: Record<string, number> = {
   gvawatermark: GVAWatermarkNodeWidth,
   videoconvert: VideoConvertNodeWidth,
   splitmuxsink: SplitMuxSinkNodeWidth,
+  source: SourceNodeWidth,
 };
 
 export const defaultNodeWidth = 220;

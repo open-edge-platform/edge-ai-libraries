@@ -23,8 +23,8 @@ name: minio-server
 claimSize: ""
 
 image:
-  repository: minio/minio
-  tag: RELEASE.2025-02-07T23-21-09Z-cpuv1
+  repository: chainguard/minio@sha256
+  tag: cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
   pullPolicy: IfNotPresent
 
 containerApiPortName: api-port  # Optional name to refer apiPort

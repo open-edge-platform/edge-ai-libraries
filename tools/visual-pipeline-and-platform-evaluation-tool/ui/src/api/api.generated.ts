@@ -8,6 +8,7 @@ export const addTagTypes = [
   "pipelines",
   "tests",
   "videos",
+  "cameras",
 ] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
@@ -215,14 +216,68 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["pipelines"],
       }),
-      optimizePipeline: build.mutation<
-        OptimizePipelineApiResponse,
-        OptimizePipelineApiArg
+      optimizeVariant: build.mutation<
+        OptimizeVariantApiResponse,
+        OptimizeVariantApiArg
       >({
         query: (queryArg) => ({
-          url: `/pipelines/${queryArg.pipelineId}/optimize`,
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/optimize`,
           method: "POST",
           body: queryArg.pipelineRequestOptimize,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      createVariant: build.mutation<
+        CreateVariantApiResponse,
+        CreateVariantApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants`,
+          method: "POST",
+          body: queryArg.variantCreate,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      deleteVariant: build.mutation<
+        DeleteVariantApiResponse,
+        DeleteVariantApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      updateVariant: build.mutation<
+        UpdateVariantApiResponse,
+        UpdateVariantApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}`,
+          method: "PATCH",
+          body: queryArg.variantUpdate,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      convertAdvancedToSimple: build.mutation<
+        ConvertAdvancedToSimpleApiResponse,
+        ConvertAdvancedToSimpleApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/convert-to-simple`,
+          method: "POST",
+          body: queryArg.pipelineGraph,
+        }),
+        invalidatesTags: ["pipelines"],
+      }),
+      convertSimpleToAdvanced: build.mutation<
+        ConvertSimpleToAdvancedApiResponse,
+        ConvertSimpleToAdvancedApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/convert-to-advanced`,
+          method: "POST",
+          body: queryArg.pipelineGraph,
         }),
         invalidatesTags: ["pipelines"],
       }),
@@ -233,7 +288,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/performance`,
           method: "POST",
-          body: queryArg.performanceTestSpecInput,
+          body: queryArg.performanceTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
@@ -244,13 +299,32 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/tests/density`,
           method: "POST",
-          body: queryArg.densityTestSpecInput,
+          body: queryArg.densityTestSpec,
         }),
         invalidatesTags: ["tests"],
       }),
       getVideos: build.query<GetVideosApiResponse, GetVideosApiArg>({
         query: () => ({ url: `/videos` }),
         providesTags: ["videos"],
+      }),
+      getCameras: build.query<GetCamerasApiResponse, GetCamerasApiArg>({
+        query: () => ({ url: `/cameras` }),
+        providesTags: ["cameras"],
+      }),
+      getCamera: build.query<GetCameraApiResponse, GetCameraApiArg>({
+        query: (queryArg) => ({ url: `/cameras/${queryArg.cameraId}` }),
+        providesTags: ["cameras"],
+      }),
+      loadCameraProfiles: build.mutation<
+        LoadCameraProfilesApiResponse,
+        LoadCameraProfilesApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/cameras/${queryArg.cameraId}/profiles`,
+          method: "POST",
+          body: queryArg.cameraProfilesRequest,
+        }),
+        invalidatesTags: ["cameras"],
       }),
     }),
     overrideExisting: false,
@@ -348,9 +422,8 @@ export type CreatePipelineApiResponse =
 export type CreatePipelineApiArg = {
   pipelineDefinition: PipelineDefinition;
 };
-export type ValidatePipelineApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 202 Pipeline validation started */ ValidationJobResponse;
+export type ValidatePipelineApiResponse =
+  /** status 202 Pipeline validation started */ ValidationJobResponse;
 export type ValidatePipelineApiArg = {
   pipelineValidationInput: PipelineValidation2;
 };
@@ -370,26 +443,73 @@ export type DeletePipelineApiResponse =
 export type DeletePipelineApiArg = {
   pipelineId: string;
 };
-export type OptimizePipelineApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 202 Pipeline optimization started */ OptimizationJobResponse;
-export type OptimizePipelineApiArg = {
+export type OptimizeVariantApiResponse =
+  /** status 202 Variant optimization started */ OptimizationJobResponse;
+export type OptimizeVariantApiArg = {
   pipelineId: string;
+  variantId: string;
   pipelineRequestOptimize: PipelineRequestOptimize;
+};
+export type CreateVariantApiResponse =
+  /** status 201 Variant created */ Variant;
+export type CreateVariantApiArg = {
+  pipelineId: string;
+  variantCreate: VariantCreate;
+};
+export type DeleteVariantApiResponse =
+  /** status 200 Variant deleted */ MessageResponse;
+export type DeleteVariantApiArg = {
+  pipelineId: string;
+  variantId: string;
+};
+export type UpdateVariantApiResponse =
+  /** status 200 Variant updated */ Variant;
+export type UpdateVariantApiArg = {
+  pipelineId: string;
+  variantId: string;
+  variantUpdate: VariantUpdate;
+};
+export type ConvertAdvancedToSimpleApiResponse =
+  /** status 200 Converted simple graph */ PipelineGraph;
+export type ConvertAdvancedToSimpleApiArg = {
+  pipelineId: string;
+  variantId: string;
+  pipelineGraph: PipelineGraph;
+};
+export type ConvertSimpleToAdvancedApiResponse =
+  /** status 200 Converted advanced graph */ PipelineGraph;
+export type ConvertSimpleToAdvancedApiArg = {
+  pipelineId: string;
+  variantId: string;
+  pipelineGraph: PipelineGraph;
 };
 export type RunPerformanceTestApiResponse =
   /** status 202 Performance test job created */ TestJobResponse;
 export type RunPerformanceTestApiArg = {
-  performanceTestSpecInput: PerformanceTestSpec2;
+  performanceTestSpec: PerformanceTestSpec;
 };
 export type RunDensityTestApiResponse =
   /** status 202 Density test job created */ TestJobResponse;
 export type RunDensityTestApiArg = {
-  densityTestSpecInput: DensityTestSpec2;
+  densityTestSpec: DensityTestSpec;
 };
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
+export type GetCamerasApiResponse =
+  /** status 200 List of all cameras successfully retrieved. */ Camera[];
+export type GetCamerasApiArg = void;
+export type GetCameraApiResponse =
+  /** status 200 Camera successfully retrieved. */ Camera;
+export type GetCameraApiArg = {
+  cameraId: string;
+};
+export type LoadCameraProfilesApiResponse =
+  /** status 200 Camera profiles loaded successfully. */ CameraAuthResponse;
+export type LoadCameraProfilesApiArg = {
+  cameraId: string;
+  cameraProfilesRequest: CameraProfilesRequest;
+};
 export type HealthResponse = {
   healthy: boolean;
 };
@@ -431,6 +551,8 @@ export type ValidationError = {
   loc: (string | number)[];
   msg: string;
   type: string;
+  input?: any;
+  ctx?: object;
 };
 export type HttpValidationError = {
   detail?: ValidationError[];
@@ -449,11 +571,11 @@ export type Device = {
   gpu_id: number | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "ERROR" | "ABORTED";
-export type PipelinePerformanceSpec = {
-  /** ID of the pipeline to test. */
+export type PipelineStreamSpec = {
+  /** Pipeline identifier - variant path or synthetic graph ID. */
   id: string;
-  /** Number of parallel streams for this pipeline. */
-  streams?: number;
+  /** Number of streams allocated to this pipeline. */
+  streams: number;
 };
 export type PerformanceJobStatus = {
   id: string;
@@ -463,7 +585,7 @@ export type PerformanceJobStatus = {
   total_fps: number | null;
   per_stream_fps: number | null;
   total_streams: number | null;
-  streams_per_pipeline: PipelinePerformanceSpec[] | null;
+  streams_per_pipeline: PipelineStreamSpec[] | null;
   video_output_paths: {
     [key: string]: string[];
   } | null;
@@ -472,22 +594,11 @@ export type PerformanceJobStatus = {
     [key: string]: string;
   } | null;
 };
-export type OutputMode = "disabled" | "file" | "live_stream";
-export type ExecutionConfig = {
-  /** Mode for pipeline output generation. */
-  output_mode?: OutputMode;
-  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
-  max_runtime?: number;
-};
-export type PerformanceTestSpec = {
-  /** List of pipelines with number of streams for each. */
-  pipeline_performance_specs: PipelinePerformanceSpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
-};
 export type PerformanceJobSummary = {
   id: string;
-  request: PerformanceTestSpec;
+  request: {
+    [key: string]: any;
+  };
 };
 export type DensityJobStatus = {
   id: string;
@@ -497,29 +608,17 @@ export type DensityJobStatus = {
   total_fps: number | null;
   per_stream_fps: number | null;
   total_streams: number | null;
-  streams_per_pipeline: PipelinePerformanceSpec[] | null;
+  streams_per_pipeline: PipelineStreamSpec[] | null;
   video_output_paths: {
     [key: string]: string[];
   } | null;
   error_message: string | null;
 };
-export type PipelineDensitySpec = {
-  /** ID of the pipeline used in density test. */
-  id: string;
-  /** Relative share of total streams for this pipeline (percentage). */
-  stream_rate?: number;
-};
-export type DensityTestSpec = {
-  /** Minimum acceptable FPS per stream. */
-  fps_floor: number;
-  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
-  pipeline_density_specs: PipelineDensitySpec[];
-  /** Execution configuration for output and runtime. */
-  execution_config?: ExecutionConfig;
-};
 export type DensityJobSummary = {
   id: string;
-  request: DensityTestSpec;
+  request: {
+    [key: string]: any;
+  };
 };
 export type OptimizationType = "preprocess" | "optimize";
 export type OptimizationJobState =
@@ -561,9 +660,7 @@ export type ValidationJobStatus = {
   is_valid: boolean | null;
   error_message: string[] | null;
 };
-export type PipelineType = "GStreamer" | "FFmpeg";
 export type PipelineValidation = {
-  type?: PipelineType;
   pipeline_graph: PipelineGraph;
   parameters?: {
     [key: string]: any;
@@ -581,44 +678,65 @@ export type Model = {
   precision: string | null;
 };
 export type PipelineSource = "PREDEFINED" | "USER_CREATED";
-export type PipelineParameters = {
-  default: {
-    [key: string]: any;
-  } | null;
+export type Variant = {
+  /** Unique variant identifier generated by the backend. */
+  id: string;
+  /** Variant name identifying the hardware target. */
+  name: string;
+  /** Whether the variant is read-only. Can only be true for PREDEFINED pipelines. */
+  read_only?: boolean;
+  /** Advanced graph view with all pipeline elements for this variant. */
+  pipeline_graph: PipelineGraph;
+  /** Simplified graph view for this variant. */
+  pipeline_graph_simple: PipelineGraph;
+  /** Creation timestamp as UTC datetime. Set by backend only. */
+  created_at: string;
+  /** Last modification timestamp as UTC datetime. Set by backend only. */
+  modified_at: string;
 };
 export type Pipeline = {
   id: string;
   name: string;
-  version: number;
   description: string;
   source: PipelineSource;
-  type: PipelineType;
-  pipeline_graph: PipelineGraph;
-  pipeline_graph_simple: PipelineGraph;
-  parameters: PipelineParameters | null;
+  /** List of tags for categorizing the pipeline. */
+  tags?: string[];
+  /** List of pipeline variants for different hardware targets. */
+  variants: Variant[];
+  /** Base64-encoded thumbnail image. Only for PREDEFINED pipelines. Redacted in logs. */
+  thumbnail?: string | null;
+  /** Creation timestamp as UTC datetime. Set by backend only. */
+  created_at: string;
+  /** Last modification timestamp as UTC datetime. Set by backend only. */
+  modified_at: string;
 };
 export type PipelineCreationResponse = {
   id: string;
 };
+export type VariantCreate = {
+  /** Variant name identifying the hardware target. */
+  name: string;
+  /** Advanced graph view with all pipeline elements for this variant. */
+  pipeline_graph: PipelineGraph;
+  /** Simplified graph view for this variant. */
+  pipeline_graph_simple: PipelineGraph;
+};
 export type PipelineDefinition = {
   /** Non-empty pipeline name. */
   name: string;
-  /** Pipeline version (must be greater than or equal to 1). */
-  version?: number;
   /** Non-empty human-readable text describing what the pipeline does. */
   description: string;
   source?: PipelineSource;
-  type: PipelineType;
-  /** Complete GStreamer pipeline string with elements separated by '!' (e.g., 'filesrc location=input.mp4 ! decodebin ! fakesink'). */
-  pipeline_description: string;
-  parameters: PipelineParameters | null;
+  /** List of tags for categorizing the pipeline. */
+  tags?: string[];
+  /** List of pipeline variants for different hardware targets. */
+  variants: VariantCreate[];
 };
 export type ValidationJobResponse = {
   /** Identifier of the created validation job. */
   job_id: string;
 };
 export type PipelineValidation2 = {
-  type?: PipelineType;
   pipeline_graph: PipelineGraph;
   parameters?: {
     [key: string]: any;
@@ -627,25 +745,89 @@ export type PipelineValidation2 = {
 export type PipelineUpdate = {
   name?: string | null;
   description?: string | null;
-  pipeline_graph?: PipelineGraph | null;
-  pipeline_graph_simple?: PipelineGraph | null;
-  parameters?: PipelineParameters | null;
+  tags?: string[] | null;
 };
 export type OptimizationJobResponse = {
   /** Identifier of the created optimization job. */
   job_id: string;
 };
+export type VariantUpdate = {
+  /** New variant name. */
+  name?: string | null;
+  /** New advanced graph (mutually exclusive with pipeline_graph_simple). */
+  pipeline_graph?: PipelineGraph | null;
+  /** New simplified graph (mutually exclusive with pipeline_graph). */
+  pipeline_graph_simple?: PipelineGraph | null;
+};
 export type TestJobResponse = {
   /** Identifier of the created test job. */
   job_id: string;
 };
-export type PerformanceTestSpec2 = {
+export type PipelineDescriptionSource = {
+  source?: "description";
+  /** GStreamer pipeline string with elements separated by '!'. */
+  pipeline_description: string;
+  /** Optional custom identifier for pipeline description. Must be URL-safe. */
+  description_id?: string | null;
+};
+export type GraphInline = {
+  source?: "graph";
+  /** Optional custom identifier for inline graph. Must be URL-safe. */
+  graph_id?: string | null;
+  /** Inline pipeline graph to use for the test. */
+  pipeline_graph: PipelineGraph;
+};
+export type VariantReference = {
+  source?: "variant";
+  /** ID of the pipeline containing the variant. */
+  pipeline_id: string;
+  /** ID of the variant within the pipeline. */
+  variant_id: string;
+};
+export type PipelinePerformanceSpec = {
+  /** Graph source - either a reference to existing variant or inline graph. */
+  pipeline:
+    | ({
+        source: "description";
+      } & PipelineDescriptionSource)
+    | ({
+        source: "graph";
+      } & GraphInline)
+    | ({
+        source: "variant";
+      } & VariantReference);
+  /** Number of parallel streams for this pipeline. */
+  streams?: number;
+};
+export type OutputMode = "disabled" | "file" | "live_stream";
+export type ExecutionConfig = {
+  /** Mode for pipeline output generation. */
+  output_mode?: OutputMode;
+  /** Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled). */
+  max_runtime?: number;
+};
+export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
   pipeline_performance_specs: PipelinePerformanceSpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
 };
-export type DensityTestSpec2 = {
+export type PipelineDensitySpec = {
+  /** Graph source - either a reference to existing variant or inline graph. */
+  pipeline:
+    | ({
+        source: "description";
+      } & PipelineDescriptionSource)
+    | ({
+        source: "graph";
+      } & GraphInline)
+    | ({
+        source: "variant";
+      } & VariantReference);
+  /** Relative share of total streams for this pipeline (percentage). */
+  stream_rate?: number;
+};
+export type DensityTestSpec = {
   /** Minimum acceptable FPS per stream. */
   fps_floor: number;
   /** List of pipelines with relative stream_rate percentages that must sum to 100. */
@@ -661,6 +843,38 @@ export type Video = {
   frame_count: number;
   codec: string;
   duration: number;
+};
+export type CameraType = "USB" | "NETWORK";
+export type UsbCameraDetails = {
+  device_path: string;
+  resolution: string | null;
+};
+export type CameraProfileInfo = {
+  name: string;
+  rtsp_url?: string | null;
+  resolution?: string | null;
+  encoding?: string | null;
+  framerate?: number | null;
+  bitrate?: number | null;
+};
+export type NetworkCameraDetails = {
+  ip: string;
+  port: number;
+  profiles: CameraProfileInfo[];
+};
+export type Camera = {
+  device_id: string;
+  device_name: string;
+  device_type: CameraType;
+  details: UsbCameraDetails | NetworkCameraDetails;
+};
+export type CameraAuthResponse = {
+  /** Camera object with populated ONVIF profiles after successful authentication. */
+  camera: Camera;
+};
+export type CameraProfilesRequest = {
+  username: string;
+  password: string;
 };
 export const {
   useGetHealthQuery,
@@ -707,9 +921,19 @@ export const {
   useLazyGetPipelineQuery,
   useUpdatePipelineMutation,
   useDeletePipelineMutation,
-  useOptimizePipelineMutation,
+  useOptimizeVariantMutation,
+  useCreateVariantMutation,
+  useDeleteVariantMutation,
+  useUpdateVariantMutation,
+  useConvertAdvancedToSimpleMutation,
+  useConvertSimpleToAdvancedMutation,
   useRunPerformanceTestMutation,
   useRunDensityTestMutation,
   useGetVideosQuery,
   useLazyGetVideosQuery,
+  useGetCamerasQuery,
+  useLazyGetCamerasQuery,
+  useGetCameraQuery,
+  useLazyGetCameraQuery,
+  useLoadCameraProfilesMutation,
 } = injectedRtkApi;

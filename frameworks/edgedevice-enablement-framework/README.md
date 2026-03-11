@@ -17,7 +17,7 @@ This release of the Edge Device Enablement Framework currently supports three cu
 Edge Software Hub is primarily intended for Public / External users.
 
 EEF Profile scripts are available in the below path:
-[Edge-device Enablement Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/frameworks/edgedevice-enablement-framework)
+[Edge-device Enablement Framework](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/frameworks/edgedevice-enablement-framework)
 
 ### Usage:
 
@@ -25,7 +25,7 @@ EEF Profile scripts are available in the below path:
 ```bash
 cd base/va_enablement_node_profile
 ```
-- Set executable permissions to the profile.sh script. Example: 
+- Set executable permissions to the profile.sh script. Example:
 ```bash
 chmod +x "va_enablement_node_profile.sh"
 ```

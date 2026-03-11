@@ -1,0 +1,139 @@
+{{- if .Values.vsscollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vsscollector.fullname" . }}
+  labels:
+    app: {{ .Values.vsscollector.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.vsscollector.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.vsscollector.name }}
+    spec:
+      initContainers:
+        - name: init-collector-signals
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /app/.collector-signals
+              if [ ! -f /app/.collector-signals/dataprep_embeddings_per_second.txt ]; then
+                echo 0 > /app/.collector-signals/dataprep_embeddings_per_second.txt
+              fi
+          volumeMounts:
+            - name: collector-signals
+              mountPath: /app/.collector-signals
+              subPath: {{ .Values.vsscollector.signalVolume.subPath | quote }}
+      hostPID: true
+      {{- if .Values.vsscollector.affinity }}
+      affinity:
+        {{- toYaml .Values.vsscollector.affinity | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/app: {{ include "vdms-dataprep.fullname" .Subcharts.vdmsdataprep }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
+      {{- with .Values.vsscollector.nodeSelector }}
+                    app.kubernetes.io/app: {{ include "vdms-dataprep.fullname" .Subcharts.vdmsdataprep }}
+      {{- end }}
+      {{- with .Values.vsscollector.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.vsscollector.name }}
+          image: "{{ .Values.vsscollector.image.repository }}:{{ .Values.vsscollector.image.tag }}"
+          imagePullPolicy: {{ .Values.vsscollector.image.pullPolicy }}
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: {{ .Values.vsscollector.service.port }}
+              name: metrics
+          env:
+            - name: WEBSOCKET_URL
+              value: "ws://{{ default .Values.pipelinemanager.name .Values.pipelinemanager.aliasServiceName }}:3000{{ .Values.vsscollector.websocketPath }}"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},{{ default .Values.pipelinemanager.name .Values.pipelinemanager.aliasServiceName }},vss-ui"
+          volumeMounts:
+            - name: telegraf-config
+              mountPath: /etc/telegraf/telegraf.conf
+              subPath: telegraf.conf
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: dev
+              mountPath: /dev
+            - name: run
+              mountPath: /run
+            - name: proc
+              mountPath: /proc
+              readOnly: true
+            - name: collector-signals
+              mountPath: /app/.collector-signals
+              subPath: {{ .Values.vsscollector.signalVolume.subPath | quote }}
+          {{- with .Values.vsscollector.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: telegraf-config
+          configMap:
+            name: {{ include "vsscollector.fullname" . }}-config
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+        - name: run
+          hostPath:
+            path: /run
+            type: Directory
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: collector-signals
+          {{- if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}/collector-signals
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.vsscollector.name }}
+  labels:
+    app: {{ .Values.vsscollector.name }}
+spec:
+  type: {{ .Values.vsscollector.service.type }}
+  ports:
+    - port: {{ .Values.vsscollector.service.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app: {{ .Values.vsscollector.name }}
+{{- end }}

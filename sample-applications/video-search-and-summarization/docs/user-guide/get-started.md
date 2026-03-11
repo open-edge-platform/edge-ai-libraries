@@ -49,7 +49,7 @@ Before running the application, you need to set several environment variables:
 
    ```bash
    export REGISTRY_URL=intel
-   export TAG=1.3.1
+   export TAG=1.3.2-rc1
    ```
 
 2. **Set required credentials for some services**:
@@ -99,7 +99,7 @@ Before running the application, you need to set several environment variables:
    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
    ```
 
-   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+   > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 
@@ -122,7 +122,33 @@ Before running the application, you need to set several environment variables:
 
     In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-6. **Set advanced VLM Configuration Options**:
+6. **Enable ROI consolidation (Video Search Mode)**:
+
+    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
+
+    ```bash
+    # Enable ROI consolidation (default: false)
+    export ROI_CONSOLIDATION_ENABLED=true
+
+    # IoU threshold for grouping ROIs (higher = stricter merging)
+    export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
+
+    # Only merge ROIs with the same class label when true
+    export ROI_CONSOLIDATION_CLASS_AWARE=false
+
+    # Expand merged ROIs by a fraction of width/height
+    export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
+    ```
+
+    The IoU calculation follows the standard formula:
+
+    $$
+    IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
+    $$
+
+    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
+
+7. **Set advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
 
@@ -224,11 +250,8 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
    ```bash
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```
 

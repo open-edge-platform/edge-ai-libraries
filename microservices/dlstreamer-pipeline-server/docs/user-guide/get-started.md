@@ -107,7 +107,7 @@ GStreamer is an open source framework licensed under LGPL. See [GStreamer licens
 
 For alternative ways to set up the microservice, see:
 
-- [How to Deploy with Helm](./how-to-deploy-with-helm.md)
+- [How to Deploy with Helm](./get-started/deploy-with-helm.md)
 
 ## Troubleshooting
 
@@ -122,13 +122,16 @@ Please contact us at dlsps_support[at]intel[dot]com for more details or any supp
 - [Overview](./index.md)
 - [System Requirements](./get-started/system-requirements.md)
 - [API Reference](./api-reference.md)
-- [Environment Variables](./environment-variables.md)
+- [Environment Variables](./get-started/environment-variables.md)
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
-get-started/system-requirements.md
+./get-started/system-requirements
+./get-started/environment-variables
+./get-started/build-from-source
+./get-started/deploy-with-helm
 
 :::
 hide_directive-->

@@ -17,7 +17,7 @@ deploy the microservice.
   - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
 
 - **Deployment**
-  - [How to Build from Source](./docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
+  - [How to Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
 
 - **API Reference**
   - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.

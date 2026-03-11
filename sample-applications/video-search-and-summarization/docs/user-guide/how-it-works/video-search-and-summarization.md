@@ -62,7 +62,7 @@ The LLM microservice provides final summaries of videos by summarizing the indiv
 The application flow involves the following steps for both search indexing and summarization:
 
 1. **Create the Video Search and Summarization pipeline**
-   - **Configure the pipeline**: The Video Search and Summarization UI microservice allows you to configure capabilities on the Video Search and Summarization pipeline. You can see [configuration examples for the Video Summarization pipeline](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/video-search-and-summarization/cli/config).
+   - **Configure the pipeline**: The Video Search and Summarization UI microservice allows you to configure capabilities on the Video Search and Summarization pipeline. You can see [configuration examples for the Video Summarization pipeline](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/sample-applications/video-search-and-summarization/cli/config).
 
    - **Create the pipeline**: The Video Summarization Pipeline Manager configures the pipeline based on your input.
 

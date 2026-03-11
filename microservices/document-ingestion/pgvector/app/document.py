@@ -7,7 +7,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Optional
 from langchain_core.documents import Document
-from langchain.text_splitter import TokenTextSplitter
+from langchain_text_splitters import TokenTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 import pdfplumber

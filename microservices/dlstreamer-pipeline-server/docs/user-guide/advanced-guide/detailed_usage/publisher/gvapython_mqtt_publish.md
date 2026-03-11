@@ -30,10 +30,10 @@ Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber need
 When bringing up DL Streamer Pipeline Server containers in standalone mode using `docker compose up`, MQTT broker is also started listening on port `1883`.
 Verify MQTT broker is up and running using `docker ps`.
 
-To configure and start MQTT broker refer [here](./eis_mqtt_publish_doc.md#configure-and-start-mqtt-broker)
+To configure and start MQTT broker refer [here](./mqtt_publish.md#configure-and-start-mqtt-broker)
 
 ### Start MQTT Subscriber
-For starting MQTT subscriber, refer [here](./eis_mqtt_publish_doc.md#start-mqtt-subscriber)
+For starting MQTT subscriber, refer [here](./mqtt_publish.md#start-mqtt-subscriber)
 
 ## Configure DL Streamer Pipeline Server for MQTT Publishing
 
@@ -120,7 +120,7 @@ MQTT_PORT=1883
 ## Secure publishing
 Publishing to MQTT broker could be over a secure communication channel providing encryption and authentication over TLS.
 
-Follow the steps 1, 2 and 3 from [here](./eis_mqtt_publish_doc.md#secure-publishing).
+Follow the steps 1, 2 and 3 from [here](./mqtt_publish.md#secure-publishing).
 - Generate certificates
 - Configure and start MQTT broker
 - Configure and start MQTT subscriber
@@ -172,4 +172,4 @@ Upon completing the broker and subscriber setup, refer to the below steps to con
     ```
 
 ## Error Handling
-Refer to the section [here](./eis_mqtt_publish_doc.md#error-handling) for error handling details.
+Refer to [the section](./mqtt_publish.md#error-handling) for error handling details.

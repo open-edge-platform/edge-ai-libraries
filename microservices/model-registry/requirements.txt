@@ -1,5 +1,5 @@
 # Dependencies for MLflow
-mlflow==3.5.0rc0
+mlflow==3.5.0
 # Dependencies for Postgres DB adapter
 psycopg2-binary==2.9.10
 # Dependencies for Minio client
@@ -8,7 +8,7 @@ minio==7.2.15
 # Dependencies for FastAPI
 fastapi==0.115.11
 uvicorn==0.34.0
-python-multipart==0.0.20
+python-multipart==0.0.22
 # Resolves Pydantic Extra warnings
 pydantic==2.12.4
 pydantic_core==2.41.5

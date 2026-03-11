@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from .logger import logger

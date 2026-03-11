@@ -81,7 +81,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
    ```
    Note: Adjust the repo link appropriately in case of forked repo.
 
@@ -116,8 +116,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
     ```bash
     # Set only if there is an OTLP endpoint available
-    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> 
-    export OTLP_ENDPOINT=<otlp-endpoint> 
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace>
+    export OTLP_ENDPOINT=<otlp-endpoint>
     ```
 
    _Document Ingestion Microservice configuration_
@@ -136,7 +136,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
-    export TAG=2.0.1
+    export TAG=2.1.0-rc2
     source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
     # model-server: VLLM(deprecated) , OVMS, TGI(deprecated)
@@ -168,7 +168,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
 ## Running in Kubernetes
 
-Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
+Refer to [Deploy with Helm](./get-started/deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 
 ## Running Tests
 
@@ -184,7 +184,7 @@ Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the p
 
 For alternative ways to set up the sample application, see:
 
-- [How to Build from Source](./build-from-source.md)
+- [How to Build from Source](./get-started/build-from-source.md)
 
 ## Related Links
 
@@ -198,7 +198,10 @@ For alternative ways to set up the sample application, see:
 :::{toctree}
 :hidden:
 
-get-started/system-requirements
+./get-started/system-requirements
+./get-started/build-from-source
+./get-started/deploy-with-helm
+./get-started/deploy-with-edge-orchestrator
 
 :::
 hide_directive-->

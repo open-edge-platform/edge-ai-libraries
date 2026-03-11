@@ -2,12 +2,11 @@
 
 ## Current Release
 
-**Version**: 1.0.3
-**Release Date**: 07 Nov 2025
+**Version**: 1.0.4
+**Release Date**: 17 Feb 2026
 
-- Update nginxinc/nginx-unprivileged to 1.29.2 version
-- Update few package version to fix vulnerabilities
-- Update openvino/model_server to 2025.3 version
+- Updated default CHUNK_SIZE to 4096 to support larger files and updated supporting documents
+
 
 ## Known Issues/Behaviour (Consolidated):
 
@@ -16,6 +15,13 @@
 - Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
 
 ## Previous Releases
+
+**Version**: 1.0.3
+**Release Date**: 07 Nov 2025
+
+- Update nginxinc/nginx-unprivileged to 1.29.2 version
+- Update few package version to fix vulnerabilities
+- Update openvino/model_server to 2025.3 version
 
 **Version**: 1.0.2
 **Release Date**: 09 Sep 2025

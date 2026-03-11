@@ -1,7 +1,7 @@
-import type { Pipeline, PipelinePerformanceSpec } from "@/api/api.generated.ts";
+import type { Pipeline, PipelineStreamSpec } from "@/api/api.generated.ts";
 
 interface PipelineStreamsSummaryProps {
-  streamsPerPipeline: PipelinePerformanceSpec[];
+  streamsPerPipeline: PipelineStreamSpec[];
   pipelines: Pipeline[];
 }
 

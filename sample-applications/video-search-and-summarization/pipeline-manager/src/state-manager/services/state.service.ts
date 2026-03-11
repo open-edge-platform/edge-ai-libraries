@@ -222,6 +222,10 @@ export class StateService {
         summary,
       };
 
+      if (this.states.get(stateId)!.frameSummaries[frameKey]) {
+        return;
+      }
+
       this.states.get(stateId)!.frameSummaries[frameKey] = frameData;
       this.frameSummarySync(stateId, frameKey);
     }

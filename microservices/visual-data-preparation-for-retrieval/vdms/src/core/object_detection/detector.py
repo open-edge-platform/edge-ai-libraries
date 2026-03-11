@@ -15,7 +15,7 @@ from PIL import Image
 
 # Import VDMS local modules
 from ..utils.config_utils import get_config
-from .yolox_utils import preproc, multiclass_nms, demo_postprocess
+from .yolox_utils import preproc, multiclass_nms, demo_postprocess, compute_iou
 from .default_class_names import DEFAULT_COCO_CLASS_NAMES
 
 logger = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ class YOLOXDetector:
             logger.error(f"Failed to download model: {e}")
             raise
     
-    def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[List[np.ndarray], List[float], List[int]]:
+    def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Detect objects in an image.
         
@@ -236,25 +236,48 @@ class YOLOXDetector:
                 score_thr=self.confidence_threshold
             )
             
-            final_boxes, final_scores, final_cls_inds = [], [], []
+            final_boxes = np.empty((0, 4), dtype=int)
+            final_scores = np.empty((0,), dtype=float)
+            final_cls_inds = np.empty((0,), dtype=int)
             if dets is not None:
                 # Convert bounding boxes to integers for compatibility with embedding service
                 final_boxes = np.round(dets[:, :4]).astype(int)
                 final_scores = dets[:, 4]
                 final_cls_inds = dets[:, 5].astype(int)
+
+            # Default metadata for per-box ROI consolidation stats (used by detect()).
+            self._last_roi_metadata = [
+                {"merged_boxes_count": 1, "context_expansion_applied": False}
+                for _ in range(len(final_boxes))
+            ]
             
+            if len(final_boxes) > 0:
+                # Optional ROI consolidation happens after NMS so we only merge
+                # high-confidence, non-overlapping detections that survived filtering.
+                final_boxes, final_scores, final_cls_inds, roi_metadata = self._consolidate_rois(
+                    final_boxes,
+                    final_scores,
+                    final_cls_inds,
+                    image.shape[:2],
+                )
+                self._last_roi_metadata = roi_metadata
+
             return final_boxes, final_scores, final_cls_inds
             
         except Exception as e:
             logger.error(f"Detection failed: {e}")
-            return [], [], []
+            return (
+                np.empty((0, 4), dtype=int),
+                np.empty((0,), dtype=float),
+                np.empty((0,), dtype=int),
+            )
 
     def detect(
         self,
         image: Union[np.ndarray, Image.Image],
         *,
         return_metadata: bool = True,
-    ) -> Union[List[dict], Tuple[List[np.ndarray], List[float], List[int]]]:
+    ) -> Union[List[dict], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Backward-compatible detection helper.
 
         This method provides the legacy ``detect`` interface that some callers
@@ -280,7 +303,12 @@ class YOLOXDetector:
             return boxes, scores, class_ids
 
         metadata: List[dict] = []
+        roi_metadata = getattr(self, "_last_roi_metadata", [])
         for i, (box, score, class_id) in enumerate(zip(boxes, scores, class_ids)):
+            roi_info = roi_metadata[i] if i < len(roi_metadata) else {
+                "merged_boxes_count": 1,
+                "context_expansion_applied": False,
+            }
             metadata.append(
                 {
                     "detection_id": i,
@@ -289,6 +317,8 @@ class YOLOXDetector:
                     "class_id": int(class_id),
                     "class_name": self._get_class_name(int(class_id)),
                     "area": float((box[2] - box[0]) * (box[3] - box[1])),
+                    "merged_boxes_count": int(roi_info.get("merged_boxes_count", 1)),
+                    "context_expansion_applied": bool(roi_info.get("context_expansion_applied", False)),
                 }
             )
 
@@ -382,6 +412,139 @@ class YOLOXDetector:
             return DEFAULT_COCO_CLASS_NAMES[class_id]
 
         return f"class_{class_id}"
+
+    def _consolidate_rois(
+        self,
+        boxes: np.ndarray,
+        scores: np.ndarray,
+        class_ids: np.ndarray,
+        image_shape: Tuple[int, int],
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[dict]]:
+        # ROI consolidation is an optional post-processing stage that groups
+        # overlapping boxes into a single region for downstream embedding.
+        roi_cfg = self.detection_config.get("roi_consolidation", {})
+        if not roi_cfg.get("enabled", False):
+            # Fast-path: return raw detections unchanged when disabled.
+            return (
+                np.asarray(boxes),
+                np.asarray(scores),
+                np.asarray(class_ids),
+                [
+                {"merged_boxes_count": 1, "context_expansion_applied": False}
+                for _ in range(len(boxes))
+                ],
+            )
+
+        # IoU threshold controls cluster connectivity (higher = stricter merges).
+        iou_threshold = roi_cfg.get("iou_threshold", 0.2)
+        # When class_aware is True, only boxes of the same class can merge.
+        class_aware = roi_cfg.get("class_aware", False)
+        # context_scale expands merged ROIs to include extra scene context.
+        context_scale = roi_cfg.get("context_scale", 0.2)
+
+        def _cluster_boxes(input_boxes: np.ndarray, threshold: float) -> List[List[int]]:
+            # Build clusters of overlapping boxes using IoU threshold.
+            # Each cluster is a list of indices into input_boxes.
+            if len(input_boxes) == 0:
+                return []
+            visited = [False] * len(input_boxes)
+            clusters: List[List[int]] = []
+            for i in range(len(input_boxes)):
+                if visited[i]:
+                    continue
+                stack = [i]
+                visited[i] = True
+                cluster = [i]
+                while stack:
+                    idx = stack.pop()
+                    for j in range(len(input_boxes)):
+                        if visited[j]:
+                            continue
+                        # Adjacency is based on IoU between the current box and candidate.
+                        if compute_iou(input_boxes[idx], input_boxes[j : j + 1])[0] >= threshold:
+                            visited[j] = True
+                            stack.append(j)
+                            cluster.append(j)
+                clusters.append(cluster)
+            return clusters
+
+        def _merge_union(input_boxes: np.ndarray) -> np.ndarray:
+            # Union merge expands to cover all boxes in the cluster.
+            x1 = np.min(input_boxes[:, 0])
+            y1 = np.min(input_boxes[:, 1])
+            x2 = np.max(input_boxes[:, 2])
+            y2 = np.max(input_boxes[:, 3])
+            return np.array([x1, y1, x2, y2], dtype=np.float32)
+
+        def _expand_box(
+            box: np.ndarray,
+            shape: Tuple[int, int],
+            scale: float,
+        ) -> Tuple[np.ndarray, bool]:
+            # Expand merged ROI by a fraction of its size for context.
+            # Clamp the expanded box to image boundaries.
+            height, width = shape
+            x1, y1, x2, y2 = box
+            box_w = max(1.0, x2 - x1)
+            box_h = max(1.0, y2 - y1)
+            pad_w = box_w * scale
+            pad_h = box_h * scale
+            nx1 = max(0.0, x1 - pad_w)
+            ny1 = max(0.0, y1 - pad_h)
+            nx2 = min(float(width), x2 + pad_w)
+            ny2 = min(float(height), y2 + pad_h)
+            expanded = np.array([nx1, ny1, nx2, ny2], dtype=np.float32)
+            expansion_applied = scale > 0 and not np.allclose(expanded, box)
+            return expanded, expansion_applied
+
+        # Consolidate ROIs per class (optional) and expand context.
+        merged_boxes: List[np.ndarray] = []
+        merged_scores: List[float] = []
+        merged_class_ids: List[int] = []
+        merged_metadata: List[dict] = []
+
+        # Iterate through class buckets or a single pooled bucket.
+        unique_classes = np.unique(class_ids) if class_aware else np.array([-1])
+        for cls in unique_classes:
+            if class_aware:
+                idx = np.where(class_ids == cls)[0]
+            else:
+                idx = np.arange(len(class_ids))
+            # Select boxes/scores for the current bucket.
+            class_boxes = boxes[idx]
+            class_scores = scores[idx]
+            clusters = _cluster_boxes(class_boxes, iou_threshold)
+            for cluster in clusters:
+                cluster_boxes = class_boxes[cluster]
+                cluster_scores = class_scores[cluster]
+                # Merge the cluster into a single ROI then expand for context.
+                merged = _merge_union(cluster_boxes)
+                merged, expansion_applied = _expand_box(merged, image_shape, context_scale)
+                # Keep the best score in the cluster as the representative score.
+                merged_boxes.append(merged)
+                merged_scores.append(float(cluster_scores.max()))
+                merged_metadata.append(
+                    {
+                        "merged_boxes_count": len(cluster),
+                        "context_expansion_applied": expansion_applied,
+                    }
+                )
+                if class_aware:
+                    merged_class_ids.append(int(cls))
+                else:
+                    # When class-agnostic, retain the class id of the top-scoring box.
+                    merged_class_ids.append(int(class_ids[idx][cluster_scores.argmax()]))
+
+        if merged_boxes:
+            boxes_array = np.asarray(merged_boxes, dtype=np.float32)
+            scores_array = np.asarray(merged_scores, dtype=float)
+            class_ids_array = np.asarray(merged_class_ids, dtype=int)
+        else:
+            boxes_array = np.empty((0, 4), dtype=np.float32)
+            scores_array = np.empty((0,), dtype=float)
+            class_ids_array = np.empty((0,), dtype=int)
+
+        return boxes_array, scores_array, class_ids_array, merged_metadata
 
 
 def create_detector(config: Optional[dict] = None) -> Optional[YOLOXDetector]:

@@ -102,11 +102,21 @@ export class EvamService {
 
   @OnEvent(AppEvents.SUMMARY_REMOVED)
   summaryRemoved(stateId: string) {
-    this.inProgress.delete(stateId);
+    for (const [pipelineId, progress] of this.inProgress.entries()) {
+      if (progress.stateId === stateId) {
+        this.inProgress.delete(pipelineId);
+      }
+    }
   }
 
   isChunkingInProgress(stateId: string): boolean {
-    return this.inProgress.has(stateId);
+    for (const progress of this.inProgress.values()) {
+      if (progress.stateId === stateId) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   addStateToProgress(stateId: string, pipelineId: string) {

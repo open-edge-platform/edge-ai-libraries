@@ -132,6 +132,12 @@ services:
             # Object detection model directory
             DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
 
+            # ROI consolidation settings
+            ROI_CONSOLIDATION_ENABLED: ${ROI_CONSOLIDATION_ENABLED:-false}
+            ROI_CONSOLIDATION_IOU_THRESHOLD: ${ROI_CONSOLIDATION_IOU_THRESHOLD:-0.2}
+            ROI_CONSOLIDATION_CLASS_AWARE: ${ROI_CONSOLIDATION_CLASS_AWARE:-false}
+            ROI_CONSOLIDATION_CONTEXT_SCALE: ${ROI_CONSOLIDATION_CONTEXT_SCALE:-0.2}
+            
             # Application configuration
             LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
 

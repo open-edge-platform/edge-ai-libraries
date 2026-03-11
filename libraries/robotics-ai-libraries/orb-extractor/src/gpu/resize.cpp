@@ -122,8 +122,9 @@ struct resizeLinear
         WT data3 =
           (WT) * (params.src_ptr + y_ * params.src_steps + x_ * params.depth + params.src_rect.x);
 
-        WT val = mul24((WT)mul24(U1, V1), data0) + mul24((WT)mul24(U, V1), data1) +
-                 mul24((WT)mul24(U1, V), data2) + mul24((WT)mul24(U, V), data3);
+        WT val =
+          sycl::mul24((WT)sycl::mul24(U1, V1), data0) + sycl::mul24((WT)sycl::mul24(U, V1), data1) +
+          sycl::mul24((WT)sycl::mul24(U1, V), data2) + sycl::mul24((WT)sycl::mul24(U, V), data3);
 
         uval = (T)((val + (1 << (CAST_BITS - 1))) >> CAST_BITS);
       } else {

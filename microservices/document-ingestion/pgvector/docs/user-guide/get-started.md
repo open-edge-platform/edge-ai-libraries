@@ -70,7 +70,7 @@ export USER_AGENT_HEADER=<your_user_agent_string>
 
 # OPTIONAL - If user wants to push the built images to a remote container registry, user needs to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to application name and tag to form the final image name.
 
-export CONTAINER_REGISTRY_URL=<user_container_registry_url>
+export CONTAINER_REGISTRY_URL="intel/"
 ```
 
 ## ALLOWED_HOSTS Configuration
@@ -131,7 +131,7 @@ This method provides the fastest way to get started with the microservice.
     # Clone the latest on mainline
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
     # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
     ```
 
 2. **Change to project directory**:
@@ -156,8 +156,8 @@ This method provides the fastest way to get started with the microservice.
 5. **Start the Microservices**:
     The user is required to configure the registry and tag params before starting the microservices.
     ```bash
-    export CONTAINER_REGISTRY_URL=<preferred-registry-url> #defaults to "intel/" if not set
-    export CONTAINER_TAG=<preferred-tag> #defaults to "latest" if not set
+    export CONTAINER_REGISTRY_URL="intel/" #defaults to "intel/" if not set
+    export CONTAINER_TAG=1.2.4-rc1 #defaults to "latest" if not set
 
     # Run the production environment for all services in daemon mode
     source ./run.sh

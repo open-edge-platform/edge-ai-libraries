@@ -1,6 +1,6 @@
 -r requirements.txt
 
 # Development dependencies
-ruff==0.14.3
-pyright==1.1.407
-coverage==7.11.0
+ruff==0.15.0
+pyright==1.1.408
+coverage==7.13.4

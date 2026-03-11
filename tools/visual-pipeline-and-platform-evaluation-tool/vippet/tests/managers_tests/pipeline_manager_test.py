@@ -1,41 +1,113 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 from api.api_schemas import (
     Edge,
-    ExecutionConfig,
     Node,
-    OutputMode,
     PipelineDefinition,
     PipelineGraph,
-    PipelineParameters,
-    PipelinePerformanceSpec,
     PipelineSource,
-    PipelineType,
+    Variant,
+    VariantCreate,
+)
+from graph import Graph
+from internal_types import (
+    InternalExecutionConfig,
+    InternalOutputMode,
+    InternalPipelinePerformanceSpec,
 )
 from managers.pipeline_manager import PipelineManager
+from utils import get_current_timestamp
 from videos import OUTPUT_VIDEO_DIR
+
+
+def create_simple_graph() -> PipelineGraph:
+    """Helper to create a simple valid pipeline graph."""
+    return PipelineGraph(
+        nodes=[
+            Node(id="0", type="fakesrc", data={}),
+            Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
+        ],
+        edges=[Edge(id="0", source="0", target="1")],
+    )
+
+
+def create_simple_graph_object() -> Graph:
+    """Helper to create a simple valid Graph object."""
+    return Graph.from_dict(create_simple_graph().model_dump())
+
+
+def create_variant_create(name: str = "CPU") -> VariantCreate:
+    """Helper to create a valid VariantCreate for testing PipelineDefinition."""
+    graph = create_simple_graph()
+    return VariantCreate(
+        name=name,
+        pipeline_graph=graph,
+        pipeline_graph_simple=graph,
+    )
+
+
+def create_variant(name: str = "CPU", read_only: bool = False) -> Variant:
+    """Helper to create a valid Variant for testing."""
+    graph = create_simple_graph()
+    timestamp = get_current_timestamp()
+    return Variant(
+        id="variant-test",
+        name=name,
+        read_only=read_only,
+        pipeline_graph=graph,
+        pipeline_graph_simple=graph,
+        created_at=timestamp,
+        modified_at=timestamp,
+    )
+
+
+def create_internal_execution_config(
+    output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
+    max_runtime: float = 0,
+) -> InternalExecutionConfig:
+    """Helper to create InternalExecutionConfig for testing."""
+    return InternalExecutionConfig(
+        output_mode=output_mode,
+        max_runtime=max_runtime,
+    )
+
+
+def create_internal_performance_spec(
+    pipeline_id: str,
+    pipeline_name: str,
+    streams: int = 1,
+    graph: Graph | None = None,
+) -> InternalPipelinePerformanceSpec:
+    """Helper to create InternalPipelinePerformanceSpec for testing."""
+    if graph is None:
+        graph = create_simple_graph_object()
+    return InternalPipelinePerformanceSpec(
+        pipeline_id=pipeline_id,
+        pipeline_name=pipeline_name,
+        pipeline_graph=graph,
+        streams=streams,
+    )
 
 
 class TestPipelineManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
-        # Reset the singleton instance to ensure clean state for each test
         PipelineManager._instance = None
+        self.job_id = "test-job-123"
 
     def test_add_pipeline_valid(self):
         manager = PipelineManager()
-        manager.pipelines = []  # Reset pipelines for isolated test
+        manager.pipelines = []
         initial_count = len(manager.get_pipelines())
 
         new_pipeline = PipelineDefinition(
             name="user-defined-pipelines",
-            version=1,
             description="A test pipeline",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
-            parameters=None,
+            tags=["test"],
+            variants=[create_variant_create()],
         )
 
         added_pipeline = manager.add_pipeline(new_pipeline)
@@ -44,109 +116,66 @@ class TestPipelineManager(unittest.TestCase):
 
         # Verify the added pipeline has an ID and correct attributes
         self.assertIsNotNone(added_pipeline.id)
-        self.assertTrue(added_pipeline.id.startswith("pipeline-"))
+        self.assertGreater(len(added_pipeline.id), 0)
+        # ID should be a slugified version of the name
+        self.assertEqual(added_pipeline.id, "user-defined-pipelines")
         self.assertEqual(added_pipeline.name, "user-defined-pipelines")
-        self.assertEqual(added_pipeline.version, 1)
+        self.assertEqual(len(added_pipeline.variants), 1)
+
+        # Verify variant ID was generated from variant name
+        variant = added_pipeline.variants[0]
+        self.assertEqual(variant.id, "cpu")  # slugified from "CPU"
+        self.assertFalse(variant.read_only)  # User-created variants are never read-only
+
+        # Verify timestamps are datetime objects with UTC timezone
+        self.assertIsInstance(added_pipeline.created_at, datetime)
+        self.assertIsInstance(added_pipeline.modified_at, datetime)
+        self.assertEqual(added_pipeline.created_at.tzinfo, timezone.utc)
+        self.assertEqual(added_pipeline.modified_at.tzinfo, timezone.utc)
+        self.assertEqual(added_pipeline.created_at, added_pipeline.modified_at)
+
+        # Verify variant timestamps
+        self.assertIsInstance(variant.created_at, datetime)
+        self.assertIsInstance(variant.modified_at, datetime)
+        self.assertEqual(variant.created_at.tzinfo, timezone.utc)
+
+        # Verify thumbnail is None for user-created pipeline
+        self.assertIsNone(added_pipeline.thumbnail)
 
         # Verify we can retrieve it by ID
         retrieved = manager.get_pipeline_by_id(added_pipeline.id)
         self.assertEqual(retrieved.name, "user-defined-pipelines")
-        self.assertEqual(retrieved.version, 1)
 
-    def test_add_pipeline_duplicate(self):
+    def test_add_pipeline_with_multiple_variants(self):
+        """Test adding a pipeline with multiple variants."""
         manager = PipelineManager()
-        manager.pipelines = []  # Reset pipelines for isolated test
+        manager.pipelines = []
 
         new_pipeline = PipelineDefinition(
-            name="user-defined-pipelines",
-            version=1,
-            description="A test pipeline",
+            name="multi-variant-pipeline",
+            description="Pipeline with CPU and GPU variants",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
-            parameters=None,
+            tags=["multi", "test"],
+            variants=[
+                create_variant_create(name="CPU"),
+                create_variant_create(name="GPU"),
+            ],
         )
 
-        manager.add_pipeline(new_pipeline)
+        added_pipeline = manager.add_pipeline(new_pipeline)
+        self.assertEqual(len(added_pipeline.variants), 2)
+        variant_names = [v.name for v in added_pipeline.variants]
+        self.assertIn("CPU", variant_names)
+        self.assertIn("GPU", variant_names)
 
-        # Attempt to add the same pipeline again should raise ValueError
-        with self.assertRaises(ValueError) as context:
-            manager.add_pipeline(new_pipeline)
+        # Verify variant IDs were generated from names
+        variant_ids = [v.id for v in added_pipeline.variants]
+        self.assertIn("cpu", variant_ids)
+        self.assertIn("gpu", variant_ids)
 
-        self.assertIn(
-            "Invalid version '1' for pipeline 'user-defined-pipelines'. Expected next version to be '2'.",
-            str(context.exception),
-        )
-
-    def test_add_pipeline_version_must_start_at_one_for_new_name(self):
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        # For a new pipeline name, only version 1 is allowed.
-        invalid_pipeline = PipelineDefinition(
-            name="user-defined-pipelines",
-            version=3,
-            description="A test pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
-            parameters=None,
-        )
-
-        with self.assertRaises(ValueError) as context:
-            manager.add_pipeline(invalid_pipeline)
-
-        self.assertIn(
-            "Invalid version '3' for pipeline 'user-defined-pipelines'. Expected version '1' for a new pipeline.",
-            str(context.exception),
-        )
-
-    def test_add_pipeline_version_must_be_consecutive(self):
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        pipeline_v1 = PipelineDefinition(
-            name="user-defined-pipelines",
-            version=1,
-            description="v1",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
-        )
-
-        pipeline_v2 = PipelineDefinition(
-            name="user-defined-pipelines",
-            version=2,
-            description="v2",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
-        )
-
-        pipeline_v4 = PipelineDefinition(
-            name="user-defined-pipelines",
-            version=4,
-            description="v4",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
-        )
-
-        # v1 and v2 should be accepted
-        manager.add_pipeline(pipeline_v1)
-        manager.add_pipeline(pipeline_v2)
-
-        # Skipping directly to v4 must fail; expected next version is 3
-        with self.assertRaises(ValueError) as context:
-            manager.add_pipeline(pipeline_v4)
-
-        self.assertIn(
-            "Invalid version '4' for pipeline 'user-defined-pipelines'. Expected next version to be '3'.",
-            str(context.exception),
-        )
+        # Verify all variants have read_only=False
+        for variant in added_pipeline.variants:
+            self.assertFalse(variant.read_only)
 
     def test_get_pipeline_by_id_not_found(self):
         manager = PipelineManager()
@@ -159,41 +188,123 @@ class TestPipelineManager(unittest.TestCase):
             str(context.exception),
         )
 
+    def test_get_variant_by_ids_success(self):
+        """Test successful retrieval of variant by pipeline and variant IDs."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Add a test pipeline with a variant
+        new_pipeline = PipelineDefinition(
+            name="test-variant-lookup",
+            description="Test pipeline for variant lookup",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant_id = added.variants[0].id
+
+        # Retrieve variant by IDs
+        variant = manager.get_variant_by_ids(added.id, variant_id)
+
+        self.assertIsNotNone(variant)
+        self.assertEqual(variant.id, variant_id)
+        self.assertEqual(variant.name, "CPU")
+
+    def test_get_variant_by_ids_pipeline_not_found(self):
+        """Test get_variant_by_ids raises error when pipeline not found."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids("nonexistent-pipeline", "some-variant")
+
+        self.assertIn(
+            "Pipeline with id 'nonexistent-pipeline' not found.",
+            str(context.exception),
+        )
+
+    def test_get_variant_by_ids_variant_not_found(self):
+        """Test get_variant_by_ids raises error when variant not found."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-variant-lookup",
+            description="Test pipeline",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids(added.id, "nonexistent-variant")
+
+        self.assertIn(
+            f"Variant 'nonexistent-variant' not found in pipeline '{added.id}'.",
+            str(context.exception),
+        )
+
+    def test_get_variant_by_ids_returns_copy(self):
+        """Test that get_variant_by_ids returns a copy, not the original."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-variant-copy",
+            description="Test pipeline",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant_id = added.variants[0].id
+
+        # Get variant and modify it
+        variant = manager.get_variant_by_ids(added.id, variant_id)
+        variant.name = "MODIFIED"
+
+        # Original should be unchanged
+        original_variant = manager.get_variant_by_ids(added.id, variant_id)
+        self.assertEqual(original_variant.name, "CPU")
+
     def test_load_predefined_pipelines(self):
         manager = PipelineManager()
         pipelines = manager.get_pipelines()
         self.assertIsInstance(pipelines, list)
-        # Just verify we loaded at least one pipeline
         self.assertGreaterEqual(len(pipelines), 1)
 
-        # Verify all pipelines have required fields
+        # Check that predefined pipelines have variants
         for pipeline in pipelines:
-            self.assertIsNotNone(pipeline.id)
-            self.assertIsNotNone(pipeline.name)
-            self.assertIsNotNone(pipeline.pipeline_graph)
+            if pipeline.source == PipelineSource.PREDEFINED:
+                self.assertGreater(len(pipeline.variants), 0)
+                for variant in pipeline.variants:
+                    self.assertIsNotNone(variant.id)
+                    self.assertIsNotNone(variant.name)
+                    self.assertIsNotNone(variant.pipeline_graph)
+                    self.assertIsNotNone(variant.pipeline_graph_simple)
+                    self.assertTrue(variant.read_only)
+                    self.assertIsInstance(variant.created_at, datetime)
+                    self.assertIsInstance(variant.modified_at, datetime)
 
     def test_build_pipeline_command_single_pipeline_single_stream(self):
         manager = PipelineManager()
-        manager.pipelines = []  # Reset pipelines for isolated test
+        manager.pipelines = []
 
-        # Add a test pipeline
-        test_pipeline = PipelineDefinition(
-            name="test-pipelines",
-            version=1,
-            description="Test pipeline for single stream",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
-        )
-        added = manager.add_pipeline(test_pipeline)
-
-        # Build command with one pipeline and one stream using the pipeline ID
-        pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
+        # Build command using internal types directly
+        pipeline_id = "/pipelines/test-pipelines/variants/cpu"
+        pipeline_performance_specs = [
+            create_internal_performance_spec(
+                pipeline_id=pipeline_id,
+                pipeline_name="test-pipelines",
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command is not empty and contains pipeline elements
@@ -204,100 +315,133 @@ class TestPipelineManager(unittest.TestCase):
         self.assertIn("fakesrc", command)
         self.assertIn("fakesink", command)
 
-    def test_build_pipeline_command_single_pipeline_multiple_streams(self):
+    def test_build_pipeline_command_with_inline_graph(self):
+        """Test building pipeline command with inline graph format."""
         manager = PipelineManager()
-        manager.pipelines = []  # Reset pipelines for isolated test
+        manager.pipelines = []
 
-        # Add a test pipeline
-        test_pipeline = PipelineDefinition(
-            name="test-pipelines",
-            version=1,
-            description="Test pipeline for multiple streams",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! tee name=t ! queue ! fakesink t. ! queue ! fakesink",
-            parameters=None,
-        )
-        added = manager.add_pipeline(test_pipeline)
-
-        # Build command with one pipeline and 3 streams using the pipeline ID
-        pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=3)]
-        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
+        # Build command using inline graph format (synthetic ID)
+        pipeline_performance_specs = [
+            create_internal_performance_spec(
+                pipeline_id="__graph-1234567890abcdef",
+                pipeline_name="__graph-1234567890abcdef",
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
+        )
+
+        self.assertIsInstance(command, str)
+        self.assertGreater(len(command), 0)
+        self.assertIn("fakesrc", command)
+
+        # Verify output_paths key uses __graph- prefix for inline graphs
+        for key in output_paths.keys():
+            self.assertTrue(key.startswith("__graph-"))
+
+    def test_build_pipeline_command_single_pipeline_multiple_streams(self):
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Create Graph object with tee element
+        tee_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "tee", "data": {"name": "t"}},
+                {"id": "2", "type": "queue", "data": {}},
+                {
+                    "id": "3",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+                {"id": "2", "source": "2", "target": "3"},
+            ],
+        }
+        tee_graph = Graph.from_dict(tee_graph_dict)
+
+        # Build command with 3 streams
+        pipeline_performance_specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/test-pipelines/variants/cpu",
+                pipeline_name="test-pipelines",
+                pipeline_graph=tee_graph,
+                streams=3,
+            )
+        ]
+        execution_config = create_internal_execution_config()
+
+        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify command contains multiple instances
         self.assertIsInstance(command, str)
-        self.assertIsInstance(output_paths, dict)
-        self.assertIsInstance(live_stream_urls, dict)
         self.assertGreater(len(command), 0)
         # Should have 3 instances of videotestsrc (one per stream)
         self.assertEqual(command.count("videotestsrc"), 3)
 
     def test_build_pipeline_command_multiple_pipelines(self):
         manager = PipelineManager()
-        manager.pipelines = []  # Reset pipelines for isolated test
+        manager.pipelines = []
 
-        # Add two test pipelines
-        pipeline1 = PipelineDefinition(
-            name="test-pipelines",
-            version=1,
-            description="First test pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc name=source1 ! fakesink",
-            parameters=None,
-        )
-        pipeline2 = PipelineDefinition(
-            name="test-pipelines",
-            version=2,
-            description="Second test pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc name=source2 ! fakesink",
-            parameters=None,
-        )
-        added1 = manager.add_pipeline(pipeline1)
-        added2 = manager.add_pipeline(pipeline2)
+        # Create two different Graph objects
+        graph1_dict = {
+            "nodes": [
+                {"id": "0", "type": "fakesrc", "data": {"name": "source1"}},
+                {
+                    "id": "1",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+        graph2_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {"name": "source2"}},
+                {
+                    "id": "1",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
 
-        # Build command with two pipelines with different stream counts using IDs
+        # Build command with two pipelines
         pipeline_performance_specs = [
-            PipelinePerformanceSpec(id=added1.id, streams=2),
-            PipelinePerformanceSpec(id=added2.id, streams=3),
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/pipeline-1/variants/cpu",
+                pipeline_name="pipeline-1",
+                pipeline_graph=Graph.from_dict(graph1_dict),
+                streams=2,
+            ),
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/pipeline-2/variants/cpu",
+                pipeline_name="pipeline-2",
+                pipeline_graph=Graph.from_dict(graph2_dict),
+                streams=3,
+            ),
         ]
-        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
+        execution_config = create_internal_execution_config()
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify both pipeline types are present
         self.assertIsInstance(command, str)
-        self.assertIsInstance(output_paths, dict)
-        self.assertIsInstance(live_stream_urls, dict)
         self.assertGreater(len(command), 0)
         # Should have 2 instances of fakesrc and 3 instances of videotestsrc
         self.assertEqual(command.count("fakesrc"), 2)
         self.assertEqual(command.count("videotestsrc"), 3)
-
-    def test_build_pipeline_command_nonexistent_pipeline_raises_error(self):
-        manager = PipelineManager()
-
-        # Try to build command with pipeline ID that doesn't exist
-        pipeline_performance_specs = [
-            PipelinePerformanceSpec(id="nonexistent-pipeline-id", streams=1)
-        ]
-        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
-
-        with self.assertRaises(ValueError) as context:
-            manager.build_pipeline_command(pipeline_performance_specs, execution_config)
-
-        self.assertIn(
-            "Pipeline with id 'nonexistent-pipeline-id' not found",
-            str(context.exception),
-        )
 
     def test_update_pipeline_description_and_name(self):
         manager = PipelineManager()
@@ -305,15 +449,18 @@ class TestPipelineManager(unittest.TestCase):
 
         new_pipeline = PipelineDefinition(
             name="original-name",
-            version=1,
             description="Original description",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
+            tags=["original"],
+            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
+        original_modified_at = added.modified_at
+
+        import time
+
+        time.sleep(0.01)
 
         updated = manager.update_pipeline(
             pipeline_id=added.id,
@@ -324,83 +471,35 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(updated.id, added.id)
         self.assertEqual(updated.name, "updated-name")
         self.assertEqual(updated.description, "Updated description")
+        self.assertGreater(updated.modified_at, original_modified_at)
+        self.assertIsInstance(updated.modified_at, datetime)
+        self.assertEqual(updated.created_at, added.created_at)
 
-        # Ensure the change is reflected in manager state
         retrieved = manager.get_pipeline_by_id(added.id)
         self.assertEqual(retrieved.name, "updated-name")
         self.assertEqual(retrieved.description, "Updated description")
 
-    def test_update_pipeline_graph_and_parameters(self):
+    def test_update_pipeline_tags(self):
+        """Test updating pipeline tags."""
         manager = PipelineManager()
         manager.pipelines = []
 
         new_pipeline = PipelineDefinition(
-            name="test-pipeline",
-            version=1,
-            description="Pipeline to be updated",
+            name="test-tags",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
+            tags=["original"],
+            variants=[create_variant_create()],
         )
 
         added = manager.add_pipeline(new_pipeline)
-
-        updated_graph = PipelineGraph(
-            nodes=[
-                Node(id="0", type="videotestsrc", data={}),
-                Node(id="1", type="fakesink", data={}),
-            ],
-            edges=[Edge(id="0", source="0", target="1")],
-        )
-
-        updated_params = PipelineParameters(default={"key": "value"})
 
         updated = manager.update_pipeline(
             pipeline_id=added.id,
-            pipeline_graph=updated_graph,
-            parameters=updated_params,
+            tags=["updated", "new-tag"],
         )
 
-        self.assertEqual(updated.id, added.id)
-        self.assertEqual(updated.pipeline_graph, updated_graph)
-        self.assertEqual(updated.parameters, updated_params)
-
-    def test_update_pipeline_invalid_graph_raises(self):
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        new_pipeline = PipelineDefinition(
-            name="test-pipeline-invalid-graph",
-            version=1,
-            description="Pipeline with invalid graph update",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
-        )
-
-        added = manager.add_pipeline(new_pipeline)
-
-        # Create an invalid graph that should fail validation in update_pipeline
-        invalid_graph = PipelineGraph(
-            nodes=[
-                Node(
-                    id="0",
-                    type="gvafpscounter",
-                    data={"starting-frame": "2000"},
-                ),
-            ],
-            edges=[Edge(id="1", source="0", target="0")],
-        )
-
-        with self.assertRaises(ValueError) as context:
-            manager.update_pipeline(pipeline_id=added.id, pipeline_graph=invalid_graph)
-
-        self.assertIn(
-            "Cannot convert graph to pipeline description: circular graph detected or no start nodes found",
-            str(context.exception),
-        )
+        self.assertEqual(updated.tags, ["updated", "new-tag"])
 
     def test_update_pipeline_not_found_raises(self):
         manager = PipelineManager()
@@ -413,38 +512,82 @@ class TestPipelineManager(unittest.TestCase):
             "Pipeline with id 'nonexistent' not found.", str(context.exception)
         )
 
+    def test_delete_pipeline_user_created(self):
+        """Test deleting user-created pipeline succeeds."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="to-delete",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        manager.delete_pipeline_by_id(added.id)
+
+        with self.assertRaises(ValueError):
+            manager.get_pipeline_by_id(added.id)
+
+    def test_delete_pipeline_predefined_raises_error(self):
+        """Test that deleting a PREDEFINED pipeline raises error."""
+        manager = PipelineManager()
+
+        predefined = None
+        for p in manager.get_pipelines():
+            if p.source == PipelineSource.PREDEFINED:
+                predefined = p
+                break
+
+        assert predefined is not None
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_pipeline_by_id(predefined.id)
+
+        self.assertIn("PREDEFINED", str(context.exception))
+
     def test_build_pipeline_command_with_video_output_enabled(self):
         """Test building pipeline command with video output enabled (file mode)."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        # Add a test pipeline
-        new_pipeline = PipelineDefinition(
-            name="test-video-output",
-            version=1,
-            description="Pipeline for testing video output",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        added = manager.add_pipeline(new_pipeline)
+        graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {
+                    "id": "1",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
 
-        pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
+        pipeline_id = "/pipelines/test-video-output/variants/cpu"
+        pipeline_performance_specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="test-video-output",
+                pipeline_graph=Graph.from_dict(graph_dict),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.FILE,
             max_runtime=0,
         )
 
         command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
         # Verify video output is configured
         self.assertIsInstance(command, str)
         self.assertIsInstance(output_paths, dict)
-        self.assertIn(added.id, output_paths)
-        self.assertGreater(len(output_paths[added.id]), 0)
+        self.assertIn(pipeline_id, output_paths)
+        self.assertGreater(len(output_paths[pipeline_id]), 0)
 
         # Verify output directory is in the command
         self.assertIn(OUTPUT_VIDEO_DIR, command)
@@ -456,179 +599,225 @@ class TestPipelineManager(unittest.TestCase):
         # Verify no live stream URLs for file output mode
         self.assertEqual(len(live_stream_urls), 0)
 
-    def test_build_pipeline_command_with_gpu_encoder(self):
-        """Test building pipeline command with GPU encoder (file mode)."""
+    def test_pipeline_id_format_variant_reference(self):
+        """Test that variant reference format produces correct pipeline ID."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        new_pipeline = PipelineDefinition(
-            name="test-gpu-encoder",
-            version=1,
-            description="Pipeline with GPU encoder",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        added = manager.add_pipeline(new_pipeline)
-
-        pipeline_performance_specs = [PipelinePerformanceSpec(id=added.id, streams=2)]
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
-            max_runtime=0,
-        )
-
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
-        )
-
-        # Verify output paths for all streams
-        self.assertIn(added.id, output_paths)
-        # Should have only 1 output path (first stream)
-        self.assertEqual(len(output_paths[added.id]), 1)
-        # Verify output directory is in the command
-        self.assertIn(OUTPUT_VIDEO_DIR, command)
-
-    def test_build_pipeline_command_video_output_multiple_pipelines(self):
-        """Test video output with multiple pipelines - only first stream gets output."""
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        pipeline1 = PipelineDefinition(
-            name="pipeline-1",
-            version=1,
-            description="First pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        pipeline2 = PipelineDefinition(
-            name="pipeline-2",
-            version=1,
-            description="Second pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-
-        added1 = manager.add_pipeline(pipeline1)
-        added2 = manager.add_pipeline(pipeline2)
-
+        pipeline_id = "/pipelines/test-id-format/variants/cpu"
         pipeline_performance_specs = [
-            PipelinePerformanceSpec(id=added1.id, streams=2),
-            PipelinePerformanceSpec(id=added2.id, streams=3),
+            create_internal_performance_spec(
+                pipeline_id=pipeline_id,
+                pipeline_name="test-id-format",
+                streams=1,
+            )
         ]
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
-            max_runtime=0,
+        execution_config = create_internal_execution_config()
+
+        _, output_paths, _ = manager.build_pipeline_command(
+            pipeline_performance_specs, execution_config, self.job_id
         )
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config
-        )
+        # Verify pipeline ID format for variant reference
+        self.assertIn(pipeline_id, output_paths.keys())
 
-        # Verify video output paths exist for both pipelines
-        self.assertIn(added1.id, output_paths)
-        self.assertIn(added2.id, output_paths)
 
-        # Each pipeline should have only 1 output path (first stream)
-        self.assertEqual(len(output_paths[added1.id]), 1)
-        self.assertEqual(len(output_paths[added2.id]), 1)
+class TestVariantCRUD(unittest.TestCase):
+    """Test cases for variant CRUD operations."""
 
-        # Verify output directory is in the command
-        self.assertIn(OUTPUT_VIDEO_DIR, command)
+    def setUp(self):
+        PipelineManager._instance = None
 
-    def test_add_pipeline_generates_simple_view(self):
-        """
-        add_pipeline should generate simple view automatically from advanced view.
-        """
+    def test_add_variant_to_pipeline(self):
+        """Test adding a new variant to an existing pipeline."""
         manager = PipelineManager()
         manager.pipelines = []
 
         new_pipeline = PipelineDefinition(
-            name="test-simple-view",
-            version=1,
-            description="Test simple view generation",
+            name="test-add-variant",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/test.mp4 ! decodebin3 ! autovideosink",
-            parameters=None,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
         )
-
         added = manager.add_pipeline(new_pipeline)
+        self.assertEqual(len(added.variants), 1)
+        original_pipeline_modified_at = added.modified_at
 
-        # Verify both views exist
-        self.assertIsNotNone(added.pipeline_graph)
-        self.assertIsNotNone(added.pipeline_graph_simple)
+        import time
 
-        # Verify simple view is different from advanced view (simplified)
-        self.assertLess(
-            len(added.pipeline_graph_simple.nodes),
-            len(added.pipeline_graph.nodes),
+        time.sleep(0.01)
+
+        new_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={}),
+                Node(id="1", type="fakesink", data={"name": "default_output_sink"}),
+            ],
+            edges=[Edge(id="0", source="0", target="1")],
         )
 
-        # Verify both views have valid node and edge structures
-        self.assertGreater(len(added.pipeline_graph.nodes), 0)
-        self.assertGreater(len(added.pipeline_graph_simple.nodes), 0)
+        new_variant = manager.add_variant(
+            pipeline_id=added.id,
+            name="GPU",
+            pipeline_graph=new_graph,
+            pipeline_graph_simple=new_graph,
+        )
 
-    def test_load_predefined_pipelines_generates_simple_views(self):
-        """
-        load_predefined_pipelines should generate simple view for each predefined pipeline.
-        """
-        manager = PipelineManager()
-        pipelines = manager.get_pipelines()
+        self.assertIsNotNone(new_variant.id)
+        self.assertGreater(len(new_variant.id), 0)
+        self.assertEqual(new_variant.id, "gpu")
+        self.assertEqual(new_variant.name, "GPU")
+        self.assertFalse(new_variant.read_only)
 
-        # Verify each predefined pipeline has both views
-        for pipeline in pipelines:
-            self.assertIsNotNone(
-                pipeline.pipeline_graph,
-                f"Pipeline {pipeline.name} missing advanced view",
-            )
-            self.assertIsNotNone(
-                pipeline.pipeline_graph_simple,
-                f"Pipeline {pipeline.name} missing simple view",
-            )
+        self.assertIsInstance(new_variant.created_at, datetime)
+        self.assertIsInstance(new_variant.modified_at, datetime)
+        self.assertEqual(new_variant.created_at.tzinfo, timezone.utc)
+        self.assertEqual(new_variant.created_at, new_variant.modified_at)
 
-            # Verify both views have nodes
-            self.assertGreater(
-                len(pipeline.pipeline_graph.nodes),
-                0,
-                f"Pipeline {pipeline.name} advanced view has no nodes",
-            )
-            self.assertGreater(
-                len(pipeline.pipeline_graph_simple.nodes),
-                0,
-                f"Pipeline {pipeline.name} simple view has no nodes",
-            )
+        retrieved = manager.get_pipeline_by_id(added.id)
+        self.assertEqual(len(retrieved.variants), 2)
+        self.assertGreater(retrieved.modified_at, original_pipeline_modified_at)
 
-    def test_update_pipeline_with_advanced_graph_regenerates_simple_view(self):
-        """
-        Updating pipeline with new advanced graph should auto-generate simple view.
-        """
+    def test_add_variant_to_nonexistent_pipeline(self):
+        """Test that adding variant to nonexistent pipeline raises error."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        original_pipeline = PipelineDefinition(
-            name="test-graph-update",
-            version=1,
-            description="Original pipeline",
+        with self.assertRaises(ValueError) as context:
+            manager.add_variant(
+                pipeline_id="nonexistent",
+                name="GPU",
+                pipeline_graph=create_simple_graph(),
+                pipeline_graph_simple=create_simple_graph(),
+            )
+
+        self.assertIn("not found", str(context.exception))
+
+    def test_delete_variant(self):
+        """Test deleting a variant from a pipeline."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-delete-variant",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
+            tags=[],
+            variants=[
+                create_variant_create(name="CPU"),
+                create_variant_create(name="GPU"),
+            ],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        self.assertEqual(len(added.variants), 2)
+        original_modified_at = added.modified_at
+
+        import time
+
+        time.sleep(0.01)
+
+        variant_to_delete = added.variants[1].id
+        manager.delete_variant(added.id, variant_to_delete)
+
+        retrieved = manager.get_pipeline_by_id(added.id)
+        self.assertEqual(len(retrieved.variants), 1)
+        self.assertGreater(retrieved.modified_at, original_modified_at)
+
+        with self.assertRaises(ValueError) as context:
+            manager.get_variant_by_ids(added.id, variant_to_delete)
+        self.assertIn("not found", str(context.exception))
+
+    def test_delete_last_variant_raises_error(self):
+        """Test that deleting the last variant raises error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-last-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_variant(added.id, added.variants[0].id)
+
+        self.assertIn("last variant", str(context.exception))
+
+    def test_delete_nonexistent_variant_raises_error(self):
+        """Test that deleting a nonexistent variant raises error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-nonexistent",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_variant(added.id, "nonexistent-variant")
+
+        self.assertIn("not found", str(context.exception))
+
+    def test_update_variant_name(self):
+        """Test updating variant name."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        original_variant_modified_at = added.variants[0].modified_at
+        original_pipeline_modified_at = added.modified_at
+
+        import time
+
+        time.sleep(0.01)
+
+        updated = manager.update_variant(
+            pipeline_id=added.id,
+            variant_id=added.variants[0].id,
+            name="GPU-optimized",
         )
 
-        added = manager.add_pipeline(original_pipeline)
-        original_simple_view = added.pipeline_graph_simple
+        self.assertEqual(updated.name, "GPU-optimized")
+        self.assertGreater(updated.modified_at, original_variant_modified_at)
+        self.assertIsInstance(updated.modified_at, datetime)
+        self.assertEqual(updated.created_at, added.variants[0].created_at)
 
-        # Update with new advanced graph
+        retrieved = manager.get_pipeline_by_id(added.id)
+        self.assertGreater(retrieved.modified_at, original_pipeline_modified_at)
+
+    def test_update_variant_pipeline_graph(self):
+        """Test updating variant with new pipeline graph."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-graph",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
         new_graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
                 Node(id="1", type="videoconvert", data={}),
-                Node(id="2", type="fakesink", data={}),
+                Node(id="2", type="fakesink", data={"name": "default_output_sink"}),
             ],
             edges=[
                 Edge(id="0", source="0", target="1"),
@@ -636,265 +825,248 @@ class TestPipelineManager(unittest.TestCase):
             ],
         )
 
-        updated = manager.update_pipeline(
-            pipeline_id=added.id, pipeline_graph=new_graph
+        updated = manager.update_variant(
+            pipeline_id=added.id,
+            variant_id=added.variants[0].id,
+            pipeline_graph=new_graph,
         )
 
-        # Verify advanced view is updated
-        self.assertEqual(updated.pipeline_graph, new_graph)
-
-        # Verify simple view was regenerated (auto-generated)
+        self.assertEqual(len(updated.pipeline_graph.nodes), 3)
         self.assertIsNotNone(updated.pipeline_graph_simple)
-        # New simple view should be different from original
-        self.assertNotEqual(
-            updated.pipeline_graph_simple.model_dump(),
-            original_simple_view.model_dump(),
-        )
 
-    def test_update_pipeline_with_simple_graph_applies_changes_to_advanced(self):
-        """
-        Updating pipeline with simple graph should regenerate both views successfully.
-        """
+    def test_update_variant_both_graphs_raises_error(self):
+        """Test that providing both graph types raises error."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        original_pipeline = PipelineDefinition(
-            name="test-simple-update",
-            version=1,
-            description="Pipeline for simple graph update",
+        new_pipeline = PipelineDefinition(
+            name="test-both-graphs",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! videoconvert ! fakesink",
-            parameters=None,
+            tags=[],
+            variants=[create_variant_create()],
         )
+        added = manager.add_pipeline(new_pipeline)
 
-        added = manager.add_pipeline(original_pipeline)
+        graph = create_simple_graph()
 
-        # Get the current simple view
-        current_simple = added.pipeline_graph_simple
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=added.id,
+                variant_id=added.variants[0].id,
+                pipeline_graph=graph,
+                pipeline_graph_simple=graph,
+            )
 
-        # Create modified simple view with same structure (no property changes)
-        # This tests that applying simple view changes works correctly
-        modified_simple = PipelineGraph(
-            nodes=current_simple.nodes,
-            edges=current_simple.edges,
-        )
+        self.assertIn("Cannot update both", str(context.exception))
 
-        # Update with modified simple graph
-        updated = manager.update_pipeline(
-            pipeline_id=added.id, pipeline_graph_simple=modified_simple
-        )
 
-        # Verify both views exist and are valid
-        self.assertIsNotNone(updated.pipeline_graph)
-        self.assertIsNotNone(updated.pipeline_graph_simple)
+class TestGraphConversionMethods(unittest.TestCase):
+    """Test cases for graph conversion private methods."""
 
-        # Verify updated pipeline has valid structure
-        self.assertGreater(len(updated.pipeline_graph.nodes), 0)
-        self.assertGreater(len(updated.pipeline_graph_simple.nodes), 0)
+    def setUp(self):
+        PipelineManager._instance = None
 
-        # Verify the pipeline can still be converted to a valid GStreamer description
-        self.assertIsNotNone(updated.pipeline_graph)
-
-    def test_update_pipeline_invalid_advanced_graph_raises_error(self):
-        """
-        Updating with invalid advanced graph that fails pipeline description conversion should raise error.
-        """
+    def test_validate_and_convert_advanced_to_simple_success(self):
+        """Test successful conversion from advanced to simple graph."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        pipeline = PipelineDefinition(
-            name="test-invalid-advanced",
-            version=1,
-            description="Test invalid advanced graph",
+        # Create a pipeline with a variant
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=None,
+            tags=[],
+            variants=[create_variant_create()],
         )
+        manager.add_pipeline(new_pipeline)
 
-        added = manager.add_pipeline(pipeline)
+        # Create an advanced graph with some hidden elements (use videotestsrc, not filesrc)
+        advanced_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "queue", "data": {}},
+                {"id": "2", "type": "fakesink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+                {"id": "1", "source": "1", "target": "2"},
+            ],
+        }
+        advanced_graph = Graph.from_dict(advanced_graph_dict)
 
-        # Create invalid graph with no start nodes (all nodes have incoming edges)
-        # This creates a circular/disconnected structure that fails validation
-        invalid_graph = PipelineGraph(
+        # Convert to simple
+        simple_graph = manager.validate_and_convert_advanced_to_simple(advanced_graph)
+
+        # Verify simple graph has fewer nodes (queue should be hidden)
+        self.assertIsInstance(simple_graph, Graph)
+        self.assertLessEqual(len(simple_graph.nodes), len(advanced_graph.nodes))
+
+    def test_validate_and_convert_advanced_to_simple_empty_nodes_raises_error(self):
+        """Test that empty nodes in advanced graph raises error."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+        manager.add_pipeline(new_pipeline)
+
+        # Create empty graph
+        empty_graph = Graph(nodes=[], edges=[])
+
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_advanced_to_simple(empty_graph)
+
+        self.assertIn("at least one node and one edge", str(context.exception))
+
+    def test_validate_and_convert_simple_to_advanced_success(self):
+        """Test successful conversion from simple to advanced graph."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Create a pipeline with variant that has both graphs (use videotestsrc, not filesrc)
+        graph = PipelineGraph(
             nodes=[
-                Node(id="0", type="fakesink", data={}),
-                Node(id="1", type="fakesink", data={}),
+                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
+                Node(id="1", type="queue", data={}),
+                Node(id="2", type="fakesink", data={}),
             ],
             edges=[
                 Edge(id="0", source="0", target="1"),
-                Edge(id="1", source="1", target="0"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+        simple_graph = PipelineGraph(
+            nodes=[
+                Node(id="0", type="videotestsrc", data={"pattern": "0"}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="2"),
             ],
         )
 
-        with self.assertRaises(ValueError) as context:
-            manager.update_pipeline(pipeline_id=added.id, pipeline_graph=invalid_graph)
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[
+                VariantCreate(
+                    name="CPU",
+                    pipeline_graph=graph,
+                    pipeline_graph_simple=simple_graph,
+                )
+            ],
+        )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
 
-        # Should fail due to circular graph or no start nodes
-        error_msg = str(context.exception).lower()
-        self.assertTrue(
-            "circular" in error_msg or "start" in error_msg or "invalid" in error_msg,
-            f"Expected error about circular or invalid graph, got: {context.exception}",
+        # Modify simple graph (change property)
+        modified_simple_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {"pattern": "1"}},
+                {"id": "2", "type": "fakesink", "data": {}},
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "2"},
+            ],
+        }
+        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
+
+        # Convert to advanced
+        advanced_graph = manager.validate_and_convert_simple_to_advanced(
+            variant, modified_simple_graph
         )
 
-    def test_update_pipeline_with_simple_graph_invalid_changes_raises_error(self):
-        """
-        Applying invalid simple graph changes (removing nodes) to advanced view should raise error.
-        """
+        # Verify advanced graph has the new property
+        self.assertIsInstance(advanced_graph, Graph)
+        videotestsrc_node = next(
+            n for n in advanced_graph.nodes if n.type == "videotestsrc"
+        )
+        self.assertEqual(videotestsrc_node.data["pattern"], "1")
+
+    def test_validate_and_convert_simple_to_advanced_structural_change_raises_error(
+        self,
+    ):
+        """Test that structural changes in simple graph raise error."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        pipeline = PipelineDefinition(
-            name="test-invalid-simple-changes",
-            version=1,
-            description="Test invalid simple view changes",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/video.mp4 ! decodebin3 ! autovideosink",
-            parameters=None,
-        )
-
-        added = manager.add_pipeline(pipeline)
-        current_simple = added.pipeline_graph_simple
-
-        # Create invalid modified simple view by removing node (not allowed in simple view)
-        modified_simple = PipelineGraph(
-            nodes=current_simple.nodes[:1],  # Only first node - removes others
-            edges=[],  # No connections
-        )
-
-        with self.assertRaises(ValueError) as context:
-            manager.update_pipeline(
-                pipeline_id=added.id, pipeline_graph_simple=modified_simple
-            )
-
-        # Check for the actual error message about node removal
-        self.assertIn("node removals are not supported", str(context.exception).lower())
-
-    def test_pipeline_views_in_get_pipelines(self):
-        """
-        get_pipelines should return pipelines with both advanced and simple views.
-        """
-        manager = PipelineManager()
-
-        pipelines = manager.get_pipelines()
-
-        # All pipelines should have both views
-        for pipeline in pipelines:
-            self.assertIsNotNone(pipeline.pipeline_graph)
-            self.assertIsNotNone(pipeline.pipeline_graph_simple)
-            self.assertGreater(len(pipeline.pipeline_graph.nodes), 0)
-            self.assertGreater(len(pipeline.pipeline_graph_simple.nodes), 0)
-
-    def test_build_pipeline_command_preserves_both_graph_views(self):
-        """
-        build_pipeline_command should work with both advanced and simple views.
-        """
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        pipeline = PipelineDefinition(
-            name="test-views-build",
-            version=1,
-            description="Test pipeline for build command",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-
-        added = manager.add_pipeline(pipeline)
-
-        # Verify pipeline has both views before building command
-        self.assertIsNotNone(added.pipeline_graph)
-        self.assertIsNotNone(added.pipeline_graph_simple)
-
-        # Build command should work
-        specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-        execution_config = ExecutionConfig(output_mode=OutputMode.DISABLED)
-
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            specs, execution_config
-        )
-
-        # Verify command was built successfully
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
-        self.assertIn("videotestsrc", command)
-
-    def test_update_pipeline_preserves_other_fields_with_graph_update(self):
-        """
-        Updating pipeline graph should not affect name, description, or parameters if not specified.
-        """
-        manager = PipelineManager()
-        manager.pipelines = []
-
-        original_params = PipelineParameters(default={"key": "original"})
-        pipeline = PipelineDefinition(
-            name="test-preserve-fields",
-            version=1,
-            description="Original description",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="fakesrc ! fakesink",
-            parameters=original_params,
-        )
-
-        added = manager.add_pipeline(pipeline)
-
-        # Update only the graph
-        new_graph = PipelineGraph(
+        graph = PipelineGraph(
             nodes=[
                 Node(id="0", type="videotestsrc", data={}),
                 Node(id="1", type="fakesink", data={}),
             ],
-            edges=[Edge(id="0", source="0", target="1")],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+            ],
         )
 
-        updated = manager.update_pipeline(
-            pipeline_id=added.id, pipeline_graph=new_graph
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[
+                VariantCreate(
+                    name="CPU",
+                    pipeline_graph=graph,
+                    pipeline_graph_simple=graph,
+                )
+            ],
         )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
 
-        # Verify other fields are unchanged
-        self.assertEqual(updated.name, "test-preserve-fields")
-        self.assertEqual(updated.description, "Original description")
-        self.assertIsNotNone(updated.parameters)
-        if updated.parameters is not None:
-            self.assertEqual(updated.parameters.default, {"key": "original"})
+        # Try to add a node in simple graph (structural change)
+        modified_simple_graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {"id": "1", "type": "fakesink", "data": {}},
+                {"id": "2", "type": "new_element", "data": {}},  # Added node
+            ],
+            "edges": [
+                {"id": "0", "source": "0", "target": "1"},
+            ],
+        }
+        modified_simple_graph = Graph.from_dict(modified_simple_graph_dict)
 
-    def test_add_pipeline_with_complex_graph_generates_simple_view(self):
-        """
-        Adding pipeline with complex GStreamer pipeline should generate valid simple view.
-        """
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_simple_to_advanced(
+                variant, modified_simple_graph
+            )
+
+        self.assertIn("Invalid pipeline_graph_simple", str(context.exception))
+
+    def test_validate_and_convert_simple_to_advanced_empty_nodes_raises_error(self):
+        """Test that empty nodes in simple graph raises error."""
         manager = PipelineManager()
         manager.pipelines = []
 
-        complex_pipeline = PipelineDefinition(
-            name="test-complex-pipeline",
-            version=1,
-            description="Complex pipeline with multiple branches",
+        new_pipeline = PipelineDefinition(
+            name="test-conversion",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc location=/tmp/test.mp4 ! decodebin3 ! videoconvert ! autovideosink",
-            parameters=None,
+            tags=[],
+            variants=[create_variant_create()],
         )
+        added = manager.add_pipeline(new_pipeline)
+        variant = added.variants[0]
 
-        added = manager.add_pipeline(complex_pipeline)
+        # Create empty graph
+        empty_graph = Graph(nodes=[], edges=[])
 
-        # Both views should be valid
-        self.assertIsNotNone(added.pipeline_graph)
-        self.assertIsNotNone(added.pipeline_graph_simple)
+        with self.assertRaises(ValueError) as context:
+            manager.validate_and_convert_simple_to_advanced(variant, empty_graph)
 
-        # Simple view should have fewer or equal nodes than advanced
-        self.assertLessEqual(
-            len(added.pipeline_graph_simple.nodes),
-            len(added.pipeline_graph.nodes),
-        )
-
-        # Both should have valid edges
-        self.assertGreater(len(added.pipeline_graph.edges), 0)
-        self.assertGreater(len(added.pipeline_graph_simple.edges), 0)
+        self.assertIn("at least one node and one edge", str(context.exception))
 
 
 class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
@@ -904,29 +1076,28 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         PipelineManager._instance = None
         self.manager = PipelineManager()
         self.manager.pipelines = []
+        self.job_id = "test-job-456"
 
-        # Add a test pipeline for all tests
-        test_pipeline = PipelineDefinition(
-            name="test-execution-config",
-            version=1,
-            description="Test pipeline for execution config",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        self.added_pipeline = self.manager.add_pipeline(test_pipeline)
-        self.specs = [PipelinePerformanceSpec(id=self.added_pipeline.id, streams=1)]
+        # Create internal specs for all tests
+        self.specs = [
+            create_internal_performance_spec(
+                pipeline_id="/pipelines/test-execution-config/variants/cpu",
+                pipeline_name="test-execution-config",
+                streams=1,
+            )
+        ]
 
     def test_file_output_with_max_runtime_raises_error(self):
         """Test that file output mode with max_runtime > 0 raises ValueError."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.FILE,
             max_runtime=60,
         )
 
         with self.assertRaises(ValueError) as context:
-            self.manager.build_pipeline_command(self.specs, execution_config)
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
 
         self.assertIn(
             "output_mode='file' cannot be combined with max_runtime > 0",
@@ -935,13 +1106,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
 
     def test_file_output_with_zero_max_runtime_succeeds(self):
         """Test that file output mode with max_runtime=0 works correctly."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.FILE,
             max_runtime=0,
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
@@ -950,87 +1121,77 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
 
     def test_disabled_output_with_max_runtime_succeeds(self):
         """Test that disabled output mode with max_runtime > 0 works correctly."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.DISABLED,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
         self.assertGreater(len(command), 0)
-        # Fakesink should remain in disabled mode
         self.assertIn("fakesink", command)
 
     def test_live_stream_output_with_max_runtime_succeeds(self):
         """Test that live stream output mode with max_runtime > 0 works correctly."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.LIVE_STREAM,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
         self.assertIsInstance(command, str)
         self.assertGreater(len(command), 0)
-        # Should have rtspclientsink for live streaming
         self.assertIn("rtspclientsink", command)
-        # Should have live stream URL
-        self.assertIn(self.added_pipeline.id, live_stream_urls)
+        pipeline_id = "/pipelines/test-execution-config/variants/cpu"
+        self.assertIn(pipeline_id, live_stream_urls)
 
     def test_live_stream_output_returns_stream_urls(self):
         """Test that live stream output mode returns correct stream URLs."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.LIVE_STREAM,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=0,
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
-        # Verify live stream URL format
-        self.assertIn(self.added_pipeline.id, live_stream_urls)
-        stream_url = live_stream_urls[self.added_pipeline.id]
+        pipeline_id = "/pipelines/test-execution-config/variants/cpu"
+        self.assertIn(pipeline_id, live_stream_urls)
+        stream_url = live_stream_urls[pipeline_id]
         self.assertTrue(stream_url.startswith("rtsp://"))
-        self.assertIn(self.added_pipeline.id, stream_url)
 
-    def test_live_stream_one_url_per_pipeline_type(self):
-        """Test that only one live stream URL is generated per pipeline type."""
-        # Add another pipeline
-        another_pipeline = PipelineDefinition(
-            name="test-execution-config",
-            version=2,
-            description="Another test pipeline",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        added2 = self.manager.add_pipeline(another_pipeline)
-
+    def test_live_stream_one_url_per_pipeline(self):
+        """Test that only one live stream URL is generated per pipeline."""
         specs = [
-            PipelinePerformanceSpec(id=self.added_pipeline.id, streams=3),
-            PipelinePerformanceSpec(id=added2.id, streams=2),
+            create_internal_performance_spec(
+                pipeline_id="/pipelines/test-execution-config/variants/cpu",
+                pipeline_name="test-execution-config",
+                streams=3,
+            ),
+            create_internal_performance_spec(
+                pipeline_id="/pipelines/test-execution-config-2/variants/cpu",
+                pipeline_name="test-execution-config-2",
+                streams=2,
+            ),
         ]
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.LIVE_STREAM,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
         )
 
         command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            specs, execution_config
+            specs, execution_config, self.job_id
         )
 
-        # Should have exactly 2 live stream URLs (one per pipeline type)
+        # Should have exactly 2 live stream URLs (one per pipeline)
         self.assertEqual(len(live_stream_urls), 2)
-        self.assertIn(self.added_pipeline.id, live_stream_urls)
-        self.assertIn(added2.id, live_stream_urls)
-
         # Only first stream of each pipeline should have rtspclientsink
         self.assertEqual(command.count("rtspclientsink"), 2)
 
@@ -1039,127 +1200,441 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
     """Test cases for looping behavior in build_pipeline_command."""
 
     def setUp(self):
+        PipelineManager._instance = None
         self.manager = PipelineManager()
         self.manager.pipelines = []
+        self.job_id = "test-job-789"
 
-        # Add a test pipeline with videotestsrc for looping tests
-        # Using videotestsrc instead of filesrc avoids video path validation issues
-        test_pipeline = PipelineDefinition(
-            name="test-looping",
-            version=1,
-            description="Test pipeline for looping",
-            source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="videotestsrc ! fakesink name=default_output_sink",
-            parameters=None,
-        )
-        self.added_pipeline = self.manager.add_pipeline(test_pipeline)
-        self.specs = [PipelinePerformanceSpec(id=self.added_pipeline.id, streams=1)]
+        # Create internal specs for looping tests
+        graph_dict = {
+            "nodes": [
+                {"id": "0", "type": "videotestsrc", "data": {}},
+                {
+                    "id": "1",
+                    "type": "fakesink",
+                    "data": {"name": "default_output_sink"},
+                },
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+        self.specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/test-looping/variants/cpu",
+                pipeline_name="test-looping",
+                pipeline_graph=Graph.from_dict(graph_dict),
+                streams=1,
+            )
+        ]
 
     def test_looping_not_applied_when_max_runtime_zero(self):
         """Test that looping modifications are not applied when max_runtime=0."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.DISABLED,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
             max_runtime=0,
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
-        # Should use videotestsrc (not multifilesrc) when not looping
         self.assertIn("videotestsrc", command)
         self.assertNotIn("multifilesrc", command)
 
     def test_looping_applied_when_max_runtime_positive_and_disabled_mode(self):
         """Test that looping modifications are applied for disabled mode with max_runtime > 0."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.DISABLED,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
-        # videotestsrc doesn't get converted to multifilesrc, only filesrc does
-        # But the pipeline should still work with max_runtime > 0
         self.assertIn("videotestsrc", command)
         self.assertIn("fakesink", command)
 
     def test_looping_applied_when_max_runtime_positive_and_live_stream_mode(self):
         """Test that looping modifications are applied for live stream mode with max_runtime > 0."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.LIVE_STREAM,
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
         )
 
         command, _, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
-        # Should have rtspclientsink for live streaming
         self.assertIn("rtspclientsink", command)
-        # Should have live stream URL
-        self.assertIn(self.added_pipeline.id, live_stream_urls)
+        pipeline_id = "/pipelines/test-looping/variants/cpu"
+        self.assertIn(pipeline_id, live_stream_urls)
 
     def test_looping_not_applied_for_file_mode(self):
         """Test that looping modifications are never applied for file mode."""
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.FILE,
-            max_runtime=0,  # max_runtime must be 0 for file mode
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.FILE,
+            max_runtime=0,
         )
 
         command, _, _ = self.manager.build_pipeline_command(
-            self.specs, execution_config
+            self.specs, execution_config, self.job_id
         )
 
-        # Should use videotestsrc (not multifilesrc) for file output
         self.assertIn("videotestsrc", command)
         self.assertNotIn("multifilesrc", command)
 
 
-class TestBuildPipelineCommandLoopingWithFilesrc(unittest.TestCase):
-    """Test cases for looping behavior with filesrc pipelines."""
+# Mock pipeline configs for testing predefined pipelines
+MOCK_PIPELINE_CONFIGS = [
+    {
+        "name": "object-detection",
+        "definition": "Object detection pipeline for testing",
+        "tags": ["detection", "test"],
+        "thumbnail": "",
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "GPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+        ],
+    },
+    {
+        "name": "classification",
+        "definition": "Classification pipeline for testing",
+        "tags": ["classification", "test"],
+        "variants": [
+            {
+                "name": "CPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "GPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+            {
+                "name": "NPU",
+                "pipeline_description": "filesrc location=/videos/test.mp4 ! decodebin ! fakesink",
+            },
+        ],
+    },
+]
+
+
+def mock_pipeline_loader_list():
+    """Return mock list of pipeline config paths."""
+    return [f"config_{i}.yaml" for i in range(len(MOCK_PIPELINE_CONFIGS))]
+
+
+def mock_pipeline_loader_config(config_path: str):
+    """Return mock pipeline config based on path."""
+    index = int(config_path.split("_")[1].split(".")[0])
+    return MOCK_PIPELINE_CONFIGS[index]
+
+
+class TestPredefinedPipelinesStructure(unittest.TestCase):
+    """Test cases for predefined pipelines structure after migration to variants."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_predefined_pipelines_have_correct_structure(self, mock_loader_cls):
+        """Verify predefined pipelines have correct structure with variants."""
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+        mock_loader_cls.get_pipelines_directory.return_value = "/mock/pipelines"
+
+        manager = PipelineManager()
+        pipelines = manager.get_pipelines()
+
+        predefined_count = 0
+        for pipeline in pipelines:
+            if pipeline.source == PipelineSource.PREDEFINED:
+                predefined_count += 1
+
+                self.assertIsNotNone(pipeline.id)
+                self.assertIsNotNone(pipeline.name)
+                self.assertIsNotNone(pipeline.description)
+
+                self.assertIsInstance(pipeline.created_at, datetime)
+                self.assertIsInstance(pipeline.modified_at, datetime)
+                self.assertEqual(pipeline.created_at.tzinfo, timezone.utc)
+
+                self.assertGreater(len(pipeline.variants), 0)
+
+                for variant in pipeline.variants:
+                    self.assertIsNotNone(variant.id)
+                    self.assertGreater(len(variant.id), 0)
+                    self.assertIsNotNone(variant.name)
+                    self.assertIn(variant.name, ["CPU", "GPU", "NPU"])
+                    self.assertIn(variant.id, ["cpu", "gpu", "npu"])
+                    self.assertTrue(variant.read_only)
+                    self.assertIsNotNone(variant.pipeline_graph)
+                    self.assertIsNotNone(variant.pipeline_graph_simple)
+
+                    self.assertIsInstance(variant.created_at, datetime)
+                    self.assertIsInstance(variant.modified_at, datetime)
+                    self.assertEqual(variant.created_at.tzinfo, timezone.utc)
+
+                    self.assertGreater(len(variant.pipeline_graph.nodes), 0)
+                    self.assertGreater(len(variant.pipeline_graph_simple.nodes), 0)
+
+        self.assertGreater(predefined_count, 0)
+        self.assertEqual(predefined_count, len(MOCK_PIPELINE_CONFIGS))
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_predefined_pipelines_have_multiple_variants(self, mock_loader_cls):
+        """Verify predefined pipelines have multiple variants (CPU/GPU/NPU)."""
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+        mock_loader_cls.get_pipelines_directory.return_value = "/mock/pipelines"
+
+        manager = PipelineManager()
+        pipelines = manager.get_pipelines()
+
+        multi_variant_count = 0
+        predefined_count = 0
+        for pipeline in pipelines:
+            if pipeline.source == PipelineSource.PREDEFINED:
+                predefined_count += 1
+                if len(pipeline.variants) > 1:
+                    multi_variant_count += 1
+
+        self.assertGreater(multi_variant_count, 0)
+        self.assertEqual(multi_variant_count, predefined_count)
+
+
+class TestDeletePredefinedPipeline(unittest.TestCase):
+    """Test cases for deleting predefined pipelines."""
+
+    def setUp(self):
+        """Reset singleton state before each test."""
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        """Reset singleton state after each test."""
+        PipelineManager._instance = None
+
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_delete_predefined_pipeline_raises_error(self, mock_loader_cls):
+        """Test that deleting a PREDEFINED pipeline raises error."""
+        mock_loader_cls.list.return_value = mock_pipeline_loader_list()
+        mock_loader_cls.config.side_effect = mock_pipeline_loader_config
+        mock_loader_cls.get_pipelines_directory.return_value = "/mock/pipelines"
+
+        manager = PipelineManager()
+
+        predefined = None
+        for p in manager.get_pipelines():
+            if p.source == PipelineSource.PREDEFINED:
+                predefined = p
+                break
+
+        assert predefined is not None
+
+        with self.assertRaises(ValueError) as context:
+            manager.delete_pipeline_by_id(predefined.id)
+
+        self.assertIn("PREDEFINED", str(context.exception))
+
+
+class TestNameTrimmingAndValidation(unittest.TestCase):
+    """Test cases for name trimming and validation in pipeline and variant operations."""
 
     def setUp(self):
         PipelineManager._instance = None
-        self.manager = PipelineManager()
-        self.manager.pipelines = []
 
-    @patch("graph.VideosManager")
-    def test_looping_converts_filesrc_to_multifilesrc(self, mock_videos_cls):
-        """Test that filesrc is converted to multifilesrc when looping is enabled."""
-        # Mock get_ts_path to return a valid path
-        mock_videos_instance = MagicMock()
-        mock_videos_instance.get_ts_path.return_value = "/videos/input/test.ts"
-        mock_videos_instance.get_video_path.return_value = "/videos/input/test.mp4"
-        mock_videos_cls.return_value = mock_videos_instance
+    def test_add_pipeline_trims_variant_names(self):
+        """Test that variant names are trimmed when adding a pipeline."""
+        manager = PipelineManager()
+        manager.pipelines = []
 
-        # Add pipeline with filesrc - use a path that won't trigger validation
-        test_pipeline = PipelineDefinition(
-            name="test-filesrc-looping",
-            version=1,
-            description="Test filesrc looping",
+        new_pipeline = PipelineDefinition(
+            name="test-pipeline",
+            description="Test",
             source=PipelineSource.USER_CREATED,
-            type=PipelineType.GSTREAMER,
-            pipeline_description="filesrc ! fakesink",
-            parameters=None,
-        )
-        added = self.manager.add_pipeline(test_pipeline)
-        specs = [PipelinePerformanceSpec(id=added.id, streams=1)]
-
-        execution_config = ExecutionConfig(
-            output_mode=OutputMode.DISABLED,
-            max_runtime=60,
+            tags=[],
+            variants=[create_variant_create(name="  CPU  ")],
         )
 
-        command, _, _ = self.manager.build_pipeline_command(specs, execution_config)
+        added_pipeline = manager.add_pipeline(new_pipeline)
 
-        # Command should be valid
-        self.assertIsInstance(command, str)
-        self.assertGreater(len(command), 0)
+        # Verify the variant name was trimmed
+        self.assertEqual(added_pipeline.variants[0].name, "CPU")
+        # Verify ID was generated from trimmed name
+        self.assertEqual(added_pipeline.variants[0].id, "cpu")
 
+    def test_add_pipeline_whitespace_only_variant_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError when adding pipeline.
 
-if __name__ == "__main__":
-    unittest.main()
+        Note: Empty string is rejected by Pydantic validation at model level.
+        Whitespace-only names pass Pydantic but are rejected by manager.
+        """
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        # Use whitespace-only name (passes Pydantic min_length=1 but fails manager validation)
+        new_pipeline = PipelineDefinition(
+            name="test-pipeline",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="   ")],
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_pipeline(new_pipeline)
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_add_variant_trims_name(self):
+        """Test that variant name is trimmed when adding a variant."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        new_variant = manager.add_variant(
+            pipeline_id=added.id,
+            name="  GPU  ",
+            pipeline_graph=create_simple_graph(),
+            pipeline_graph_simple=create_simple_graph(),
+        )
+
+        # Verify name was trimmed
+        self.assertEqual(new_variant.name, "GPU")
+        # Verify ID was generated from trimmed name
+        self.assertEqual(new_variant.id, "gpu")
+
+    def test_add_variant_empty_name_raises_error(self):
+        """Test that empty variant name raises ValueError."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_variant(
+                pipeline_id=added.id,
+                name="",
+                pipeline_graph=create_simple_graph(),
+                pipeline_graph_simple=create_simple_graph(),
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_add_variant_whitespace_only_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-add-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.add_variant(
+                pipeline_id=added.id,
+                name="   ",
+                pipeline_graph=create_simple_graph(),
+                pipeline_graph_simple=create_simple_graph(),
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_update_variant_trims_name(self):
+        """Test that variant name is trimmed when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        updated = manager.update_variant(
+            pipeline_id=added.id,
+            variant_id=added.variants[0].id,
+            name="  GPU-optimized  ",
+        )
+
+        # Verify name was trimmed
+        self.assertEqual(updated.name, "GPU-optimized")
+
+    def test_update_variant_empty_name_raises_error(self):
+        """Test that empty variant name raises ValueError when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=added.id,
+                variant_id=added.variants[0].id,
+                name="",
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))
+
+    def test_update_variant_whitespace_only_name_raises_error(self):
+        """Test that whitespace-only variant name raises ValueError when updating."""
+        manager = PipelineManager()
+        manager.pipelines = []
+
+        new_pipeline = PipelineDefinition(
+            name="test-update-variant",
+            description="Test",
+            source=PipelineSource.USER_CREATED,
+            tags=[],
+            variants=[create_variant_create(name="CPU")],
+        )
+        added = manager.add_pipeline(new_pipeline)
+
+        with self.assertRaises(ValueError) as context:
+            manager.update_variant(
+                pipeline_id=added.id,
+                variant_id=added.variants[0].id,
+                name="   ",
+            )
+
+        self.assertIn("Variant name cannot be empty", str(context.exception))

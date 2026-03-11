@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  type PipelinePerformanceSpec,
+  type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
   useRunDensityTestMutation,
 } from "@/api/api.generated.ts";
@@ -38,7 +38,7 @@ export const DensityTests = () => {
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     total_streams: number | null;
-    streams_per_pipeline: PipelinePerformanceSpec[] | null;
+    streams_per_pipeline: PipelineStreamSpec[] | null;
     video_output_paths: { [key: string]: string[] } | null;
   } | null>(null);
   const [videoOutputEnabled, setVideoOutputEnabled] = useState(false);
@@ -158,7 +158,11 @@ export const DensityTests = () => {
           },
           fps_floor: fpsFloor,
           pipeline_density_specs: pipelineSelections.map((selection) => ({
-            id: selection.pipelineId,
+            pipeline: {
+              source: "variant",
+              pipeline_id: selection.pipelineId,
+              variant_id: "cpu",
+            },
             stream_rate: selection.stream_rate,
           })),
         },

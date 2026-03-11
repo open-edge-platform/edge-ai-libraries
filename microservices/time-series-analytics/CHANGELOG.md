@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.0] - March 2026
+
+### Changed
+- Updated Time Series Analytics image versioning and standardized tag format across Docker Compose and Helm configurations. ([#1727])
+- Updated Helm chart versioning scheme to include `-helm` suffix and aligned chart metadata/docs. ([#1814])
+- Removed Model Registry references from Time Series Analytics documentation/content. ([#1766])
+- Updated production-usage guidance for Ubuntu-based prebuilt images to direct users toward self-built production images. ([#1635])
+
+### Fixed
+- Fixed functionality issues in `rest_api_utils.py` and `test_docker.py`. ([#1625])
+- Fixed unit test issues in Time Series Analytics. ([#1598])
+- Bumped `protobuf` from `6.31.1` to `6.33.5`. ([#1771])
+
+### Documentation
+- Reorganized AI Libraries component documentation. ([#1797])
+- Reorganized Time Series Analytics toctree/navigation. ([#1712])
+- Fixed Time Series Analytics toctree issues. ([#1634])
+- Added docs link blocks and index updates for markdown docs. ([#1624])
+
+---
+
+[#1814]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1814
+[#1797]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1797
+[#1771]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1771
+[#1766]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1766
+[#1727]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1727
+[#1712]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1712
+[#1635]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1635
+[#1634]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1634
+[#1625]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1625
+[#1624]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1624
+[#1598]: https://github.com/open-edge-platform/edge-ai-libraries/pull/1598
+
 ## [2025.2] - December 2025
 
 ### Added

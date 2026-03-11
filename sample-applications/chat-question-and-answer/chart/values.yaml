@@ -16,6 +16,10 @@ global:
   RERANKER_MODEL:
   OTLP_ENDPOINT:
   OTLP_ENDPOINT_TRACE:
+  #Model Download Service Configuration
+  modelDownload:
+    serviceName: # REQUIRED: e.g., model-download (use service name for same cluster)
+    port: # REQUIRED: e.g., 8200 or 8000 (use service port, not NodePort)
   #Set either one of the below embedding model sever to true by defauly OVMS is enabled
   teiEmbeddingService:
     enabled: false
@@ -28,6 +32,10 @@ global:
     enabled: false
     key:  #update as per the cluster node label key for GPU assigned by the device plugin
     device: "GPU" #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
+  affinity: 
+      enabled: false
+      key: kubernetes.io/hostname
+      value:   # Optionl: Provide the node hostname
   minio_pvc:
     size: 20Gi
   reranker_pvc:
@@ -42,7 +50,7 @@ Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "2.0.1"
+    tag: "2.1.0-rc2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -64,11 +72,14 @@ Chatqna:
     SEED: 40
 
 dataprepPgvector:
-  name: document-ingestion
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
+  dataprepPgvector:
+    name: document-ingestion
+    service:
+      type: ClusterIP
+      port: 8000
+      targetPort: 8000
+    env:
+      ALLOWED_HOSTS: ""
 
 tgiService:
   name: text-generation-service

@@ -1,3 +1,4 @@
-libintlc 5 intel-oneapi-runtime-compilers-2024
+libintlc 5 intel-oneapi-runtime-compilers (>= 2025.0)
 libtbb 12 intel-oneapi-runtime-tbb
-libsycl 7 intel-oneapi-runtime-compilers-2024
+libsycl 8 intel-oneapi-runtime-dpcpp-cpp (>= 2025.0)
+libSyclUtils 0 liborb-lze (= ${binary:Version})

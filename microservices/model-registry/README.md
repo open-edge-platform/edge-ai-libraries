@@ -15,11 +15,11 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
 
 - **Configuration**
-  - [Environment Variables](./docs/user-guide/environment-variables.md): List of environment variables and their configurations.
+  - [Environment Variables](./docs/user-guide/get-started/environment-variables.md): List of environment variables and their configurations.
 
 - **Deployment**
-  - [How to Build from Source](./docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
-  - [How to Deploy with Helm](./docs/user-guide/how-to-deploy-with-helm.md): Guide for deploying the microservice using Helm.
+  - [How to Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
+  - [How to Deploy with Helm](./docs/user-guide/get-started/deploy-with-helm.md): Guide for deploying the microservice using Helm.
 
 - **Integration**
   - [How to Interface with Intel® Geti™ software](./docs/user-guide/how-to-interface-with-intel-geti-platform.md): Instructions for integrating with the Intel® Geti™ software.

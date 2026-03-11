@@ -6,3 +6,5 @@ export const SOCKET_APPEND: string = import.meta.env.VITE_SOCKET_APPEND;
 export const FEATURE_SUMMARY: string = import.meta.env.VITE_FEATURE_SUMMARY;
 export const FEATURE_SEARCH: string = import.meta.env.VITE_FEATURE_SEARCH;
 export const FEATURE_MUX: string = import.meta.env.VITE_FEATURE_MUX;
+export const FEATURE_CAMERA_CONFIG: string = import.meta.env.VITE_FEATURE_CAMERA_CONFIG;
+export const NVR_API_BASE: string = import.meta.env.VITE_NVR_API_BASE;

@@ -207,10 +207,18 @@ export const Summary: FC = () => {
       getConfig();
       socket.emit('join', selectedSummary.stateId);
 
-      socket.on(`summary:sync/${selectedSummary.stateId}`, (data: UIState) => {
+      const eventName = `summary:sync/${selectedSummary.stateId}`;
+
+      const onSummarySync = (data: UIState) => {
         const uiState: UIState = data;
         handleSummaryData(uiState);
-      });
+      };
+
+      socket.on(eventName, onSummarySync);
+
+      return () => {
+        socket.off(eventName, onSummarySync);
+      };
     }
   }, [selectedSummary]);
 

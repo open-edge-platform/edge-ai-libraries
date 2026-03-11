@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM node:20-slim AS vite-app
+FROM node:25-slim AS vite-app
 
 WORKDIR /user/app
 
@@ -13,7 +13,7 @@ COPY . .
 
 RUN ["npm", "run", "build"]
 
-FROM nginxinc/nginx-unprivileged:1.28.0
+FROM nginxinc/nginx-unprivileged:1.29
 USER root
 ARG DOCROOT=/user/share/nginx/html
 

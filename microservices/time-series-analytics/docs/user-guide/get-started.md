@@ -154,6 +154,8 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip3 install -r simulator/requirements.txt
 python3 simulator/temperature_input.py --port 5000
 ```
@@ -192,7 +194,7 @@ docker compose down -v
 
 ## Other Deployment options
 
-- [How to Deploy with Helm](./how-to-deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
+- [How to Deploy with Helm](./get-started/deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
 
 ## Supporting Resources
 
@@ -204,6 +206,7 @@ docker compose down -v
 :hidden:
 
 ./get-started/system-requirements
+./get-started/deploy-with-helm
 
 :::
 

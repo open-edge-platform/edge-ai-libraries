@@ -1,24 +1,24 @@
 // Copyright (C) 2025 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
-//
+
+#ifndef OPENCV_FREE
+
 #include <unistd.h>
 
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
+#include <chrono>
+#include <fstream>
+#include <memory>
 
 #include "TestUtil.h"
 #include "gpu/gpu_kernels.h"
 #include "gtest/gtest.h"
-#include "opencv2/core/base.hpp"
 #include "orb_extractor.h"
 
 #define EDGE_THRESHOLD 19
 #define OVERLAP 6
 #define WIDTHBLOCK 32
 
-#include <chrono>
 inline double getTimeStamp()
 {
   namespace sc = std::chrono;
@@ -199,3 +199,5 @@ void fastTest(bool nmsOn)
 TEST(FastTest, Positive) { fastTest(false); }
 
 TEST(FastTest_WithNMS, Positive) { fastTest(true); }
+
+#endif  // OPENCV_FREE

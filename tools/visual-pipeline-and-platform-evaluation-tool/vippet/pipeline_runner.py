@@ -330,6 +330,8 @@ class PipelineRunner:
                     last_activity_time = time.time()
 
                 for r in reads:
+                    if r is None:
+                        continue
                     line = r.readline()
                     if not line:
                         continue

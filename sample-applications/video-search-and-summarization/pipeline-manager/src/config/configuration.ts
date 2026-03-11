@@ -96,11 +96,11 @@ export default () => ({
       multiFrame: process.env.MULTI_FRAME_COUNT ?? 12, // process.env.MULTI_FRAME_COUNT ?? 5,
       frameOverlap: 0, // process.env.FRAME_OVERFLAP ?? 0,
       defaults: {
-        temperature: 0.1,
+        temperature: null,
         topP: null,
         presencePenalty: null,
         maxCompletionTokens: process.env.CAPTIONING_MAX_COMPLETION_TOKENS,
-        frequencyPenalty: 1.0,
+        frequencyPenalty: null,
         doSample: false,
         seed: 42,
       },

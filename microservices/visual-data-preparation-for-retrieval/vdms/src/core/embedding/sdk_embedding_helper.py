@@ -486,6 +486,8 @@ class SimplePipelineManager:
                                     "crop_bbox": [int(x1), int(y1), int(x2), int(y2)],
                                     "detected_class_id": int(class_id),
                                     "detected_label": class_name,
+                                    "merged_boxes_count": det_meta.get("merged_boxes_count"),
+                                    "context_expansion_applied": det_meta.get("context_expansion_applied"),
                                     "frame_id": f"{frame_metadata.get('frame_id', 'unknown')}_crop_{crop_idx}",
                                 }
                             )

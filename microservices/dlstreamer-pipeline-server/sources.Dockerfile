@@ -1,5 +1,5 @@
 # -------- Stage 1: Ubuntu 22.04 Sources --------
-FROM intel/dlstreamer-pipeline-server:2025.2.0-extended-ubuntu22 AS ubuntu22-builder
+FROM intel/dlstreamer-pipeline-server:2026.0.0-extended-ubuntu22-rc2 AS ubuntu22-builder
 LABEL stage="ubuntu22"
 
 USER root

@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include <opencv2/core/mat.hpp>
-#include <opencv2/core/types.hpp>
+#ifndef OPENCV_FREE
 
 #include "TestUtil.h"
 #include "gpu/gpu_kernels.h"
@@ -83,3 +82,5 @@ TEST(GaussianBlurTests_Border_Reflect_101, Positive)
 {
   GaussianTest(7, cv::BORDER_REFLECT_101, gpu::BORDER_REFLECT_101);
 }
+
+#endif  // OPENCV_FREE

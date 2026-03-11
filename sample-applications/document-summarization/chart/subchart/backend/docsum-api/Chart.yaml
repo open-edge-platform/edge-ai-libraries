@@ -2,4 +2,4 @@ apiVersion: v2
 name: docsum-api
 description: A Helm chart for deploying the Document Summarization application
 type: application
-version: 1.0.2
+version: 1.0.3

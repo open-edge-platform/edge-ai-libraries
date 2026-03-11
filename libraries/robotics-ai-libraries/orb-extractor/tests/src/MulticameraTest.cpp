@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef OPENCV_FREE
+
 #include <unistd.h>
 
 #include <chrono>
@@ -10,7 +12,6 @@
 
 #include "TestUtil.h"
 #include "gtest/gtest.h"
-#include "opencv2/core/base.hpp"
 #include "orb_extractor.h"
 
 using namespace cv;
@@ -57,3 +58,5 @@ TEST(MulticameraTest, Positive)
 {
   for (int i = 2; i < 16; i++) multicameraTest(i);
 }
+
+#endif  // OPENCV_FREE

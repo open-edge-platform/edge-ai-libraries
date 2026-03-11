@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices/dlstreamer-pipeline-server">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/dlstreamer-pipeline-server/README.md">
      Readme
   </a>
 </div>
@@ -64,7 +64,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Model Update**
 
-  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
+  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
 
 - **Open Telemetry**
 
@@ -75,29 +75,10 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 :hidden:
 
 get-started
-how-to-build-from-source
-how-to-deploy-with-helm
-how-to-launch-and-manage-pipeline
-how-to-launch-configurable-pipelines
-how-to-change-dlstreamer-pipeline
-how-to-autostart-pipelines
-how-to-run-udf-pipelines
-how-to-use-gpu-for-decode-and-inference
-how-to-use-cpu-for-decode-and-inference
-how-to-perform-webrtc-frame-streaming
-how-to-start-dlsps-mqtt-publish
-how-to-store-s3-frame
-how-to-store-metadata-influxdb
-how-to-publish-metadata-over-ros2
-how-to-use-rtsp-camera-as-video-source
-how-to-use-image-file-as-source-over-request-payload
-how-to-download-and-run-yolo-models
-how-to-add-system-timestamps-to-metadata
+how-to-guides
+advanced-guide
 api-reference
-environment-variables
 troubleshooting
-advanced-guide/Overview
-release_notes/Overview
-
+release-notes
 :::
 hide_directive-->

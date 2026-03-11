@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef OPENCV_FREE
+
 #include <unistd.h>
 
 #include <cstdint>
@@ -78,8 +80,16 @@ bool compareKeyPointsDescriptor(
   return true;
 }
 
+// Global flag to track if GPU is available
+static int gpu_available = -1;  // -1 = unknown, 0 = unavailable, 1 = available
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
 {
+  // Skip GPU tests if we know GPU is not available
+  if (gpu_available == 0) {
+    return 0;
+  }
+
   try {
     if (size < sizeof(int)) {
       return 0;
@@ -122,10 +132,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
         // Save the image to disk
         imwrite("/tmp/random_objects_image.jpg", src);
 
-        // Display the image (optional)
-        // imshow("Random Objects Image", src);
-        // waitKey(0);
-
         std::vector<cv::Mat> stereo_images;
         stereo_images.resize(2);
 
@@ -160,9 +166,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
         std::vector<cv::KeyPoint> right_keypts = keypts.at(1);
 
         // Compare keypoints size left image and right image
-        // std::cout << "\nLeft keypoints size=" << left_keypts.size() << "
-        // Right keypoints size= "
-        //           << right_keypts.size() << "\n";
         if (left_keypts.size() != right_keypts.size()) {
           throw std::invalid_argument("left image and right image KeyPoints are not same");
         }
@@ -179,9 +182,29 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
     }
 
   } catch (std::exception & e) {
+    std::string error_msg(e.what());
+    // Handle GPU/device initialization errors gracefully (expected on CPU-only systems)
+    if (
+      error_msg.find("program was built") != std::string::npos ||
+      error_msg.find("Failed to build") != std::string::npos ||
+      error_msg.find("PI_ERROR") != std::string::npos ||
+      error_msg.find("Device build") != std::string::npos) {
+      // Mark GPU as unavailable and skip all future tests
+      cout << "GPU/device initialization errors; Will skip future tests" << e.what() << endl;
+      gpu_available = 0;
+      return 0;
+    }
+    // All other exceptions should fail (including keypoint mismatches)
     cout << "Exception occurred in StereoTest:" << e.what() << endl;
     exit(1);
   }
 
+  // If we successfully completed a test, mark GPU as available
+  if (gpu_available == -1) {
+    gpu_available = 1;
+  }
+
   return 0;
 }
+
+#endif  // OPENCV_FREE

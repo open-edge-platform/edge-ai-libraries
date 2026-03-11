@@ -144,8 +144,32 @@ def get_config() -> dict:
             "nms_threshold": _get_config_value("NMS_THRESHOLD", ["object_detection", "nms_threshold"]) or 0.45,
             "input_size": _get_config_value("DETECTION_INPUT_SIZE", ["object_detection", "input_size"]) or [640, 640],
             "model_dir": settings.DETECTION_MODEL_DIR,  # Environment variable takes highest priority
-            "model_name": _get_config_value("DETECTION_MODEL_NAME", ["object_detection", "model_name"])  # No default - must be explicitly set
+            "model_name": _get_config_value("DETECTION_MODEL_NAME", ["object_detection", "model_name"]),  # No default - must be explicitly set
+            "roi_consolidation": {
+                "enabled": _get_config_value(
+                    "ROI_CONSOLIDATION_ENABLED",
+                    ["object_detection", "roi_consolidation", "enabled"],
+                ),
+                "iou_threshold": _get_config_value(
+                    "ROI_CONSOLIDATION_IOU_THRESHOLD",
+                    ["object_detection", "roi_consolidation", "iou_threshold"],
+                )
+                or 0.2,
+                "class_aware": _get_config_value(
+                    "ROI_CONSOLIDATION_CLASS_AWARE",
+                    ["object_detection", "roi_consolidation", "class_aware"],
+                )
+                or False,
+                "context_scale": _get_config_value(
+                    "ROI_CONSOLIDATION_CONTEXT_SCALE",
+                    ["object_detection", "roi_consolidation", "context_scale"],
+                )
+                or 0.2,
+            },
         }
+
+        if object_detection_config["roi_consolidation"]["enabled"] is None:
+            object_detection_config["roi_consolidation"]["enabled"] = False
         
         # Validate configuration
         validated_config = _validate_config(processing_config, object_detection_config)
