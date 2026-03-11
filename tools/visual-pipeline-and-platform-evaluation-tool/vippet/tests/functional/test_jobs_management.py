@@ -54,7 +54,7 @@ def _start_density_job(session: requests.Session) -> str:
                     "pipeline_id": PIPELINE_ID,
                     "variant_id": PIPELINE_VARIANT,
                 },
-                "stream_rate": 30,
+                "stream_rate": 100,
             }
         ],
         "execution_config": {"max_runtime": "5", "output_mode": "disabled"},
