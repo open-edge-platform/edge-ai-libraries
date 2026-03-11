@@ -23,7 +23,7 @@ jobs:
         path: edge-ai-libraries-repo
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 #4.0.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
