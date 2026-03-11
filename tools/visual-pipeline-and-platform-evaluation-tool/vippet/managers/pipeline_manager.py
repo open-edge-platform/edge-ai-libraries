@@ -480,6 +480,9 @@ class PipelineManager:
             pipeline_name = spec.pipeline_name
             base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
+            # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
+            base_graph.validate_camera_sources_followed_by_decodebin3()
+
             # Create pipeline output directory: <job_dir>/<pipeline_id>/
             pipeline_dir = os.path.join(job_dir, slugify_text(pipeline_id))
             os.makedirs(pipeline_dir, exist_ok=True)
