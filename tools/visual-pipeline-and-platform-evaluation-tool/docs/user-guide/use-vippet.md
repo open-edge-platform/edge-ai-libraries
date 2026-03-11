@@ -17,7 +17,7 @@ The [density testing article](./how-to-guides/density-testing.md) explains how t
 density for a target FPS floor.
 
 The [license plate recognition pipeline article](./how-to-guides/license-plate-recognition-pipeline.md) explains
-how to build and evaluate an ALPR pipeline on Intel® hardware.
+how to build and evaluate an LPR pipeline on Intel® hardware.
 
 <!--hide_directive
 :::{toctree}
