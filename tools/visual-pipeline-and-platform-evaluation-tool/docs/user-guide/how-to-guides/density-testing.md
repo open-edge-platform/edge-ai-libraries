@@ -10,11 +10,11 @@ still meets your FPS requirement. Therefore, it answers the question:
 
 ## Configure a density test in the UI
 
-1. Open **Tests > Density**.
-2. Set **FPS Floor** (for example, `30`).
+1. Open **Density** tab.
+2. Set **FPS Floor**  (for example, `30`).
 3. Add one or more pipelines.
 4. For each pipeline, set **Stream Rate** so all pipelines sum to `100%`.
-5. Configure output mode and runtime options.
+5. Set ** iteration duration**  in seconds (for example, `30`). 
 6. Click **Run density test**.
 
 When the job completes, ViPPET reports:
