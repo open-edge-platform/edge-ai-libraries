@@ -6,7 +6,7 @@ License Plate Recognition (LPR) systems have evolved from specialized hardware s
 flexible, software-defined pipelines that can adapt to various deployment scenarios.
 
 The Visual Pipeline and Platform Evaluation Tool (ViPPET) introduces a powerful approach to LPR
-through its **Simple Video Structurization (D-T-C)** pipeline—a versatile, use case-agnostic
+through its **Simple Video Structurization (D-T-C)** pipeline - a versatile, use case-agnostic
 solution that delivers enterprise-grade performance across Intel® hardware platforms.
 
 Unlike traditional LPR solutions that require expensive proprietary hardware, ViPPET's pipeline
