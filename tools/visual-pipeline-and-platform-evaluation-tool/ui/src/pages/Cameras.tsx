@@ -7,7 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import {
   mockCameras,
-  useMockCameras,
+  isCameraMockEnabled,
 } from "@/features/cameras/mockCameras.ts";
 import {
   Table,
@@ -66,13 +66,13 @@ export const Cameras = () => {
     isLoading,
     isError,
     refetch,
-  } = useGetCamerasQuery(undefined, { skip: useMockCameras });
+  } = useGetCamerasQuery(undefined, { skip: isCameraMockEnabled });
 
-  const resolvedCameras = useMockCameras ? mockCameras : (cameras ?? []);
-  const resolvedIsSuccess = useMockCameras ? true : isSuccess;
-  const resolvedIsLoading = useMockCameras ? false : isLoading;
-  const resolvedIsError = useMockCameras ? false : isError;
-  const refetchCameras = useMockCameras ? () => Promise.resolve() : refetch;
+  const resolvedCameras = isCameraMockEnabled ? mockCameras : (cameras ?? []);
+  const resolvedIsSuccess = isCameraMockEnabled ? true : isSuccess;
+  const resolvedIsLoading = isCameraMockEnabled ? false : isLoading;
+  const resolvedIsError = isCameraMockEnabled ? false : isError;
+  const refetchCameras = isCameraMockEnabled ? () => Promise.resolve() : refetch;
 
   if (resolvedIsSuccess && resolvedCameras.length > 0) {
     return (
