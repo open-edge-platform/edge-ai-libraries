@@ -1,8 +1,8 @@
-locust==2.43.3
+locust==2.43.2
 locust-plugins==5.0.0
-numpy==2.4.3
+numpy==2.4.1
 requests==2.32.5
-transformers==5.3.0
+transformers==4.57.1
 PyYAML==6.0.3
-matplotlib==3.10.8
+matplotlib==3.10.7
 moviepy==2.2.1
