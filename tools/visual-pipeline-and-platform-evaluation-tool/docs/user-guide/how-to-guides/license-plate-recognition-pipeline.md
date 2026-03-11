@@ -9,7 +9,7 @@ The Visual Pipeline and Platform Evaluation Tool (ViPPET) introduces a powerful 
 through its **Simple Video Structurization (D-T-C)** pipeline—a versatile, use case-agnostic
 solution that delivers enterprise-grade performance across Intel® hardware platforms.
 
-Unlike traditional ALPR solutions that require expensive proprietary hardware, ViPPET's pipeline
+Unlike traditional LPR solutions that require expensive proprietary hardware, ViPPET's pipeline
 architecture leverages GStreamer video processing and OpenVINO™ optimized inference to deliver
 superior performance on standard Intel® computing platforms.
 
@@ -43,7 +43,7 @@ This architecture provides:
 
 Perfect for cost-effective deployments and edge computing scenarios:
 
-```gstreamer
+```text
 filesrc location=/videos/input/license-plate-detection.mp4 !
 decodebin3 !
 gvafpscounter starting-frame=500 !
@@ -86,7 +86,7 @@ fakesink name=default_output_sink
 
 Delivers maximum throughput for high-density video analytics:
 
-```gstreamer
+```text
 filesrc location=/videos/input/license-plate-detection.mp4 !
 decodebin3 !
 gvafpscounter starting-frame=500 !
@@ -129,7 +129,7 @@ fakesink name=default_output_sink
 
 The cutting-edge deployment option leveraging Intel's latest NPU technology:
 
-```gstreamer
+```text
 filesrc location=/videos/input/license-plate-detection.mp4 !
 decodebin3 !
 gvafpscounter starting-frame=500 !
@@ -217,7 +217,7 @@ ocr_model = {
 
 ### 1) Video Ingestion and Decoding
 
-```gstreamer
+```text
 filesrc location=/videos/input/license-plate-detection.mp4 !
 decodebin3 !
 ```
@@ -228,7 +228,7 @@ decodebin3 !
 
 ### 2) Performance Monitoring
 
-```gstreamer
+```text
 gvafpscounter starting-frame=500 !
 ```
 
@@ -238,7 +238,7 @@ gvafpscounter starting-frame=500 !
 
 ### 3) Object Detection
 
-```gstreamer
+```text
 gvadetect
   model=/models/output/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
   model-instance-id=detect0
@@ -257,7 +257,7 @@ gvadetect
 
 ### 4) Object Tracking
 
-```gstreamer
+```text
 gvatrack tracking-type=short-term-imageless !
 ```
 
@@ -267,7 +267,7 @@ gvatrack tracking-type=short-term-imageless !
 
 ### 5) Classification and OCR
 
-```gstreamer
+```text
 gvaclassify
   model=/models/output/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
   model-instance-id=classify0
@@ -284,7 +284,7 @@ gvaclassify
 
 ### 6) Metadata Processing
 
-```gstreamer
+```text
 gvawatermark !
 gvametaconvert format=json json-indent=4 !
 gvametapublish method=file file-path=/dev/null !
@@ -431,23 +431,9 @@ The Simple Video Structurization (D-T-C) architecture provides:
 
 ### Business Impact
 
-- Reduced TCO: 60% lower deployment costs compared to traditional solutions.
 - Faster Time-to-Market: Pre-built pipelines accelerate development cycles.
-- Scalable Performance: Linear scaling from single streams to enterprise deployments.
 - Operational Excellence: Comprehensive monitoring and automated optimization.
 
 Whether you're implementing smart parking systems, traffic enforcement solutions, or logistics
 automation, ViPPET provides the foundation for building world-class license plate recognition
 applications that scale with your business needs.
-
-## Get Started with ViPPET LPR
-
-Ready to transform your video analytics capabilities?
-
-- Download ViPPET: GitHub Repository
-- Technical Documentation: Developer Guide
-- Community Support: Intel® Developer Forums
-- Enterprise Solutions: Contact Intel® AI Solutions Team
-
-Experience the future of license plate recognition with Intel®-powered AI performance and
-ViPPET's advanced pipeline architecture.
