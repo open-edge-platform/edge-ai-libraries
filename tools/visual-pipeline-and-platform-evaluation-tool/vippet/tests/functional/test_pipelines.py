@@ -1,5 +1,6 @@
 """Functional tests for pipelines CRUD and read-only rules."""
 
+import copy
 import logging
 from typing import Any
 from uuid import uuid4
@@ -334,45 +335,41 @@ def test_convert_advanced_to_simple_graph(http_client: requests.Session) -> None
 
 @pytest.mark.smoke
 def test_convert_simple_to_advanced_graph_with_property_change(http_client: requests.Session) -> None:
-    """Test converting simple graph to advanced with property modifications."""
+    """Test POST convert-to-advanced maps a camera source node to v4l2src."""
     predefined_pipeline = _find_predefined_pipeline(http_client)
     pipeline_id = predefined_pipeline["id"]
     variant_id = predefined_pipeline["variants"][0]["id"]
-    
-    # Get the current simple graph
-    get_response = http_client.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
-    assert get_response.status_code == 200
-    
-    variant = next(
-        v for v in get_response.json()["variants"] 
-        if v["id"] == variant_id
+    simple_graph = predefined_pipeline["variants"][0]["pipeline_graph_simple"]
+    advanced_graph = predefined_pipeline["variants"][0]["pipeline_graph"]
+
+    # Precondition: the predefined advanced graph uses a file-based source
+    assert any(node.get("type") == "filesrc" for node in advanced_graph.get("nodes", [])), (
+        "Expected filesrc node in predefined advanced graph"
     )
-    simple_graph = variant["pipeline_graph_simple"]
-    
-    # Modify properties in the simple graph
-    modified_graph = simple_graph.copy()
-    
-    for node in modified_graph.get("nodes", []):
-        if node.get("type") == "filesrc":
-            if "data" not in node:
-                node["data"] = {}
-            node["data"]["location"] = "/new/video/path.mp4"
+
+    # Build a modified simple graph that switches the source to a camera device
+    modified_simple_graph = copy.deepcopy(simple_graph)
+    for node in modified_simple_graph.get("nodes", []):
+        if node.get("type") == "source":
+            node["data"]["kind"] = "camera"
+            node["data"]["source"] = "/dev/video0"
             break
-    
-    # Send conversion request
+
+    # Convert the modified simple graph to an advanced graph
     response = http_client.post(
         f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
-        json=modified_graph,
+        json=modified_simple_graph,
         timeout=30,
     )
-    
+
     assert response.status_code == 200
-    advanced_graph = response.json()
-    
-    # Check that we received a valid advanced graph
-    assert "nodes" in advanced_graph
-    assert "edges" in advanced_graph
-    assert len(advanced_graph["nodes"]) >= len(simple_graph["nodes"])
+    result = response.json()
+    assert "nodes" in result
+    assert "edges" in result
+    # Camera source should map to v4l2src in the advanced graph
+    assert any(node.get("type") == "v4l2src" for node in result.get("nodes", [])), (
+        "Expected v4l2src node in advanced graph after converting camera source"
+    )
 
 
 @pytest.mark.smoke
