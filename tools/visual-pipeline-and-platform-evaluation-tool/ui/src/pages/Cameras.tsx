@@ -124,7 +124,7 @@ export const Cameras = () => {
                   </TableCell>
                   <TableCell>
                     {isNetworkCamera ? (
-                      (networkDetails?.profiles.length ?? 0) > 0 ? (
+                      (networkDetails?.profiles?.length ?? 0) > 0 ? (
                         <div className="flex items-center gap-2">
                           <Badge variant="default">Authorized</Badge>
                         </div>
