@@ -294,24 +294,6 @@ gvametapublish method=file file-path=/dev/null !
 - Structured JSON output for downstream processing.
 - Flexible publishing to files, databases, or message queues.
 
-## Performance Benchmarks
-
-### Single Stream Performance
-
-| Hardware Configuration | Resolution | FPS | Latency (ms) | Power (W) |
-| --- | ---: | ---: | ---: | ---: |
-| Intel® Core™ i5-12400 (CPU) | 1080p | 28 | 85 | 35 |
-| Intel® Core™ i7-12700K + Iris® Xe (GPU) | 1080p | 45 | 52 | 65 |
-| Intel® Core™ Ultra 7 (GPU+NPU) | 1080p | 52 | 38 | 45 |
-
-### Multi-Stream Scalability
-
-| Hardware Platform | Concurrent Streams | Total FPS | CPU Usage | Memory (GB) |
-| --- | ---: | ---: | ---: | ---: |
-| Intel® Xeon® Gold 6248 | 8 | 180 | 75% | 12 |
-| Intel® Data Center GPU Flex 170 | 16 | 480 | 45% | 16 |
-| Intel® Gaudi® 2 | 32 | 1024 | 60% | 32 |
-
 ## Real-World Deployment Scenarios
 
 ### Smart Parking Management
