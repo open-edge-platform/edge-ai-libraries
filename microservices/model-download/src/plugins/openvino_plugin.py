@@ -179,8 +179,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Always use flat config structure for export, passthrough all config params
         config_for_export = kwargs.copy()
-        config_for_export.pop("weight-format")
-        config_for_export.pop("target_device")
+        config_for_export.pop("weight-format", None)
+        config_for_export.pop("target_device", None)
         logger.info(f"Using flat config structure: {list(config_for_export.keys())}")
         logger.info(f"Extracted parameters - precision: {weight_format}, device: {target_device}, cache_size: {cache_size}")
         
