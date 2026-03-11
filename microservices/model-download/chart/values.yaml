@@ -29,7 +29,16 @@ modeldownload:
     GETI_SERVER_API_VERSION: "v1"
     GETI_SERVER_SSL_VERIFY: "False"
     ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
-
+  
+  gpu:
+    enabled: false
+    key: ""
+  
+  affinity:  #Optional: Provide node hostname label on which model download needs to be scheduled.
+    enabled : false
+    key: kubernetes.io/hostname
+    value: 
+            
   service:
     type: NodePort
     nodePort: 

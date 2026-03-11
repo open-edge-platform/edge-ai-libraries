@@ -1,3 +1,12 @@
+ros-jazzy-orb-extractor (2.3-3) UNRELEASED; urgency=low
+
+  * Increase Device count
+  * Use direct memory allocation instead of memory pool for increased stability
+  * Add debugging framework
+  * Fix memory leak
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Wed, 27 Feb 2026 11:00:00 +0000
+
 ros-jazzy-orb-extractor (2.3-2) UNRELEASED; urgency=low
 
   * Intel SYCL 2025.3 compatibility fixes
