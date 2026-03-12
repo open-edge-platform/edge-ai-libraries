@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
@@ -27,6 +27,12 @@ type NodeConfig = {
   editableProperties: NodePropertyConfig[];
 };
 
+type SelectOption = {
+  label: string;
+  value: string;
+  disabled?: boolean;
+};
+
 type NodeDataPanelProps = {
   selectedNode: Node | null;
   onNodeDataUpdate: (
@@ -44,58 +50,119 @@ const NodeDataPanel = ({
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
 
-  const cameraOptions = cameras.map((camera) => {
-    const details = camera.details as Record<string, unknown> | undefined;
-    let value = "";
-    let disabled = false;
+  const cameraOptions = useMemo<SelectOption[]>(
+    () =>
+      cameras.map((camera) => {
+        const details = camera.details as Record<string, unknown> | undefined;
+        let value = "";
+        let disabled = false;
 
-    if (camera.device_type === "USB") {
-      const devicePath =
-        details && typeof details === "object" && "device_path" in details
-          ? details["device_path"]
-          : undefined;
-      value = typeof devicePath === "string" ? devicePath : "";
-    } else {
-      // NETWORK camera
-      const profiles =
-        details && typeof details === "object" && "profiles" in details
-          ? details["profiles"]
-          : undefined;
-      const hasProfiles = Array.isArray(profiles) && profiles.length > 0;
+        if (camera.device_type === "USB") {
+          const devicePath =
+            details && typeof details === "object" && "device_path" in details
+              ? details["device_path"]
+              : undefined;
+          value = typeof devicePath === "string" ? devicePath : "";
+        } else {
+          // NETWORK camera
+          const profiles =
+            details && typeof details === "object" && "profiles" in details
+              ? details["profiles"]
+              : undefined;
+          const hasProfiles = Array.isArray(profiles) && profiles.length > 0;
 
-      // Disable if network camera is not authorized (no profiles loaded)
-      disabled = !hasProfiles;
+          // Disable if network camera is not authorized (no profiles loaded)
+          disabled = !hasProfiles;
 
-      const bestProfile =
-        details && typeof details === "object" && "best_profile" in details
-          ? details["best_profile"]
-          : undefined;
-      const rtspUrl =
-        bestProfile &&
-        typeof bestProfile === "object" &&
-        "rtsp_url" in (bestProfile as Record<string, unknown>)
-          ? (bestProfile as Record<string, unknown>)["rtsp_url"]
-          : undefined;
-      value = typeof rtspUrl === "string" ? rtspUrl : "";
-    }
+          const bestProfile =
+            details && typeof details === "object" && "best_profile" in details
+              ? details["best_profile"]
+              : undefined;
+          const rtspUrl =
+            bestProfile &&
+            typeof bestProfile === "object" &&
+            "rtsp_url" in (bestProfile as Record<string, unknown>)
+              ? (bestProfile as Record<string, unknown>)["rtsp_url"]
+              : undefined;
+          value = typeof rtspUrl === "string" ? rtspUrl : "";
+        }
 
-    return {
-      label: camera.device_name,
-      value,
-      disabled,
-    };
-  });
+        return {
+          label: camera.device_name,
+          value,
+          disabled,
+        };
+      }),
+    [cameras],
+  );
 
-  const videoOptions = filterOutTransportStreams(videos).map((video) => ({
-    label: video.filename,
-    value: video.filename,
-  }));
+  const videoOptions = useMemo<SelectOption[]>(
+    () =>
+      filterOutTransportStreams(videos).map((video) => ({
+        label: video.filename,
+        value: video.filename,
+      })),
+    [videos],
+  );
 
   useEffect(() => {
     if (selectedNode) {
       setEditableData({ ...selectedNode.data });
     }
   }, [selectedNode]);
+
+  const getDefaultSourceValue = (options: SelectOption[]): string => {
+    const firstAvailableOption = options.find(
+      (option) => !option.disabled && option.value,
+    );
+
+    return firstAvailableOption?.value ?? "";
+  };
+
+  const handleInputChange = (key: string, value: string | unknown) => {
+    if (!selectedNode) {
+      return;
+    }
+
+    const updatedData = { ...editableData, [key]: value };
+
+    if (selectedNode.type === "source" && key === "kind") {
+      const sourceOptions = value === "camera" ? cameraOptions : videoOptions;
+      updatedData.source = getDefaultSourceValue(sourceOptions);
+    }
+
+    setEditableData(updatedData);
+    onNodeDataUpdate(selectedNode.id, updatedData);
+  };
+
+  useEffect(() => {
+    if (selectedNode?.type !== "source") {
+      return;
+    }
+
+    const sourceOptions =
+      editableData.kind === "camera" ? cameraOptions : videoOptions;
+    const currentSource = String(editableData.source ?? "");
+    const isCurrentSourceValid = sourceOptions.some(
+      (option) => !option.disabled && option.value === currentSource,
+    );
+
+    if (!isCurrentSourceValid) {
+      const nextSource = getDefaultSourceValue(sourceOptions);
+
+      if (nextSource !== currentSource) {
+        const updatedData = { ...editableData, source: nextSource };
+        setEditableData(updatedData);
+        onNodeDataUpdate(selectedNode.id, updatedData);
+      }
+    }
+  }, [
+    cameraOptions,
+    editableData,
+    onNodeDataUpdate,
+    selectedNode,
+    videoOptions,
+  ]);
 
   if (!selectedNode) {
     return (
@@ -109,13 +176,6 @@ const NodeDataPanel = ({
       </div>
     );
   }
-
-  const handleInputChange = (key: string, value: string | unknown) => {
-    const updatedData = { ...editableData, [key]: value };
-
-    setEditableData(updatedData);
-    onNodeDataUpdate(selectedNode.id, updatedData);
-  };
 
   const getNodeConfig = (nodeType: string): NodeConfig | null => {
     // TODO: change switch to associative array
