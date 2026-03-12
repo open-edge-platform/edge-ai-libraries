@@ -45,6 +45,8 @@ spec:
               value: "/opt/models"
             - name: ENABLED_PLUGINS
               value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
+            - name: OVMS_RELEASE_TAG
+              value: "{{ .Values.modeldownload.env.OVMS_RELEASE_TAG }}"
             - name: GETI_WORKSPACE_ID
               value: "{{ .Values.modeldownload.env.GETI_WORKSPACE_ID }}"
             - name: GETI_HOST

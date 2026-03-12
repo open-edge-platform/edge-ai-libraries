@@ -167,16 +167,14 @@ async def download_models(
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
-                if config.get("device") is None and config.get("target_device") is not None:
-                    config["device"] = config.get("target_device").lower()
-                else:
-                    config["device"] = "CPU"
-                if config.get("precision") is None and config.get("weight-format") is not None:
-                    config["precision"] = config.get("weight-format").lower()
-                else:
-                    config["precision"] = "int8" 
+                config['device'] = (config.get("device") or config.get("target_device") or "CPU").lower()
+                config["precision"] = (
+                    config.get("weight-format") or 
+                    config.get("precision") or 
+                    "int8"
+                ).lower()
 
-                if (config.get('device') or config.get('target_device')) is not None and (config.get('device') or config.get('target_device')).upper() == "NPU":
+                if config['device'].upper() == "NPU":
                     logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
                     config['precision'] = "int4"
 
