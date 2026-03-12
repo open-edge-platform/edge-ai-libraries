@@ -45,15 +45,18 @@ Use `POST /convert/to-graph` with a complete LPR pipeline description.
 ```bash
 curl -X POST "http://localhost:7860/api/v1/convert/to-graph" \
   -H "Content-Type: application/json" \
-  -d '{
-    "pipeline_description": "filesrc location=/videos/input/license-plate-detection.mp4 ! decodebin3 ! videoconvert ! gvadetect model=vehicle-detection-0202 device=CPU ! gvadetect model=license-plate-detection-0106 device=CPU ! gvaclassify model=license-plate-recognition-barrier-0001 device=CPU ! gvawatermark ! videoconvert ! fakesink"
-  }' | jq '.'
+  -d @- << EOF | jq '.'
+{
+  "pipeline_description": "filesrc location=/videos/input/license-plate-detection.mp4 ! decodebin3 ! videoconvert ! gvadetect model=vehicle-detection-0202 device=CPU ! gvadetect model=license-plate-detection-0106 device=CPU ! gvaclassify model=license-plate-recognition-barrier-0001 device=CPU ! gvawatermark ! videoconvert ! fakesink"
+}
+EOF
 ```
 
 Store `pipeline_graph` and `pipeline_graph_simple` from the response.
 
 Example response structure:
-```JSON
+
+```json
 {
   "pipeline_graph": {
     "nodes": [...],
@@ -77,25 +80,27 @@ SIMPLE_GRAPH='{"nodes":[...],"edges":[...]}'    # From step 1 response
 
 curl -X POST "http://localhost:7860/api/v1/pipelines" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"name\": \"license-plate-recognition\",
-    \"description\": \"Complete LPR pipeline: vehicle detection → plate detection → OCR\",
-    \"tags\": [\"LPR\", \"Smart Cities\", \"Transportation\"],
-    \"variants\": [
-      {
-        \"name\": \"CPU\",
-        \"pipeline_graph\": $PIPELINE_GRAPH,
-        \"pipeline_graph_simple\": $SIMPLE_GRAPH
-      }
-    ]
-  }" | jq '.id'
+  -d @- << EOF | jq '.id'
+{
+  "name": "license-plate-recognition",
+  "description": "Complete LPR pipeline: vehicle detection -> plate detection -> OCR",
+  "tags": ["LPR", "Smart Cities", "Transportation"],
+  "variants": [
+    {
+      "name": "CPU",
+      "pipeline_graph": $PIPELINE_GRAPH,
+      "pipeline_graph_simple": $SIMPLE_GRAPH
+    }
+  ]
+}
+EOF
 ```
 
 Save the `pipeline ID` from the response for subsequent steps.
 
 ## 3) Validate pipeline graph
 
-Use `POST /pipelines/validate`to ensure the pipeline is syntactically correct and can run.
+Use `POST /pipelines/validate` to ensure the pipeline is syntactically correct and can run.
 
 ```bash
 PIPELINE_ID="pipeline-abc123"  # From step 2
@@ -103,10 +108,13 @@ PIPELINE_ID="pipeline-abc123"  # From step 2
 # Start validation
 VALIDATION_RESPONSE=$(curl -X POST "http://localhost:7860/api/v1/pipelines/validate" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"pipeline_graph\": $PIPELINE_GRAPH,
-    \"parameters\": {\"max-runtime\": 30}
-  }")
+  -d @- << EOF
+{
+  "pipeline_graph": $PIPELINE_GRAPH,
+  "parameters": {"max-runtime": 30}
+}
+EOF
+)
 
 JOB_ID=$(echo $VALIDATION_RESPONSE | jq -r '.job_id')
 echo "Validation job started: $JOB_ID"
@@ -120,39 +128,47 @@ while true; do
     "COMPLETED")
       IS_VALID=$(echo $STATUS | jq -r '.is_valid')
       if [ "$IS_VALID" = "true" ]; then
-        echo "✅ Pipeline validation successful"
+        echo "Pipeline validation successful"
         break
       else
-        echo "❌ Pipeline validation failed:"
+        echo "Pipeline validation failed:"
         echo $STATUS | jq '.details'
         exit 1
       fi
       ;;
     "FAILED")
-      echo "❌ Validation error:"
+      echo "Validation error:"
       echo $STATUS | jq '.details'
       exit 1
       ;;
     "RUNNING")
-      echo "⏳ Validation in progress..."
+      echo "Validation in progress..."
       sleep 2
       ;;
   esac
 done
 ```
+
 ## 4) Optimize pipeline (recommended)
+
 Before performance testing, optimize the pipeline for better throughput:
+
 ```bash
+VARIANT_ID="cpu"  # Replace with actual variant_id from the pipeline
+
 # Start optimization
-OPT_RESPONSE=$(curl -X POST "http://localhost:7860/api/v1/pipelines/$PIPELINE_ID/variants/cpu/optimize" \
+OPT_RESPONSE=$(curl -X POST "http://localhost:7860/api/v1/pipelines/$PIPELINE_ID/variants/$VARIANT_ID/optimize" \
   -H "Content-Type: application/json" \
-  -d '{
-    "type": "optimize",
-    "parameters": {
-      "search_duration": 180,
-      "sample_duration": 10
-    }
-  }')
+  -d @- << EOF
+{
+  "type": "optimize",
+  "parameters": {
+    "search_duration": 180,
+    "sample_duration": 10
+  }
+}
+EOF
+)
 
 OPT_JOB_ID=$(echo $OPT_RESPONSE | jq -r '.job_id')
 
@@ -163,7 +179,7 @@ while true; do
   
   case $STATE in
     "COMPLETED")
-      echo "✅ Optimization completed"
+      echo "Optimization completed"
       OPTIMIZED_FPS=$(echo $STATUS | jq '.total_fps')
       echo "Optimized pipeline FPS: $OPTIMIZED_FPS"
       
@@ -172,21 +188,23 @@ while true; do
       OPTIMIZED_SIMPLE=$(echo $STATUS | jq '.optimized_pipeline_graph_simple')
       curl -X POST "http://localhost:7860/api/v1/pipelines/$PIPELINE_ID/variants" \
         -H "Content-Type: application/json" \
-        -d "{
-          \"name\": \"CPU-Optimized\",
-          \"pipeline_graph\": $OPTIMIZED_GRAPH,
-          \"pipeline_graph_simple\": $OPTIMIZED_SIMPLE
-        }"
+        -d @- << EOF
+{
+  "name": "CPU-Optimized",
+  "pipeline_graph": $OPTIMIZED_GRAPH,
+  "pipeline_graph_simple": $OPTIMIZED_SIMPLE
+}
+EOF
       break
       ;;
     "FAILED")
-      echo "⚠️ Optimization failed, continuing with original pipeline"
+      echo "Optimization failed, continuing with original pipeline"
       echo $STATUS | jq '.details'
       break
       ;;
     "RUNNING")
       ELAPSED=$(echo $STATUS | jq '.elapsed_time')
-      echo "⏳ Optimization running... (${ELAPSED}ms elapsed)"
+      echo "Optimization running... (${ELAPSED}ms elapsed)"
       sleep 10
       ;;
   esac
@@ -201,30 +219,33 @@ Use `POST /tests/performance` with schema `PerformanceTestSpec`. Test both origi
 # Performance test with multiple variants
 PERF_RESPONSE=$(curl -X POST "http://localhost:7860/api/v1/tests/performance" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"pipeline_performance_specs\": [
-      {
-        \"pipeline\": {
-          \"source\": \"variant\",
-          \"pipeline_id\": \"$PIPELINE_ID\",
-          \"variant_id\": \"cpu\"
-        },
-        \"streams\": 2
+  -d @- << EOF
+{
+  "pipeline_performance_specs": [
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "$PIPELINE_ID",
+        "variant_id": "cpu"
       },
-      {
-        \"pipeline\": {
-          \"source\": \"variant\",
-          \"pipeline_id\": \"$PIPELINE_ID\",
-          \"variant_id\": \"cpu-optimized\"
-        },
-        \"streams\": 4
-      }
-    ],
-    \"execution_config\": {
-      \"output_mode\": \"disabled\",
-      \"max_runtime\": 60
+      "streams": 2
+    },
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "$PIPELINE_ID",
+        "variant_id": "cpu-optimized"
+      },
+      "streams": 4
     }
-  }")
+  ],
+  "execution_config": {
+    "output_mode": "disabled",
+    "max_runtime": 60
+  }
+}
+EOF
+)
 
 PERF_JOB_ID=$(echo $PERF_RESPONSE | jq -r '.job_id')
 
@@ -235,7 +256,7 @@ while true; do
   
   case $STATE in
     "COMPLETED")
-      echo "✅ Performance test completed!"
+      echo "Performance test completed"
       echo "Results:"
       echo "  Total FPS: $(echo $STATUS | jq '.total_fps')"
       echo "  Per-stream FPS: $(echo $STATUS | jq '.per_stream_fps')"
@@ -245,21 +266,21 @@ while true; do
       break
       ;;
     "FAILED")
-      echo "❌ Performance test failed:"
+      echo "Performance test failed:"
       echo $STATUS | jq '.details'
       exit 1
       ;;
     "RUNNING")
       ELAPSED=$(echo $STATUS | jq '.elapsed_time')
       CURRENT_FPS=$(echo $STATUS | jq '.total_fps // "measuring..."')
-      echo "⏳ Performance test running... (${ELAPSED}ms, FPS: $CURRENT_FPS)"
+      echo "Performance test running... (${ELAPSED}ms, FPS: $CURRENT_FPS)"
       sleep 5
       ;;
   esac
 done
 ```
 
-## 5) Track performance job
+## 6) Track performance job
 
 Use these endpoints to monitor job progress:
 
@@ -277,7 +298,7 @@ curl -X GET "http://localhost:7860/api/v1/jobs/tests/performance/$PERF_JOB_ID" |
 curl -X GET "http://localhost:7860/api/v1/jobs/tests/performance/status" | jq '.'
 ```
 
-## 6) Optional: run density test
+## 7) Optional: run density test
 
 Use `POST /tests/density` with schema `DensityTestSpec`  to find maximum throughput:
 
@@ -285,23 +306,26 @@ Use `POST /tests/density` with schema `DensityTestSpec`  to find maximum through
 # Find maximum streams while maintaining 25 FPS per stream
 DENSITY_RESPONSE=$(curl -X POST "http://localhost:7860/api/v1/tests/density" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"fps_floor\": 25,
-    \"pipeline_density_specs\": [
-      {
-        \"pipeline\": {
-          \"source\": \"variant\",
-          \"pipeline_id\": \"$PIPELINE_ID\",
-          \"variant_id\": \"cpu-optimized\"
-        },
-        \"stream_rate\": 100
-      }
-    ],
-    \"execution_config\": {
-      \"output_mode\": \"disabled\",
-      \"max_runtime\": 120
+  -d @- << EOF
+{
+  "fps_floor": 25,
+  "pipeline_density_specs": [
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "$PIPELINE_ID",
+        "variant_id": "cpu-optimized"
+      },
+      "stream_rate": 100
     }
-  }")
+  ],
+  "execution_config": {
+    "output_mode": "disabled",
+    "max_runtime": 120
+  }
+}
+EOF
+)
 
 DENSITY_JOB_ID=$(echo $DENSITY_RESPONSE | jq -r '.job_id')
 
@@ -312,18 +336,18 @@ while true; do
   
   case $STATE in
     "COMPLETED")
-      echo "✅ Density test completed!"
+      echo "Density test completed"
       echo "Maximum streams: $(echo $STATUS | jq '.total_streams')"
       echo "Achieved FPS per stream: $(echo $STATUS | jq '.per_stream_fps')"
       break
       ;;
     "FAILED")
-      echo "❌ Density test failed"
+      echo "Density test failed"
       break
       ;;
     "RUNNING")
       CURRENT_STREAMS=$(echo $STATUS | jq '.total_streams // "testing..."')
-      echo "⏳ Density test running... (Current streams: $CURRENT_STREAMS)"
+      echo "Density test running... (Current streams: $CURRENT_STREAMS)"
       sleep 10
       ;;
   esac
@@ -334,8 +358,6 @@ curl -X GET "http://localhost:7860/api/v1/jobs/tests/density/$DENSITY_JOB_ID/sta
 curl -X GET "http://localhost:7860/api/v1/jobs/tests/density/$DENSITY_JOB_ID"
 
 ```
-
-
 
 ## Related Guides
 
