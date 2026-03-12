@@ -10,6 +10,7 @@ import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
 import { useGetCamerasQuery, useGetVideosQuery } from "@/api/api.generated";
+import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 type NodePropertyConfig = {
   key: string;
@@ -46,6 +47,7 @@ const NodeDataPanel = ({
   const cameraOptions = cameras.map((camera) => {
     const details = camera.details as Record<string, unknown> | undefined;
     let value = "";
+    let disabled = false;
 
     if (camera.device_type === "USB") {
       const devicePath =
@@ -54,6 +56,16 @@ const NodeDataPanel = ({
           : undefined;
       value = typeof devicePath === "string" ? devicePath : "";
     } else {
+      // NETWORK camera
+      const profiles =
+        details && typeof details === "object" && "profiles" in details
+          ? details["profiles"]
+          : undefined;
+      const hasProfiles = Array.isArray(profiles) && profiles.length > 0;
+
+      // Disable if network camera is not authorized (no profiles loaded)
+      disabled = !hasProfiles;
+
       const bestProfile =
         details && typeof details === "object" && "best_profile" in details
           ? details["best_profile"]
@@ -67,10 +79,14 @@ const NodeDataPanel = ({
       value = typeof rtspUrl === "string" ? rtspUrl : "";
     }
 
-    return { label: camera.device_name, value };
+    return {
+      label: camera.device_name,
+      value,
+      disabled,
+    };
   });
 
-  const videoOptions = videos.map((video) => ({
+  const videoOptions = filterOutTransportStreams(videos).map((video) => ({
     label: video.filename,
     value: video.filename,
   }));
@@ -211,9 +227,6 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    <option value="">
-                      Select {propConfig?.label ?? keyStr}
-                    </option>
                     {(selectedNode.type === "filesrc"
                       ? videoOptions
                       : editableData.kind === "camera"
@@ -223,8 +236,21 @@ const NodeDataPanel = ({
                       <option
                         key={(option.value || option.label) as string}
                         value={option.value}
+                        disabled={
+                          "disabled" in option
+                            ? Boolean(option.disabled)
+                            : false
+                        }
+                        className={
+                          "disabled" in option && option.disabled
+                            ? "text-gray-400 dark:text-gray-500"
+                            : ""
+                        }
                       >
                         {option.label}
+                        {"disabled" in option && option.disabled
+                          ? " (Not authorized)"
+                          : ""}
                       </option>
                     ))}
                   </select>
@@ -234,7 +260,6 @@ const NodeDataPanel = ({
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    <option value="">Select {propConfig?.label}</option>
                     {propConfig?.options?.map((option) => (
                       <option key={option} value={option}>
                         {option}
