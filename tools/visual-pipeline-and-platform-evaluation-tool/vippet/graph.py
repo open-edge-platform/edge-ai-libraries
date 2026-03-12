@@ -497,6 +497,46 @@ class Graph:
 
         return modified_graph
 
+    def apply_rtsp_credentials(self) -> "Graph":
+        """
+        Apply RTSP credentials to all rtspsrc nodes in the pipeline.
+
+        If no rtspsrc node is found, the graph is returned unchanged.
+
+        Args:
+            None.
+
+        Returns:
+            Modified Graph object with credentials applied to rtspsrc nodes.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
+        modified_graph = copy.deepcopy(self)
+
+        has_rtspsrc = any(node.type == "rtspsrc" for node in modified_graph.nodes)
+        if not has_rtspsrc:
+            return modified_graph
+
+        for node in modified_graph.nodes:
+            if node.type == "rtspsrc":
+                location = node.data.get("location")
+                if not location:
+                    continue
+                details = CameraManager().get_network_camera_details_by_rtsp_url(
+                    location
+                )
+
+                node.data["user-id"] = details.username
+                node.data["user-pw"] = details.password
+                node.data["latency"] = 0  # Reduce latency for live streaming
+                logger.debug(f"Applied RTSP credentials to rtspsrc node {node.id}")
+
+        return modified_graph
+
     def prepare_main_output_placeholder(self) -> "Graph":
         """
         Convert default fakesink node to a main output placeholder.

@@ -301,6 +301,10 @@ class CameraManager:
             camera_id, username, password
         )
 
+        # Save the credentials in the cached camera for future use (e.g. when fetching encoding by RTSP URL)
+        authenticated_camera.details.username = username
+        authenticated_camera.details.password = password
+
         # Update the cached network cameras list
         with self._lock:
             for i, camera in enumerate(self._network_cameras):
