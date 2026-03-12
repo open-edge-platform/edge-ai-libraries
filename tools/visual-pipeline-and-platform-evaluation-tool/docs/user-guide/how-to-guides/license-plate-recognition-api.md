@@ -359,6 +359,255 @@ curl -X GET "http://localhost:7860/api/v1/jobs/tests/density/$DENSITY_JOB_ID"
 
 ```
 
+## 8) Advanced: Live Camera Integration
+
+Create camera-based variant.
+
+```bash
+# List available cameras
+curl -X GET "http://localhost:7860/api/v1/cameras"
+
+# For ONVIF cameras, load profiles with authentication
+curl -X POST "http://localhost:7860/api/v1/cameras/network-camera-192.168.1.100-80/profiles" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "username": "admin",
+  "password": "password123"
+}
+EOF
+
+# Create live camera variant
+curl -X POST "http://localhost:7860/api/v1/pipelines/$PIPELINE_ID/variants" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "name": "Live-Camera",
+  "pipeline_graph": {
+    "nodes": [
+      {"id": "0", "type": "rtspsrc", "data": {"location": "rtsp://192.168.1.100:554/stream1", "latency": "200"}},
+      {"id": "1", "type": "rtph264depay", "data": {}},
+      {"id": "2", "type": "h264parse", "data": {}},
+      {"id": "3", "type": "avdec_h264", "data": {}},
+      {"id": "4", "type": "videoconvert", "data": {}},
+      {"id": "5", "type": "gvadetect", "data": {"model": "vehicle-detection-0202", "device": "GPU"}},
+      {"id": "6", "type": "gvadetect", "data": {"model": "license-plate-detection-0106", "device": "GPU"}},
+      {"id": "7", "type": "gvaclassify", "data": {"model": "license-plate-recognition-barrier-0001", "device": "GPU"}},
+      {"id": "8", "type": "gvawatermark", "data": {}},
+      {"id": "9", "type": "videoconvert", "data": {}},
+      {"id": "10", "type": "autovideosink", "data": {}}
+    ],
+    "edges": [
+      {"id": "0", "source": "0", "target": "1"},
+      {"id": "1", "source": "1", "target": "2"},
+      {"id": "2", "source": "2", "target": "3"},
+      {"id": "3", "source": "3", "target": "4"},
+      {"id": "4", "source": "4", "target": "5"},
+      {"id": "5", "source": "5", "target": "6"},
+      {"id": "6", "source": "6", "target": "7"},
+      {"id": "7", "source": "7", "target": "8"},
+      {"id": "8", "source": "8", "target": "9"},
+      {"id": "9", "source": "9", "target": "10"}
+    ]
+  },
+  "pipeline_graph_simple": {
+    "nodes": [
+      {"id": "0", "type": "rtspsrc", "data": {"location": "rtsp://192.168.1.100:554/stream1"}},
+      {"id": "5", "type": "gvadetect", "data": {"model": "vehicle-detection-0202"}},
+      {"id": "6", "type": "gvadetect", "data": {"model": "license-plate-detection-0106"}},
+      {"id": "7", "type": "gvaclassify", "data": {"model": "license-plate-recognition-barrier-0001"}},
+      {"id": "10", "type": "autovideosink", "data": {}}
+    ],
+    "edges": [
+      {"id": "0", "source": "0", "target": "5"},
+      {"id": "1", "source": "5", "target": "6"},
+      {"id": "2", "source": "6", "target": "7"},
+      {"id": "3", "source": "7", "target": "10"}
+    ]
+  }
+}
+EOF
+```
+
+Test with live streaming output
+
+```bash
+# Performance test with live stream output
+curl -X POST "http://localhost:7860/api/v1/tests/performance" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "pipeline_performance_specs": [
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "$PIPELINE_ID",
+        "variant_id": "live-camera"
+      },
+      "streams": 2
+    }
+  ],
+  "execution_config": {
+    "output_mode": "live_stream",
+    "max_runtime": 300
+  }
+}
+EOF
+```
+
+## 9) Troubleshooting
+
+Common issues when pipeline validation fails:
+
+```bash
+# Check model availability
+curl -X GET "http://localhost:7860/api/v1/models" | jq '.[] | select(.name | contains("license"))'
+
+# Check video file exists
+curl -X GET "http://localhost:7860/api/v1/videos" | jq '.[] | select(.filename | contains("license"))'
+
+# Verify device availability
+curl -X GET "http://localhost:7860/api/v1/devices"
+```
+
+### Common Issues
+
+#### Performance test shows low FPS
+
+- Try GPU variants if available
+- Reduce input resolution using videoscale and capsfilter
+- Use optimized pipeline variants
+- Check system resources (CPU, memory, GPU utilization)
+- Reduce number of parallel streams
+
+#### Camera connection fails
+
+- Verify RTSP URL accessibility: `ffplay rtsp://camera-ip:port/stream`
+- Check network connectivity: `ping camera-ip`
+- Validate ONVIF credentials
+- Try different latency settings in rtspsrc
+
+#### Job gets stuck in RUNNING state
+
+- Check job details for error messages
+- Verify input files are accessible
+- Monitor system resources
+- Stop job if needed: `DELETE /jobs/tests/performance/{job_id}`
+
+## 10) Complete Example Script
+
+```bash
+#!/bin/bash
+set -e
+
+BASE_URL="http://localhost:7860/api/v1"
+VIDEO_FILE="/videos/input/license-plate-detection.mp4"
+
+echo "Starting LPR Pipeline Creation..."
+
+# 1. Convert pipeline description
+echo "Converting pipeline description to graph..."
+GRAPH_RESPONSE=$(curl -s -X POST "$BASE_URL/convert/to-graph" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "pipeline_description": "filesrc location=$VIDEO_FILE ! decodebin3 ! videoconvert ! gvadetect model=vehicle-detection-0202 device=CPU ! gvadetect model=license-plate-detection-0106 device=CPU ! gvaclassify model=license-plate-recognition-barrier-0001 device=CPU ! gvawatermark ! videoconvert ! fakesink"
+}
+EOF
+)
+
+PIPELINE_GRAPH=$(echo $GRAPH_RESPONSE | jq '.pipeline_graph')
+SIMPLE_GRAPH=$(echo $GRAPH_RESPONSE | jq '.pipeline_graph_simple')
+
+# 2. Create pipeline
+echo "Creating LPR pipeline..."
+PIPELINE_RESPONSE=$(curl -s -X POST "$BASE_URL/pipelines" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "name": "license-plate-recognition",
+  "description": "Complete LPR pipeline: vehicle detection -> plate detection -> OCR",
+  "tags": ["LPR", "Smart Cities", "Transportation"],
+  "variants": [
+    {
+      "name": "CPU",
+      "pipeline_graph": $PIPELINE_GRAPH,
+      "pipeline_graph_simple": $SIMPLE_GRAPH
+    }
+  ]
+}
+EOF
+)
+
+PIPELINE_ID=$(echo $PIPELINE_RESPONSE | jq -r '.id')
+echo "Pipeline created: $PIPELINE_ID"
+
+# 3. Validate pipeline
+echo "Validating pipeline..."
+VALIDATION_RESPONSE=$(curl -s -X POST "$BASE_URL/pipelines/validate" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "pipeline_graph": $PIPELINE_GRAPH,
+  "parameters": {"max-runtime": 30}
+}
+EOF
+)
+
+VALIDATION_JOB_ID=$(echo $VALIDATION_RESPONSE | jq -r '.job_id')
+
+# Wait for validation
+while true; do
+  STATUS=$(curl -s "$BASE_URL/jobs/validation/$VALIDATION_JOB_ID/status")
+  STATE=$(echo $STATUS | jq -r '.state')
+  
+  if [ "$STATE" = "COMPLETED" ]; then
+    IS_VALID=$(echo $STATUS | jq -r '.is_valid')
+    if [ "$IS_VALID" = "true" ]; then
+      echo "Pipeline validation successful"
+      break
+    else
+      echo "Pipeline validation failed"
+      echo $STATUS | jq '.details'
+      exit 1
+    fi
+  elif [ "$STATE" = "FAILED" ]; then
+    echo "Validation error"
+    echo $STATUS | jq '.details'
+    exit 1
+  fi
+  
+  sleep 2
+done
+
+# 4. Run performance test
+echo "Running performance test..."
+PERF_RESPONSE=$(curl -s -X POST "$BASE_URL/tests/performance" \
+  -H "Content-Type: application/json" \
+  -d @- << EOF
+{
+  "pipeline_performance_specs": [
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "$PIPELINE_ID",
+        "variant_id": "cpu"
+      },
+      "streams": 2
+    }
+  ],
+  "execution_config": {
+    "output_mode": "disabled",
+    "max_runtime": 60
+  }
+}
+EOF
+)
+
+PERF_JOB_ID=$(echo $PERF_RESPONSE | jq -r '.job_id')
+echo "Performance job started: $PERF_JOB_ID"
+```
+
 ## Related Guides
 
 - [License Plate Recognition pipeline guide](./license-plate-recognition-pipeline.md)
