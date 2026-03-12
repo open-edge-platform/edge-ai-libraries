@@ -503,9 +503,6 @@ class Graph:
 
         If no rtspsrc node is found, the graph is returned unchanged.
 
-        Args:
-            None.
-
         Returns:
             Modified Graph object with credentials applied to rtspsrc nodes.
 
@@ -517,23 +514,22 @@ class Graph:
 
         modified_graph = copy.deepcopy(self)
 
-        has_rtspsrc = any(node.type == "rtspsrc" for node in modified_graph.nodes)
-        if not has_rtspsrc:
-            return modified_graph
-
         for node in modified_graph.nodes:
-            if node.type == "rtspsrc":
-                location = node.data.get("location")
-                if not location:
-                    continue
-                details = CameraManager().get_network_camera_details_by_rtsp_url(
-                    location
-                )
+            if node.type != "rtspsrc":
+                continue
 
+            location = node.data.get("location")
+            if not location:
+                continue
+
+            details = CameraManager().get_network_camera_details_by_rtsp_url(location)
+            if details is None:
+                continue
+            if details.username is not None:
                 node.data["user-id"] = details.username
+            if details.password is not None:
                 node.data["user-pw"] = details.password
-                node.data["latency"] = 0  # Reduce latency for live streaming
-                logger.debug(f"Applied RTSP credentials to rtspsrc node {node.id}")
+            logger.debug(f"Applied RTSP credentials to rtspsrc node {node.id}")
 
         return modified_graph
 
