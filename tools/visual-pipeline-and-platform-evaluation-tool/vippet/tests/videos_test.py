@@ -10,6 +10,7 @@ from videos import (
     Video,
     VideoFileInfo,
     VideosManager,
+    collect_video_outputs_from_dirs,
 )
 
 
@@ -164,23 +165,18 @@ class TestVideosManager(unittest.TestCase):
     def setUp(self):
         """Create a temporary directory for testing and reset singleton."""
         self.temp_dir = tempfile.mkdtemp()
-        self.original_recordings_path = os.environ.get("RECORDINGS_PATH")
         # Reset singleton state before each test
         VideosManager._instance = None
 
     def tearDown(self):
-        """Clean up temporary directory, restore environment, and reset singleton."""
+        """Clean up temporary directory and reset singleton."""
         shutil.rmtree(self.temp_dir)
-        if self.original_recordings_path:
-            os.environ["RECORDINGS_PATH"] = self.original_recordings_path
-        else:
-            os.environ.pop("RECORDINGS_PATH", None)
         # Reset singleton state after each test
         VideosManager._instance = None
 
     def test_singleton_returns_same_instance(self):
         """VideosManager() should return the same instance on multiple calls."""
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             with patch.object(VideosManager, "_ensure_all_ts_conversions"):
                 with patch.object(VideosManager, "_download_default_videos"):
                     instance1 = VideosManager()
@@ -190,14 +186,14 @@ class TestVideosManager(unittest.TestCase):
     def test_videos_manager_invalid_directory(self):
         """Test VideosManager raises RuntimeError for invalid directory."""
         invalid_path = os.path.join(self.temp_dir, "nonexistent")
-        with patch("videos.RECORDINGS_PATH", invalid_path):
+        with patch("videos.INPUT_VIDEO_DIR", invalid_path):
             with self.assertRaises(RuntimeError) as context:
                 VideosManager()
             self.assertIn(
                 "does not exist or is not a directory", str(context.exception)
             )
 
-    @patch("videos.RECORDINGS_PATH")
+    @patch("videos.INPUT_VIDEO_DIR")
     @patch("cv2.VideoCapture")
     @patch.object(VideosManager, "_ensure_all_ts_conversions")
     @patch.object(VideosManager, "_download_default_videos")
@@ -228,7 +224,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -272,7 +268,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -300,7 +296,7 @@ class TestVideosManager(unittest.TestCase):
             f.write("invalid json content")
 
         # Should skip the file due to invalid JSON
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
         self.assertEqual(len(videos), 0)
@@ -324,7 +320,7 @@ class TestVideosManager(unittest.TestCase):
         mock_cap.isOpened.return_value = False
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -357,7 +353,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -390,7 +386,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -410,7 +406,7 @@ class TestVideosManager(unittest.TestCase):
         with open(txt_file, "w") as f:
             f.write("text content")
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -427,7 +423,7 @@ class TestVideosManager(unittest.TestCase):
         subdir = os.path.join(self.temp_dir, "subdir")
         os.makedirs(subdir)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -456,7 +452,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             video = manager.get_video("test.mp4")
 
@@ -472,7 +468,7 @@ class TestVideosManager(unittest.TestCase):
         mock_ensure_ts.return_value = None
         mock_download.return_value = None
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             video = manager.get_video("nonexistent.mp4")
 
@@ -512,7 +508,7 @@ class TestVideosManager(unittest.TestCase):
                 raise OSError("Permission denied")
             return original_open(path, *args, **kwargs)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             with patch("builtins.open", side_effect=mock_open_func):
                 manager = VideosManager()
                 videos = manager.get_all_videos()
@@ -546,7 +542,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -581,7 +577,7 @@ class TestVideosManager(unittest.TestCase):
         }.get(prop, 0)
         mock_videocap.return_value = mock_cap
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
             videos = manager.get_all_videos()
 
@@ -631,7 +627,7 @@ class TestVideosManager(unittest.TestCase):
         with open(ts_json_path, "w") as f:
             json.dump(ts_metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test mp4 to ts path conversion
@@ -651,7 +647,7 @@ class TestVideosManager(unittest.TestCase):
         mock_ensure_ts.return_value = None
         mock_download.return_value = None
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test unsupported extension
@@ -718,7 +714,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test with full path
@@ -756,7 +752,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Test existing video
@@ -794,7 +790,7 @@ class TestVideosManager(unittest.TestCase):
         with open(json_path, "w") as f:
             json.dump(metadata, f)
 
-        with patch("videos.RECORDINGS_PATH", self.temp_dir):
+        with patch("videos.INPUT_VIDEO_DIR", self.temp_dir):
             manager = VideosManager()
 
             # Call ensure_ts_file
@@ -804,6 +800,185 @@ class TestVideosManager(unittest.TestCase):
             mock_convert.assert_called_once()
             expected_ts_path = os.path.join(self.temp_dir, "test.ts")
             self.assertEqual(ts_path, expected_ts_path)
+
+
+class TestCollectVideoOutputsFromDirs(unittest.TestCase):
+    """Test cases for collect_video_outputs_from_dirs function."""
+
+    def setUp(self):
+        """Create a temporary directory for testing."""
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up temporary directory."""
+        shutil.rmtree(self.temp_dir)
+
+    def test_filters_only_video_extensions(self):
+        """Test that only files with VIDEO_EXTENSIONS are returned."""
+        pipeline_dir = os.path.join(self.temp_dir, "pipeline_1")
+        os.makedirs(pipeline_dir)
+
+        # Create files with various extensions
+        for name in [
+            "intermediate_stream000_out.mp4",
+            "intermediate_stream000_out.avi",
+            "intermediate_stream000_out.txt",
+            "intermediate_stream000_out.json",
+            "intermediate_stream000_out.log",
+            "intermediate_stream000_out.ts",
+        ]:
+            with open(os.path.join(pipeline_dir, name), "w") as f:
+                f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"p1": pipeline_dir})
+
+        self.assertEqual(len(result["p1"]), 3)
+        extensions = {os.path.splitext(p)[1] for p in result["p1"]}
+        self.assertEqual(extensions, {".mp4", ".avi", ".ts"})
+
+    def test_main_output_placed_at_end(self):
+        """Test that main_output files are placed at the end of the list."""
+        pipeline_dir = os.path.join(self.temp_dir, "pipeline_1")
+        os.makedirs(pipeline_dir)
+
+        for name in [
+            "main_output.mp4",
+            "intermediate_stream000_recording.mp4",
+            "intermediate_stream001_recording.mp4",
+        ]:
+            with open(os.path.join(pipeline_dir, name), "w") as f:
+                f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"p1": pipeline_dir})
+
+        self.assertEqual(len(result["p1"]), 3)
+        # main_output.mp4 must be last
+        self.assertTrue(result["p1"][-1].endswith("main_output.mp4"))
+        # Intermediate files come before
+        for path in result["p1"][:-1]:
+            self.assertIn("intermediate_stream", os.path.basename(path))
+
+    def test_nonexistent_directory_returns_empty_list(self):
+        """Test that a non-existent directory returns an empty list and logs a warning."""
+        nonexistent = os.path.join(self.temp_dir, "does_not_exist")
+
+        with self.assertLogs("videos", level="WARNING") as cm:
+            result = collect_video_outputs_from_dirs({"p1": nonexistent})
+
+        self.assertEqual(result["p1"], [])
+        self.assertTrue(any("does not exist" in msg for msg in cm.output))
+
+    def test_multiple_pipeline_directories(self):
+        """Test scanning multiple pipeline directories independently."""
+        dir_a = os.path.join(self.temp_dir, "pipeline_a")
+        dir_b = os.path.join(self.temp_dir, "pipeline_b")
+        os.makedirs(dir_a)
+        os.makedirs(dir_b)
+
+        with open(os.path.join(dir_a, "main_output.mp4"), "w") as f:
+            f.write("dummy")
+        with open(os.path.join(dir_a, "intermediate_stream000_rec.mp4"), "w") as f:
+            f.write("dummy")
+
+        with open(os.path.join(dir_b, "intermediate_stream000_out.avi"), "w") as f:
+            f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"a": dir_a, "b": dir_b})
+
+        self.assertEqual(len(result["a"]), 2)
+        self.assertTrue(result["a"][-1].endswith("main_output.mp4"))
+
+        self.assertEqual(len(result["b"]), 1)
+        self.assertTrue(result["b"][0].endswith("intermediate_stream000_out.avi"))
+
+    def test_empty_directory_returns_empty_list(self):
+        """Test that an empty directory returns an empty list."""
+        empty_dir = os.path.join(self.temp_dir, "empty")
+        os.makedirs(empty_dir)
+
+        result = collect_video_outputs_from_dirs({"p1": empty_dir})
+
+        self.assertEqual(result["p1"], [])
+
+    def test_subdirectories_are_ignored(self):
+        """Test that subdirectories inside the pipeline directory are not included."""
+        pipeline_dir = os.path.join(self.temp_dir, "pipeline_1")
+        os.makedirs(pipeline_dir)
+
+        # Create a subdirectory with a video-like name
+        subdir = os.path.join(pipeline_dir, "subdir.mp4")
+        os.makedirs(subdir)
+
+        # Create a regular video file
+        with open(
+            os.path.join(pipeline_dir, "intermediate_stream000_out.mp4"), "w"
+        ) as f:
+            f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"p1": pipeline_dir})
+
+        self.assertEqual(len(result["p1"]), 1)
+        self.assertTrue(result["p1"][0].endswith("intermediate_stream000_out.mp4"))
+
+    def test_empty_input_returns_empty_dict(self):
+        """Test that an empty input dictionary returns an empty result."""
+        result = collect_video_outputs_from_dirs({})
+        self.assertEqual(result, {})
+
+    def test_files_are_sorted_alphabetically(self):
+        """Test that intermediate files are returned in alphabetical order."""
+        pipeline_dir = os.path.join(self.temp_dir, "pipeline_1")
+        os.makedirs(pipeline_dir)
+
+        for name in [
+            "intermediate_stream002_c.mp4",
+            "intermediate_stream000_a.mp4",
+            "intermediate_stream001_b.mp4",
+        ]:
+            with open(os.path.join(pipeline_dir, name), "w") as f:
+                f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"p1": pipeline_dir})
+
+        basenames = [os.path.basename(p) for p in result["p1"]]
+        self.assertEqual(
+            basenames,
+            [
+                "intermediate_stream000_a.mp4",
+                "intermediate_stream001_b.mp4",
+                "intermediate_stream002_c.mp4",
+            ],
+        )
+
+    def test_splitmuxsink_pattern_files_collected(self):
+        """Test that files produced by splitmuxsink pattern naming are collected."""
+        pipeline_dir = os.path.join(self.temp_dir, "pipeline_1")
+        os.makedirs(pipeline_dir)
+
+        for name in [
+            "intermediate_stream000_recording_000.mp4",
+            "intermediate_stream000_recording_001.mp4",
+            "intermediate_stream000_recording_002.mp4",
+            "main_output.mp4",
+        ]:
+            with open(os.path.join(pipeline_dir, name), "w") as f:
+                f.write("dummy")
+
+        result = collect_video_outputs_from_dirs({"p1": pipeline_dir})
+
+        self.assertEqual(len(result["p1"]), 4)
+        # main_output must be last
+        self.assertTrue(result["p1"][-1].endswith("main_output.mp4"))
+        # Splitmuxsink files should be in order
+        basenames = [os.path.basename(p) for p in result["p1"][:-1]]
+        self.assertEqual(
+            basenames,
+            [
+                "intermediate_stream000_recording_000.mp4",
+                "intermediate_stream000_recording_001.mp4",
+                "intermediate_stream000_recording_002.mp4",
+            ],
+        )
 
 
 if __name__ == "__main__":

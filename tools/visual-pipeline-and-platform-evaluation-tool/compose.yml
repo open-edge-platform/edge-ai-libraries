@@ -27,7 +27,8 @@ x-vippet: &vippet
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
-    RECORDINGS_PATH: /videos/input
+    INPUT_VIDEO_DIR: /videos/input
+    OUTPUT_VIDEO_DIR: /videos/output
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
@@ -188,5 +189,4 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-
 

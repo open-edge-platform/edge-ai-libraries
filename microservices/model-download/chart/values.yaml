@@ -35,6 +35,16 @@ modeldownload:
     HLS_ECG_BASE_URL: "https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
     HLS_RPPG_MODEL_URL: "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
 
+  
+  gpu:
+    enabled: false
+    key: ""
+  
+  affinity:  #Optional: Provide node hostname label on which model download needs to be scheduled.
+    enabled : false
+    key: kubernetes.io/hostname
+    value: 
+            
   service:
     type: NodePort
     nodePort: 
