@@ -157,8 +157,9 @@ const NodeDataPanel = ({
       return;
     }
 
-    const sourceOptions =
-      isCameraKind(editableData.kind) ? cameraOptions : videoOptions;
+    const sourceOptions = isCameraKind(editableData.kind)
+      ? cameraOptions
+      : videoOptions;
     const currentSource = String(editableData.source ?? "");
     const isCurrentSourceValid = sourceOptions.some(
       (option) => !option.disabled && option.value === currentSource,
