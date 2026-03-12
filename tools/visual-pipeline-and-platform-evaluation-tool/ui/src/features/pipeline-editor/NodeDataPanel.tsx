@@ -119,6 +119,23 @@ const NodeDataPanel = ({
     return firstAvailableOption?.value ?? "";
   };
 
+  const normalizeKindValue = (kind: unknown): string => {
+    const normalized = String(kind ?? "").toLowerCase();
+
+    if (normalized === "camera") {
+      return "Camera";
+    }
+
+    if (normalized === "file") {
+      return "File";
+    }
+
+    return String(kind ?? "");
+  };
+
+  const isCameraKind = (kind: unknown): boolean =>
+    String(kind ?? "").toLowerCase() === "camera";
+
   const handleInputChange = (key: string, value: string | unknown) => {
     if (!selectedNode) {
       return;
@@ -127,7 +144,7 @@ const NodeDataPanel = ({
     const updatedData = { ...editableData, [key]: value };
 
     if (selectedNode.type === "source" && key === "kind") {
-      const sourceOptions = value === "camera" ? cameraOptions : videoOptions;
+      const sourceOptions = isCameraKind(value) ? cameraOptions : videoOptions;
       updatedData.source = getDefaultSourceValue(sourceOptions);
     }
 
@@ -141,7 +158,7 @@ const NodeDataPanel = ({
     }
 
     const sourceOptions =
-      editableData.kind === "camera" ? cameraOptions : videoOptions;
+      isCameraKind(editableData.kind) ? cameraOptions : videoOptions;
     const currentSource = String(editableData.source ?? "");
     const isCurrentSourceValid = sourceOptions.some(
       (option) => !option.disabled && option.value === currentSource,
@@ -289,7 +306,7 @@ const NodeDataPanel = ({
                   >
                     {(selectedNode.type === "filesrc"
                       ? videoOptions
-                      : editableData.kind === "camera"
+                      : isCameraKind(editableData.kind)
                         ? cameraOptions
                         : videoOptions
                     ).map((option) => (
@@ -316,7 +333,11 @@ const NodeDataPanel = ({
                   </select>
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
-                    value={String(value ?? "")}
+                    value={
+                      keyStr === "kind"
+                        ? normalizeKindValue(value)
+                        : String(value ?? "")
+                    }
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
