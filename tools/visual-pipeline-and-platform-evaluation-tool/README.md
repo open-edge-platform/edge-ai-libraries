@@ -56,16 +56,31 @@ controlled conditions.
 ### Performance Testing Capabilities
 
 **Pipeline Testing Modes**:
-- **Single Pipeline Testing**: Test individual AI pipelines with configurable stream counts to measure baseline performance. Users can specify the number of concurrent streams for comprehensive performance analysis.
-- **Multi-Pipeline Concurrent Testing**: Evaluate system performance under complex workloads by running multiple different pipelines simultaneously. Each pipeline can be configured with its own stream count, simulating real-world deployment scenarios where multiple AI workloads compete for system resources.
+
+- **Single Pipeline Testing**: Test individual AI pipelines with configurable stream counts to
+  measure baseline performance. Users can specify the number of concurrent streams for
+  comprehensive performance analysis.
+- **Multi-Pipeline Concurrent Testing**: Evaluate system performance under complex workloads by
+  running multiple different pipelines simultaneously. Each pipeline can be configured with its own
+  stream count, simulating real-world deployment scenarios where multiple AI workloads compete for
+  system resources.
 
 **Testing Configuration Options**:
-- **Output Video Validation** (*Keep pipeline output*): Capture and save processed video outputs during performance testing to verify that AI inference quality is maintained under load conditions.
-- **Live Preview Validation** (*Enable live preview*): Monitor real-time video streams during testing to immediately detect visual artifacts, frame drops, or quality degradation as they occur.
-- **Continuous Loop Testing** (*Run pipeline in loop*): Execute continuous testing cycles to evaluate system stability and performance consistency over extended periods.
+
+- **Output Video Validation** (*Keep pipeline output*): Capture and save processed video outputs
+  during performance testing to verify that AI inference quality is maintained under load
+  conditions.
+- **Live Preview Validation** (*Enable live preview*): Monitor real-time video streams during
+  testing to immediately detect visual artifacts, frame drops, or quality degradation as they
+  occur.
+- **Continuous Loop Testing** (*Run pipeline in loop*): Execute continuous testing cycles to
+  evaluate system stability and performance consistency over extended periods.
 
 **Real-Time Monitoring**:
-During test execution, a metrics dashboard appears on the right side displaying real-time performance data including Total FPS, Per Stream FPS, CPU frequency, GPU power usage, and memory utilization. This enables immediate identification of bottlenecks and resource constraints.
+
+During test execution, a metrics dashboard appears on the right side displaying real-time
+performance data including Total FPS, Per Stream FPS, CPU frequency, GPU power usage, and memory
+utilization. This enables immediate identification of bottlenecks and resource constraints.
 
 ### Density Testing
 

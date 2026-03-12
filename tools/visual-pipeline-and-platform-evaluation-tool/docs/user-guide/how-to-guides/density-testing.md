@@ -14,7 +14,7 @@ still meets your FPS requirement. Therefore, it answers the question:
 2. Set **FPS Floor**  (for example, `30`).
 3. Add one or more pipelines.
 4. For each pipeline, set **Stream Rate** so all pipelines sum to `100%`.
-5. Set ** iteration duration**  in seconds (for example, `30`). 
+5. Set **iteration duration** in seconds (for example, `30`).
 6. Click **Run density test**.
 
 When the job completes, ViPPET reports:
