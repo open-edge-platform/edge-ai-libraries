@@ -21,8 +21,8 @@ export const sourceNodeConfig: NodeConfig = {
       key: "kind",
       label: "Source Type",
       type: "select",
-      options: ["File", "Camera"],
-      defaultValue: "File",
+      options: ["file", "camera"],
+      defaultValue: "file",
       description: "Select the input source type",
     },
     {

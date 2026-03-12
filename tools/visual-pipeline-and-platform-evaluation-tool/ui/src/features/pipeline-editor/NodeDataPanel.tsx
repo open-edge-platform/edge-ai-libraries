@@ -107,9 +107,19 @@ const NodeDataPanel = ({
 
   useEffect(() => {
     if (selectedNode) {
-      setEditableData({ ...selectedNode.data });
+      const nextData = { ...selectedNode.data } as Record<string, unknown>;
+
+      if (selectedNode.type === "source") {
+        const normalizedKind = normalizeKindValue(nextData.kind);
+        if (nextData.kind !== normalizedKind) {
+          nextData.kind = normalizedKind;
+          onNodeDataUpdate(selectedNode.id, nextData);
+        }
+      }
+
+      setEditableData(nextData);
     }
-  }, [selectedNode]);
+  }, [onNodeDataUpdate, selectedNode]);
 
   const getDefaultSourceValue = (options: SelectOption[]): string => {
     const firstAvailableOption = options.find(
@@ -123,28 +133,31 @@ const NodeDataPanel = ({
     const normalized = String(kind ?? "").toLowerCase();
 
     if (normalized === "camera") {
-      return "Camera";
+      return "camera";
     }
 
     if (normalized === "file") {
-      return "File";
+      return "file";
     }
 
     return String(kind ?? "");
   };
 
   const isCameraKind = (kind: unknown): boolean =>
-    String(kind ?? "").toLowerCase() === "camera";
+    normalizeKindValue(kind) === "camera";
 
   const handleInputChange = (key: string, value: string | unknown) => {
     if (!selectedNode) {
       return;
     }
 
-    const updatedData = { ...editableData, [key]: value };
+    const nextValue = key === "kind" ? normalizeKindValue(value) : value;
+    const updatedData = { ...editableData, [key]: nextValue };
 
     if (selectedNode.type === "source" && key === "kind") {
-      const sourceOptions = isCameraKind(value) ? cameraOptions : videoOptions;
+      const sourceOptions = isCameraKind(nextValue)
+        ? cameraOptions
+        : videoOptions;
       updatedData.source = getDefaultSourceValue(sourceOptions);
     }
 
@@ -344,7 +357,10 @@ const NodeDataPanel = ({
                   >
                     {propConfig?.options?.map((option) => (
                       <option key={option} value={option}>
-                        {option}
+                        {keyStr === "kind"
+                          ? normalizeKindValue(option).charAt(0).toUpperCase() +
+                            normalizeKindValue(option).slice(1)
+                          : option}
                       </option>
                     ))}
                   </select>
