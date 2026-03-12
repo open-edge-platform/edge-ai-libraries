@@ -427,3 +427,4 @@ or configure your own custom pipeline in ViPPET:
 
 - [Predefined License Plate Recognition pipeline](./license-plate-recognition-pipeline.md)
 - [Configure your own pipeline](./configure-pipelines.md)
+- [Build LPR pipeline using API](./license-plate-recognition-api.md)

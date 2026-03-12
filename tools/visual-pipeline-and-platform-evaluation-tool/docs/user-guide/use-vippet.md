@@ -19,6 +19,9 @@ density for a target FPS floor.
 The [license plate recognition pipeline article](./how-to-guides/license-plate-recognition-pipeline.md) explains
 how to build and evaluate an LPR pipeline on Intel® hardware.
 
+The [LPR pipeline API article](./how-to-guides/license-plate-recognition-api.md) explains how to create,
+validate, and test an LPR pipeline using ViPPET REST API.
+
 <!--hide_directive
 :::{toctree}
 :maxdepth: 2
@@ -30,6 +33,7 @@ how to build and evaluate an LPR pipeline on Intel® hardware.
 ./how-to-guides/performance-testing
 Run Density Tests <./how-to-guides/density-testing.md>
 Use Plates Recognition <./how-to-guides/license-plate-recognition-pipeline.md>
+Use LPR API <./how-to-guides/license-plate-recognition-api.md>
 
 :::
 hide_directive-->
