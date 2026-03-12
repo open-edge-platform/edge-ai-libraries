@@ -425,6 +425,5 @@ applications that scale with your business needs.
 You can use the predefined License Plate Recognition pipeline described in this guide,
 or configure your own custom pipeline in ViPPET:
 
-- [Predefined License Plate Recognition pipeline](./license-plate-recognition-pipeline.md)
 - [Configure your own pipeline](./configure-pipelines.md)
 - [Build LPR pipeline using API](./license-plate-recognition-api.md)
