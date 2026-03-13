@@ -106,18 +106,31 @@ const NodeDataPanel = ({
   );
 
   useEffect(() => {
-    if (selectedNode) {
-      const nextData = { ...selectedNode.data } as Record<string, unknown>;
+    if (!selectedNode) {
+      return;
+    }
 
-      if (selectedNode.type === "source") {
-        const normalizedKind = normalizeKindValue(nextData.kind);
-        if (nextData.kind !== normalizedKind) {
-          nextData.kind = normalizedKind;
-          onNodeDataUpdate(selectedNode.id, nextData);
-        }
+    const nextData = { ...selectedNode.data } as Record<string, unknown>;
+    let shouldSyncNodeData = false;
+
+    if (selectedNode.type === "source") {
+      const normalizedKind = normalizeKindValue(nextData.kind);
+      if (nextData.kind !== normalizedKind) {
+        nextData.kind = normalizedKind;
+        shouldSyncNodeData = true;
       }
 
-      setEditableData(nextData);
+      const currentSource = String(nextData.source ?? nextData.location ?? "");
+      if (!String(nextData.source ?? "") && currentSource) {
+        nextData.source = currentSource;
+        shouldSyncNodeData = true;
+      }
+    }
+
+    setEditableData(nextData);
+
+    if (shouldSyncNodeData) {
+      onNodeDataUpdate(selectedNode.id, nextData);
     }
   }, [onNodeDataUpdate, selectedNode]);
 
@@ -127,6 +140,25 @@ const NodeDataPanel = ({
     );
 
     return firstAvailableOption?.value ?? "";
+  };
+
+  const ensureCurrentSourceOption = (
+    options: SelectOption[],
+    currentSource: string,
+  ): SelectOption[] => {
+    if (!currentSource) {
+      return options;
+    }
+
+    const hasCurrentSource = options.some(
+      (option) => option.value === currentSource,
+    );
+
+    if (hasCurrentSource) {
+      return options;
+    }
+
+    return [{ label: currentSource, value: currentSource }, ...options];
   };
 
   const normalizeKindValue = (kind: unknown): string => {
@@ -158,42 +190,18 @@ const NodeDataPanel = ({
       const sourceOptions = isCameraKind(nextValue)
         ? cameraOptions
         : videoOptions;
-      updatedData.source = getDefaultSourceValue(sourceOptions);
+      const defaultSource = getDefaultSourceValue(sourceOptions);
+      updatedData.source = defaultSource;
+      updatedData.location = defaultSource;
+    }
+
+    if (selectedNode.type === "source" && key === "source") {
+      updatedData.location = String(nextValue ?? "");
     }
 
     setEditableData(updatedData);
     onNodeDataUpdate(selectedNode.id, updatedData);
   };
-
-  useEffect(() => {
-    if (selectedNode?.type !== "source") {
-      return;
-    }
-
-    const sourceOptions = isCameraKind(editableData.kind)
-      ? cameraOptions
-      : videoOptions;
-    const currentSource = String(editableData.source ?? "");
-    const isCurrentSourceValid = sourceOptions.some(
-      (option) => !option.disabled && option.value === currentSource,
-    );
-
-    if (!isCurrentSourceValid) {
-      const nextSource = getDefaultSourceValue(sourceOptions);
-
-      if (nextSource !== currentSource) {
-        const updatedData = { ...editableData, source: nextSource };
-        setEditableData(updatedData);
-        onNodeDataUpdate(selectedNode.id, updatedData);
-      }
-    }
-  }, [
-    cameraOptions,
-    editableData,
-    onNodeDataUpdate,
-    selectedNode,
-    videoOptions,
-  ]);
 
   if (!selectedNode) {
     return (
@@ -261,6 +269,10 @@ const NodeDataPanel = ({
           </h4>
           {dataEntries.map(([key, value]) => {
             const keyStr = String(key);
+            const sourceSelectValue =
+              selectedNode.type === "source" && keyStr === "source"
+                ? String(editableData.source ?? editableData.location ?? "")
+                : String(value ?? "");
 
             const propConfig = editableProperties.find(
               (prop) => prop.key === keyStr,
@@ -314,34 +326,30 @@ const NodeDataPanel = ({
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   <select
-                    value={String(value ?? "")}
+                    value={sourceSelectValue}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    {(selectedNode.type === "filesrc"
-                      ? videoOptions
-                      : isCameraKind(editableData.kind)
-                        ? cameraOptions
-                        : videoOptions
+                    {ensureCurrentSourceOption(
+                      selectedNode.type === "filesrc"
+                        ? videoOptions
+                        : isCameraKind(editableData.kind)
+                          ? cameraOptions
+                          : videoOptions,
+                      sourceSelectValue,
                     ).map((option) => (
                       <option
                         key={(option.value || option.label) as string}
                         value={option.value}
-                        disabled={
-                          "disabled" in option
-                            ? Boolean(option.disabled)
-                            : false
-                        }
+                        disabled={Boolean(option.disabled)}
                         className={
-                          "disabled" in option && option.disabled
+                          option.disabled
                             ? "text-gray-400 dark:text-gray-500"
                             : ""
                         }
                       >
                         {option.label}
-                        {"disabled" in option && option.disabled
-                          ? " (Not authorized)"
-                          : ""}
+                        {option.disabled ? " (Not authorized)" : ""}
                       </option>
                     ))}
                   </select>
