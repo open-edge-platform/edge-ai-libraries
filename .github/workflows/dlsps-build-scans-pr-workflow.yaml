@@ -45,13 +45,10 @@ jobs:
 
     - name: Build DL Streamer deb-final-img
       env:
-        deb_final_img: dlstreamer-base:${{ matrix.ubuntu_version }}-${{ github.sha }}
+        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}-${{ github.sha }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
-        dls_ubuntu22_dockefile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu22.Dockerfile
-        dls_ubuntu24_dockefile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu24.Dockerfile
       run: |
         DLS_PATH="${{ env.DLS_REL_PATH }}"
-        docker pull "${deb_final_img_cached}" || true
         docker buildx build \
         --load \
         --target dlstreamer \
@@ -70,7 +67,7 @@ jobs:
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BUILD_TARGET=dlstreamer-pipeline-server
         docker compose build --no-cache
-        echo "BASE_IMAGE=${DLSTREAMER_PIPELINE_SERVER_IMAGE}" >> $GITHUB_ENV
+        echo "BASE_IMAGE_UNIT_TESTS=${DLSTREAMER_PIPELINE_SERVER_IMAGE}" >> $GITHUB_ENV
 
     - name: Build dls-pipeline-server-img-extended
       run: |
@@ -83,6 +80,7 @@ jobs:
     - name: Unit Test dls-pipeline-server
       if: ${{ matrix.ubuntu_version == 'ubuntu22' && always() }}
       run: |
+        export BASE_IMAGE=${BASE_IMAGE_UNIT_TESTS}
         echo "BASE_IMAGE which will be used for Unit tests: ${BASE_IMAGE}"
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         make build
