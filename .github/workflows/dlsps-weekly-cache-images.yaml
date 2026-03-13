@@ -56,15 +56,13 @@ jobs:
 
     - name: Build DL Streamer cache ${{ matrix.ubuntu_version }} img
       env:
-        deb_final_img: dlstreamer-base:${{ matrix.ubuntu_version }}-${{ github.sha }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-        --load \
         --target dlstreamer \
-        --tag "${deb_final_img}" \
+        --cache-from=type=registry,ref=${deb_final_img_cached} \
         --cache-to=type=registry,ref=${deb_final_img_cached},mode=max \
-        --cache-from="${deb_final_img_cached}" \
+        --output=type=cacheonly \
         --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
         --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
         -f "${{ matrix.path_dockerfile }}" \
