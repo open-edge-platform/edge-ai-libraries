@@ -49,6 +49,7 @@
     `helm uninstall dlsps -n apps`
 
 ## Troubleshooting
+
 - [Troubleshooting Guide](../docs/user-guide/troubleshooting.md)
 
 ## Setup k8s cluster

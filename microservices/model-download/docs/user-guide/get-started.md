@@ -42,7 +42,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
     - To use the Geti™ plugin, set these variables:
-	
+
       ```bash
       export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
       export GETI_HOST=<GETI_HOST_ADDRESS>
@@ -51,21 +51,21 @@ The Model Download is a microservice that downloads models from multiple hubs as
       export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
       ```
 > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
-	  
+
 4. **Launch the service and enable the plugins**
 
       ```bash
       source scripts/run_service.sh up --plugins all --model-path <host path>
       ```
 > **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
-      
+
 > **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
       The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 
       Options available with the script:
 
-        __Usage__: 
+        __Usage__:
         ```bash
           source scripts/run_service.sh [options] [action]
         ```
@@ -83,7 +83,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
         | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
         | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics, or geti`) or `all` to enable all available plugins |
         | `--help`                 | Shows this help message                                                                           |
-      
+
       **Examples**:
         - Start the service with default settings: `source scripts/run_service.sh up`
         - Stop the service: `source scripts/run_service.sh down`
@@ -103,8 +103,8 @@ The Model Download is a microservice that downloads models from multiple hubs as
   ```bash
   docker ps
   ```
-- Access the application dashboard and verify that it is functioning as expected.
 
+- Access the application dashboard and verify that it is functioning as expected.
 
 ## Sample usage with CURL Command
 
@@ -156,6 +156,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_mo
     "parallel_downloads": true
   }'
 ```
+
 > **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to the OpenVINO IR format with FP32 and FP16 precision by default.
 
 **Download a Hugging Face model and convert it to OpenVINO IR format:**
@@ -245,8 +246,9 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
     }
   }
   ```
-  - For details, see the API [Spec](./api-docs/openapi.yaml)
-  
+
+  - For details, see the [API spec](./api-docs/openapi.yaml)
+
 ### Configuration
 
 You can configure the service through environment variables and Docker volumes:
@@ -277,8 +279,7 @@ Volumes:
 
 ## Run in Kubernetes Cluster
 
-See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
-
+See [Deploy with Helm Chart](./deploy-with-helm.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
 
 ## Learn More
 
