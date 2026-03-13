@@ -399,7 +399,15 @@ async def get_config(
         logger.error("Error retrieving configuration: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
 
-@app.post("/config")
+@app.post("/config", responses={
+    413: {"description": "Request payload exceeds the maximum allowed size of 5 KB",
+          "content": {"application/json": {"example": {"error": "Request exceeds the maximum allowed payload size of 5 KB."}}}},
+    422: {"description": "Unprocessable request - invalid or missing fields, invalid device value, "
+                         "or UDF deployment package files are missing from the server",
+          "content": {"application/json": {"example": {"detail": "UDF deployment package validation failed for <udf_name>."}}}},
+    500: {"description": "Failed to write configuration to file",
+          "content": {"application/json": {"example": {"detail": "Failed to write configuration to file"}}}},
+})
 async def config_file_change(config_data: Config, background_tasks: BackgroundTasks):
     """
     Endpoint to handle configuration changes.
@@ -419,7 +427,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     "udfs": {
                         "name": "udf_name",
                         "model": "model_name",
-                        "device": "cpu or gpu"}
+                        "device": "cpu or gpu"},
                     "alerts": {
                     }
                     }

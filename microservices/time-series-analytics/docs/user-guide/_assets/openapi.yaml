@@ -172,7 +172,7 @@ paths:
                         "udfs": {
                             "name": "udf_name",
                             "model": "model_name",
-                            "device": "cpu or gpu"}
+                            "device": "cpu or gpu"},
                         "alerts": {
                         }
         responses:
@@ -234,12 +234,25 @@ paths:
           content:
             application/json:
               schema: {}
-        '422':
-          description: Validation Error
+        '413':
+          description: Request payload exceeds the maximum allowed size of 5 KB
           content:
             application/json:
-              schema:
-                "$ref": "#/components/schemas/HTTPValidationError"
+              example:
+                error: Request exceeds the maximum allowed payload size of 5 KB.
+        '422':
+          description: Unprocessable request - invalid or missing fields, invalid
+            device value, or UDF deployment package files are missing from the server
+          content:
+            application/json:
+              example:
+                detail: "UDF deployment package validation failed for <udf_name>."
+        '500':
+          description: Failed to write configuration to file
+          content:
+            application/json:
+              example:
+                detail: Failed to write configuration to file
 components:
   schemas:
     Config:
@@ -317,6 +330,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc

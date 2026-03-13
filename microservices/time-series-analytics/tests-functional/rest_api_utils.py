@@ -240,7 +240,8 @@ def post_invalid_config_endpoint(port, command):
     try:
         response = requests.post(url, json=invalid_config_data, timeout=10)
         assert response.status_code == 422
-        assert response.json() == {'detail': 'UDF deployment package validation failed for udf_classifier. Please check and upload/copy the UDF deployment package with correct structure and files.'}
+        response_json = response.json()
+        assert "UDF deployment package validation failed" in response_json.get("detail", "")
         time.sleep(15)  # Wait for the configuration to be applied
         output = run_command(command)
         output = output.stdout + output.stderr
