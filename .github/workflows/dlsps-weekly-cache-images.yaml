@@ -44,6 +44,9 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init --recursive libraries/dlstreamer
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
       with:
