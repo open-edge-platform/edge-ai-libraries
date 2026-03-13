@@ -32,6 +32,12 @@ SUPPORTED_TYPES = {
     "rppg": SCRIPTS_DIR / "rppg_download_assets.py",
     "ai-ecg": SCRIPTS_DIR / "ecg_download_assets.sh",
 }
+#corresponding models for each type are expected to be downloaded/converted by the above scripts into:
+Models_Supported={
+    "3d-pose": "human-pose-estimation-3d-0001",
+    "rppg": "mtts_can",
+    "ai-ecg": ["ecg_17920_ir10_fp16", "ecg_8960_ir10_fp16"],
+}
 
 # HLS-dedicated virtual environment
 HLS_VENV_PATH = Path("/opt/hls_venv")
@@ -106,6 +112,14 @@ class HlsPlugin(ModelDownloadPlugin):
         model_type = (kwargs.get("type") or "").lower()
         if model_type not in SUPPORTED_TYPES:
             raise ValueError(f"Unsupported HLS model type: {model_type}")
+
+        expected = Models_Supported.get(model_type)
+        allowed = expected if isinstance(expected, list) else [expected]
+        if model_name not in allowed:
+            raise ValueError(
+                f"Invalid model name '{model_name}' for type '{model_type}'. "
+                f"Expected one of: {allowed}."
+            )
 
         # Ensure (or reuse) the isolated HLS virtual environment.
         hls_python = await self._ensure_hls_venv()
