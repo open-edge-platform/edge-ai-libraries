@@ -38,9 +38,6 @@ from multiprocessing import shared_memory
 
 import numpy as np
 
-shutdown_event = threading.Event()
-
-
 import threading
 import traceback
 
@@ -59,92 +56,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# import ctypes
-
-# class _SPSCRing:
-#     def __init__(self, size):
-#         if size & (size - 1) != 0:
-#             raise ValueError("size must be power of 2")
-
-#         self.size = size
-#         self.mask = size - 1
-#         self.buffer = [None] * size
-
-#         self.write_idx = ctypes.c_ulong(0)
-#         self.read_idx = ctypes.c_ulong(0)
-
-#     def push(self, item):
-#         w = self.write_idx.value
-#         r = self.read_idx.value
-
-#         if w - r == self.size:
-#             return False
-
-#         self.buffer[w & self.mask] = item
-#         self.write_idx.value = w + 1
-#         return True
-
-#     def pop(self):
-#         r = self.read_idx.value
-#         w = self.write_idx.value
-
-#         if w == r:
-#             return None
-
-#         item = self.buffer[r & self.mask]
-#         self.read_idx.value = r + 1
-#         return item
-
-
-# from multiprocessing import shared_memory
-# import time
-
-
-# class SharedMemoryPool:
-#     def __init__(self, max_blocks, block_size):
-
-#         if max_blocks & (max_blocks - 1) != 0:
-#             raise ValueError("max_blocks must be power of 2")
-
-#         self.blocks = []
-#         self.free = _SPSCRing(max_blocks)
-
-#         for _ in range(max_blocks):
-#             shm = shared_memory.SharedMemory(create=True, size=block_size)
-#             self.blocks.append(shm)
-#             self.free.push(shm.name)
-
-#     def acquire(self):
-#         while True:
-#             name = self.free.pop()
-#             if name is not None:
-#                 return name
-#             time.sleep(0)
-
-#     def release(self, name):
-#         while not self.free.push(name):
-#             time.sleep(0)
-
-#     def close(self):
-#         for shm in self.blocks:
-#             shm.close()
-#             shm.unlink()
 
 class SharedMemoryPool:
-    def __init__(self, max_blocks, block_size, suffix=""):
+    def __init__(self, max_blocks, block_size):
         self.free = queue.SimpleQueue()
         self.max_blocks = max_blocks
         self.block_size = block_size
         self.blocks = []
 
         for i in range(max_blocks):
-            shm = shared_memory.SharedMemory(create=True, size=block_size, name=f"{i}_{suffix}")
+            shm = shared_memory.SharedMemory(create=True, size=block_size)
             self.blocks.append(shm)
             self.free.put(shm.name)
 
     def acquire(self):
         return self.free.get()
-    
+
     def release(self, name):
         self.free.put(name)
 
@@ -324,7 +251,6 @@ def decode_stream_and_batch_generator(
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
-
     def flush_batch(batch, batch_id):
         frames_meta = list(
             thread_pool.map(
@@ -370,6 +296,9 @@ def decode_stream_and_batch_generator(
                 batch_start_time = time.perf_counter()
                 for frame in frames:
                     if shutdown_event and shutdown_event.is_set():
+                        end_time = time.perf_counter()
+                        logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
+                        yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                         break
 
                     if global_frame_idx % stream_config.frame_interval != 0:
@@ -399,18 +328,17 @@ def decode_stream_and_batch_generator(
                 batch_start_time = time.perf_counter()
                 batch.clear()
 
-        finally:
-            end_time = time.perf_counter()
-            if shutdown_event and shutdown_event.is_set():
-                logger.info(f"Stream {stream_id} stopped by shutdown event")
-            else:
-                logger.info(f"Stream {stream_id} ended")
-
             yield (
                 DONE,
                 stream_id,
                 (start_time, end_time, end_time - start_time),
             )  # end-of-stream sentinel
+
+        finally:
+            if shutdown_event and shutdown_event.is_set():
+                logger.info(f"Stream {stream_id} stopped by shutdown event")
+            else:
+                logger.info(f"Stream {stream_id} ended")
 
 
 def decode_and_batch_generator(
@@ -423,7 +351,7 @@ def decode_and_batch_generator(
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
     batch = []
     batch_id = 0
-
+    logger.info(f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}")
     start_time = time.perf_counter()
     with container, ThreadPoolExecutor(max_workers=8) as _thread_pool:
         stream = container.streams.video[0]
@@ -529,18 +457,13 @@ class VideoFrameExtractor:
         video_input: VideoInput | str | bytes | list[VideoInput | str | bytes],
         config: VideoFrameConfig | None = None,
         shm_pool: SharedMemoryPool | None = None,
+        shutdown_event: threading.Event | None = None,
     ):
         self.config = config or VideoFrameConfig()
         self.shm_pool = shm_pool
 
-        self._shutdown = threading.Event()
-        self._shutdown.clear()
-
-        def handle_sigint(sig, frame):
-            logger.info("Shutdown signal received, stopping frame extraction...")
-            self._shutdown.set()
-
-        signal.signal(signal.SIGINT, handle_sigint)
+        # Use external shutdown_event if provided, else create internal one
+        self._shutdown = shutdown_event
 
         self.finished_set = set()
         if isinstance(video_input, list):
@@ -597,6 +520,21 @@ class VideoFrameExtractor:
     def get_metadata(self) -> list[Dict[str, Any]]:
         """Return metadata for all video streams."""
         return self.metadata_list
+
+    def stop(self):
+        """
+        Request graceful shutdown of frame extraction.
+
+        Call this from any thread to stop the decode_frames() loop.
+        The generator will yield INTERRUPT and exit cleanly.
+        """
+        logger.info("Stop requested, setting shutdown event...")
+        self._shutdown.set()
+
+    @property
+    def shutdown_event(self) -> threading.Event:
+        """Return the shutdown event for external monitoring/control."""
+        return self._shutdown
 
     def _open_video_source(self, video_input: VideoInput) -> av.container.Container:
         """Open video source based on type."""
@@ -673,7 +611,7 @@ class VideoFrameExtractor:
                 except queue.Empty:
                     if self._shutdown.is_set():
                         logger.info(
-                            "[DECODER MAIN] Shutdown event set, stopping frame extraction and closing shared memory..."
+                            "[DECODER MAIN] Shutdown event set, stopping frame extraction"
                         )
                         break
                     continue
@@ -702,7 +640,6 @@ class VideoFrameExtractor:
                             t.join(timeout=1.0)
 
                         continue
-                
 
                 yield batch
 
@@ -712,9 +649,9 @@ class VideoFrameExtractor:
             raise
 
         finally:
-            # self.shm_pool.close()
+            self._shutdown.set()
             logger.info(
-                "[DECODER MAIN] All threads have been signaled to shutdown and shared memory has been released."
+                "[DECODER MAIN] All threads have been signaled to shutdown."
             )
 
 
