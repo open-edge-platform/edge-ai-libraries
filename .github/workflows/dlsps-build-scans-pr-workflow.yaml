@@ -63,15 +63,16 @@ jobs:
     - name: Build dls-pipeline-server-img
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
-        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BUILD_TARGET=dlstreamer-pipeline-server
         docker compose build --no-cache
+        echo "BASE_IMAGE=${DLSTREAMER_PIPELINE_SERVER_IMAGE}" >> $GITHUB_ENV
 
     - name: Build dls-pipeline-server-img-extended
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
-        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BUILD_TARGET=dlstreamer-pipeline-server-extended
         docker compose build --no-cache
@@ -79,6 +80,7 @@ jobs:
     - name: Unit Test dls-pipeline-server
       if: matrix.ubuntu_version == 'ubuntu22'
       run: |
+        echo "BASE_IMAGE which will be used for Unit tests: ${BASE_IMAGE}"
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         make build
         make test | tee /tmp/pytest_output.txt
