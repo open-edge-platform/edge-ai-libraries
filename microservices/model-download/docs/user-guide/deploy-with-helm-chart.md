@@ -22,15 +22,17 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/model-download-chart):
 
    ```bash
-   helm pull oci://registry-1.docker.io/intel/model-download-chart --version <version-no>
+   helm pull oci://registry-1.docker.io/intel/model-download-chart --version 1.1.0-rc1
    ```
 
    See the [Docker hub's tags page](https://hub.docker.com/r/intel/model-download-chart/tags) for details on the latest version number to use for the application.
 
 2. Extract the `.tgz` file
 
+   Extract the `.tgz` file:
+
    ```bash
-   tar -xvf model-download-chart-<version-no>.tgz
+   tar -xvf model-download-chart-1.1.0-rc1.tgz
    ```
 
 3. This will create a directory named `model-download-chart`, containing the chart files. Navigate to the extracted directory:
@@ -47,7 +49,7 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
    # Clone the latest on the mainline
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
    ```
 
 2. Navigate to the chart directory:
@@ -133,9 +135,8 @@ helm uninstall <name> -n <your-namespace>
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 
-> **Note:**
-> Delete the shared PVC only after confirming no other workload or application (for example,
-> Chat Q&A) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
+  **Note:**
+  Delete the shared PVC only after confirming no other workload or application (for example, ChatQnA) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
 
 ## Learn More
 
