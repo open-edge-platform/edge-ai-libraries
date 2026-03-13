@@ -437,8 +437,20 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                             message:
                                 type: string
                                 example: "Configuration updated successfully"
-        400:
-            description: Invalid input or error processing request
+        413:
+            description: Request payload exceeds the maximum allowed size of 5 KB
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            error:
+                                type: string
+                                example: "Request exceeds the maximum allowed payload size of 5 KB."
+        422:
+            description: >
+                Unprocessable request - invalid or missing fields, invalid device value,
+                or UDF deployment package files are missing from the server
             content:
                 application/json:
                     schema:
@@ -446,7 +458,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                         properties:
                             detail:
                                 type: string
-                                example: "Error message"
+                                example: "UDF deployment package validation failed for <udf_name>."
         500:
             description: Failed to write configuration to file
             content:
@@ -480,7 +492,20 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                 error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
                 logger.error(error_msg)
                 raise HTTPException(status_code=422, detail=error_msg)
-                
+
+        if os.getenv("SAMPLE_APP") is not None:
+            dir_name = os.getenv("SAMPLE_APP")
+        else:
+            dir_name = config_data.udfs["name"]
+        if not classifier_startup.kapacitor_classifier.check_udf_package(config_data.model_dump(), dir_name):
+            error_msg = (
+                f"UDF deployment package validation failed for {config_data.udfs['name']}. "
+                "Please check and upload/copy the UDF deployment package with correct structure and files."
+            )
+            logger.error(error_msg)
+            raise HTTPException(status_code=422, detail=error_msg)
+        logger.info("UDF deployment package %s validated successfully.", config_data.udfs["name"])        
+
         config["udfs"] = {}
         config["alerts"] = {}
         config["udfs"] = config_data.udfs
