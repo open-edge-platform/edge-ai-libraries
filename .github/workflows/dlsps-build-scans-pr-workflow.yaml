@@ -81,7 +81,7 @@ jobs:
         docker compose build --no-cache
 
     - name: Unit Test dls-pipeline-server
-      if: matrix.ubuntu_version == 'ubuntu22'
+      if: ${{ matrix.ubuntu_version == 'ubuntu22' && always() }}
       run: |
         echo "BASE_IMAGE which will be used for Unit tests: ${BASE_IMAGE}"
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
@@ -89,7 +89,7 @@ jobs:
         make test | tee /tmp/pytest_output.txt
 
     - name: Create Unit Test Summary
-      if: matrix.ubuntu_version == 'ubuntu22'
+      if: ${{ matrix.ubuntu_version == 'ubuntu22' && always() }}
       run: |
         pytest_output=$(cat /tmp/pytest_output.txt)
         summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
@@ -100,7 +100,7 @@ jobs:
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload unit test results to Github
-      if: matrix.ubuntu_version == 'ubuntu22'
+      if: ${{ matrix.ubuntu_version == 'ubuntu22' && always() }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: DLSPS_Coverage-reports
