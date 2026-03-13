@@ -28,9 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path_dockerfile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu22.Dockerfile
+          - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-          - path_dockerfile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu24.Dockerfile
+          - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
