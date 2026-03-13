@@ -155,7 +155,7 @@ test-video-ingestion:
 shellcheck:
 	@echo "🔍 Running ShellCheck..."
 	@mkdir -p security-results
-	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 \
+	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 -r \
 		shellcheck --format=json > security-results/shellcheck-report-$(SERVICE_NAME).json 2>/dev/null || true
 	@echo "✅ Report: security-results/shellcheck-report-$(SERVICE_NAME).json"
 
@@ -259,14 +259,16 @@ trivy-scan-fs:
 	@mkdir -p security-results
 	@trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format json \
 		--output security-results/trivy-fs-$(SERVICE_NAME).json . || true
+	@trivy fs --format spdx-json \
+		--output security-results/trivy-fs-$(SERVICE_NAME).spdx.json . || true
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 		trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format template \
 			--template "@$$TRIVY_HTML_TPL" \
 			--output security-results/trivy-fs-$(SERVICE_NAME).html . || true; \
-		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,html}"; \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json,html}"; \
 	else \
-		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).json"; \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json}"; \
 	fi
 
 trivy-scan-image:
@@ -281,6 +283,9 @@ trivy-scan-image:
 			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$(component).json \
 				$(SERVICE_NAME)-$(component):$(VERSION) || true; \
+			trivy image --format spdx-json \
+				--output security-results/trivy-image-$(SERVICE_NAME)-$(component).spdx.json \
+				$(SERVICE_NAME)-$(component):$(VERSION) || true; \
 			if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 				trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
 					--template "@$$TRIVY_HTML_TPL" \
@@ -289,7 +294,7 @@ trivy-scan-image:
 			fi; \
 		fi; \
 	)
-	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,html}"
+	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
 
 trivy-scan-config:
 	@echo "🔍 Running Trivy Config Scans..."

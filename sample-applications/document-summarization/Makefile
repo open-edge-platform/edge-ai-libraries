@@ -317,7 +317,7 @@ undeploy:
 shellcheck:
 	@echo "🔍 Running ShellCheck..."
 	@mkdir -p security-results
-	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 \
+	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 -r \
 		shellcheck --format=json > security-results/shellcheck-report-$(SERVICE_NAME).json 2>/dev/null || true
 	@echo "✅ Report: security-results/shellcheck-report-$(SERVICE_NAME).json"
 
@@ -382,14 +382,16 @@ trivy-scan-fs:
 	@mkdir -p security-results
 	@trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format json \
 		--output security-results/trivy-fs-$(SERVICE_NAME).json . || true
+	@trivy fs --format spdx-json \
+		--output security-results/trivy-fs-$(SERVICE_NAME).spdx.json . || true
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 		trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format template \
 			--template "@$$TRIVY_HTML_TPL" \
 			--output security-results/trivy-fs-$(SERVICE_NAME).html . || true; \
-		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,html}"; \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json,html}"; \
 	else \
-		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).json"; \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json}"; \
 	fi
 
 trivy-scan-image:
@@ -404,6 +406,9 @@ trivy-scan-image:
 		trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
 			--output security-results/trivy-image-$(SERVICE_NAME).json \
 			$$IMAGE || true; \
+		trivy image --format spdx-json \
+			--output security-results/trivy-image-$(SERVICE_NAME).spdx.json \
+			$$IMAGE || true; \
 		if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
 				--template "@$$TRIVY_HTML_TPL" \
@@ -411,7 +416,7 @@ trivy-scan-image:
 				$$IMAGE || true; \
 		fi; \
 	fi
-	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,html}"
+	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
 
 trivy-scan-config:
 	@echo "🔍 Running Trivy Config Scans..."
@@ -495,25 +500,67 @@ codeql-scan:
 	fi
 	@echo ""
 
-	@# --- Python ---
-	@echo "→ Creating CodeQL database for Python..."
-	@codeql database create security-results/codeql-db-python-$(SERVICE_NAME) \
+	@# --- Python: app/ (backend) ---
+	@echo "→ Creating CodeQL database for Python (app/)..."
+	@codeql database create security-results/codeql-db-python-app-$(SERVICE_NAME) \
 		--language=python \
-		--source-root=. \
+		--source-root=app \
 		--build-mode=none \
 		--overwrite 2>&1 | tail -5
 
-	@echo "→ Running CodeQL analysis on Python (SARIF)..."
-	@codeql database analyze security-results/codeql-db-python-$(SERVICE_NAME) \
+	@echo "→ Running CodeQL analysis on app/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-app-$(SERVICE_NAME) \
 		codeql/python-queries \
 		--format=sarif-latest --sarif-add-snippets \
-		--output=security-results/codeql-python-$(SERVICE_NAME).sarif || true
-	@echo "→ Running CodeQL analysis on Python (CSV)..."
-	@codeql database analyze security-results/codeql-db-python-$(SERVICE_NAME) \
+		--output=security-results/codeql-python-app-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on app/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-app-$(SERVICE_NAME) \
 		codeql/python-queries \
 		--format=csv \
-		--output=security-results/codeql-python-$(SERVICE_NAME).csv || true
-	@echo "✅ Python analysis complete."
+		--output=security-results/codeql-python-app-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (app/) analysis complete."
+	@echo ""
+
+	@# --- Python: tests/ ---
+	@echo "→ Creating CodeQL database for Python (tests/)..."
+	@codeql database create security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		--language=python \
+		--source-root=tests \
+		--build-mode=none \
+		--overwrite 2>&1 | tail -5
+
+	@echo "→ Running CodeQL analysis on tests/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=sarif-latest --sarif-add-snippets \
+		--output=security-results/codeql-python-tests-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on tests/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=csv \
+		--output=security-results/codeql-python-tests-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (tests/) analysis complete."
+	@echo ""
+
+	@# --- Python: ui/ (Gradio frontend) ---
+	@echo "→ Creating CodeQL database for Python (ui/)..."
+	@codeql database create security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		--language=python \
+		--source-root=ui \
+		--build-mode=none \
+		--overwrite 2>&1 | tail -5
+
+	@echo "→ Running CodeQL analysis on ui/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=sarif-latest --sarif-add-snippets \
+		--output=security-results/codeql-python-ui-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on ui/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=csv \
+		--output=security-results/codeql-python-ui-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (ui/) analysis complete."
 	@echo ""
 	@echo "✅ CodeQL scan complete: security-results/codeql-*.{sarif,csv}"
 
