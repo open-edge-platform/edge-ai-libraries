@@ -21,20 +21,22 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Quick Start with Setup Script
 
-1. **Clone the repository**:
+1.  **Clone the repository**:
 
-      ```bash
-      # Clone the latest on the mainline
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, clone a specific release branch
-        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
-      ```
-2. **Navigate to the directory**:
+    ```bash
+    # Clone the latest on the mainline
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, clone a specific release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.0.0
+    ```
 
-      ```bash
-      cd edge-ai-libraries/microservices/model-download
-      ```
-3. **Configure the environment variables**:
+2.  **Navigate to the directory**:
+
+    ```bash
+    cd edge-ai-libraries/microservices/model-download
+    ```
+
+3.  **Configure the environment variables**:
 
       ```bash
       export REGISTRY="intel/"
@@ -43,21 +45,23 @@ The Model Download is a microservice that downloads models from multiple hubs as
       ```
     - To use the Geti™ plugin, set these variables:
 
-      ```bash
-      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
-      export GETI_HOST=<GETI_HOST_ADDRESS>
-      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-      export GETI_SERVER_API_VERSION=v1
-      export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
-      ```
-> **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
+          ```bash
+          export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+          export GETI_HOST=<GETI_HOST_ADDRESS>
+          export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+          export GETI_SERVER_API_VERSION=v1
+          export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
+          ```
 
-4. **Launch the service and enable the plugins**
+    > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
-      ```bash
-      source scripts/run_service.sh up --plugins all --model-path <host path>
-      ```
-> **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
+4.  **Launch the service and enable the plugins**
+
+          ```bash
+          source scripts/run_service.sh up --plugins all --model-path <host path>
+          ```
+
+    > **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
 
 > **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
@@ -94,7 +98,9 @@ The Model Download is a microservice that downloads models from multiple hubs as
         - Display usage information: `source scripts/run_service.sh --help`
 
 5. **Access the service**
-    - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the Swagger documentation for the available APIs.
+
+- The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
+  Swagger documentation for the available APIs.
 
 ## Verification
 
@@ -109,6 +115,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 ## Sample usage with CURL Command
 
 **Download a Hugging Face model:**
+
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_model" \
   -H "Content-Type: application/json" \
@@ -125,6 +132,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_mode
 ```
 
 **Download an Ollama model:**
+
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ollama_model" \
   -H "Content-Type: application/json" \
@@ -157,7 +165,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_mo
   }'
 ```
 
-> **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to the OpenVINO IR format with FP32 and FP16 precision by default.
+> **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to
+> the OpenVINO IR format with FP32 and FP16 precision by default.
 
 **Download a Hugging Face model and convert it to OpenVINO IR format:**
 
@@ -201,53 +210,56 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
     "parallel_downloads": true
   }'
 ```
-  **Note:** The default precision is FP16.
+
+> **Note:** The default precision is FP16.
 
 **Query Parameter:**
-- `download_path` (string): Specify a local filesystem path for saving the downloaded model. If not provided, the model will be saved to the default location.
+
+- `download_path` (string): Specify a local filesystem path for saving the downloaded model.
+  If not provided, the model will be saved to the default location.
 
 **Response:**
-  **Sample Response (when a download request is started):**
-  ```json
-  {
-    "message": "Started processing 1 model(s)",
-    "job_ids": [
-      "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0"
-    ],
-    "status": "processing"
-  }
-  ```
+**Sample Response (when a download request is started):**
 
-  Each model-download request returns a `job_id`. To check the status of a download:
+```json
+{
+  "message": "Started processing 1 model(s)",
+  "job_ids": ["5f0d4eba-c79c-4d02-97a6-43c3d0168ca0"],
+  "status": "processing"
+}
+```
 
-  ```bash
-  curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
-  ```
+Each model-download request returns a `job_id`. To check the status of a download:
 
-  **Sample Response (when the job is completed):**
-  ```json
-  {
-    "id": "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0",
-    "operation_type": "download",
+```bash
+curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
+```
+
+**Sample Response (when the job is completed):**
+
+```json
+{
+  "id": "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0",
+  "operation_type": "download",
+  "model_name": "yolov8s",
+  "hub": "ultralytics",
+  "output_dir": "/opt/models/ultra_folder",
+  "status": "completed",
+  "start_time": "2025-10-27T08:24:23.510870",
+  "plugin_name": "ultralytics",
+  "model_type": "vision",
+  "plugin": "ultralytics",
+  "completion_time": "2025-10-27T08:30:14.443898",
+  "result": {
     "model_name": "yolov8s",
-    "hub": "ultralytics",
-    "output_dir": "/opt/models/ultra_folder",
-    "status": "completed",
-    "start_time": "2025-10-27T08:24:23.510870",
-    "plugin_name": "ultralytics",
-    "model_type":"vision",
-    "plugin": "ultralytics",
-    "completion_time": "2025-10-27T08:30:14.443898",
-    "result": {
-      "model_name": "yolov8s",
-      "source": "ultralytics",
-      "download_path": "model/download/path",
-      "return_code": 0
-    }
+    "source": "ultralytics",
+    "download_path": "model/download/path",
+    "return_code": 0
   }
-  ```
+}
+```
 
-  - For details, see the [API spec](./api-docs/openapi.yaml)
+- For details, see the [API spec](./api-docs/openapi.yaml)
 
 ### Configuration
 
@@ -279,7 +291,7 @@ Volumes:
 
 ## Run in Kubernetes Cluster
 
-See [Deploy with Helm Chart](./deploy-with-helm.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
+See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address the prerequisites mentioned on this page before deploying with Helm chart.
 
 ## Learn More
 
