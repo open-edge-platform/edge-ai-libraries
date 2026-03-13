@@ -19,7 +19,7 @@ env:
 
 jobs:
   build-dls-pipeline-server-image:
-    name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
+    name: Build DL Streamer cache ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-24.04-16core-64GB
     permissions:
       contents: read
@@ -51,12 +51,11 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build DL Streamer deb-final-img
+    - name: Build DL Streamer cache ${{ matrix.ubuntu_version }} img
       env:
         deb_final_img: dlstreamer-base:${{ matrix.ubuntu_version }}-${{ github.sha }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
-        docker pull "${deb_final_img_cached}" || true
         docker buildx build \
         --load \
         --target dlstreamer \
