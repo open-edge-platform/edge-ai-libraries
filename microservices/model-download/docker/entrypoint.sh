@@ -57,18 +57,11 @@ install_dependencies() {
         openvino)
             # Normalize OVMS_RELEASE_TAG to URL-friendly format (releases/YYYY/M)
             OVMS_RELEASE_TAG="${OVMS_RELEASE_TAG:-v2025.4.1}"
-            DEFAULT_OVMS_TAG="v2025.4.1"
             echo -e "${BLUE}INFO:${NC} Input OVMS release tag: ${OVMS_RELEASE_TAG}"
 
-            # Check if using default version - skip downloads and use pyproject.toml pinned versions
-            if [[ "${OVMS_RELEASE_TAG}" == "${DEFAULT_OVMS_TAG}" ]]; then
-                echo -e "${BLUE}INFO:${NC} Using default OVMS version (${OVMS_RELEASE_TAG}). Skipping downloads."
-                echo -e "${BLUE}INFO:${NC} Dependencies from pyproject.toml will be used (pre-pinned for OVMS 2025.4.1)"
-                echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
-                echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
-            # Only process non-default versions if tag is in vYYYY.M or vYYYY.M.P format
-            elif [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+(\.[0-9]+)?$ ]]; then
-                echo -e "${BLUE}INFO:${NC} Custom OVMS version detected. Downloading version-specific files for: ${OVMS_RELEASE_TAG}"
+            # Download version-specific files if tag is in vYYYY.M or vYYYY.M.P format
+            if [[ "${OVMS_RELEASE_TAG}" =~ ^v[0-9]{4}\.[0-9]+(\.[0-9]+)?$ ]]; then
+                echo -e "${BLUE}INFO:${NC} Downloading version-specific files for OVMS ${OVMS_RELEASE_TAG}"
 
                 # Use tag directly in URL (v2025.4 -> releases/2025/4)
                 OVMS_URL_TAG="releases/${OVMS_RELEASE_TAG:1:4}/${OVMS_RELEASE_TAG:6:1}"
@@ -82,15 +75,21 @@ install_dependencies() {
                     echo -e "${YELLOW} WARNING:${NC} Failed to download export_model.py. Falling back to bundled script."
                 fi
 
-                # Download requirements.txt - used INSTEAD of pyproject.toml openvino extra to avoid conflicts
-                REQUIREMENTS_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${OVMS_URL_TAG}/demos/common/export_models/requirements.txt"
-                REQUIREMENTS_FILE="/tmp/openvino_requirements_${OVMS_RELEASE_TAG//[\.\/ ]/_}.txt"
-                if curl -fsSL -o "${REQUIREMENTS_FILE}" "${REQUIREMENTS_URL}"; then
-                    echo -e "${GREEN} SUCCESS:${NC} OVMS requirements.txt downloaded"
-                    echo "OVMS_REQUIREMENTS_FILE=${REQUIREMENTS_FILE}" >> "${env_file}"
-                    echo "OVMS_CUSTOM_TAG=true" >> "${env_file}"
+                # Download requirements.txt for non-default versions - used INSTEAD of pyproject.toml openvino extra to avoid conflicts
+                if [[ "${OVMS_RELEASE_TAG}" != "v2025.4.1" ]]; then
+                    REQUIREMENTS_URL="https://raw.githubusercontent.com/openvinotoolkit/model_server/${OVMS_URL_TAG}/demos/common/export_models/requirements.txt"
+                    REQUIREMENTS_FILE="/tmp/openvino_requirements_${OVMS_RELEASE_TAG//[\.\/ ]/_}.txt"
+                    if curl -fsSL -o "${REQUIREMENTS_FILE}" "${REQUIREMENTS_URL}"; then
+                        echo -e "${GREEN} SUCCESS:${NC} OVMS requirements.txt downloaded"
+                        echo "OVMS_REQUIREMENTS_FILE=${REQUIREMENTS_FILE}" >> "${env_file}"
+                        echo "OVMS_CUSTOM_TAG=true" >> "${env_file}"
+                    else
+                        echo -e "${YELLOW} WARNING:${NC} Failed to download requirements.txt. Falling back to pyproject.toml defaults."
+                        echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
+                        echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
+                    fi
                 else
-                    echo -e "${YELLOW} WARNING:${NC} Failed to download requirements.txt. Falling back to pyproject.toml defaults."
+                    echo -e "${BLUE}INFO:${NC} Using pyproject.toml pinned dependencies for OVMS ${OVMS_RELEASE_TAG}"
                     echo "OVMS_REQUIREMENTS_FILE=" >> "${env_file}"
                     echo "OVMS_CUSTOM_TAG=false" >> "${env_file}"
                 fi

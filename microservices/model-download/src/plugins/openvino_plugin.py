@@ -323,21 +323,6 @@ class OpenVINOConverter(ModelDownloadPlugin):
         else:
             logger.info(f"Already logged in to Hugging Face as: {check_login.stdout.strip()}")
 
-        logger.info("Checking for export_model.py script...")
-        
-        if not any(tag_part in OVMS_RELEASE_TAG for tag_part in ["2025.4", "2025/4", "2025_4"]):
-            export_script_url = f"https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/{OVMS_RELEASE_TAG}/demos/common/export_models/export_model.py"
-            logger.info(f"Using OVMS release tag: {OVMS_RELEASE_TAG}")
-        
-            if not os.path.exists("export_model.py"):
-                logger.info(f"Downloading export_model.py script...")
-                try:
-                    subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError(f"Failed to download export script: {str(e)}")
-            else:
-                logger.info("export_model.py already exists, skipping download.")
-
         # Export the model using export_model.py with intelligent parameter handling
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
 
