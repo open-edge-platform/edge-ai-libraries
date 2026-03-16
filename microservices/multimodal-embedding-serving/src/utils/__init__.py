@@ -21,6 +21,7 @@ and local files, enabling flexible data input for embedding generation.
 
 from .common import Settings, ErrorMessages, logger, settings
 from .utils import (
+    build_safe_temp_path,
     should_bypass_proxy,
     download_image,
     decode_base64_image,
@@ -38,6 +39,7 @@ __all__ = [
     "ErrorMessages", 
     "logger",
     "settings",
+    "build_safe_temp_path",
     "should_bypass_proxy",
     "download_image",
     "decode_base64_image",

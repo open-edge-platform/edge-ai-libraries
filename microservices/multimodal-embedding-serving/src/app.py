@@ -343,11 +343,7 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
     try:
         # Check if requested model matches the currently loaded model
         if request.model != settings.EMBEDDING_MODEL_NAME:
-            logger.warning(
-                "Model mismatch: requested '%s', but server is running '%s'",
-                sanitize_for_log(request.model, max_len=128),
-                sanitize_for_log(settings.EMBEDDING_MODEL_NAME, max_len=128),
-            )
+            logger.warning("Model mismatch between requested model and active server model")
             raise HTTPException(
                 status_code=400, 
                 detail=f"Model mismatch: requested model '{request.model}' does not match the currently loaded model '{settings.EMBEDDING_MODEL_NAME}'. Please use the correct model name or restart the server with the desired model."

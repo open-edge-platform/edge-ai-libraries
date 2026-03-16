@@ -36,14 +36,22 @@ from src.common import logger, settings
 
 def _resolve_safe_config_path(config_file: str | pathlib.Path) -> pathlib.Path:
     """Resolve and validate config paths against trusted roots."""
-    path = pathlib.Path(config_file).expanduser().resolve(strict=False)
+    raw_path = pathlib.Path(config_file).expanduser()
+    if any(part == ".." for part in raw_path.parts):
+        raise ValueError(f"Unsupported config path traversal: {raw_path}")
+
+    path = (
+        raw_path.resolve(strict=False)
+        if raw_path.is_absolute()
+        else (pathlib.Path.cwd() / raw_path).resolve(strict=False)
+    )
 
     config_root = pathlib.Path(settings.CONFIG_FILEPATH).expanduser().resolve(strict=False).parent
     cwd_root = pathlib.Path.cwd().resolve(strict=False)
     tmp_root = pathlib.Path("/tmp").resolve(strict=False)
     allowed_roots = [config_root, cwd_root, tmp_root]
 
-    if not any(path == root or root in path.parents for root in allowed_roots):
+    if not any(path.is_relative_to(root) for root in allowed_roots):
         raise ValueError(f"Unsupported config path location: {path}")
 
     return path

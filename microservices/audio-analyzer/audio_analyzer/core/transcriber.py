@@ -192,8 +192,8 @@ class TranscriptionService:
         """
         logger.info(f"Starting transcription for audio: {audio_path}")
         logger.debug(
-            "Transcription parameters - language: %s, include_timestamps: %s, video_duration: %s",
-            sanitize_for_log(language),
+            "Transcription parameters - language_provided: %s, include_timestamps: %s, video_duration: %s",
+            language is not None,
             sanitize_for_log(include_timestamps),
             sanitize_for_log(video_duration),
         )
@@ -276,7 +276,7 @@ class TranscriptionService:
             
             if lang_code:
                 params["language"] = lang_code
-                logger.debug("Set language to: %s", sanitize_for_log(lang_code))
+                logger.debug("Language override configured for whispercpp transcription")
             
             # Calculate optimal number of processors based on video duration and core count
             # Each processor will handle at least 1 minute (60 seconds) of audio

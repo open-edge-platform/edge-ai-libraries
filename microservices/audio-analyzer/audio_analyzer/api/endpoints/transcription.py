@@ -64,10 +64,10 @@ async def transcribe_video(
 
         logger.info(f"Received transcription request for {'file upload' if request.file else 'MinIO video'}")
         logger.debug(
-            "Transcription parameters: model=%s, device=%s, language=%s",
+            "Transcription parameters: model=%s, device=%s, language_provided=%s",
             sanitize_for_log(request.model_name),
             sanitize_for_log(request.device),
-            sanitize_for_log(language),
+            language is not None,
         )
     
         # Get video path either from direct upload or MinIO

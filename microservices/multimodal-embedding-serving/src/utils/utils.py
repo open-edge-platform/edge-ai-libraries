@@ -52,6 +52,7 @@ if settings.https_proxy:
 
 _SAFE_LOG_PATTERN = re.compile(r"[\r\n\t\x00-\x1f\x7f]+")
 _VIDEO_TMP_DIR = Path(tempfile.gettempdir()) / "videoQnA"
+_MAX_REMOTE_REDIRECTS = 3
 
 
 def sanitize_for_log(value, max_len: int = 1024) -> str:
@@ -113,6 +114,8 @@ def validate_remote_media_url(url: str) -> str:
         raise ValueError("Only http/https URLs are allowed")
     if not parsed.hostname:
         raise ValueError("URL must include a hostname")
+    if parsed.username or parsed.password:
+        raise ValueError("URLs with embedded credentials are not allowed")
     if _is_private_or_local_host(parsed.hostname):
         raise ValueError("Local/private network URLs are not allowed")
     return url
@@ -120,11 +123,62 @@ def validate_remote_media_url(url: str) -> str:
 
 def resolve_safe_local_path(file_path: str, allowed_root: Path = _VIDEO_TMP_DIR) -> str:
     """Resolve and validate a local path under an allowed root."""
-    resolved_path = Path(file_path).expanduser().resolve()
     resolved_root = allowed_root.expanduser().resolve()
-    if resolved_path != resolved_root and resolved_root not in resolved_path.parents:
+    candidate_path = Path(file_path).expanduser()
+    if not candidate_path.is_absolute():
+        candidate_path = resolved_root / candidate_path
+    resolved_path = candidate_path.resolve(strict=False)
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
         raise ValueError(f"Path outside allowed directory: {resolved_path}")
     return str(resolved_path)
+
+
+def build_safe_temp_path(file_name: str, allowed_root: Path = _VIDEO_TMP_DIR) -> str:
+    """Build an internal temp path under the allowed root."""
+    resolved_root = allowed_root.expanduser().resolve()
+    candidate_path = (resolved_root / Path(file_name).name).resolve(strict=False)
+    candidate_path.relative_to(resolved_root)
+    return str(candidate_path)
+
+
+def _get_remote_media_client_kwargs(url: str) -> tuple[str, dict]:
+    """Return a validated URL and client kwargs for remote media requests."""
+    validated_url = validate_remote_media_url(url)
+    client_kwargs = {"follow_redirects": False}
+    if not (
+        settings.no_proxy_env
+        and should_bypass_proxy(validated_url, settings.no_proxy_env)
+    ):
+        client_kwargs["proxies"] = proxies if proxies else None
+    return validated_url, client_kwargs
+
+
+def _resolve_redirect_url(current_url: str, location: str) -> str:
+    """Resolve and validate a redirect target against the current URL."""
+    if not location:
+        raise RuntimeError("Redirect response missing Location header")
+    return validate_remote_media_url(str(httpx.URL(current_url).join(location)))
+
+
+async def _get_remote_media_response(url: str) -> tuple[httpx.Response, str]:
+    """Fetch a remote media URL while validating every redirect target."""
+    current_url, client_kwargs = _get_remote_media_client_kwargs(url)
+    async with httpx.AsyncClient(**client_kwargs) as client:
+        for _ in range(_MAX_REMOTE_REDIRECTS + 1):
+            request = client.build_request("GET", validate_remote_media_url(current_url))
+            response = await client.send(request)
+            if response.has_redirect_location:
+                redirect_url = _resolve_redirect_url(
+                    current_url, response.headers.get("location")
+                )
+                await response.aclose()
+                current_url = redirect_url
+                continue
+            response.raise_for_status()
+            return response, current_url
+    raise RuntimeError("Too many redirects while downloading remote media")
 
 
 def should_bypass_proxy(url: str, no_proxy: str) -> bool:
@@ -181,23 +235,9 @@ async def download_image(image_url: str) -> Image.Image:
         and handles both proxied and direct connections as appropriate.
     """
     try:
-        image_url = validate_remote_media_url(image_url)
-        logger.debug("Downloading image from URL: %s", sanitize_for_log(image_url))
-        if settings.no_proxy_env and should_bypass_proxy(
-            image_url, settings.no_proxy_env
-        ):
-            async with httpx.AsyncClient() as client:
-                response = await client.get(image_url)
-        else:
-            async with httpx.AsyncClient(
-                proxies=proxies if proxies else None
-            ) as client:
-                response = await client.get(image_url)
-        response.raise_for_status()
-        logger.info(
-            "Image downloaded successfully from URL: %s",
-            sanitize_for_log(image_url),
-        )
+        logger.debug("Downloading image from remote URL")
+        response, _ = await _get_remote_media_response(image_url)
+        logger.info("Image downloaded successfully from remote URL")
         image = Image.open(BytesIO(response.content))
         return np.array(image)
     except httpx.RequestError as e:
@@ -307,32 +347,38 @@ async def download_video(video_url: str) -> str:
         using the delete_file() function when no longer needed.
     """
     try:
-        video_url = validate_remote_media_url(video_url)
-        logger.debug("Downloading video from URL: %s", sanitize_for_log(video_url))
-        async with httpx.AsyncClient(proxies=proxies if proxies else None) as client:
-            async with client.stream("GET", video_url) as response:
+        logger.debug("Downloading video from remote URL")
+        current_url, client_kwargs = _get_remote_media_client_kwargs(video_url)
+        async with httpx.AsyncClient(**client_kwargs) as client:
+            for _ in range(_MAX_REMOTE_REDIRECTS + 1):
+                request = client.build_request("GET", validate_remote_media_url(current_url))
+                response = await client.send(request, stream=True)
+                if response.has_redirect_location:
+                    current_url = _resolve_redirect_url(
+                        current_url, response.headers.get("location")
+                    )
+                    await response.aclose()
+                    continue
+
                 response.raise_for_status()
-                # Get filename from URL (without extension)
-                parsed_url = urlparse(video_url)
+                parsed_url = urlparse(current_url)
                 filename = os.path.basename(parsed_url.path)
                 filename_without_ext = (
                     os.path.splitext(filename)[0] if filename else "video"
                 )
                 filename_without_ext = _sanitize_filename_component(filename_without_ext)
-                # Create unique filename without extension
                 unique_filename = f"{uuid.uuid4().hex}_{filename_without_ext}"
                 _VIDEO_TMP_DIR.mkdir(parents=True, exist_ok=True)
-                video_path = resolve_safe_local_path(str(_VIDEO_TMP_DIR / unique_filename))
+                video_path = build_safe_temp_path(unique_filename)
                 os.makedirs(os.path.dirname(video_path), exist_ok=True)
-                # Write video data to file
                 with open(video_path, "wb") as video_file:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         video_file.write(chunk)
-        logger.info(
-            "Video downloaded successfully from URL: %s",
-            sanitize_for_log(video_url),
-        )
-        return video_path
+                await response.aclose()
+                logger.info("Video downloaded successfully from remote URL")
+                return video_path
+
+        raise RuntimeError("Too many redirects while downloading remote media")
     except httpx.RequestError as e:
         logger.error("Error downloading video: %s", sanitize_for_log(e))
         raise RuntimeError(f"{ErrorMessages.DOWNLOAD_FILE_ERROR}: {e}")
@@ -377,7 +423,7 @@ def decode_base64_video(video_base64: str) -> str:
         # Create filename without extension
         unique_filename = f"base64DecodedVideo_{uuid.uuid4().hex}"
         _VIDEO_TMP_DIR.mkdir(parents=True, exist_ok=True)
-        video_path = resolve_safe_local_path(str(_VIDEO_TMP_DIR / unique_filename))
+        video_path = build_safe_temp_path(unique_filename)
         os.makedirs(os.path.dirname(video_path), exist_ok=True)
         with open(video_path, "wb") as video_file:
             video_file.write(video_data)
@@ -417,7 +463,7 @@ def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
         methods are specified, the highest priority method will be used.
     """
     try:
-        logger.debug("Extracting frames from video: %s", sanitize_for_log(video_path))
+        logger.debug("Extracting frames from video input")
         if segment_config is None:
             segment_config = {}
 
@@ -431,15 +477,7 @@ def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
         extraction_fps = segment_config.get("extraction_fps")
         frame_indexes = segment_config.get("frame_indexes")
         
-        logger.debug(
-            "video_path=%s start_offset_sec=%s clip_duration=%s num_frames=%s extraction_fps=%s frame_indexes=%s",
-            sanitize_for_log(video_path),
-            sanitize_for_log(start_offset_sec),
-            sanitize_for_log(clip_duration),
-            sanitize_for_log(num_frames),
-            sanitize_for_log(extraction_fps),
-            sanitize_for_log(frame_indexes),
-        )
+        logger.debug("Video frame extraction configuration prepared")
 
         vr = VideoReader(video_path, ctx=cpu(0))
         vlen = len(vr)

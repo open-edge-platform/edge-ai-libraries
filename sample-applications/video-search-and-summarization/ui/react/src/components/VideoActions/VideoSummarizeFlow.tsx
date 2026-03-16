@@ -36,6 +36,7 @@ import { SummaryPipelineDTO } from '../../redux/summary/summaryPipeline';
 import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { PromptInput } from '../Prompts/PromptInput';
 import { NotificationSeverity, notify } from '../Notification/notify';
+import { getSafePreviewVideoUrl } from '../../utils/util';
 import axios from 'axios';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -693,6 +694,10 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const selectorRef = useRef<HTMLSelectElement>(null);
   const audioModelRef = useRef<HTMLSelectElement>(null);
   const videoPreviewUrlRef = useRef<string | null>(null);
+  const safeVideoPreviewUrl = useMemo(
+    () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
+    [videoPreviewUrl]
+  );
   const shouldKeepTagsMenuOpenRef = useRef(false);
 
   const calculatedMultiFrame = useMemo(
@@ -1319,16 +1324,16 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   width: '100%'
                 }}>
                   {/* Video Preview inside the details box */}
-                  {videoPreviewUrl && (
+                  {safeVideoPreviewUrl && (
                     <VideoPreviewContainer>
                       <StyledVideoPlayer controls>
-                        <source src={videoPreviewUrl} type="video/mp4" />
+                        <source src={safeVideoPreviewUrl} type="video/mp4" />
                         Your browser does not support the video tag.
                       </StyledVideoPlayer>
                     </VideoPreviewContainer>
                   )}
                   
-                  <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
+                  <div style={{ marginTop: safeVideoPreviewUrl ? '1rem' : '0' }}>
                     <div><strong>{t('summaryTitle')}:</strong> {summaryName}</div>
                     {videoTags && videoTags.trim().length > 0 && (
                       <div><strong>{t('customVideoTags')}:</strong> {videoTags}</div>

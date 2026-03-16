@@ -526,7 +526,7 @@ async def _generate_video_embedding_api_mode(
         tags=tags or [],
     )
     extraction_time = time.time() - extraction_start
-    logger.info("Video metadata created at %s", metadata_file_path)
+    logger.info("Video metadata created at %s", sanitize_for_log(metadata_file_path, max_length=512))
 
     client_setup_start = time.time()
     vdms_client = _get_cached_vdms_client(use_case="video")

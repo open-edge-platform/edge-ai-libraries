@@ -95,10 +95,7 @@ class EmbeddingModel:
         if not self.handler.supports_image():
             raise RuntimeError("Image embeddings are not supported by the active model")
         try:
-            logger.debug(
-                "Getting image embedding from URL: %s",
-                sanitize_for_log(image_url),
-            )
+            logger.debug("Getting image embedding from URL input")
             image_data = await download_image(image_url)
             # Convert numpy array to PIL Image if necessary
             if isinstance(image_data, np.ndarray):
@@ -186,10 +183,7 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(
-                "Getting video embedding from URL: %s",
-                sanitize_for_log(video_url),
-            )
+            logger.debug("Getting video embedding from URL input")
             video_path = await download_video(video_url)
             clip_images = extract_video_frames(video_path, segment_config)
             delete_file(video_path)
@@ -237,10 +231,7 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(
-                "Getting video embedding from file: %s",
-                sanitize_for_log(video_path),
-            )
+            logger.debug("Getting video embedding from local file input")
             import os
             safe_video_path = resolve_safe_local_path(video_path, Path(tempfile.gettempdir()))
             if not os.path.exists(safe_video_path):
@@ -276,10 +267,7 @@ class EmbeddingModel:
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
-            logger.debug(
-                "Getting video embedding from frames manifest: %s",
-                sanitize_for_log(manifest_path),
-            )
+            logger.debug("Getting video embedding from frames manifest input")
             safe_manifest_path = resolve_safe_local_path(
                 manifest_path, Path(tempfile.gettempdir())
             )

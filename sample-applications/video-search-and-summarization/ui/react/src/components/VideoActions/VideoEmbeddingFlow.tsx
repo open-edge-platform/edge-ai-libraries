@@ -23,6 +23,7 @@ import axios from 'axios';
 import type { AxiosProgressEvent } from 'axios';
 import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { NotificationSeverity, notify } from '../Notification/notify';
+import { getSafePreviewVideoUrl } from '../../utils/util';
 
 const CenteredContainer = styled.div`
   display: flex;
@@ -346,6 +347,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       ? originalName.slice(0, -4)
       : originalName;
   }, [selectedFile, selectedExistingVideo]);
+
+  const safeVideoPreviewUrl = useMemo(
+    () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
+    [videoPreviewUrl]
+  );
 
   const buildSafeAssetVideoUrl = useCallback((video: Video): string | null => {
     const bucket = video.dataStore?.bucket?.trim();
@@ -919,16 +925,16 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 }}
               >
                 {/* Video Preview inside the details box */}
-                {videoPreviewUrl && (
+                {safeVideoPreviewUrl && (
                   <VideoPreviewContainer>
                     <StyledVideoPlayer controls>
-                      <source src={videoPreviewUrl} type="video/mp4" />
+                      <source src={safeVideoPreviewUrl} type="video/mp4" />
                       Your browser does not support the video tag.
                     </StyledVideoPlayer>
                   </VideoPreviewContainer>
                 )}
                 
-                <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
+                <div style={{ marginTop: safeVideoPreviewUrl ? '1rem' : '0' }}>
                   <div>
                     <strong>{t('videoNameLabel')}:</strong> {displayFileName || '-'}
                   </div>
