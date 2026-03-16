@@ -16,12 +16,6 @@ as well as multiple pipelines running concurrently.
 The [density testing article](./how-to-guides/density-testing.md) explains how to find the maximum sustainable stream
 density for a target FPS floor.
 
-The [license plate recognition pipeline article](./how-to-guides/license-plate-recognition-pipeline.md) explains
-how to build and evaluate an LPR pipeline on Intel® hardware.
-
-The [LPR pipeline API article](./how-to-guides/license-plate-recognition-api.md) explains how to create,
-validate, and test an LPR pipeline using ViPPET REST API.
-
 <!--hide_directive
 :::{toctree}
 :maxdepth: 2
