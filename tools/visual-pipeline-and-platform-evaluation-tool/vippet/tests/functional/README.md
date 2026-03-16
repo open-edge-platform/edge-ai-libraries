@@ -22,7 +22,11 @@ python3 -m pytest vippet/tests/functional/test_density_job_flow.py
 Or via Makefile:
 
 ```bash
-make test-functional
+# Run smoke tests only
+make test-smoke
+
+# Run full functional tests
+make test-full
 ```
 
 ## Configuration
