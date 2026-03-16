@@ -36,7 +36,7 @@ def health_check(port):
     try:
         response = requests.get(url, timeout=10)
         assert response.status_code == 200
-        assert response.json() == {"status": "kapacitor daemon is running"}
+        assert response.json() == {"status": "Kapacitor daemon is running"}
     except Exception as e:
         pytest.fail(f"Health check failed: {e}")
 
@@ -214,7 +214,7 @@ def concurrent_api_requests(port):
             print(f"POST /config: {future_post_config.result()}")
 
             health_status_code = [200, 500, 503, 400]
-            health_status_json = [{"status": "kapacitor daemon is running"}, {"detail": "503: Kapacitor daemon is not running"}, {"status":"Port not accessible and kapacitor daemon not running"}]
+            health_status_json = [{"status": "Kapacitor daemon is running"}, {"detail": "503: Kapacitor daemon is not running"}]
             assert get_health_result[0] in health_status_code
             assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200

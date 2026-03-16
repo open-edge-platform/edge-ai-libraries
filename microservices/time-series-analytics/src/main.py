@@ -112,7 +112,7 @@ def stop_kapacitor_service():
     """Stop the Kapacitor service and all running tasks."""
     response = Response()
     result = health_check(response)
-    if result["status"] != "kapacitor daemon is running":
+    if result["status"] != "Kapacitor daemon is running":
         logger.info("Kapacitor daemon is not running.")
         return
     try:
@@ -136,19 +136,19 @@ def restart_kapacitor():
 
 @app.get("/health")
 def health_check(response: Response):
-    """Get the health status of the kapacitor daemon."""
+    """Get the health status of the Kapacitor daemon."""
     url = f"{KAPACITOR_URL}/kapacitor/v1/ping"
     try:
         # Make an HTTP GET request to the service
         request_response = requests.get(url, timeout=1)
         if request_response.status_code in (200, 204):
-            return {"status": "kapacitor daemon is running"}
+            return {"status": "Kapacitor daemon is running"}
 
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "kapacitor daemon is not running properly"}
+        return {"status": "Kapacitor daemon is not running"}
     except requests.exceptions.ConnectionError:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "Port not accessible and kapacitor daemon not running"}
+        return {"status": "Kapacitor daemon is not running"}
     except requests.exceptions.RequestException:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "An error occurred while checking the service"}
@@ -317,7 +317,7 @@ async def receive_data(data_point: DataPoint):
         logger.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
-        if result["status"] != "kapacitor daemon is running":
+        if result["status"] != "Kapacitor daemon is running":
             logger.warning("Kapacitor daemon is not running.")
             raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")  
         url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
