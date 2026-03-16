@@ -7,6 +7,7 @@ import {
   Home,
   ListTodo,
   GitFork,
+  Camera,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
@@ -20,6 +21,7 @@ import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
 import { Pipelines2 } from "@/pages/Pipelines2";
+import { Cameras } from "@/pages/Cameras";
 
 export type NavigationItem = {
   url: string;
@@ -38,6 +40,7 @@ export const menuItems: Array<NavigationItem> = [
   { url: "/pipelines", title: "Pipelines", icon: GitFork },
   { url: "/models", title: "Models", icon: Cpu },
   { url: "/videos", title: "Videos", icon: Film },
+  { url: "/cameras", title: "Cameras", icon: Camera },
   {
     url: "/tests/performance",
     title: "Performance",
@@ -53,6 +56,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
+  { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },
   {

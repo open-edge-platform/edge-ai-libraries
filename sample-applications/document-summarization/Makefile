@@ -84,23 +84,23 @@ VOLUME_OVMS ?= $(shell pwd)
 
 DEVICE_UPPER := $(shell echo $(DEVICE) | tr '[:lower:]' '[:upper:]')
 
-# ============================================================================== 
+# ==============================================================================
 # Internal Variables
-# ============================================================================== 
+# ==============================================================================
 
 TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
 
 .PHONY: all build test clean help list deploy deploy-build undeploy \
         shellcheck pylint \
         trivy-scan trivy-scan-fs trivy-scan-image trivy-scan-config \
-        clamav-scan bandit-scan gitleaks-scan \
+        clamav-scan bandit-scan gitleaks-scan codeql-scan \
         $(TEST_TARGETS) \
         get-service-name get-component-names get-image-tags get-context-dirs \
         get-python-version get-scan-matrix-json
 
-# ============================================================================== 
+# ==============================================================================
 # Build Targets
-# ============================================================================== 
+# ==============================================================================
 
 build:
 	@echo "📦 Building all components..."
@@ -112,9 +112,9 @@ build:
 	)
 	@echo "✅ All components built successfully."
 
-# ============================================================================== 
+# ==============================================================================
 # Test Targets
-# ============================================================================== 
+# ==============================================================================
 
 test: $(TEST_TARGETS)
 	@if [ -z "$(TEST_TARGETS)" ]; then \
@@ -188,9 +188,9 @@ test-app:
 		echo "✅ Tests completed!"; \
 	fi
 
-# ============================================================================== 
+# ==============================================================================
 # Deployment Targets
-# ============================================================================== 
+# ==============================================================================
 
 deploy:
 	@echo "══════════════════════════════════════════════════"
@@ -310,22 +310,16 @@ undeploy:
 	@docker compose down
 	@echo "✅ Application stopped."
 
-# ============================================================================== 
+# ==============================================================================
 # Code Quality Targets
-# ============================================================================== 
+# ==============================================================================
 
 shellcheck:
 	@echo "🔍 Running ShellCheck..."
 	@mkdir -p security-results
-	@echo "=== ShellCheck Report ===" > security-results/shellcheck-report-$(SERVICE_NAME).txt
-	@echo "Date: $$(date)" >> security-results/shellcheck-report-$(SERVICE_NAME).txt
-	@echo "" >> security-results/shellcheck-report-$(SERVICE_NAME).txt
-	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | while IFS= read -r -d '' file; do \
-		echo "Checking: $$file" >> security-results/shellcheck-report-$(SERVICE_NAME).txt; \
-		shellcheck "$$file" >> security-results/shellcheck-report-$(SERVICE_NAME).txt 2>&1 || true; \
-		echo "---" >> security-results/shellcheck-report-$(SERVICE_NAME).txt; \
-	done
-	@echo "✅ Report: security-results/shellcheck-report-$(SERVICE_NAME).txt"
+	@find . -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | xargs -0 -r \
+		shellcheck --format=json > security-results/shellcheck-report-$(SERVICE_NAME).json 2>/dev/null || true
+	@echo "✅ Report: security-results/shellcheck-report-$(SERVICE_NAME).json"
 
 pylint:
 	@echo "🔍 Running Pylint..."
@@ -346,57 +340,98 @@ pylint:
 		echo "max-line-length=120"; \
 		echo ""; \
 		echo "[REPORTS]"; \
-		echo "output-format=text"; \
+		echo "output-format=json"; \
 		echo "reports=yes"; \
 	) > .pylintrc && \
 	find app/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + \
-		>> security-results/pylint-report-$(SERVICE_NAME).txt 2>&1 || true && \
+		> security-results/pylint-report-$(SERVICE_NAME).json 2>/dev/null || true && \
 	deactivate && \
 	rm -rf pylint-venv .pylintrc
-	@echo "✅ Report: security-results/pylint-report-$(SERVICE_NAME).txt"
+	@echo "✅ Report: security-results/pylint-report-$(SERVICE_NAME).json"
 
-# ============================================================================== 
+# ==============================================================================
 # Security Scanning
-# ============================================================================== 
+# ==============================================================================
 
 trivy-scan: trivy-scan-fs trivy-scan-image trivy-scan-config
 	@echo "📦 Creating security scan archive..."
 	@cd security-results && zip -r trivy-scan-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).zip trivy-* 2>/dev/null || true
 	@echo "✅ All Trivy scans complete. Reports: security-results/trivy-*"
 
+# Trivy HTML template - auto-detect or download
+TRIVY_HTML_TPL_URL := https://raw.githubusercontent.com/aquasecurity/trivy/main/pkg/report/templates/html.tpl
+TRIVY_HTML_TPL_LOCAL := security-results/.trivy-html.tpl
+
+define ENSURE_TRIVY_HTML_TPL
+	if [ -f "/usr/local/share/trivy/templates/html.tpl" ]; then \
+		TRIVY_HTML_TPL="/usr/local/share/trivy/templates/html.tpl"; \
+	elif [ -f "/usr/share/trivy/templates/html.tpl" ]; then \
+		TRIVY_HTML_TPL="/usr/share/trivy/templates/html.tpl"; \
+	else \
+		echo "  → Trivy HTML template not found locally, downloading..."; \
+		mkdir -p security-results; \
+		curl -sSL -o $(TRIVY_HTML_TPL_LOCAL) $(TRIVY_HTML_TPL_URL) || \
+			wget -qO $(TRIVY_HTML_TPL_LOCAL) $(TRIVY_HTML_TPL_URL) || \
+			{ echo "  ⚠️  Could not download HTML template. HTML reports will be skipped."; TRIVY_HTML_TPL=""; }; \
+		TRIVY_HTML_TPL="$(TRIVY_HTML_TPL_LOCAL)"; \
+	fi
+endef
+
 trivy-scan-fs:
 	@echo "🔍 Running Trivy Filesystem Scan..."
 	@mkdir -p security-results
-	@trivy fs --severity HIGH,CRITICAL --format json \
+	@trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format json \
 		--output security-results/trivy-fs-$(SERVICE_NAME).json . || true
-	@trivy fs --severity HIGH,CRITICAL --format table \
-		--output security-results/trivy-fs-$(SERVICE_NAME).txt . || true
-	@echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).*"
+	@trivy fs --format spdx-json \
+		--output security-results/trivy-fs-$(SERVICE_NAME).spdx.json . || true
+	@$(ENSURE_TRIVY_HTML_TPL); \
+	if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
+		trivy fs --severity HIGH,CRITICAL --ignore-unfixed --format template \
+			--template "@$$TRIVY_HTML_TPL" \
+			--output security-results/trivy-fs-$(SERVICE_NAME).html . || true; \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json,html}"; \
+	else \
+		echo "✅ Filesystem scan complete: security-results/trivy-fs-$(SERVICE_NAME).{json,spdx.json}"; \
+	fi
 
 trivy-scan-image:
 	@echo "🔍 Running Trivy Image Scans..."
 	@mkdir -p security-results
-	@echo "Scanning app image..."
-	@IMAGE="$(SERVICE_NAME):$(VERSION)"; \
+	@$(ENSURE_TRIVY_HTML_TPL); \
+	echo "Scanning app image..."; \
+	IMAGE="$(SERVICE_NAME):$(VERSION)"; \
 	if [ -z "$$(docker images -q $$IMAGE 2>/dev/null)" ]; then \
 		echo "⚠️  Image '$$IMAGE' not found. Run 'make build' first."; \
 	else \
-		trivy image --severity HIGH,CRITICAL --format table \
-			--output security-results/trivy-image-$(SERVICE_NAME).txt \
+		trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
+			--output security-results/trivy-image-$(SERVICE_NAME).json \
 			$$IMAGE || true; \
-		trivy image --severity HIGH,CRITICAL --format spdx-json --scanners vuln \
-			--output security-results/trivy-image-$(SERVICE_NAME)-spdx.json \
+		trivy image --format spdx-json \
+			--output security-results/trivy-image-$(SERVICE_NAME).spdx.json \
 			$$IMAGE || true; \
+		if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
+			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
+				--template "@$$TRIVY_HTML_TPL" \
+				--output security-results/trivy-image-$(SERVICE_NAME).html \
+				$$IMAGE || true; \
+		fi; \
 	fi
-	@echo "✅ Image scans complete: security-results/trivy-image-*"
+	@echo "✅ Image scans complete: security-results/trivy-image-*.{json,spdx.json,html}"
 
 trivy-scan-config:
 	@echo "🔍 Running Trivy Config Scans..."
 	@mkdir -p security-results
-	@trivy config --severity HIGH,CRITICAL --format json \
+	@$(ENSURE_TRIVY_HTML_TPL); \
+	trivy config --severity HIGH,CRITICAL --format json \
 		--output security-results/trivy-config-$(SERVICE_NAME).json \
-		--file-patterns "dockerfile:Dockerfile" . || true
-	@echo "✅ Config scans complete: security-results/trivy-config-*"
+		--file-patterns "dockerfile:Dockerfile" . || true; \
+	if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
+		trivy config --severity HIGH,CRITICAL --format template \
+			--template "@$$TRIVY_HTML_TPL" \
+			--output security-results/trivy-config-$(SERVICE_NAME).html \
+			--file-patterns "dockerfile:Dockerfile" . || true; \
+	fi
+	@echo "✅ Config scans complete: security-results/trivy-config-*.{json,html}"
 
 clamav-scan:
 	@echo "🦠 Running ClamAV Antivirus Scan..."
@@ -415,14 +450,25 @@ bandit-scan:
 	@mkdir -p security-results
 	@python3 -m venv bandit-venv && \
 	source bandit-venv/bin/activate && \
-	pip install bandit && \
-	bandit -r . \
-		--exclude .git,node_modules,venv,ui/test,tests \
-		-f txt \
-		-o security-results/bandit-report-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).txt || true && \
+	pip install --upgrade pip && \
+	pip install bandit[toml] && \
+	CONFIG_OPT=""; \
+	if [ -f "pyproject.toml" ]; then CONFIG_OPT="-c pyproject.toml"; fi; \
+	echo "📝 Generating TXT Report (matches CI)..." && \
+	bandit $$CONFIG_OPT --severity-level low --confidence-level low \
+		-r . --exclude .git,node_modules,venv,bandit-venv \
+		-f txt -o security-results/bandit-report-$(SERVICE_NAME).txt || true && \
+	echo "📊 Generating JSON Report..." && \
+	bandit $$CONFIG_OPT --severity-level low --confidence-level low \
+		-r . --exclude .git,node_modules,venv,bandit-venv \
+		-f json -o security-results/bandit-report-$(SERVICE_NAME).json || true && \
+	echo "🌐 Generating HTML Report..." && \
+	bandit $$CONFIG_OPT --severity-level low --confidence-level low \
+		-r . --exclude .git,node_modules,venv,bandit-venv \
+		-f html -o security-results/bandit-report-$(SERVICE_NAME).html || true && \
 	deactivate && \
 	rm -rf bandit-venv
-	@echo "✅ Bandit scan complete: security-results/bandit-report-*"
+	@echo "✅ Bandit scan complete. Check security-results/ for txt, json, and html reports."
 
 gitleaks-scan:
 	@echo "🔑 Running Gitleaks Secrets Scan..."
@@ -431,9 +477,96 @@ gitleaks-scan:
 		-r security-results/gitleaks-$(SERVICE_NAME)-$$(date +%Y%m%d-%H%M%S).json || true
 	@echo "✅ Gitleaks scan complete: security-results/gitleaks-*"
 
-# ============================================================================== 
+codeql-scan:
+	@echo "🛡️  Running CodeQL Security Analysis..."
+	@if ! command -v codeql >/dev/null 2>&1; then \
+		echo ""; \
+		echo "❌ CodeQL CLI is not installed."; \
+		echo "Install: https://github.com/github/codeql-cli-binaries/releases"; \
+		echo ""; \
+		exit 1; \
+	fi
+
+	@mkdir -p security-results
+	@echo ""
+
+	@# --- Download / verify required query packs ---
+	@echo "→ Checking CodeQL Python query pack..."
+	@if ! codeql resolve qlpacks 2>/dev/null | grep -q 'codeql/python-queries'; then \
+		echo "  ⬇️  Downloading codeql/python-queries..."; \
+		codeql pack download codeql/python-queries; \
+	else \
+		echo "  ✅ codeql/python-queries already available."; \
+	fi
+	@echo ""
+
+	@# --- Python: app/ (backend) ---
+	@echo "→ Creating CodeQL database for Python (app/)..."
+	@codeql database create security-results/codeql-db-python-app-$(SERVICE_NAME) \
+		--language=python \
+		--source-root=app \
+		--build-mode=none \
+		--overwrite 2>&1 | tail -5
+
+	@echo "→ Running CodeQL analysis on app/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-app-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=sarif-latest --sarif-add-snippets \
+		--output=security-results/codeql-python-app-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on app/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-app-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=csv \
+		--output=security-results/codeql-python-app-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (app/) analysis complete."
+	@echo ""
+
+	@# --- Python: tests/ ---
+	@echo "→ Creating CodeQL database for Python (tests/)..."
+	@codeql database create security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		--language=python \
+		--source-root=tests \
+		--build-mode=none \
+		--overwrite 2>&1 | tail -5
+
+	@echo "→ Running CodeQL analysis on tests/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=sarif-latest --sarif-add-snippets \
+		--output=security-results/codeql-python-tests-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on tests/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-tests-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=csv \
+		--output=security-results/codeql-python-tests-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (tests/) analysis complete."
+	@echo ""
+
+	@# --- Python: ui/ (Gradio frontend) ---
+	@echo "→ Creating CodeQL database for Python (ui/)..."
+	@codeql database create security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		--language=python \
+		--source-root=ui \
+		--build-mode=none \
+		--overwrite 2>&1 | tail -5
+
+	@echo "→ Running CodeQL analysis on ui/ (SARIF)..."
+	@codeql database analyze security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=sarif-latest --sarif-add-snippets \
+		--output=security-results/codeql-python-ui-$(SERVICE_NAME).sarif || true
+	@echo "→ Running CodeQL analysis on ui/ (CSV)..."
+	@codeql database analyze security-results/codeql-db-python-ui-$(SERVICE_NAME) \
+		codeql/python-queries \
+		--format=csv \
+		--output=security-results/codeql-python-ui-$(SERVICE_NAME).csv || true
+	@echo "✅ Python (ui/) analysis complete."
+	@echo ""
+	@echo "✅ CodeQL scan complete: security-results/codeql-*.{sarif,csv}"
+
+# ==============================================================================
 # Utility Targets
-# ============================================================================== 
+# ==============================================================================
 
 list:
 	@echo "══════════════════════════════════════════════════"
@@ -455,9 +588,9 @@ clean:
 	)
 	@echo "✅ Cleanup complete."
 
-# ============================================================================== 
+# ==============================================================================
 # CI/CD Targets
-# ============================================================================== 
+# ==============================================================================
 
 get-service-name:
 	@echo $(SERVICE_NAME)
@@ -482,9 +615,9 @@ get-scan-matrix-json:
 	)
 	@printf ']}\n'
 
-# ============================================================================== 
+# ==============================================================================
 # Help
-# ============================================================================== 
+# ==============================================================================
 
 help:
 	@echo ""
@@ -525,6 +658,7 @@ help:
 	@echo "  clamav-scan      Run ClamAV antivirus scan"
 	@echo "  bandit-scan      Run Bandit security scan"
 	@echo "  gitleaks-scan    Run Gitleaks secrets scan"
+	@echo "  codeql-scan      Run CodeQL security analysis (Python)"
 	@echo ""
 	@echo "UTILITIES"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -301,6 +301,11 @@ class CameraManager:
             camera_id, username, password
         )
 
+        # Save credentials for future RTSP stream access
+        if isinstance(authenticated_camera.details, InternalNetworkCameraDetails):
+            authenticated_camera.details.username = username
+            authenticated_camera.details.password = password
+
         # Update the cached network cameras list
         with self._lock:
             for i, camera in enumerate(self._network_cameras):
