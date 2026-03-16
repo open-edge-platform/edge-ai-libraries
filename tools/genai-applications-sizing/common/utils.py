@@ -18,6 +18,26 @@ import shutil
 from moviepy import VideoFileClip
 
 
+def setup_report_permissions(report_dir):
+    """
+    Sets up permissions on the report directory and configures umask for inheritance.
+    
+    All subdirectories and files created after this call will inherit permissions:
+    - Directories: 0o770 (rwxrwx---)
+    - Files: 0o660 (rw-rw----)
+    
+    Args:
+        report_dir (str): Path to the root report directory.
+    """
+    # Set umask so new files get 0o660 and directories get 0o770
+    os.umask(0o007)
+    
+    # Set permissions on root directory
+    try:
+        os.chmod(report_dir, 0o770)
+    except OSError as e:
+        print(f"Warning: Failed to set permissions on {report_dir}: {e}")
+        
 def safe_parse_string_to_dict(data_string):
     """
     Safely parse a string that contains either JSON or Python literal format.
@@ -381,6 +401,7 @@ def get_global_details(input_file):
     
     # Ensure report directory exists
     os.makedirs(report_dir, exist_ok=True)
+    setup_report_permissions(report_dir)
     
     return report_dir, perf_tool_repo, profile_path
 
