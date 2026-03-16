@@ -141,6 +141,38 @@ def fetch_pipeline_templates(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def start_density_job(session: requests.Session, payload: JsonDict) -> str:
+    """Submit a density test job and return the assigned job ID."""
+    logger.info(
+        "Starting density job \u2013 pipeline_id=%s variant_id=%s fps_floor=%d",
+        payload["pipeline_density_specs"][0]["pipeline"]["pipeline_id"],
+        payload["pipeline_density_specs"][0]["pipeline"]["variant_id"],
+        payload["fps_floor"],
+    )
+    response = session.post(f"{BASE_URL}/tests/density", json=payload, timeout=30)
+    response.raise_for_status()
+    job_id: str = response.json().get("job_id", "")
+    assert job_id, "Density test response missing 'job_id'"
+    logger.info("Density job started: %s", job_id)
+    return job_id
+
+
+def start_optimization_job(
+    session: requests.Session,
+    pipeline_id: str,
+    variant_id: str,
+    payload: JsonDict,
+) -> str:
+    """Submit an optimization job and return the assigned job ID."""
+    url = f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/optimize"
+    response = session.post(url, json=payload, timeout=30)
+    response.raise_for_status()
+    job_id: str = response.json().get("job_id", "")
+    assert job_id, "Optimization response missing 'job_id'"
+    logger.info("Optimization job started: %s", job_id)
+    return job_id
+
+
 def start_performance_job(session: requests.Session, payload: JsonDict) -> str:
     """Submit a performance test job and return the assigned ``job_id``."""
     response = session.post(f"{BASE_URL}/tests/performance", json=payload, timeout=30)

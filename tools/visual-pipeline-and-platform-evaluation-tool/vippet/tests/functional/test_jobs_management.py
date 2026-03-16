@@ -7,7 +7,12 @@ from uuid import uuid4
 import pytest
 import requests
 
-from helpers.api_helpers import start_performance_job, wait_for_job_completion
+from helpers.api_helpers import (
+    start_density_job,
+    start_optimization_job,
+    start_performance_job,
+    wait_for_job_completion,
+)
 from config import BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -55,11 +60,7 @@ def _start_density_job(session: requests.Session) -> str:
         ],
         "execution_config": {"max_runtime": "5", "output_mode": "disabled"},
     }
-    response = session.post(f"{BASE_URL}/tests/density", json=payload, timeout=30)
-    response.raise_for_status()
-    job_id = response.json().get("job_id", "")
-    assert job_id, "Density test response missing 'job_id'"
-    return job_id
+    return start_density_job(session, payload)
 
 
 def _start_optimization_job(session: requests.Session) -> str:
@@ -68,15 +69,7 @@ def _start_optimization_job(session: requests.Session) -> str:
         "type": "preprocess",
         "parameters": {"search_duration": 5, "sample_duration": 2},
     }
-    response = session.post(
-        f"{BASE_URL}/pipelines/{PIPELINE_ID}/variants/{PIPELINE_VARIANT}/optimize",
-        json=payload,
-        timeout=30,
-    )
-    response.raise_for_status()
-    job_id = response.json().get("job_id", "")
-    assert job_id, "Optimization response missing 'job_id'"
-    return job_id
+    return start_optimization_job(session, PIPELINE_ID, PIPELINE_VARIANT, payload)
 
 
 @pytest.mark.smoke

@@ -4,13 +4,13 @@ import copy
 import logging
 import time
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 import requests
 
 from config import BASE_URL
 from helpers.api_helpers import (
+    JsonDict,
     convert_to_advanced,
     fetch_cameras,
     get_variant_simple_graph,
@@ -25,8 +25,6 @@ from helpers.pipeline_case_helpers import (
 )
 
 logger = logging.getLogger(__name__)
-
-type JsonDict = dict[str, Any]
 
 CAMERA_JOB_RUNTIME_SECONDS: float = 8.0
 
@@ -73,9 +71,9 @@ UNSUPPORTED_PIPELINE_CASES, UNSUPPORTED_CASE_IDS = _discover_filtered_cases(
 )
 
 
+# Brief pause between tests
 @pytest.fixture(autouse=True)
 def _inter_test_pause() -> Generator[None, None, None]:
-    """Brief pause between tests to allow resources to be released."""
     yield
     time.sleep(0.5)
 

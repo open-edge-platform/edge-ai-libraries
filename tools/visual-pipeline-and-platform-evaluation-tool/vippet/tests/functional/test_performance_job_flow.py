@@ -3,12 +3,12 @@
 import logging
 import time
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 import requests
 
 from helpers.api_helpers import (
+    JsonDict,
     run_job_with_retry,
     start_performance_job,
     wait_for_job_completion,
@@ -20,8 +20,6 @@ from helpers.pipeline_case_helpers import (
 )
 
 logger = logging.getLogger(__name__)
-
-type JsonDict = dict[str, Any]
 
 # Seconds to wait before retrying a failed job
 RETRY_DELAY_SECONDS: float = 5.0

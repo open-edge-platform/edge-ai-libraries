@@ -1,16 +1,14 @@
 """Functional tests for the /convert endpoints."""
 
 import logging
-from typing import Any
 
 import pytest
 import requests
 
 from config import BASE_URL
+from helpers.api_helpers import JsonDict
 
 logger = logging.getLogger(__name__)
-
-type JsonDict = dict[str, Any]
 
 _SIMPLE_DESCRIPTION = "videotestsrc ! videoconvert ! fakesink"
 

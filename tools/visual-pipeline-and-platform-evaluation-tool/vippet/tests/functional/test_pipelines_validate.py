@@ -1,13 +1,13 @@
 """Functional test covering the pipelines validate endpoint."""
 
 import logging
-import time
 from typing import Any
 
 import pytest
 import requests
 
-from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
+from config import BASE_URL
+from helpers.api_helpers import wait_for_job_completion
 
 logger = logging.getLogger(__name__)
 
@@ -45,28 +45,11 @@ def test_pipeline_validate_job_completes(http_client: requests.Session) -> None:
     assert isinstance(job_id, str) and job_id, "Validation response missing job_id"
     logger.info("Validation job accepted with id %s", job_id)
 
-    deadline = time.time() + POLL_TIMEOUT_SECONDS
     status_url = f"{BASE_URL}/jobs/validation/{job_id}/status"
-    last_status: dict[str, Any] | None = None
-    while time.time() < deadline:
-        response = http_client.get(status_url, timeout=30)
-        response.raise_for_status()
-        last_status = response.json()
-        assert isinstance(last_status, dict), (
-            "Validation status payload must be an object"
-        )
-        state = last_status.get("state")
-        logger.info(
-            "Validation job %s polled state=%s is_valid=%s",
-            job_id,
-            state,
-            last_status.get("is_valid"),
-        )
-        if state == "COMPLETED":
-            break
-        time.sleep(POLL_INTERVAL_SECONDS)
+    last_status = wait_for_job_completion(
+        http_client, status_url, assert_initial_running=False
+    )
 
-    assert last_status is not None, "Validation job status polling produced no data"
     assert last_status.get("state") == "COMPLETED", (
         f"Validation job {job_id} finished in unexpected state {last_status.get('state')}"
     )

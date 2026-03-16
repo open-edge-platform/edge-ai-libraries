@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 import requests
 
-from helpers.api_helpers import fetch_pipelines
+from helpers.api_helpers import convert_to_advanced, fetch_pipelines
 from config import BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -358,16 +358,10 @@ def test_convert_simple_to_advanced_graph_with_property_change(
             break
 
     # Convert the modified simple graph to an advanced graph
-    response = http_client.post(
-        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced",
-        json=modified_simple_graph,
-        timeout=30,
+    result = convert_to_advanced(
+        http_client, pipeline_id, variant_id, modified_simple_graph
     )
 
-    assert response.status_code == 200
-    result = response.json()
-    assert "nodes" in result
-    assert "edges" in result
     # Camera source should map to v4l2src in the advanced graph
     assert any(node.get("type") == "v4l2src" for node in result.get("nodes", [])), (
         "Expected v4l2src node in advanced graph after converting camera source"
