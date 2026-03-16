@@ -536,14 +536,10 @@ const DemoMode = () => {
 
   const performanceSummary = useMemo(() => {
     if (!performanceResult) return null;
-    let total = performanceResult.total_fps;
-    let perStream = performanceResult.per_stream_fps;
-    if (total != null && perStream != null && total < perStream) {
-      const tmp = total;
-      total = perStream;
-      perStream = tmp;
-    }
-    return { total, perStream };
+    return {
+      total: performanceResult.total_fps,
+      perStream: performanceResult.per_stream_fps,
+    };
   }, [performanceResult]);
 
   const colorModes = {
@@ -1113,10 +1109,8 @@ const DemoMode = () => {
     try {
       if (activeTest === "performance-test" && performanceJobId) {
         await stopPerformanceTestJob({ jobId: performanceJobId }).unwrap();
-        // Don't set jobId to null - let polling continue to get ABORTED status
       } else if (activeTest === "density-test" && densityJobId) {
         await stopDensityTestJob({ jobId: densityJobId }).unwrap();
-        // Don't set jobId to null - let polling continue to get ABORTED status
       }
     } catch (err) {
       console.error("Failed to stop test:", err);

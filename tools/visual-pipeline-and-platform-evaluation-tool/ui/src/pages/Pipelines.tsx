@@ -355,8 +355,6 @@ export const Pipelines = () => {
       await stopPerformanceTest({
         jobId: jobStatus.id,
       }).unwrap();
-
-      setShowDetailsPanel(false);
       setCompletedVideoPath(null);
     } catch (error) {
       handleApiError(error, "Failed to stop pipeline");

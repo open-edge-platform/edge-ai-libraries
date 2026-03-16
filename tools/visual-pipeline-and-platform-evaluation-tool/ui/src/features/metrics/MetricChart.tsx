@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTheme } from "next-themes";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -51,6 +52,8 @@ export const MetricChart = ({
   useDemoStyles = false,
   wrapLegend = false,
 }: MetricChartProps) => {
+  const { resolvedTheme } = useTheme();
+  const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
     dataKeys.forEach((key, index) => {
@@ -117,6 +120,12 @@ export const MetricChart = ({
 
   const isCompact = className?.includes("!h-");
   const hasTitle = title.trim().length > 0;
+  const summaryBorderClassName = isDarkTheme
+    ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+    : "border-2 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20";
+  const summaryTitleClassName = isDarkTheme
+    ? "text-energy-blue-tint-1"
+    : "text-classic-blue";
 
   return (
     <div
@@ -126,7 +135,7 @@ export const MetricChart = ({
           : "bg-background"
       } ${useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md"} ${isCompact ? "p-4 pb-6" : "p-4"} max-w-full ${isCompact ? "overflow-visible" : "overflow-hidden"} ${
         isSummary && !hideSummaryBorder
-          ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+          ? summaryBorderClassName
           : useDemoStyles
             ? forceDark
               ? "border border-neutral-800/50"
@@ -140,7 +149,7 @@ export const MetricChart = ({
             useDemoStyles
               ? `text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
                   isSummary && !hideSummaryBorder
-                    ? "text-energy-blue-tint-1"
+                    ? summaryTitleClassName
                     : "text-neutral-400"
                 }`
               : "text-sm font-medium text-foreground mb-5"
