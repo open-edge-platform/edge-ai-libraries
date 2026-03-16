@@ -49,13 +49,14 @@
     `helm uninstall dlsps -n apps`
 
 ## Troubleshooting
-- [Troubleshooting Guide](../docs/user-guide/troubleshooting-guide.md)
+
+- [Troubleshooting Guide](../docs/user-guide/troubleshooting.md)
 
 ## Setup k8s cluster
 
-- [System Requirements](../docs/user-guide/system-requirements.md)
+- [System Requirements](../docs/user-guide/get-started/system-requirements.md)
 
-- Install Helm Charts: 
+- Install Helm Charts:
     - `curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3`
     - `chmod 700 get_helm.sh`
     - `./get_helm.sh`
@@ -78,7 +79,7 @@
     - (Optional) Enable the kubelet service before running kubeadm:
         - `sudo systemctl enable --now kubelet`
 
-- Install cri-docker-socker 
+- Install cri-docker-socker
     - `wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.13/cri-dockerd_0.3.13.3-0.ubuntu-jammy_amd64.deb`
     - `sudo dpkg -i cri-dockerd_0.3.13.3-0.ubuntu-jammy_amd64.deb`
 
@@ -103,7 +104,7 @@
         - `sudo systemctl restart containerd.service`
         - `sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --cri-socket=unix:///var/run/cri-dockerd.sock`
 
-- Tainting the node: 
+- Tainting the node:
     - kubectl get nodes
     - Note: If you face issues with `kubectl get nodes` where it tries to connect to other clusters and not your local host machine cluster, then copy the kubeconfig file `/etc/kubernetes/admin.conf` to `~/.kube/config`. Do not forget to make a backup of  `~/.kube/config` file incase you need it later.
     - `kubectl describe node <node_name> | grep Taints`

@@ -50,7 +50,7 @@ export const Jobs = () => {
 
   return (
     <>
-      <div className="container mx-auto py-10">
+      <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Jobs</h1>
           <p className="text-muted-foreground mt-2">

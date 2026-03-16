@@ -15,7 +15,7 @@ Before you begin, ensure you have the following installed on your machine:
 
 ## Setup Instructions
 
-#### Step 1: Update the `.env` File
+### Step 1: Update the `.env` File
 
 To run the UI locally, update the `.env` file located in the `ui/react` directory of the project. Add the following environment variables with the appropriate endpoint values:
 

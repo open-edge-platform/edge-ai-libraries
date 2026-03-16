@@ -24,4 +24,4 @@ Model Download currently supports CPU-, GPU-, and NPU-based runs, and is a prere
 
 ## Learn More
 
-* [README](../../README.md)
+- [README](../../README.md)

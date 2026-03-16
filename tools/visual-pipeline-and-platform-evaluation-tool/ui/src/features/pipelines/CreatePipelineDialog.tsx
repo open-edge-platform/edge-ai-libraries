@@ -71,6 +71,7 @@ import {
   createPipelineSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
+import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -116,7 +117,9 @@ export const CreatePipelineDialog = ({
 
   const tags = watch("tags");
 
-  const videoOptions = videos.map((v) => v.filename);
+  const videoOptions = videos
+    .filter((video) => isSupportedVideoFilename(video.filename))
+    .map((video) => video.filename);
 
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
