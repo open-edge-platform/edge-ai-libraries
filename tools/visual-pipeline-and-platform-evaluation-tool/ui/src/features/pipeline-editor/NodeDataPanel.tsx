@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
@@ -27,6 +27,12 @@ type NodeConfig = {
   editableProperties: NodePropertyConfig[];
 };
 
+type SelectOption = {
+  label: string;
+  value: string;
+  disabled?: boolean;
+};
+
 type NodeDataPanelProps = {
   selectedNode: Node | null;
   onNodeDataUpdate: (
@@ -44,58 +50,158 @@ const NodeDataPanel = ({
   const { data: cameras = [] } = useGetCamerasQuery();
   const { data: videos = [] } = useGetVideosQuery();
 
-  const cameraOptions = cameras.map((camera) => {
-    const details = camera.details as Record<string, unknown> | undefined;
-    let value = "";
-    let disabled = false;
+  const cameraOptions = useMemo<SelectOption[]>(
+    () =>
+      cameras.map((camera) => {
+        const details = camera.details as Record<string, unknown> | undefined;
+        let value = "";
+        let disabled = false;
 
-    if (camera.device_type === "USB") {
-      const devicePath =
-        details && typeof details === "object" && "device_path" in details
-          ? details["device_path"]
-          : undefined;
-      value = typeof devicePath === "string" ? devicePath : "";
-    } else {
-      // NETWORK camera
-      const profiles =
-        details && typeof details === "object" && "profiles" in details
-          ? details["profiles"]
-          : undefined;
-      const hasProfiles = Array.isArray(profiles) && profiles.length > 0;
+        if (camera.device_type === "USB") {
+          const devicePath =
+            details && typeof details === "object" && "device_path" in details
+              ? details["device_path"]
+              : undefined;
+          value = typeof devicePath === "string" ? devicePath : "";
+        } else {
+          // NETWORK camera
+          const profiles =
+            details && typeof details === "object" && "profiles" in details
+              ? details["profiles"]
+              : undefined;
+          const hasProfiles = Array.isArray(profiles) && profiles.length > 0;
 
-      // Disable if network camera is not authorized (no profiles loaded)
-      disabled = !hasProfiles;
+          // Disable if network camera is not authorized (no profiles loaded)
+          disabled = !hasProfiles;
 
-      const bestProfile =
-        details && typeof details === "object" && "best_profile" in details
-          ? details["best_profile"]
-          : undefined;
-      const rtspUrl =
-        bestProfile &&
-        typeof bestProfile === "object" &&
-        "rtsp_url" in (bestProfile as Record<string, unknown>)
-          ? (bestProfile as Record<string, unknown>)["rtsp_url"]
-          : undefined;
-      value = typeof rtspUrl === "string" ? rtspUrl : "";
-    }
+          const bestProfile =
+            details && typeof details === "object" && "best_profile" in details
+              ? details["best_profile"]
+              : undefined;
+          const rtspUrl =
+            bestProfile &&
+            typeof bestProfile === "object" &&
+            "rtsp_url" in (bestProfile as Record<string, unknown>)
+              ? (bestProfile as Record<string, unknown>)["rtsp_url"]
+              : undefined;
+          value = typeof rtspUrl === "string" ? rtspUrl : "";
+        }
 
-    return {
-      label: camera.device_name,
-      value,
-      disabled,
-    };
-  });
+        return {
+          label: camera.device_name,
+          value,
+          disabled,
+        };
+      }),
+    [cameras],
+  );
 
-  const videoOptions = filterOutTransportStreams(videos).map((video) => ({
-    label: video.filename,
-    value: video.filename,
-  }));
+  const videoOptions = useMemo<SelectOption[]>(
+    () =>
+      filterOutTransportStreams(videos).map((video) => ({
+        label: video.filename,
+        value: video.filename,
+      })),
+    [videos],
+  );
 
   useEffect(() => {
-    if (selectedNode) {
-      setEditableData({ ...selectedNode.data });
+    if (!selectedNode) {
+      return;
     }
-  }, [selectedNode]);
+
+    const nextData = { ...selectedNode.data } as Record<string, unknown>;
+    let shouldSyncNodeData = false;
+
+    if (selectedNode.type === "source") {
+      const normalizedKind = normalizeKindValue(nextData.kind);
+      if (nextData.kind !== normalizedKind) {
+        nextData.kind = normalizedKind;
+        shouldSyncNodeData = true;
+      }
+
+      const currentSource = String(nextData.source ?? nextData.location ?? "");
+      if (!String(nextData.source ?? "") && currentSource) {
+        nextData.source = currentSource;
+        shouldSyncNodeData = true;
+      }
+    }
+
+    setEditableData(nextData);
+
+    if (shouldSyncNodeData) {
+      onNodeDataUpdate(selectedNode.id, nextData);
+    }
+  }, [onNodeDataUpdate, selectedNode]);
+
+  const getDefaultSourceValue = (options: SelectOption[]): string => {
+    const firstAvailableOption = options.find(
+      (option) => !option.disabled && option.value,
+    );
+
+    return firstAvailableOption?.value ?? "";
+  };
+
+  const ensureCurrentSourceOption = (
+    options: SelectOption[],
+    currentSource: string,
+  ): SelectOption[] => {
+    if (!currentSource) {
+      return options;
+    }
+
+    const hasCurrentSource = options.some(
+      (option) => option.value === currentSource,
+    );
+
+    if (hasCurrentSource) {
+      return options;
+    }
+
+    return [{ label: currentSource, value: currentSource }, ...options];
+  };
+
+  const normalizeKindValue = (kind: unknown): string => {
+    const normalized = String(kind ?? "").toLowerCase();
+
+    if (normalized === "camera") {
+      return "camera";
+    }
+
+    if (normalized === "file") {
+      return "file";
+    }
+
+    return String(kind ?? "");
+  };
+
+  const isCameraKind = (kind: unknown): boolean =>
+    normalizeKindValue(kind) === "camera";
+
+  const handleInputChange = (key: string, value: string | unknown) => {
+    if (!selectedNode) {
+      return;
+    }
+
+    const nextValue = key === "kind" ? normalizeKindValue(value) : value;
+    const updatedData = { ...editableData, [key]: nextValue };
+
+    if (selectedNode.type === "source" && key === "kind") {
+      const sourceOptions = isCameraKind(nextValue)
+        ? cameraOptions
+        : videoOptions;
+      const defaultSource = getDefaultSourceValue(sourceOptions);
+      updatedData.source = defaultSource;
+      updatedData.location = defaultSource;
+    }
+
+    if (selectedNode.type === "source" && key === "source") {
+      updatedData.location = String(nextValue ?? "");
+    }
+
+    setEditableData(updatedData);
+    onNodeDataUpdate(selectedNode.id, updatedData);
+  };
 
   if (!selectedNode) {
     return (
@@ -109,13 +215,6 @@ const NodeDataPanel = ({
       </div>
     );
   }
-
-  const handleInputChange = (key: string, value: string | unknown) => {
-    const updatedData = { ...editableData, [key]: value };
-
-    setEditableData(updatedData);
-    onNodeDataUpdate(selectedNode.id, updatedData);
-  };
 
   const getNodeConfig = (nodeType: string): NodeConfig | null => {
     // TODO: change switch to associative array
@@ -170,6 +269,10 @@ const NodeDataPanel = ({
           </h4>
           {dataEntries.map(([key, value]) => {
             const keyStr = String(key);
+            const sourceSelectValue =
+              selectedNode.type === "source" && keyStr === "source"
+                ? String(editableData.source ?? editableData.location ?? "")
+                : String(value ?? "");
 
             const propConfig = editableProperties.find(
               (prop) => prop.key === keyStr,
@@ -223,46 +326,49 @@ const NodeDataPanel = ({
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
                   <select
-                    value={String(value ?? "")}
+                    value={sourceSelectValue}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
-                    {(selectedNode.type === "filesrc"
-                      ? videoOptions
-                      : editableData.kind === "camera"
-                        ? cameraOptions
-                        : videoOptions
+                    {ensureCurrentSourceOption(
+                      selectedNode.type === "filesrc"
+                        ? videoOptions
+                        : isCameraKind(editableData.kind)
+                          ? cameraOptions
+                          : videoOptions,
+                      sourceSelectValue,
                     ).map((option) => (
                       <option
                         key={(option.value || option.label) as string}
                         value={option.value}
-                        disabled={
-                          "disabled" in option
-                            ? Boolean(option.disabled)
-                            : false
-                        }
+                        disabled={Boolean(option.disabled)}
                         className={
-                          "disabled" in option && option.disabled
+                          option.disabled
                             ? "text-gray-400 dark:text-gray-500"
                             : ""
                         }
                       >
                         {option.label}
-                        {"disabled" in option && option.disabled
-                          ? " (Not authorized)"
-                          : ""}
+                        {option.disabled ? " (Not authorized)" : ""}
                       </option>
                     ))}
                   </select>
                 ) : inputType === "select" && propConfig?.options ? (
                   <select
-                    value={String(value ?? "")}
+                    value={
+                      keyStr === "kind"
+                        ? normalizeKindValue(value)
+                        : String(value ?? "")
+                    }
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
                     className="w-full bg-background text-xs border border-gray-300 px-2 py-1"
                   >
                     {propConfig?.options?.map((option) => (
                       <option key={option} value={option}>
-                        {option}
+                        {keyStr === "kind"
+                          ? normalizeKindValue(option).charAt(0).toUpperCase() +
+                            normalizeKindValue(option).slice(1)
+                          : option}
                       </option>
                     ))}
                   </select>

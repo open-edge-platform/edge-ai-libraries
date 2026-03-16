@@ -38,6 +38,7 @@ import {
   parsePipelineVariantReference,
   type PipelineVariantReference,
 } from "@/features/pipeline-tests/pipelineVariantReference";
+import type { Pipeline } from "@/api/api.generated";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -47,9 +48,28 @@ interface PipelineSelection {
   isNew?: boolean;
 }
 
+// Helper function to detect if a pipeline variant contains camera input
+const containsCameraInputInPipeline = (
+  pipeline: Pipeline,
+  variantId: string,
+): boolean => {
+  const variant = pipeline.variants.find((v) => v.id === variantId);
+  if (!variant) return false;
+
+  const nodes =
+    variant.pipeline_graph?.nodes || variant.pipeline_graph_simple?.nodes || [];
+  return nodes.some((node) => {
+    if (node.type === "source") {
+      const sourceType = node.data?.source || "";
+      // Check if it's a camera: /dev/video* or rtsp://
+      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+    }
+    return false;
+  });
+};
+
 export const PerformanceTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const pipelines = useAppSelector(selectPipelines);
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
@@ -176,6 +196,13 @@ export const PerformanceTests = () => {
     setTestResult(null);
     setErrorMessage(null);
     try {
+      const hasCameraInput = pipelineSelections.some((selection) => {
+        const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+        return pipeline
+          ? containsCameraInputInPipeline(pipeline, selection.variantId)
+          : false;
+      });
+      const adjustedLivePreviewMaxRuntime = hasCameraInput ? 0 : 30 * 60;
       const status = await runTest({
         performanceTestSpec: {
           execution_config: {
@@ -185,7 +212,7 @@ export const PerformanceTests = () => {
                 ? "file"
                 : "disabled",
             max_runtime: livePreviewEnabled
-              ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+              ? adjustedLivePreviewMaxRuntime
               : loopingEnabled
                 ? loopingRuntimeSeconds
                 : 0,
@@ -416,7 +443,20 @@ export const PerformanceTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={loopingEnabled}
-                    disabled={isRunning}
+                    disabled={
+                      isRunning ||
+                      pipelineSelections.some((selection) => {
+                        const pipeline = pipelines.find(
+                          (p) => p.id === selection.pipelineId,
+                        );
+                        return pipeline
+                          ? containsCameraInputInPipeline(
+                              pipeline,
+                              selection.variantId,
+                            )
+                          : false;
+                      })
+                    }
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setLoopingEnabled(isChecked);
