@@ -4,9 +4,7 @@ This article explains how to run density tests in ViPPET and interpret the resul
 A density test finds the maximum number of streams that can run while keeping the target
 minimum FPS per stream. Compared to a standard performance test (fixed stream count),
 density testing increases the load and searches for the highest stable stream count that
-still meets your FPS requirement. Therefore, it answers the question:
-
-"How many concurrent streams can this platform sustain at my required FPS floor?"
+still meets your FPS requirement. Therefore, it answers the question:"How many concurrent streams can this platform sustain at my required FPS floor?"
 
 ## Configure a density test in the UI
 
@@ -33,72 +31,10 @@ Example:
 - Pipeline B: `40`
 - Total: `100` ✅
 
-Validation requirements:
-
-- `pipeline_density_specs` cannot be empty.
-- Pipeline rates must sum to exactly `100`.
-- Duplicate pipeline references are not allowed.
-
-## API format (optional)
-
-If you run tests via API, use `POST /tests/density`.
-
-### Request schema
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `fps_floor` | number | Yes | Minimum acceptable FPS per stream |
-| `pipeline_density_specs` | array | Yes | Pipelines and stream rates |
-| `execution_config` | object | Yes | Output mode and runtime |
-
-### Pipeline source options
-
-Each entry in `pipeline_density_specs` can use one of the following pipeline sources:
-
-1. `variant`
-2. `graph`
-3. `description`
-
-### Example request (variant source)
-
-```json
-{
-  "fps_floor": 30,
-  "pipeline_density_specs": [
-    {
-      "pipeline": {
-        "source": "variant",
-        "pipeline_id": "pipeline-a3f5d9e1",
-        "variant_id": "variant-abc123"
-      },
-      "stream_rate": 50
-    },
-    {
-      "pipeline": {
-        "source": "variant",
-        "pipeline_id": "pipeline-b7c2e114",
-        "variant_id": "variant-def456"
-      },
-      "stream_rate": 50
-    }
-  ],
-  "execution_config": {
-    "output_mode": "disabled",
-    "max_runtime": 0
-  }
-}
-```
-
-### Success response
-
-```json
-{
-  "job_id": "job456"
-}
-```
 
 ## Important constraints
 
+- Duplicate pipeline references are not allowed. Each pipeline must be unique in the request.
 - Density tests do not support `live_stream` output mode.
 - Use only `disabled` or `file` for `output_mode`.
 - For stable comparison between platforms, keep the same FPS floor, input data, and pipeline configuration.
