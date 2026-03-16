@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.0.0-ubuntu24-rc2
+FROM intel/dlstreamer:2026.0.0-ubuntu24-rc3
 
 # Switch to root user to install dependencies
 USER root
