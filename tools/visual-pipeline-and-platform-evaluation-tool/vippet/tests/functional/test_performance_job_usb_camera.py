@@ -131,6 +131,7 @@ def _build_camera_performance_payload(advanced_graph: JsonDict) -> JsonDict:
 
 
 @pytest.mark.full
+@pytest.mark.requires_camera
 @pytest.mark.parametrize("case", PIPELINE_CASES, ids=CASE_IDS)
 def test_performance_job_with_usb_camera_stays_running(
     http_client: requests.Session,
@@ -186,7 +187,6 @@ def test_performance_job_with_usb_camera_stays_running(
             http_client,
             status_url,
             duration_seconds=CAMERA_JOB_RUNTIME_SECONDS,
-            poll_interval=8.0,
         )
     finally:
         # always stop the job, even if an assertion failed above
@@ -194,6 +194,7 @@ def test_performance_job_with_usb_camera_stays_running(
 
 
 @pytest.mark.full
+@pytest.mark.requires_camera
 @pytest.mark.parametrize("case", UNSUPPORTED_PIPELINE_CASES, ids=UNSUPPORTED_CASE_IDS)
 def test_performance_job_with_usb_camera_fails_for_unsupported_pipeline(
     http_client: requests.Session,
