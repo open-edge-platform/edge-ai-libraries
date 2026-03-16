@@ -167,7 +167,7 @@ async def download_models(
                 # Get configuration for conversion
                 extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
-                config['device'] = (config.get("device") or config.get("target_device") or "CPU").lower()
+                config['device'] = (config.get("device") or config.get("target_device") or "CPU")
                 config["precision"] = (
                     config.get("weight-format") or 
                     config.get("precision") or 
