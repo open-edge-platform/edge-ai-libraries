@@ -178,7 +178,10 @@ export class VlmService {
   ): Promise<string | null> {
     try {
       this.$inferenceCount.incrementVlmProcessCount();
-      console.log(userQuery, imageUri);
+      console.log('Running VLM image inference', {
+        queryLength: userQuery.length,
+        imageCount: imageUri.length,
+      });
 
       let content: any[];
 

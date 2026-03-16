@@ -28,6 +28,9 @@ from .utils import (
     download_video,
     decode_base64_video,
     extract_video_frames,
+    sanitize_for_log,
+    resolve_safe_local_path,
+    validate_remote_media_url,
 )
 
 __all__ = [
@@ -42,4 +45,7 @@ __all__ = [
     "download_video",
     "decode_base64_video",
     "extract_video_frames",
+    "sanitize_for_log",
+    "resolve_safe_local_path",
+    "validate_remote_media_url",
 ]

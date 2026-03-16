@@ -347,6 +347,32 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       : originalName;
   }, [selectedFile, selectedExistingVideo]);
 
+  const buildSafeAssetVideoUrl = useCallback((video: Video): string | null => {
+    const bucket = video.dataStore?.bucket?.trim();
+    const objectPath = video.url?.trim();
+
+    if (!bucket || !objectPath) {
+      return null;
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(bucket)) {
+      return null;
+    }
+
+    const encodedPath = objectPath
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+
+    if (!encodedPath) {
+      return null;
+    }
+
+    const base = ASSETS_ENDPOINT.replace(/\/$/, '');
+    return `${base}/${bucket}/${encodedPath}`;
+  }, []);
+
   const resetForm = useCallback(() => {
     // Clean up video preview URL first
     if (videoPreviewUrlRef.current) {
@@ -497,8 +523,8 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
     setFormatError(null);
     setSelectedExistingVideo(video);
-    if (video.dataStore) {
-      const existingVideoUrl = `${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`;
+    const existingVideoUrl = buildSafeAssetVideoUrl(video);
+    if (existingVideoUrl) {
       setVideoPreviewUrl(existingVideoUrl);
     } else {
       setVideoPreviewUrl(null);
@@ -770,35 +796,38 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
                   <RecentVideosList>
-                    {recentVideos.map((video) => (
-                      <RecentVideoItem
-                        key={video.videoId}
-                        selected={selectedExistingVideo?.videoId === video.videoId}
-                        onClick={() => handleSelectExistingVideo(video)}
-                      >
-                        {video.dataStore && (
-                          <VideoThumbnail
-                            src={`${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`}
-                            muted
-                            preload="metadata"
-                            onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
-                            onMouseLeave={(e) => {
-                              const el = e.currentTarget as HTMLVideoElement;
-                              el.pause();
-                              el.currentTime = 0;
-                            }}
-                          />
-                        )}
-                        <VideoItemInfo>
-                          <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
-                            {video.dataStore?.fileName || video.name || video.videoId}
-                          </VideoItemName>
-                          <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
-                            {new Date(video.createdAt).toLocaleDateString()}
-                          </VideoItemDate>
-                        </VideoItemInfo>
-                      </RecentVideoItem>
-                    ))}
+                    {recentVideos.map((video) => {
+                      const thumbnailUrl = buildSafeAssetVideoUrl(video);
+                      return (
+                        <RecentVideoItem
+                          key={video.videoId}
+                          selected={selectedExistingVideo?.videoId === video.videoId}
+                          onClick={() => handleSelectExistingVideo(video)}
+                        >
+                          {thumbnailUrl && (
+                            <VideoThumbnail
+                              src={thumbnailUrl}
+                              muted
+                              preload="metadata"
+                              onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => {
+                                const el = e.currentTarget as HTMLVideoElement;
+                                el.pause();
+                                el.currentTime = 0;
+                              }}
+                            />
+                          )}
+                          <VideoItemInfo>
+                            <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
+                              {video.dataStore?.fileName || video.name || video.videoId}
+                            </VideoItemName>
+                            <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
+                              {new Date(video.createdAt).toLocaleDateString()}
+                            </VideoItemDate>
+                          </VideoItemInfo>
+                        </RecentVideoItem>
+                      );
+                    })}
                   </RecentVideosList>
                 </VideoSelectorContainer>
               )}
