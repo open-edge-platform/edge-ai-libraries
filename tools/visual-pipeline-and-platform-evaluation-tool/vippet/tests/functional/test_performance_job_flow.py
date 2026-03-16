@@ -8,7 +8,11 @@ from typing import Any
 import pytest
 import requests
 
-from helpers.api_helpers import run_job_with_retry, wait_for_job_completion
+from helpers.api_helpers import (
+    run_job_with_retry,
+    start_performance_job,
+    wait_for_job_completion,
+)
 from config import BASE_URL
 from helpers.pipeline_case_helpers import (
     PipelineCase,
@@ -59,29 +63,13 @@ def _build_performance_payload(
     }
 
 
-def _start_performance_job(session: requests.Session, payload: JsonDict) -> str:
-    """Submit a performance test job and return the assigned job ID."""
-    logger.info(
-        "Starting performance job – pipeline_id=%s variant_id=%s streams=%d",
-        payload["pipeline_performance_specs"][0]["pipeline"]["pipeline_id"],
-        payload["pipeline_performance_specs"][0]["pipeline"]["variant_id"],
-        payload["pipeline_performance_specs"][0]["streams"],
-    )
-    response = session.post(f"{BASE_URL}/tests/performance", json=payload, timeout=30)
-    response.raise_for_status()
-    job_id: str = response.json().get("job_id", "")
-    assert job_id, "Performance test response missing 'job_id'"
-    logger.info("Performance job started: %s", job_id)
-    return job_id
-
-
 def _attempt_performance_job(session: requests.Session, payload: JsonDict) -> JsonDict:
     """Submit a performance job and wait for it to finish.
 
     Returns the final status dict regardless of whether the job succeeded or
     failed, so the caller can decide whether to retry.
     """
-    job_id = _start_performance_job(session, payload)
+    job_id = start_performance_job(session, payload)
     status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
     return wait_for_job_completion(session, status_url)
 

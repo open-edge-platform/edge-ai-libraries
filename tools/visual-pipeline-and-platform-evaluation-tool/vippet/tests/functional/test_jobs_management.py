@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 import requests
 
-from helpers.api_helpers import wait_for_job_completion
+from helpers.api_helpers import start_performance_job, wait_for_job_completion
 from config import BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -36,11 +36,7 @@ def _start_performance_job(session: requests.Session) -> str:
         ],
         "execution_config": {"output_mode": "disabled", "max_runtime": "5"},
     }
-    response = session.post(f"{BASE_URL}/tests/performance", json=payload, timeout=30)
-    response.raise_for_status()
-    job_id = response.json().get("job_id", "")
-    assert job_id, "Performance test response missing 'job_id'"
-    return job_id
+    return start_performance_job(session, payload)
 
 
 def _start_density_job(session: requests.Session) -> str:

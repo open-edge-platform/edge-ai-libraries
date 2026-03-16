@@ -46,6 +46,49 @@ def fetch_pipelines(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def get_variant_simple_graph(
+    session: requests.Session, pipeline_id: str, variant_id: str
+) -> JsonDict:
+    """Fetch the ``pipeline_graph_simple`` for the given pipeline variant."""
+    response = session.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+    response.raise_for_status()
+    pipeline = response.json()
+    for variant in pipeline.get("variants", []):
+        if variant.get("id") == variant_id:
+            simple_graph = variant.get("pipeline_graph_simple")
+            assert simple_graph is not None, (
+                f"Variant {variant_id} of pipeline {pipeline_id} has no pipeline_graph_simple"
+            )
+            return simple_graph
+    pytest.fail(f"Variant {variant_id} not found in pipeline {pipeline_id}")
+
+
+def convert_to_advanced(
+    session: requests.Session,
+    pipeline_id: str,
+    variant_id: str,
+    simple_graph: JsonDict,
+) -> JsonDict:
+    """POST the modified simple graph to convert-to-advanced and return the result."""
+    url = (
+        f"{BASE_URL}/pipelines/{pipeline_id}/variants/{variant_id}/convert-to-advanced"
+    )
+    response = session.post(url, json=simple_graph, timeout=30)
+    assert response.status_code == 200, (
+        f"convert-to-advanced returned {response.status_code}: {response.text}"
+    )
+    advanced_graph = response.json()
+    assert "nodes" in advanced_graph and "edges" in advanced_graph, (
+        "convert-to-advanced response is missing 'nodes' or 'edges'"
+    )
+    logger.info(
+        "Converted simple graph to advanced: %d node(s), %d edge(s)",
+        len(advanced_graph.get("nodes", [])),
+        len(advanced_graph.get("edges", [])),
+    )
+    return advanced_graph
+
+
 def fetch_videos(session: requests.Session) -> list[JsonDict]:
     """Return the raw list of videos from GET /videos."""
     logger.info("Fetching videos from %s/videos", BASE_URL)
@@ -96,6 +139,85 @@ def fetch_pipeline_templates(session: requests.Session) -> list[JsonDict]:
     )
     logger.info("Retrieved %d pipeline templates", len(payload))
     return payload
+
+
+def start_performance_job(session: requests.Session, payload: JsonDict) -> str:
+    """Submit a performance test job and return the assigned ``job_id``."""
+    response = session.post(f"{BASE_URL}/tests/performance", json=payload, timeout=30)
+    response.raise_for_status()
+    job_id: str = response.json().get("job_id", "")
+    assert job_id, "Performance test response missing 'job_id'"
+    logger.info("Performance job started: job_id=%s", job_id)
+    return job_id
+
+
+def stop_performance_job(session: requests.Session, job_id: str) -> None:
+    """Send DELETE to stop a performance job.
+
+    Accepts 200 (stopped) and 409 (already finished) as valid outcomes.
+    """
+    response = session.delete(f"{BASE_URL}/jobs/tests/performance/{job_id}", timeout=30)
+    assert response.status_code in {200, 409}, (
+        f"Expected 200 or 409 from stop endpoint, "
+        f"got {response.status_code}: {response.text}"
+    )
+    logger.info(
+        "Stop request for job_id=%s \u2192 %d: %s",
+        job_id,
+        response.status_code,
+        response.json().get("message"),
+    )
+
+
+def poll_job_not_failed(
+    session: requests.Session,
+    status_url: str,
+    duration_seconds: float,
+    poll_interval: float = POLL_INTERVAL_SECONDS,
+) -> None:
+    """Poll *status_url* for *duration_seconds* asserting the job never enters FAILED state.
+
+    Also asserts the initial state is RUNNING before starting the timed monitoring.
+    Exits early (without failure) if the job leaves RUNNING before the duration
+    elapses, so that an unexpectedly fast COMPLETED job does not cause a spurious
+    failure.
+    """
+    response = session.get(status_url, timeout=30)
+    response.raise_for_status()
+    initial = response.json()
+    assert initial.get("state") == "RUNNING", (
+        f"Expected initial job state RUNNING, got {initial.get('state')!r} "
+        f"(error: {initial.get('error_message')!r})"
+    )
+    logger.info(
+        "Job %s initial state=RUNNING \u2013 monitoring for %.1fs",
+        status_url,
+        duration_seconds,
+    )
+
+    deadline = time.monotonic() + duration_seconds
+    last_status = initial
+    while time.monotonic() < deadline:
+        time.sleep(poll_interval)
+        response = session.get(status_url, timeout=30)
+        response.raise_for_status()
+        last_status = response.json()
+        state = last_status.get("state")
+        logger.info(
+            "Job state=%s elapsed=%s error=%s",
+            state,
+            last_status.get("elapsed_time"),
+            last_status.get("error_message"),
+        )
+        assert state != "FAILED", (
+            f"Performance job reached FAILED state after less than {duration_seconds}s: "
+            f"error={last_status.get('error_message')!r}"
+        )
+        if state != "RUNNING":
+            logger.warning(
+                "Job at %s exited RUNNING state early with state=%s", status_url, state
+            )
+            break
 
 
 def wait_for_job_completion(
