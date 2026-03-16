@@ -664,11 +664,6 @@ class TestsManager:
                 self.logger.warning(msg)
                 return False, msg
 
-            if job_id not in self.runners:
-                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
-                self.logger.warning(msg)
-                return False, msg
-
             job = self.jobs[job_id]
 
             if job.state != InternalTestJobState.RUNNING:
@@ -678,7 +673,7 @@ class TestsManager:
 
             runner = self.runners.get(job_id)
             if runner is None:
-                msg = f"No active runner found for job {job_id}"
+                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
                 self.logger.warning(msg)
                 return False, msg
 

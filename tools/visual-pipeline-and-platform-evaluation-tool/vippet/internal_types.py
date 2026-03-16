@@ -746,12 +746,16 @@ class InternalNetworkCameraDetails:
     Attributes:
         ip: IP address of the camera.
         port: Port number for ONVIF communication.
+        username: ONVIF username for authentication.
+        password: ONVIF password for authentication.
         profiles: List of ONVIF profiles available on this camera.
         best_profile: Best profile selected by scoring algorithm.
     """
 
     ip: str
     port: int
+    username: Optional[str] = None
+    password: Optional[str] = None
     profiles: List[InternalCameraProfileInfo] = field(default_factory=list)
     best_profile: Optional[InternalCameraProfileInfo] = None
 

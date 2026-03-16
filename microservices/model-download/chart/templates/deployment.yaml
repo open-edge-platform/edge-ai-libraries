@@ -14,6 +14,17 @@ spec:
       labels:
         app: {{ .Chart.Name }}
     spec:
+    {{- if .Values.modeldownload.affinity.enabled }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.modeldownload.affinity.key }}
+                operator: In
+                values:
+                - {{ .Values.modeldownload.affinity.value }}
+        {{- end }}
       securityContext:
         fsGroup: 1001
         runAsUser: 1001
@@ -60,9 +71,28 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /opt/models
+            {{- if .Values.modeldownload.gpu.enabled }}
+            - name: dri-device
+              mountPath: /dev/dri
+            {{- end }}
+          {{- if .Values.modeldownload.gpu.enabled }}
+          resources:
+            requests:
+              {{ .Values.modeldownload.gpu.key }}: 1
+            limits:
+              {{ .Values.modeldownload.gpu.key }}: 1
           securityContext:
-            allowPrivilegeEscalation: false
+            privileged: true
+            runAsUser: 1001
+            runAsGroup: 1001
+          {{- end }}
       volumes:
         - name: models
           persistentVolumeClaim:
             claimName: models-pvc
+        {{- if .Values.modeldownload.gpu.enabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+{{- end }}
