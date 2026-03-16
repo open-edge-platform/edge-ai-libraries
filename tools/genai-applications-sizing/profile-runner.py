@@ -2,9 +2,83 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import os
+import re
+import sys
 from src.chat_question_and_answer import chatqna_performance
 from src.chat_question_and_answer_core import chatqna_core_performance
 from src.video_search_and_summarization import vss_performance
+from src.live_video_caption import lvc_performance
+
+def validate_integer(value, name, min_value=0):
+    """Validate that a value is an integer >= min_value."""
+    if value < min_value:
+        constraint = "positive" if min_value == 1 else "non-negative" if min_value == 0 else f">= {min_value}"
+        raise ValueError(f"{name} must be a {constraint} integer (got {value})")
+    return value
+
+
+def validate_file_exists(filepath):
+    """Validate that the input file exists."""
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"Input configuration file not found: {filepath}")
+    return filepath
+
+
+def validate_ip_address(ip):
+    """Validate IP address format (IPv4)."""
+    if not ip:
+        raise ValueError("host_ip is required and cannot be empty")
+    
+    # Basic IPv4 pattern validation
+    ipv4_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+    if not re.match(ipv4_pattern, ip):
+        raise ValueError(f"Invalid IP address format: {ip}. Expected IPv4 format (e.g., 192.168.1.1)")
+    
+    # Validate each octet is within valid range
+    octets = ip.split('.')
+    for octet in octets:
+        if not 0 <= int(octet) <= 255:
+            raise ValueError(f"Invalid IP address: {ip}. Each octet must be between 0 and 255")
+    
+    return ip
+
+
+def validate_args(args):
+    """Validate all command line arguments."""
+    errors = []
+    
+    try:
+        validate_integer(args.users, "users", min_value=1)
+    except ValueError as e:
+        errors.append(str(e))
+    
+    try:
+        validate_integer(args.request_count, "request_count", min_value=1)
+    except ValueError as e:
+        errors.append(str(e))
+    
+    try:
+        validate_integer(args.spawn_rate, "spawn_rate", min_value=1)
+    except ValueError as e:
+        errors.append(str(e))
+    
+    try:
+        validate_integer(args.warmup_time, "warmup_time", min_value=0)
+    except ValueError as e:
+        errors.append(str(e))
+    
+    
+    try:
+        validate_ip_address(args.host_ip)
+    except ValueError as e:
+        errors.append(str(e))
+    
+    if errors:
+        print("Input validation failed:")
+        for error in errors:
+            print(f"  - {error}")
+        sys.exit(1)
 
 
 def main():
@@ -44,11 +118,13 @@ def main():
     parser.add_argument("--warmup_time", default=0, type=int, 
                         help="Duration in seconds for warmup requests before performance testing (default: 0)")
     
-
     
     # Read arguments
     args = parser.parse_args()    
     collect_resource_metrics = True if args.collect_resource_metrics.lower() == "yes" else False
+
+    # Validate arguments
+    validate_args(args)
 
     # Run the appropriate application profiling
     if args.app == "chatqna":        
