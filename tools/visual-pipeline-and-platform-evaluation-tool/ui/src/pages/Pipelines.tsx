@@ -68,9 +68,20 @@ type UrlParams = {
   variant: string;
 };
 
+// Helper function to detect if nodes contain camera input
+const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
+  return nodes.some((node) => {
+    if (node.type === "source") {
+      const sourceType = (node.data as { source?: string })?.source || "";
+      // Check if it's a camera: /dev/video* or rtsp://
+      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+    }
+    return false;
+  });
+};
+
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -248,8 +259,10 @@ export const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const hasCameraInput = containsCameraInput(currentNodes);
+      const adjustedLivePreviewMaxRuntime = hasCameraInput ? 0 : 30 * 60;
       const maxRuntimeSeconds = livePreviewEnabled
-        ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+        ? adjustedLivePreviewMaxRuntime
         : loopingEnabled
           ? Number.isNaN(loopingRuntimeSeconds)
             ? DEFAULT_LOOPING_RUNTIME_SECONDS
@@ -609,67 +622,74 @@ export const Pipelines = () => {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>Run pipeline in loop</span>
-                      </div>
-                      <Switch
-                        checked={loopingEnabled}
-                        onCheckedChange={(checked) => {
-                          setLoopingEnabled(checked);
-                          if (checked) {
-                            setVideoOutputEnabled(false);
-                            setLivePreviewEnabled(false);
-                          }
-                        }}
-                      />
-                    </div>
+                    {!containsCameraInput(currentNodes) && (
+                      <>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+                            <span>Run pipeline in loop</span>
+                          </div>
+                          <Switch
+                            checked={loopingEnabled}
+                            onCheckedChange={(checked) => {
+                              setLoopingEnabled(checked);
+                              if (checked) {
+                                setVideoOutputEnabled(false);
+                                setLivePreviewEnabled(false);
+                              }
+                            }}
+                          />
+                        </div>
 
-                    {loopingEnabled && (
-                      <div className="ml-6 flex items-center gap-2">
-                        <Timer className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          Duration
-                        </span>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={loopingRuntimeInput}
-                          onChange={(event) => {
-                            const value = event.target.value;
+                        {loopingEnabled && (
+                          <div className="ml-6 flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">
+                              Duration
+                            </span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={loopingRuntimeInput}
+                              onChange={(event) => {
+                                const value = event.target.value;
 
-                            if (value !== "" && !/^\d+$/.test(value)) {
-                              return;
-                            }
+                                if (value !== "" && !/^\d+$/.test(value)) {
+                                  return;
+                                }
 
-                            setLoopingRuntimeInput(value);
+                                setLoopingRuntimeInput(value);
 
-                            if (value === "") {
-                              return;
-                            }
+                                if (value === "") {
+                                  return;
+                                }
 
-                            const parsedValue = Number.parseInt(value, 10);
-                            setLoopingRuntimeSeconds(parsedValue);
-                          }}
-                          onBlur={() => {
-                            const parsedValue =
-                              loopingRuntimeInput.trim().length === 0
-                                ? Number.NaN
-                                : Number.parseInt(loopingRuntimeInput, 10);
-                            const normalizedValue =
-                              Number.isFinite(parsedValue) && parsedValue >= 1
-                                ? parsedValue
-                                : DEFAULT_LOOPING_RUNTIME_SECONDS;
+                                const parsedValue = Number.parseInt(value, 10);
+                                setLoopingRuntimeSeconds(parsedValue);
+                              }}
+                              onBlur={() => {
+                                const parsedValue =
+                                  loopingRuntimeInput.trim().length === 0
+                                    ? Number.NaN
+                                    : Number.parseInt(loopingRuntimeInput, 10);
+                                const normalizedValue =
+                                  Number.isFinite(parsedValue) &&
+                                  parsedValue >= 1
+                                    ? parsedValue
+                                    : DEFAULT_LOOPING_RUNTIME_SECONDS;
 
-                            setLoopingRuntimeSeconds(normalizedValue);
-                            setLoopingRuntimeInput(String(normalizedValue));
-                          }}
-                          className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
-                        />
-                        <span className="text-xs text-muted-foreground">s</span>
-                      </div>
+                                setLoopingRuntimeSeconds(normalizedValue);
+                                setLoopingRuntimeInput(String(normalizedValue));
+                              }}
+                              className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              s
+                            </span>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     <div className="space-y-3">
