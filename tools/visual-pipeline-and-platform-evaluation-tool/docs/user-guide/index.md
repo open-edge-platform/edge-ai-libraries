@@ -55,7 +55,6 @@ performance under controlled conditions.
 - [Build from Source](./get-started/build-from-source)
 - [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
 - [How to use Video Generator](./how-to-guides/use-video-generator)
-- [How to use Video Generator](./how-to-guides/use-video-generator)
 - [Release Notes](./release-notes)
 
 <!--hide_directive
