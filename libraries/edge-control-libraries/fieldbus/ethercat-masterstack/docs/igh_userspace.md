@@ -21,7 +21,7 @@ The architecture is as following:
     <img src="images/ethercat_usermode.png" alt="Userspace EtherCAT Master Stack Architecture" title="Userspace EtherCAT Master Stack Architecture" style="height:65%;width:65%;">
 </p>
 
-Two mode options are supported as needed: 
+Two mode options are supported as needed:
 * **Daemon Mode** builds EtherCAT master module as daemon application, which can run as standalone and provides one or more EtherCAT master instances, `Application Interface` and IPC service for multiple process communication. But it need at least 2x cores.
 * **Library Mode** builds EtherCAT master module as library, which can be linked as dynamic library by the application. IPC service will only support on non-rt application(e.g. `ethercat` utility tool). It only need one core for one master instance.
 
@@ -33,7 +33,7 @@ Two mode options are supported as needed:
 Run the following packages to install dependence packages for building on Ubuntu:
 
 ```shell
-    sudo apt-get install autoconf automake git libtool build-essential libmodbus5 libmodbus-dev 
+    sudo apt-get install autoconf automake git libtool build-essential libmodbus5 libmodbus-dev
 ```
 
 To install the required DPDK packages on Ubuntu, run:
@@ -134,7 +134,7 @@ CONFIG_SWIOTLB=y
 CONFIG_VIRTIO_PMD=y
 ```
 
-The userspace ethercat master stack provides ``dpdk-driver-bind.sh`` script, which is installed in ``/usr/sbin`` by default to be used to bind ``vfio`` driver for the EtherCAT port. 
+The userspace ethercat master stack provides ``dpdk-driver-bind.sh`` script, which is installed in ``/usr/sbin`` by default to be used to bind ``vfio`` driver for the EtherCAT port.
 Following command to bind vfio driver:
 
 ```shell
@@ -192,18 +192,18 @@ Provided below are some Makefile templates for EtherCAT application. These templ
       CC     = gcc
       CFLAGS = -Wall -O3 -g -D_GNU_SOURCE -D_REENTRANT -fasynchronous-unwind-tables
       LIBS   = -lm -lrt -lpthread -lethercat -Wl,--no-as-needed -L/usr/lib
-      
+
       TARGET = test
       SRCS   = $(wildcard *.c)
-      
+
       OBJS   = $(SRCS:.c=.o)
-      
+
       $(TARGET):$(OBJS)
               $(CC) -o $@ $^ $(LIBS)
-      
+
       clean:
               rm -rf $(TARGET) $(OBJS)
-      
+
       %.o:%.c
               $(CC) $(CFLAGS) -o $@ -c $<
 ```
@@ -214,18 +214,18 @@ Provided below are some Makefile templates for EtherCAT application. These templ
       CC     = gcc
       CFLAGS = -Wall -O3 -g -D_GNU_SOURCE -D_REENTRANT -fasynchronous-unwind-tables
       LIBS   = -lm -lrt -lpthread -lethercatd -Wl,--no-as-needed -L/usr/lib
-      
+
       TARGET = test
       SRCS   = $(wildcard *.c)
-      
+
       OBJS   = $(SRCS:.c=.o)
-      
+
       $(TARGET):$(OBJS)
               $(CC) -o $@ $^ $(LIBS)
-      
+
       clean:
               rm -rf $(TARGET) $(OBJS)
-      
+
       %.o:%.c
               $(CC) $(CFLAGS) -o $@ -c $<
 ```
@@ -234,4 +234,4 @@ Provided below are some Makefile templates for EtherCAT application. These templ
 
 ### License
 
-The source code is licensed under the GPL v2. See [COPYING](COPYING) file for details.
+The source code is licensed under the GPL v2. See [COPYING](../COPYING) file for details.

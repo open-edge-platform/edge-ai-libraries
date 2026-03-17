@@ -7,7 +7,7 @@
 
 - [System Requirements](../get-started/system-requirements.md)
 - K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
-  Refer to online tutorials (such as <https://adamtheautomator.com/install-kubernetes-ubuntu>) to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
+  Refer to online tutorials (such as <https://adamtheautomator.com/installing-kubernetes-on-ubuntu/>) to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
 - For Helm installation, refer to the [Helm website](https://helm.sh/docs/intro/install/)
 - Clone the `Edge-AI-Libraries` repository from Open Edge Platform and change to the Helm directory inside DL Streamer Pipeline Server project.
 

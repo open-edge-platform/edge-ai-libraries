@@ -1,0 +1,131 @@
+rabbitmq:
+  # Resource overrides for rabbitmq subchart
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+minioserver:
+  # Resource overrides for minio-server subchart
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+pipelinemanager:
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  env:
+    USE_OVMS: "CONFIG_OFF"
+    USE_VLLM: "CONFIG_ON"
+
+vllm:
+  enabled: true
+  resources:
+    requests:
+      cpu: "48"
+      memory: 128Gi
+      ephemeral-storage: 40Gi
+    limits:
+      cpu: "48"
+      memory: 128Gi
+      ephemeral-storage: 50Gi
+
+audioanalyzer:
+  # Resource overrides for audio-analyzer subchart
+  audioanalyzer:
+    resources:
+      requests:
+        cpu: "4"
+        memory: "4Gi"
+      limits:
+        cpu: "6"
+        memory: "8Gi"
+
+videoingestion:
+  # Resource overrides for video-ingestion subchart
+  videoingestion:
+    resources:
+      requests:
+        cpu: "6"
+        memory: "6Gi"
+      limits:
+        cpu: "10"
+        memory: "10Gi"
+
+postgresql:
+  # Resource overrides for postgresql subchart
+  postgresql:
+    resources:
+      requests:
+        cpu: "1"
+        memory: "8Gi"
+      limits:
+        cpu: "2"
+        memory: "12Gi"
+
+multimodalembeddingms:
+  # Resource overrides for multimodal-embedding-ms subchart
+  resources:
+    requests:
+      cpu: "4"
+      memory: "6Gi"
+    limits:
+      cpu: "8"
+      memory: "10Gi"
+
+vdmsdataprep:
+  # Resource overrides for vdms-dataprep subchart
+  resources:
+    requests:
+      cpu: "2"
+      memory: "6Gi"
+    limits:
+      cpu: "4"
+      memory: "10Gi"
+
+vdmsvectordb:
+  # Resource overrides for vdms-vectordb subchart
+  resources:
+    requests:
+      cpu: "4"
+      memory: "32Gi"
+    limits:
+      cpu: "6"
+      memory: "48Gi"
+
+videosearch:
+  # Resource overrides for video-search subchart
+  videosearch:
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
+videosummaryui:
+  image:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Disable VLM Inference Microservice
+vlminference:
+  enabled: false

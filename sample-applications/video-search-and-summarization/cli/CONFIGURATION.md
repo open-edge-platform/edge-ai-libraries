@@ -1,17 +1,19 @@
-# Video Summarizer CLI Configuration Guide. 
+# Video Summarizer CLI Configuration Guide
 
 This document explains the YAML configuration used by the Video Analysis & Summarization CLI (`./cli`) and how to adjust each field for different use cases or videos. It includes key field definitions, the effect each has on accuracy and performance, tuning tips, and example profiles (generic, retail, traffic).
 
 ## Table of contents
+
 - [Quick summary](#quick-summary)
 - [How the CLI uses the YAML](#how-the-cli-uses-the-yaml)
-- [All configuration fields](#all-configuration-fields)
+- [Configuration fields](#configuration-fields)
 - [Example profiles](#example-profiles)
-- [Troubleshooting and measuring impact](#troubleshooting-and-measuring-impact)
+- [Tuning and measuring impact](#tuning-and-measuring-impact)
 
 ## Quick summary
 
 The CLI reads all runtime parameters from a YAML file (default: `./config/generic.yaml`). The YAML config controls:
+
 - Video chunking, frame sampling, and overlap.
 - Prompts for map/reduce summarization.
 - Video Ingestion Pipeline selection.
@@ -128,4 +130,3 @@ The following [example YAML configurations](./config/) illustrate how to set par
 
 - Change one parameter at a time (e.g., `samplingFrame`, `overlap`, `chunkDuration`) and rerun. Keep a small table with results to discover trade-offs.
 - On the Application side you can also change the LLM/VLM models used for summarization to see their impact on accuracy and cost. The API Configuration will change `http://<backendEndpoint>/manager/app/config` to reflect the new models.
-

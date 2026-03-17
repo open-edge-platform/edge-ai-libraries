@@ -64,15 +64,24 @@ export class LlmService {
   private defaultParams(): CompletionQueryParams {
     const accessKey = ['openai', 'llmSummarization', 'defaults'].join('.');
     const params: CompletionQueryParams = {};
+    const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
 
-    if (this.$config.get(`${accessKey}.doSample`) !== null) {
-      params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
+    // For do_sample and seed parameters:
+    // These are not supported by vLLM - skip them. Apply for OVMS and internal VLM Microservice.
+    if (!isVllm) {
+      if (this.$config.get(`${accessKey}.doSample`) !== null) {
+        params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
+      }
+      if (this.$config.get(`${accessKey}.seed`) !== null) {
+        params.seed = +this.$config.get(`${accessKey}.seed`)!;
+      }
     }
-    if (this.$config.get(`${accessKey}.seed`) !== null) {
-      params.seed = +this.$config.get(`${accessKey}.seed`)!;
-    }
+
     if (this.$config.get(`${accessKey}.temperature`) !== null) {
-      params.temperature = +this.$config.get(`${accessKey}.temperature`)!;
+      const configuredTemp = +this.$config.get(`${accessKey}.temperature`)!;
+      params.temperature = isVllm && configuredTemp < 0.01 ? 0.01 : configuredTemp;
+    } else if (isVllm) {
+      params.temperature = 0.01;
     }
     if (this.$config.get(`${accessKey}.topP`) !== null) {
       params.top_p = +this.$config.get(`${accessKey}.topP`)!;
