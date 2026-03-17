@@ -433,6 +433,7 @@ export const Pipelines = () => {
             initialViewport={currentViewport}
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
+            showDetailsPanel={showDetailsPanel}
           />
         </div>
       </div>
@@ -796,7 +797,7 @@ export const Pipelines = () => {
 
                 <ResizablePanel
                   defaultSize={detailsPanelSizeRef.current}
-                  minSize={20}
+                  minSize={900}
                 >
                   <div
                     ref={detailsPanelRef}
