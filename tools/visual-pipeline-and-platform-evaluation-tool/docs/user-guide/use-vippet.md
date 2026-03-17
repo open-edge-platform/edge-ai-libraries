@@ -16,9 +16,7 @@ as well as multiple pipelines running concurrently.
 The [density testing article](./how-to-guides/density-testing.md) explains how to find the maximum sustainable stream
 density for a target FPS floor.
 
-
-
-### Performance Testing Capabilities
+## Performance Testing Capabilities
 
 **Pipeline Testing Modes**:
 
@@ -47,7 +45,7 @@ During test execution, a metrics dashboard appears on the right side displaying 
 performance data including Total FPS, Per Stream FPS, CPU frequency, GPU power usage, and memory
 utilization. This enables immediate identification of bottlenecks and resource constraints.
 
-### Density Testing
+## Density Testing
 
 **Automated Stream Density Discovery**:
 Determine the maximum number of concurrent streams your hardware can sustain while maintaining a minimum FPS
@@ -70,7 +68,6 @@ This eliminates guesswork in capacity planning and ensures deployments meet perf
 Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions.
 Results show exactly how many concurrent video streams each hardware configuration can process
 while maintaining quality thresholds.
-
 
 ## Example: Real-Time License Plate Recognition (ALPR)
 

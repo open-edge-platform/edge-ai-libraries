@@ -12,7 +12,9 @@ still meets your FPS requirement. Therefore, it answers the question:
 
 ## Density Testing Algorithm
 
-The density testing algorithm is designed to find the maximum number of concurrent video streams that can be processed while maintaining a minimum performance threshold (FPS floor). The algorithm uses a two-phase approach:
+The density testing algorithm is designed to find the maximum number of concurrent video
+streams that can be processed while maintaining a minimum performance threshold (FPS floor).
+The algorithm uses a two-phase approach:
 
 ### Phase 1: Exponential Growth
 
@@ -25,12 +27,12 @@ The density testing algorithm is designed to find the maximum number of concurre
 
 - Switch to binary search once performance drops below the threshold.
 - Set bounds:
-	- Lower bound = last successful stream count (`N/2`).
-	- Upper bound = current failing stream count (`N`).
+  - Lower bound = last successful stream count (`N/2`).
+  - Upper bound = current failing stream count (`N`).
 - Bisect the range and test the midpoint.
 - Adjust bounds based on results:
-	- If `FPS >= threshold`: update best config, move lower bound up.
-	- If `FPS < threshold`: move upper bound down.
+  - If `FPS >= threshold`: update best config, move lower bound up.
+  - If `FPS < threshold`: move upper bound down.
 - Continue until bounds converge.
 
 ### Stream Distribution
@@ -78,7 +80,6 @@ Example:
 - Pipeline A: `60`
 - Pipeline B: `40`
 - Total: `100` (valid)
-
 
 ## Important constraints
 
