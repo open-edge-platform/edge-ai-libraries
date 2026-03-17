@@ -8,17 +8,31 @@ Details about the changes, improvements, and known issues in this release of the
 
 ### New Features (2026.0.0)
 
+- **Demo mode**:
+  - A dedicated demo page is available at the `/demo` endpoint, providing a streamlined presentation view
+    of the application with pre-configured scenarios and adjusted visual styling.
+
 - **Pipeline variants**:
   - Each pipeline can now contain multiple variants (for example CPU, GPU, and NPU), each with its own
     graph definition. Users can switch between variants to quickly match the pipeline to the available
     hardware without creating separate pipelines.
-  - Variants are fully integrated across the pipeline editor, performance tests, and density tests.
+  - Variants are fully integrated across the pipeline editor, performance tests, density tests, and demo mode.
+
+- **Pipeline templates and creation from templates**:
+  - Predefined pipeline templates (such as Detect and Detect + Classify) are now available as read-only
+    starting points for creating new pipelines.
+  - Users can create a new pipeline from a template and customize it by selecting a model, input source,
+    and adding tags.
 
 - **Simple view for pipeline graphs**:
   - A simplified pipeline view is now available alongside the advanced graph editor. It hides technical
     GStreamer elements and shows only the key processing steps, making pipelines easier to understand
     and configure for less advanced users.
   - Changes made in the simple view are automatically synchronized with the advanced graph, and vice versa.
+
+- **Redesigned pipeline editor layout**:
+  - A refined pipeline nodes view with flow visualization and automatic adjustment to the results charts window.
+  - A new navigation view between pages and an updated overall look and feel.
 
 - **New predefined pipelines**:
   - **Retail analytics**: Face detection, age/gender recognition, YOLO 11n object detection, and
@@ -37,6 +51,10 @@ Details about the changes, improvements, and known issues in this release of the
   - In the pipeline editor, users can choose between a video file and a camera as the input source directly
     from a dropdown. Only authenticated network cameras appear in the list.
 
+- **Live pipeline output preview**:
+  - A WebRTC-based video player is integrated into the UI, enabling real-time preview of pipeline output
+    during execution. Live preview works with both video file and camera inputs.
+
 - **Timed pipeline execution**:
   - Pipelines can now be configured to run for a specified duration. When the video file is shorter than
     the requested time, it loops automatically. When the duration is reached, the pipeline stops gracefully.
@@ -45,10 +63,9 @@ Details about the changes, improvements, and known issues in this release of the
   - The performance view now displays up to eight live charts — including GPU frequency, GPU power consumption,
     GPU memory usage, GPU utilization, CPU temperature, CPU frequency, CPU utilization, and CPU power —
     depending on the available hardware. When multiple GPUs are present, users can select a specific device.
-
-- **Demo mode**:
-  - A dedicated demo page is available at the `/demo` endpoint, providing a streamlined presentation view
-    of the application with pre-configured scenarios and adjusted visual styling.
+  - After a pipeline run completes, the collected metrics and charts remain visible, allowing users to
+    review the full run results without data loss. Persistent charts are fully integrated across the
+    pipeline editor, performance tests, density tests, and demo mode.
 
 - **Custom gvapython scripts**:
   - Users can now add custom Python scripts to pipelines using the `gvapython` element. A new guide
