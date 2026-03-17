@@ -90,7 +90,6 @@ Related article:
 
 - [How To Use Gvapython Scripts](./how-to-guides/use-gvapython-scripts.md)
 
-
 <!--hide_directive
 :::{toctree}
 :maxdepth: 2
