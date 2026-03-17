@@ -1,12 +1,11 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from gevent import monkey
-monkey.patch_all()
 import subprocess
 from transformers import LlamaTokenizerFast
 from common.utils import get_document_api_profile_details, get_stream_api_profile_details, upload_document_before_conversation
-
+# from gevent import monkey
+# monkey.patch_all()
 
 def get_token_length(text):
     """

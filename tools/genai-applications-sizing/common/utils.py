@@ -1,10 +1,10 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import time
-import sys
 from gevent import monkey
 monkey.patch_all()
+import time
+import sys
 import subprocess
 import json
 import ast
@@ -37,7 +37,8 @@ def setup_report_permissions(report_dir):
         os.chmod(report_dir, 0o770)
     except OSError as e:
         print(f"Warning: Failed to set permissions on {report_dir}: {e}")
-        
+
+
 def safe_parse_string_to_dict(data_string):
     """
     Safely parse a string that contains either JSON or Python literal format.
@@ -399,7 +400,7 @@ def get_global_details(input_file):
     perf_tool_repo = global_details.get('perf_tool_repo', '')
     profile_path = global_details.get('input_profiles_path', 'input_profiles.yaml')
     
-    # Ensure report directory exists
+    # Ensure report directory exists and set up permissions
     os.makedirs(report_dir, exist_ok=True)
     setup_report_permissions(report_dir)
     
@@ -1442,10 +1443,180 @@ def convert_search_metrics_to_wsf_format(report_dir, json_file_path):
     return output_file
 
 
+def get_enabled_live_caption_apis(input_file):
+    """
+    Determines which live caption APIs are enabled based on the configuration file.
+    """
+    # Read config once and reuse for both API checks
+    config = read_yaml_config(input_file)
+    
+    # Extract enabled status for both APIs
+    live_caption_enabled = get_live_caption_config(config=config).get("enabled", False)    
+    return live_caption_enabled
+
+def get_live_caption_config(config=None, config_path='config.yaml'):
+    """
+    Retrieves live caption API configuration from the YAML config file.
+    """
+    if config is None:
+        config = read_yaml_config(config_path)
+    return config.get('apis', {}).get('live_caption', {})
+
+def get_live_caption_profile_details(profile_path, input_file, warmup=False):
+    """
+    Retrieves live caption API profile details from configuration and profile files.
+    """
+    # Load configuration and extract live caption API details
+    config = read_yaml_config(input_file)
+    live_caption_details = get_live_caption_config(config=config)
+    
+    # Extract endpoints safely
+    endpoints = live_caption_details.get("endpoints", {})
+    runs_endpoint = endpoints.get("runs")
+    metadata_endpoint = endpoints.get("metadata")
+    caption_duration = live_caption_details.get("captioning_time", 10)
+
+    # Extract profile name and load profile-specific details
+    if warmup:
+        lvc_profile = "live_caption_warmup_profile"
+        profile_details = get_profile_details(profile_path=profile_path, profile_name=lvc_profile)
+    else:    
+        lvc_profile = live_caption_details.get("input_profile", '')
+        profile_details = get_profile_details(profile_path=profile_path, profile_name=lvc_profile)    
+    
+    payload = profile_details.get("payloads")
+    return lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload
+
+def get_live_caption_metadata(url, duration_seconds=120):
+    """Collect metadata for the specified duration (default 2 minutes)."""
+    collected_data = []
+    start_time = time.time()
+    end_time = start_time + duration_seconds
+    
+    print(f"Collecting video caption data for {duration_seconds} seconds...")
+    
+    with requests.get(url, stream=True) as response:
+        try:
+            for line in response.iter_lines(decode_unicode=True):
+                if time.time() >= end_time:
+                    print(f"\nCollection complete. Collected {len(collected_data)} data entries.")
+                    break
+                if line and "data" in line:
+                    collected_data.append(line)
+        except KeyboardInterrupt:
+            print("\nStopped streaming")
+    
+    return collected_data
+
+def get_live_caption_metrics(metadata_list):
+    """Process all collected metadata entries and return aggregated KPIs grouped by runId.
+    
+    Args:
+        metadata_list (list): List of metadata strings from the live caption API.
+        
+    Returns:
+        dict: Dictionary with runIds as keys and lists of KPI dictionaries as values.
+    """
+    kpis_by_run_id = {}
+    
+    for metadata in metadata_list:
+        json_string = metadata[6:]  
+        try:
+            parsed_data = json.loads(json_string)
+            run_id = parsed_data.get("runId", "unknown")
+            metrics = parsed_data.get("data", {}).get("metrics", {})
+            
+            kpis = {
+                #"runId": run_id,
+                "InputTokens": metrics.get("num_input_tokens"),
+                "TotalGeneratedTokens": metrics.get("num_generated_tokens"),
+                "TTFT (ms)": metrics.get("ttft_mean"),
+                "TPOT (ms)": metrics.get("tpot_mean"),
+                "Latency (ms)": metrics.get("generate_duration_mean"),
+                "Throughput (tok/s)": metrics.get("throughput_mean")
+            }
+            
+            if run_id not in kpis_by_run_id:
+                kpis_by_run_id[run_id] = []
+            kpis_by_run_id[run_id].append(kpis)
+            
+        except json.JSONDecodeError as e:
+            print(f"Skipping invalid JSON data: {e}")
+            continue
+    
+    return kpis_by_run_id
 
 
+def stop_all_run_request(run_url, run_ids):
+    for run_id in run_ids:
+        response = requests.request("DELETE", f"{run_url}/{run_id}")
+        print("Stopped live caption:", response.json())
 
+def save_live_video_caption_telemetry_kpis(report_dir, kpis_by_run_id, run_configs=None):
+    """Save live video caption telemetry KPIs grouped by runId.
+    
+    Args:
+        report_dir (str): Directory to save the metrics files.
+        kpis_by_run_id (dict): Dictionary with runIds as keys and lists of KPI dictionaries as values.
+        run_configs (dict): Optional dictionary mapping runIds to their config (rtspUrl, modelName, pipelineName).
+    """
+    os.makedirs(report_dir, exist_ok=True)
+    run_configs = run_configs or {}
+    
+    # Save individual metrics grouped by runId
+    filename = os.path.join(report_dir, "live_caption_indv_metrics.json")
+    with open(filename, "w") as file:
+        json.dump(kpis_by_run_id, file, indent=4)
+    
+    # Calculate summary metrics per runId
+    summary_file = os.path.join(report_dir, "live_caption_summary_metrics.json")
+    summary = {}
+    
+    for run_id, kpis_list in kpis_by_run_id.items():
+        if not kpis_list:
+            continue
+        
+        # Get rtspUrl, modelName, pipelineName from run_configs
+        config = run_configs.get(run_id, {})
+        
+        run_summary = {
+           # "run_id": run_id,
+            "rtspUrl": config.get("rtspUrl"),
+            "modelName": config.get("modelName"),
+            "pipelineName": config.get("pipelineName"),
+            "sample_count": len(kpis_list),
+            "Total InputTokens": max(kpi["InputTokens"] for kpi in kpis_list if kpi["InputTokens"] is not None) if kpis_list else None,
+            "Total GeneratedTokens": max(kpi["TotalGeneratedTokens"] for kpi in kpis_list if kpi["TotalGeneratedTokens"] is not None) if kpis_list else None,
+            "Average TTFT (ms)": sum(kpi["TTFT (ms)"] for kpi in kpis_list if kpi["TTFT (ms)"] is not None) / len(kpis_list),
+            "Average TPOT (ms)": sum(kpi["TPOT (ms)"] for kpi in kpis_list if kpi["TPOT (ms)"] is not None) / len(kpis_list),
+            "Average Latency (ms)": sum(kpi["Latency (ms)"] for kpi in kpis_list if kpi["Latency (ms)"] is not None) / len(kpis_list),
+            "Average Throughput (tok/s)": sum(kpi["Throughput (tok/s)"] for kpi in kpis_list if kpi["Throughput (tok/s)"] is not None) / len(kpis_list)
+        }
+        summary[run_id] = run_summary
+    
+    with open(summary_file, "w") as file:
+        json.dump(summary, file, indent=4)
+    
+    return summary_file
 
-
-
-
+def save_metrics_to_wsf_format(report_dir, summary_file, live_caption_duration_seconds):
+    output_file = os.path.join(report_dir, "live_caption_metrics_wsf.csv")
+    
+    with open(summary_file, "r") as file:
+        summary = json.load(file)
+    
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        
+        for run_id, metrics in summary.items():
+            # writer.writerow([f"Total_InputTokens", metrics.get("Total InputTokens", 0)])
+            # writer.writerow([f"Total_GeneratedTokens", metrics.get("Total GeneratedTokens", 0)])
+            writer.writerow([f"Avg TTFT (ms)", metrics.get("Average TTFT (ms)", 0)])
+            writer.writerow([f"Avg TPOT (ms)", metrics.get("Average TPOT (ms)", 0)])
+            writer.writerow([f"Avg Latency (ms)", metrics.get("Average Latency (ms)", 0)])
+            writer.writerow([f"Avg Throughput (tok/s)", metrics.get("Average Throughput (tok/s)", 0)])
+            writer.writerow([f"Caption Duration (s)", live_caption_duration_seconds])
+            writer.writerow([f"Total Requests (count)", metrics.get("sample_count", 0)])
+            writer.writerow([])  # Empty row between runs
+    
+    print(f"WSF formatted live caption metrics written to: {output_file}")

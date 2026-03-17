@@ -191,3 +191,37 @@ profiles:
             "summarySinglePrompt": " \nCondense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:\n\n%data%\n  "
         },
         "title": "store-aisle-detection.mp4"}'
+  
+  live_video_caption_2_parallel_runs:
+    input_type: "rtsp stream"
+    input_size: "2 parallel runs" 
+    payloads:
+      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL2-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_GPU"
+              }'
+      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL3-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_CPU"
+              }'
+  
+  live_video_caption_wsf:
+    input_type: "rtsp stream"
+    input_size: "single run" 
+    payloads:
+      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+                "prompt": "Describe what you see in one sentence.",
+                "detectionModelName": null,
+                "detectionThreshold": null,
+                "modelName": "InternVL2-1B",
+                "maxNewTokens": 70,
+                "pipelineName": "GenAI_Pipeline_on_GPU"
+              }'
