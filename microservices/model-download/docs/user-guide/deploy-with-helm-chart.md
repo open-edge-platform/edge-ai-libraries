@@ -5,6 +5,7 @@ This section shows how to deploy Model Download using Helm chart.
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
+
 - Kubernetes cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. See [Kubernetes Documentation on Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for details.
 - Install `kubectl` on your system. See [Kubernetes Documentation on Tool Installation](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
@@ -28,13 +29,12 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
 
 2. Extract the `.tgz` file
 
-   Extract the `.tgz` file:
    ```bash
    tar -xvf model-download-chart-<version-no>.tgz
    ```
 
 3. This will create a directory named `model-download-chart`, containing the chart files. Navigate to the extracted directory:
-   
+
    ```bash
    cd model-download-chart
    ```
@@ -62,23 +62,23 @@ Edit the `values.yaml` file located in the chart directory to set the necessary 
 
 The following is a summary of key configuration options available in the `values.yaml` file:
 
-| Parameter           | Description                                 | Example Value            | Required |
-|---------------------|---------------------------------------------|--------------------------|----------|
-| `env.HUGGINGFACEHUB_API_TOKEN`      | Hugging Face access token                   | `hf_xxx`                 | Yes      |
-| `env.GETI_WORKSPACE_ID` | GETI workspace ID |  | Yes, For GETI connection |
-| `env.GETI_HOST` | GETI connection host address |  | Yes, For GETI connection |
-| `env.GETI_TOKEN` | GETI Personal Access token |  | Yes, For GETI connection |
-| `env.GETI_SERVER_API_VERSION` | GETI API version | `v1` | Yes, For GETI connection |
-| `env.GETI_SERVER_SSL_VERIFY` | Enables SSL certificate validation for HTTPS/HTTP GETI hosts | `False` | Yes, For GETI connection |
-| `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
-| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, openvino and geti`) or `all` to enable all available plugins | `all` | Yes |
-| `image.repository`	| image repository url	| intel/model-download | Yes |
-| `image.tag`	        | latest image tag	    | latest            | Yes |
-| `gpu.enabled`       |For model download deployed on GPU | false |
-| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
-| `affinity.enabled`| Default is false, true to enable affinity | `false` |
-| `affinity.key` | Provide the key for the affinity,default is kubernetes.io/hostname | `kubernetes.io/hostname`  |
-| `affinity.value` | Provide the values for the respective key | | 
+| Parameter                      | Description                                                                                                                                                                   | Example Value                | Required                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------ |
+| `env.HUGGINGFACEHUB_API_TOKEN` | Hugging Face access token                                                                                                                                                     | `hf_xxx`                     | Yes                      |
+| `env.GETI_WORKSPACE_ID`        | GETI workspace ID                                                                                                                                                             |                              | Yes, For GETI connection |
+| `env.GETI_HOST`                | GETI connection host address                                                                                                                                                  |                              | Yes, For GETI connection |
+| `env.GETI_TOKEN`               | GETI Personal Access token                                                                                                                                                    |                              | Yes, For GETI connection |
+| `env.GETI_SERVER_API_VERSION`  | GETI API version                                                                                                                                                              | `v1`                         | Yes, For GETI connection |
+| `env.GETI_SERVER_SSL_VERIFY`   | Enables SSL certificate validation for HTTPS/HTTP GETI hosts                                                                                                                  | `False`                      | Yes, For GETI connection |
+| `service.nodePort`             | Sets the static port (in the 30000–32767 range)                                                                                                                               | 32000                        | Yes                      |
+| `env.ENABLED_PLUGINS`          | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics, openvino and geti`) or `all` to enable all available plugins                                | `all`                        | Yes                      |
+| `image.repository`             | image repository url                                                                                                                                                          | intel/model-download         | Yes                      |
+| `image.tag`                    | latest image tag                                                                                                                                                              | latest                       | Yes                      |
+| `gpu.enabled`                  | For model download deployed on GPU                                                                                                                                            | false                        |
+| `gpu.key`                      | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
+| `affinity.enabled`             | Default is false, true to enable affinity                                                                                                                                     | `false`                      |
+| `affinity.key`                 | Provide the key for the affinity,default is kubernetes.io/hostname                                                                                                            | `kubernetes.io/hostname`     |
+| `affinity.value`               | Provide the values for the respective key                                                                                                                                     |                              |
 
 > **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
 
@@ -122,6 +122,7 @@ helm uninstall <name> -n <your-namespace>
   ```bash
   kubectl logs <pod-name>
   ```
+
 - If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, delete it manually:
 
   ```bash
@@ -131,8 +132,10 @@ helm uninstall <name> -n <your-namespace>
   # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
-**Note:**
-  Delete the shared PVC only after confirming no other workload or application (for example, ChatQnA) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
+
+> **Note:**
+> Delete the shared PVC only after confirming no other workload or application (for example,
+> Chat Q&A) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
 
 ## Learn More
 
