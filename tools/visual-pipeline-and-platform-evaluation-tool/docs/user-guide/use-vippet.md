@@ -1,87 +1,95 @@
 # How To Use ViPPET
 
-The [gvapython modules article](./how-to-guides/use-gvapython-scripts.md) explains how to
-add user-defined Python scripts that can be loaded as modules by the `gvapython` element.
+This page maps ViPPET UI sections to dedicated how-to articles.
 
-The [video generator article](./how-to-guides/use-video-generator.md) explains how to
-use the video generator to create composite videos from images stored in subdirectories.
+## Dashboard
 
-The [pipeline configuration article](./how-to-guides/configure-pipelines.md) explains step-by-step how to configure
-and test AI pipelines using ViPPET's Pipeline Builder, from creating a new pipeline, editing the pipeline elements,
-to demonstrating running pipelines on both CPU and GPU to compare performance.
+![Dashboard](./_assets/vippet-dashboar.png)
+*Figure 1: Dashboard section in ViPPET UI*
 
-The [performance testing article](./how-to-guides/performance-testing.md) covers performance testing of single pipelines
-as well as multiple pipelines running concurrently.
+Use this section to monitor current system and test activity from a single view.
+It provides a quick health snapshot before and during test execution.
 
-The [density testing article](./how-to-guides/density-testing.md) explains how to find the maximum sustainable stream
-density for a target FPS floor.
+Related article:
 
-## Performance Testing Capabilities
+- [Get Started](./get-started.md)
+- [Troubleshooting](./troubleshooting.md)
 
-**Pipeline Testing Modes**:
+## Models
 
-- **Single Pipeline Testing**: Test individual AI pipelines with configurable stream counts to
-  measure baseline performance. Users can specify the number of concurrent streams for
-  comprehensive performance analysis.
-- **Multi-Pipeline Concurrent Testing**: Evaluate system performance under complex workloads by
-  running multiple different pipelines simultaneously. Each pipeline can be configured with its own
-  stream count, simulating real-world deployment scenarios where multiple AI workloads compete for
-  system resources.
+![Models](./_assets/vippet-models.png)
+*Figure 2: Models section in ViPPET UI*
 
-**Testing Configuration Options**:
+Use this section to review and manage AI models used by your pipelines.
+It helps keep model assets organized and ready for pipeline configuration.
 
-- **Output Video Validation** (*Keep pipeline output*): Capture and save processed video outputs
-  during performance testing to verify that AI inference quality is maintained under load
-  conditions.
-- **Live Preview Validation** (*Enable live preview*): Monitor real-time video streams during
-  testing to immediately detect visual artifacts, frame drops, or quality degradation as they
-  occur.
-- **Continuous Loop Testing** (*Run pipeline in loop*): Execute continuous testing cycles to
-  evaluate system stability and performance consistency over extended periods.
+## Pipelines
 
-**Real-Time Monitoring**:
+![Pipelines](./_assets/vippet-pipelines.png)
+*Figure 3: Pipelines section in ViPPET UI*
 
-During test execution, a metrics dashboard appears on the right side displaying real-time
-performance data including Total FPS, Per Stream FPS, CPU frequency, GPU power usage, and memory
-utilization. This enables immediate identification of bottlenecks and resource constraints.
+Use this section to create, edit, and validate pipeline definitions.
+You can also adjust element parameters and prepare variants for testing.
 
-## Density Testing
+Related article:
 
-**Automated Stream Density Discovery**:
-Determine the maximum number of concurrent streams your hardware can sustain while maintaining a minimum FPS
-threshold.
-The density test automatically scales up stream counts until performance drops below the specified `fps_floor`,
-providing precise hardware capacity measurements.
+- [Configure Pipeline](./how-to-guides/configure-pipelines.md)
 
-**Multi-Pipeline Density Analysis**:
-Test complex workload scenarios by running multiple different pipelines simultaneously with configurable stream
-rate ratios.
-For example, allocate 70% of streams to object detection and 30% to license plate recognition to simulate
-real-world deployment conditions.
+## Performance
 
-**FPS Floor Validation**:
-Set minimum acceptable performance thresholds (for example, 30 FPS per stream)
-and automatically discover the maximum sustainable workload.
-This eliminates guesswork in capacity planning and ensures deployments meet performance requirements.
+![Performance](./_assets/vippet-perfomance.png)
+*Figure 4: Performance section in ViPPET UI*
 
-**Capacity Planning Support**:
-Generate precise hardware sizing recommendations by measuring actual stream density under controlled conditions.
-Results show exactly how many concurrent video streams each hardware configuration can process
-while maintaining quality thresholds.
+Use this section to run fixed-stream performance benchmarks.
+It supports both single-pipeline and multi-pipeline concurrent testing.
 
-## Example: Real-Time License Plate Recognition (ALPR)
+Related article:
 
-This use case mirrors a common smart city workload and can be reproduced in ViPPET to compare Intel® platforms for
-license plate analytics.
+- [Test Performance](./how-to-guides/performance-testing.md)
 
-**Goal**: Detect vehicles, localize license plates, and read plate text from live or recorded video in real time.
+## Density
 
-For the complete architecture, hardware variants (CPU/GPU/GPU+NPU), pipeline examples, and benchmark guidance, see:
+![Density](./_assets/vippet-density.png)
+*Figure 5: Density section in ViPPET UI*
 
-- [License Plate Recognition Pipeline Guide](docs/user-guide/how-to-guides/license-plate-recognition-pipeline.md)
+Use this section to find the maximum sustainable stream count for a target FPS floor.
+It is best suited for platform capacity planning and stream scaling decisions.
 
-Use ViPPET's built-in **Performance Test** and **Density Test** to collect measured platform-specific throughput,
-latency, utilization, and sustainable stream density.
+Related article:
+
+- [Test Density](./how-to-guides/density-testing.md)
+
+## Videos
+
+![Videos](./_assets/vippet-videos.png)
+*Figure 6: Videos section in ViPPET UI*
+
+Use this section to review outputs generated by tests and pipelines.
+It helps validate visual quality.
+
+Related article:
+
+- [Use Video Generator](./how-to-guides/use-video-generator.md)
+
+## Jobs
+
+![Jobs](./_assets/vippet-jobs.png)
+*Figure 7: Jobs section in ViPPET UI*
+
+Use this section to track running and completed tasks.
+You can quickly verify status, timing, and completion history.
+
+## Cameras
+
+![Cameras](./_assets/vippet-cameras.png)
+*Figure 8: Cameras section in ViPPET UI*
+
+Use this section to manage camera-like inputs used by tests and pipelines.
+
+Related article:
+
+- [How To Use Gvapython Scripts](./how-to-guides/use-gvapython-scripts.md)
+
 
 <!--hide_directive
 :::{toctree}
@@ -92,9 +100,7 @@ latency, utilization, and sustainable stream density.
 ./how-to-guides/use-video-generator
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
-Run Density Tests <./how-to-guides/density-testing.md>
-Use Plates Recognition <./how-to-guides/license-plate-recognition-pipeline.md>
-Use LPR API <./how-to-guides/license-plate-recognition-api.md>
+./how-to-guides/density-testing.md
 
 :::
 hide_directive-->
