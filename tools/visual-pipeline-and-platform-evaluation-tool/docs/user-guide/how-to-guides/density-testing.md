@@ -7,6 +7,9 @@ density testing increases the load and searches for the highest stable stream co
 still meets your FPS requirement. Therefore, it answers the question:
 "How many concurrent streams can this platform sustain at my required FPS floor?"
 
+![Density testing](../_assets/density-test.png)
+*Figure 1: Density test configuration view*
+
 ## Density Testing Algorithm
 
 The density testing algorithm is designed to find the maximum number of concurrent video streams that can be processed while maintaining a minimum performance threshold (FPS floor). The algorithm uses a two-phase approach:
@@ -54,11 +57,17 @@ The algorithm returns the optimal configuration with:
 5. Set **iteration duration** in seconds (for example, `30`).
 6. Click **Run density test**.
 
+![Density test execution](../_assets/density-test-execution.png)
+*Figure 2: Density test in progress*
+
 When the job completes, ViPPET reports:
 
 - Per-stream FPS
 - Total streams
 - Stream distribution per pipeline
+
+![Density test results](../_assets/density-test-results.png)
+*Figure 3: Density test results summary*
 
 ## Stream rate rules
 
