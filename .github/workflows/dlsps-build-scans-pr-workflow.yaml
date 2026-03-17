@@ -176,11 +176,11 @@ jobs:
 
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --list-all-pkgs --format template --template "@/src/trivy-html.tpl" --output "/src/reports/trivy-fs-full-report.csv" /src/ || true
-        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --ignore-unfixed /src | tee ./reports/trivy-fs-full-report.txt
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --exit-code 1 --severity HIGH,CRITICAL /src | tee ./reports/trivy-fs-full-report.txt
         mv ./reports ${{ github.workspace }}
 
     - name: Upload Trivy Filesystem Reports
-      if: matrix.ubuntu_version == 'ubuntu22'
+      if: always() && matrix.ubuntu_version == 'ubuntu22'
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: DLSPS_trivy-fs-reports
