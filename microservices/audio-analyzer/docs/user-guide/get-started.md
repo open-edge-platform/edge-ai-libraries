@@ -12,7 +12,7 @@ Before you begin, ensure the following:
 
 - **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. Make sure the `docker` command can be run without
-`sudo`. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
+`sudo`. For installation instructions, see [Get Docker](https://docs.docker.com/get-started/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
@@ -32,7 +32,7 @@ explicitly (default: tiny.en or first model from ENABLED_WHISPER_MODELS list, if
 not available)
 - `GGML_MODEL_DIR`: Directory for downloading GGML models (for CPU inference)
 - `MAX_FILE_SIZE`: Maximum allowed file size in bytes (default: 100MB)
-- `DEFAULT_DEVICE`: Device to use for transcription - 'cpu', 'gpu', or 'auto' (default: cpu). 
+- `DEFAULT_DEVICE`: Device to use for transcription - 'cpu', 'gpu', or 'auto' (default: cpu).
 - `STORAGE_BACKEND`: Storage backend to use - 'minio' or 'local'.
 
 **MinIO Configuration (Advanced Setup)**
@@ -57,7 +57,7 @@ Refer to [supported models](./index.md#available-whisper-models) for the list of
 
 ## Quick Start
 
-There are following **four different options** to setup and run the application. 
+There are following **four different options** to setup and run the application.
 
 ### Recommended Setup
 
@@ -67,8 +67,8 @@ There are following **four different options** to setup and run the application.
 
 2.  [Build and run on host using setup script](./get-started/build-from-source.md#build-and-run-on-host-using-setup-script) : Application is built from source and runs directly on host. No external storage dependency. Storage backend used is `local` and **can not** be overriden.
 
-3.  [Build and run in container using Docker script](./get-started/build-from-source.md#build-and-run-in-container-using-docker-script) : _(Not Recommended)_ Docker script helps build docker image for the application from the source code and deploy it with **optional Minio dependency**. 
-    -   Storage backend used here is `minio` but [can be overridden](#overriding-storage-backends) to use `local`. 
+3.  [Build and run in container using Docker script](./get-started/build-from-source.md#build-and-run-in-container-using-docker-script) : _(Not Recommended)_ Docker script helps build docker image for the application from the source code and deploy it with **optional Minio dependency**.
+    -   Storage backend used here is `minio` but [can be overridden](#overriding-storage-backends) to use `local`.
     -   In case `minio` storage backend is used, this setup also brings up Minio server container along with application container and configures the integration between both services.
     -   If storage backend is overridden to use `local`, no Minio server containers will be brought up.
 

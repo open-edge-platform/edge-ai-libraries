@@ -18,8 +18,8 @@ For understanding the other ways of ingesting data, UDF deployment package confi
 
 - [Overview](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/index.md)
 - [Get Started](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/get-started.md)
-- [How to configure alerts](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/configure-alerts.md)
-- [How to configure custom UDF](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/configure-custom-udf.md)
+- [How to Configure Alerts](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/configure-alerts.md)
+- [Deploy with Custom UDF](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/configure-custom-udf.md)
 
 ## Summary
 

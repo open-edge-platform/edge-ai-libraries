@@ -11,7 +11,7 @@
 
 1. **Run Docker as Non-Root**: Follow the steps in [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
 2. **Configure Proxy (if required)**:
-   - Set up proxy settings for Docker client and containers as described in [Docker Proxy Configuration](https://docs.docker.com/network/proxy/).
+   - Set up proxy settings for Docker client and containers as described in [Docker Proxy Configuration](https://docs.docker.com/engine/cli/proxy/).
    - Example `~/.docker/config.json`:
 
      ```json
@@ -125,7 +125,7 @@ The `mqtt` section specifies the MQTT broker details for sending alerts.
 | Key                 | Description                                                                 | Example Value          |
 |---------------------|-----------------------------------------------------------------------------|------------------------|
 | `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
-| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                |
+| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                 |
 | `name`              | The name of the MQTT broker configuration.                                  | `"my_mqtt_broker"`     |
 
 ### `config/`

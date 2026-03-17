@@ -58,8 +58,7 @@ Please refer to [Running inferencing on GPU](https://github.com/open-edge-platfo
 | `mqtt_broker_port`  | Yes       | The port number of the MQTT broker.                         | `1883`                 |
 | `name`              | Yes       | The name of the MQTT broker configuration.                  | `"my_mqtt_broker"`     |
 
-
-For more information on how to configure MQTT alerts, refer to [Publishing MQTT Alerts](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2025.2.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/how-to-configure-alerts.md#docker---publish-mqtt-alerts)
+For more information on how to configure MQTT alerts, refer to [Publishing MQTT Alerts](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.0.0/manufacturing-ai-suite/industrial-edge-insights-time-series/docs/user-guide/how-to-guides/configure-alerts.md#docker---publish-mqtt-alerts)
 
 > **Note:**
 >
@@ -82,4 +81,3 @@ For more information on how to configure OPC-UA alerts, refer to [Publishing OPC
 >   for this code to function properly.
 > - Ensure the server is accessible and the connection parameters (endpoint URL, security settings, credentials)
 > are correctly configured before attempting to connect.
-

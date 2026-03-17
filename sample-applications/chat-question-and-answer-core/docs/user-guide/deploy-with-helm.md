@@ -5,16 +5,17 @@ This guide provides step-by-step instructions for deploying the Chat Question-an
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
+
 - Kubernetes cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
-- Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
-- Install `helm` on your system. Refer to [Installation Guide](https://helm.sh/docs/intro/install/).
+- Install `kubectl` on your system. Refer to its [Installation Guide](https://kubernetes.io/docs/tasks/tools/#kubectl). Ensure access to the Kubernetes cluster.
+- Install `helm` on your system. Refer to the [Installation Guide](https://helm.sh/docs/intro/install/).
 
 ## Steps to deploy with Helm
 
 You can deploy the ChatQ&A Core application using `Helm` in **two ways**: by pulling the Helm chart from Docker Hub or by building it from the source code. Follow the steps below based on your preferred method.
 
-**_⚠️ Note: Steps 1–3 differ depending on whether you choose to pull the chart or build it from source._**
+**_Note: Steps 1–3 differ depending on whether you choose to pull the chart or build it from source._**
 
 ### Option 1: Pull the Helm Chart from Docker Hub
 
@@ -26,8 +27,7 @@ Use the following command to pull the Helm chart from [Docker Hub](https://hub.d
 helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core --version <version-no>
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for details on the latest version number to use for the sample application.
-
+Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for details on the latest version number to use for the sample application.
 
 #### Step 2: Extract the Chart
 
@@ -58,7 +58,6 @@ GPU support only enabled for OpenVINO toolkit framework.
 
 For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./get-started/system-requirements.md) section.
 
-
 | Key | Description | Example Value | Required When | Supported Framework (OpenVINO/Ollama) |
 | --- | ----------- | ------------- | ------------- | ------------------- |
 | `configmap.enabled` | Enable use of ConfigMap for model configuration. Set to true to use ConfigMap; otherwise, defaults in the application are used. (true/false) | true | Always. Default to `true` in `values.yaml` | Both |
@@ -77,7 +76,7 @@ For detailed information on supported and validated hardware platforms and confi
 | `gpu.enabled` | Deploy on GPU (true/false) | false | Optional | OpenVINO |
 | `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin. Example - `gpu.intel.com/i915`, `gpu.intel.com/xe`. Identify by running `kubectl describe node` | `<your-node-key-on-cluster>` | If `gpu.enabled = true` | OpenVINO |
 
-**🔍NOTE**:
+**NOTE**:
 
 - If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template [here](../../model_config/sample/).
 
@@ -86,7 +85,6 @@ A validation check is included and will throw an error if any of these parameter
 
 - When `gpu.enabled` is set to `true`, the default value for these device parameters is GPU. On systems with an integrated GPU, the device ID is always 0 (i.e., GPU.0), and GPU is treated as an alias for GPU.0.
 For systems with multiple GPUs (e.g., both integrated and discrete Intel GPUs), you can specify the desired devices using comma-separated IDs such as GPU.0, GPU.1 and etc.
-
 
 ### Option 2: Install from Source
 
@@ -171,6 +169,7 @@ If any changes are made to the subcharts, update the Helm dependencies using the
 ```bash
 helm dependency update
 ```
+
 ### Step 9: Uninstall Helm chart
 
 To uninstall helm charts deployed, use the following command:
@@ -187,10 +186,13 @@ helm uninstall <name> -n <your-namespace>
 ## Troubleshooting
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
+
   ```bash
   kubectl logs <pod_name>
   ```
+
 - If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, it must be deleted manually using the following commands:
+
   ```bash
   # List the PVCs present in the given namespace
   kubectl get pvc -n <namespace>
@@ -198,6 +200,7 @@ helm uninstall <name> -n <your-namespace>
   # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
+
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
