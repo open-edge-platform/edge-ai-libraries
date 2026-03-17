@@ -32,7 +32,9 @@ Details about the changes, improvements, and known issues in this release of the
 
 - **Redesigned pipeline editor layout**:
   - A refined pipeline nodes view with flow visualization and automatic adjustment to the results charts window.
-  - A new navigation view between pages and an updated overall look and feel.
+
+- **New navigation and updated look and feel**:
+  - A new navigation view between pages and an updated overall look and feel across the application.
 
 - **New predefined pipelines**:
   - **Retail analytics**: Face detection, age/gender recognition, YOLO 11n object detection, and
