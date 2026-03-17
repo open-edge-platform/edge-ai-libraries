@@ -1,4 +1,5 @@
 # Defining Media Analytics Pipelines
+
 | [Pipeline Definition Files](#pipeline-definition-files) | [Pipeline Discovery](#how-pipeline-definition-files-are-discovered-and-loaded) | [Pipeline Definition](#pipeline-definition) | [Source Abstraction](#source-abstraction) | [Pipeline Parameters](#pipeline-parameters) | [Deep Learning Models](#deep-learning-models) |
 
 Media analytics pipelines are directed graphs of audio/video
@@ -45,6 +46,7 @@ Here is a sample directory listing:
 > `pipeline.json` by convention.
 
 ## Pipeline Definition
+
 The pipeline property within a `config.json` file describes the order and type of operations
 in the media analytics pipeline. The syntax of the template property is specific to the
 underlying framework, i.e. `GStreamer`. Pipeline use the `source`, `destination` and
@@ -80,10 +82,12 @@ dynamically defined by the calling application.
 > usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
 
 #### Source Abstraction
+
 `{auto_source}` is a virtual source that is updated with the appropriate GStreamer element and properties at request time.
 The GStreamer element is chosen based on the `type` specified in the source section of the request (shown below), making pipelines flexible as they can be reused for source media of different types.
 
 **Sample video pipeline**
+
 ```
 "pipeline": "{auto_source}",
             " ! gvadetect model={models[person_vehicle_bike_detection][1][network]} name=detection",
@@ -96,6 +100,7 @@ The GStreamer element is chosen based on the `type` specified in the source sect
 > usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
 
 **Sample audio pipeline**
+
 ```
 "pipeline": "{auto_source} ! audioresample ! audioconvert",
             " ! audio/x-raw, channels=1,format=S16LE,rate=16000 ! audiomixer name=audiomixer",
@@ -250,8 +255,7 @@ provide details on how those parameters are interpreted by the
 The `parameters` section of a pipeline request is a JSON object. The
 `parameters` section of a pipeline definition is the JSON schema for
 that JSON object. For more details on JSON schemas please refer to JSON schema
-[documentation](https://json-schema.org/understanding-json-schema/reference/object.html).
-
+[documentation](https://json-schema.org/understanding-json-schema/reference/object).
 
 **Example:**
 
@@ -747,13 +751,15 @@ If such a file exists, the Pipeline Server automatically looks for this file in 
 For more details on model proc and labels see [Model Proc File](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_proc_file.md).
 
 #### Deep Learning Streamer (DL Streamer)
+
 For more information on DL Streamer `model-proc` files and samples for
 common models please see the DL Streamer
 [documentation](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
 and
-[samples](https://github.com/dlstreamer/dlstreamer/tree/master/samples).
+[samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
 
 #### FFmpeg Video Analytics
+
 For `model-proc` files for use with `FFmpeg Video Analytics` please
 see the following [samples](https://github.com/VCDP/FFmpeg-patch/tree/ffmpeg4.2_va/samples/model_proc)
 

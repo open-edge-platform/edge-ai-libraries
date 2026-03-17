@@ -71,7 +71,7 @@ Installation
 
    .. attention::
 
-      Please review `Canonical Intellectual property rights policy <https://ubuntu.com/legal/intellectual-property-policy>`_ regarding |Ubuntu|. Note that any redistribution of modified versions of |Ubuntu| must be approved, certified or provided by Canonical if you are going to associate it with the Trademarks. Otherwise you must remove and replace the Trademarks and will need to recompile the source code to create your own binaries.
+      Please review `Canonical Intellectual property rights policy <https://canonical.com/legal/intellectual-property-policy>`_ regarding |Ubuntu|. Note that any redistribution of modified versions of |Ubuntu| must be approved, certified or provided by Canonical if you are going to associate it with the Trademarks. Otherwise you must remove and replace the Trademarks and will need to recompile the source code to create your own binaries.
 
 #. Reboot the target system.
 
