@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from helpers.api_helpers import convert_to_advanced, fetch_pipelines
-from config import BASE_URL
+from helpers.config import BASE_URL
 
 logger = logging.getLogger(__name__)
 

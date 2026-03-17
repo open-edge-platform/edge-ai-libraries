@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import requests
 
-from config import BASE_URL
+from helpers.config import BASE_URL
 from helpers.api_helpers import wait_for_job_completion
 
 logger = logging.getLogger(__name__)

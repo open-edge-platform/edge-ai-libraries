@@ -7,7 +7,7 @@ import pytest
 import requests
 import yaml
 
-from config import DEFAULT_RECORDINGS_YAML, SUPPORTED_MODELS_YAML
+from helpers.config import DEFAULT_RECORDINGS_YAML, SUPPORTED_MODELS_YAML
 
 
 @pytest.fixture(scope="session")

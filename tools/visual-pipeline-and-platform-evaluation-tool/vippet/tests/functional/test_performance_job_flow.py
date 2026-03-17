@@ -13,7 +13,7 @@ from helpers.api_helpers import (
     start_performance_job,
     wait_for_job_completion,
 )
-from config import BASE_URL
+from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import (
     PipelineCase,
     discover_pipeline_cases_for_pytest,

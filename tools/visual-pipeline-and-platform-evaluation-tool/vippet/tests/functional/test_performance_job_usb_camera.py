@@ -8,7 +8,7 @@ from collections.abc import Generator
 import pytest
 import requests
 
-from config import BASE_URL
+from helpers.config import BASE_URL
 from helpers.api_helpers import (
     JsonDict,
     convert_to_advanced,

@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 import requests
 
-from config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
+from helpers.config import BASE_URL, POLL_INTERVAL_SECONDS, POLL_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 

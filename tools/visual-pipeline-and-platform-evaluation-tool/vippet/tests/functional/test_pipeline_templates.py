@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from helpers.api_helpers import fetch_pipeline_templates
-from config import BASE_URL
+from helpers.config import BASE_URL
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from helpers.api_helpers import (
     start_optimization_job,
     wait_for_job_completion,
 )
-from config import BASE_URL
+from helpers.config import BASE_URL
 
 logger = logging.getLogger(__name__)
 

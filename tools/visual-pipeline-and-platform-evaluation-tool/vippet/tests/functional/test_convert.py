@@ -5,7 +5,7 @@ import logging
 import pytest
 import requests
 
-from config import BASE_URL
+from helpers.config import BASE_URL
 from helpers.api_helpers import JsonDict
 
 logger = logging.getLogger(__name__)
