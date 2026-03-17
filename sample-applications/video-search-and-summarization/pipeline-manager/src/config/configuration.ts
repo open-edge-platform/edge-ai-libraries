@@ -70,6 +70,7 @@ export default () => ({
   openai: {
     usecase: 'default',
     useOVMS: process.env.USE_OVMS ?? CONFIG_STATE.OFF,
+    useVLLM: process.env.USE_VLLM ?? CONFIG_STATE.OFF,
     llmSummarization: {
       apiKey: process.env.LLM_SUMMARIZATION_KEY ?? '',
       apiBase: process.env.LLM_SUMMARIZATION_API,

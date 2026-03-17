@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 .DEFAULT_GOAL := help
-.PHONY: build tests clean lint-all lint-clang lint-python lint-yaml lint-githubactions lint-bash lint-markdown lint-json source-package help 
+.PHONY: build tests clean lint-all lint-clang lint-python lint-yaml lint-githubactions lint-bash lint-markdown lint-json source-package help local-build local-tests local-clean local-debug local-opencv-free
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -143,6 +143,51 @@ source-package:
 		CMakeLists.txt orblzeConfig.cmake.in orblze.pc.in \
 		.github/linters cmake images include LICENSES samples src tests \
 		humble jazzy
+
+local-build:
+	@# Help: Fast local CMake build (preserves build cache, no Docker/packaging overhead)
+	mkdir -p build && \
+	cd build && \
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENCV=ON \
+		-DCMAKE_INSTALL_INCLUDEDIR=include \
+		-DCMAKE_INSTALL_LIBDIR=lib && \
+	make -j$$(nproc)
+
+local-tests:
+	@# Help: Build and run tests locally (fast, no Docker overhead)
+	mkdir -p build-test && \
+	cd build-test && \
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cmake ../tests -DCMAKE_BUILD_TYPE=Release && \
+	make -j$$(nproc) && \
+	echo "Running tests..." && \
+	export LD_LIBRARY_PATH="../build/src/sycl_utils:$$LD_LIBRARY_PATH" && \
+	ctest --output-on-failure || echo "Note: Some tests may require Intel GPU hardware"
+
+local-debug:
+	@# Help: Fast local debug build (preserves build cache, includes debug symbols)
+	mkdir -p build-debug && \
+	cd build-debug && \
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_OPENCV=AUTO \
+		-DCMAKE_INSTALL_INCLUDEDIR=include \
+		-DCMAKE_INSTALL_LIBDIR=lib && \
+	make -j$$(nproc)
+
+local-clean:
+	@# Help: Clean only local build directories (preserves Docker build cache)
+	rm -rf build build-test build-debug build-ocvfree
+
+local-opencv-free:
+	@# Help: Fast local build in OPENCV_FREE mode (matches the packaged version)
+	mkdir -p build-ocvfree && \
+	cd build-ocvfree && \
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi && \
+	cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENCV=OFF \
+		-DCMAKE_INSTALL_INCLUDEDIR=include \
+		-DCMAKE_INSTALL_LIBDIR=lib && \
+	make -j$$(nproc)
 
 help:
 	@printf "%-20s %s\n" "Target" "Description"

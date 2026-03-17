@@ -12,6 +12,7 @@ import { TemplateService } from './template.service';
 import { ModelInfo } from 'src/state-manager/models/state.model';
 import { OpenaiHelperService } from './openai-helper.service';
 import { FeaturesService } from 'src/features/features.service';
+import { CONFIG_STATE } from 'src/features/features.model';
 import { InferenceCountService } from './inference-count.service';
 
 interface ImageCompletionParams extends CompletionQueryParams {
@@ -51,15 +52,24 @@ export class VlmService {
   private defaultParams(): CompletionQueryParams {
     const accessKey = ['openai', 'vlmCaptioning', 'defaults'].join('.');
     const params: CompletionQueryParams = {};
+    const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
 
-    if (this.$config.get(`${accessKey}.doSample`) !== null) {
-      params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
+    // For do_sample and seed parameters:
+    // These are not supported by vLLM - skip them. Apply for OVMS and internal VLM Microservice.
+    if (!isVllm) {
+      if (this.$config.get(`${accessKey}.doSample`) !== null) {
+        params.do_sample = this.$config.get(`${accessKey}.doSample`)!;
+      }
+      if (this.$config.get(`${accessKey}.seed`) !== null) {
+        params.seed = +this.$config.get(`${accessKey}.seed`)!;
+      }
     }
-    if (this.$config.get(`${accessKey}.seed`) !== null) {
-      params.seed = +this.$config.get(`${accessKey}.seed`)!;
-    }
+
     if (this.$config.get(`${accessKey}.temperature`)) {
-      params.temperature = +this.$config.get(`${accessKey}.temperature`)!;
+      const configuredTemp = +this.$config.get(`${accessKey}.temperature`)!;
+      params.temperature = isVllm && configuredTemp < 0.01 ? 0.01 : configuredTemp;
+    } else if (isVllm) {
+      params.temperature = 0.01;
     }
     if (this.$config.get(`${accessKey}.topP`)) {
       params.top_p = +this.$config.get(`${accessKey}.topP`)!;
@@ -179,25 +189,19 @@ export class VlmService {
     try {
       this.$inferenceCount.incrementVlmProcessCount();
       console.log(userQuery, imageUri);
+      const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
 
-      let content: any[];
-
-      if (imageUri.length === 1) {
-        // Single image case
-        content = [
-          {
+      // vLLM: always map each URI to image_url.
+      // OVMS / internal VLM Microservice: single image → image_url, multiple → video type.
+      const content: any[] = isVllm
+        ? imageUri.map((url) => ({
             type: 'image_url',
-            image_url: { url: imageUri[0] },
-          },
-        ];
-      } else {
-        content = [
-          {
-            type: 'video',
-            video: imageUri.map((url) => url),
-          },
-        ];
-      }
+            image_url: { url },
+          }))
+        : (imageUri.length === 1
+            ? [{ type: 'image_url', image_url: { url: imageUri[0] } }]
+            : [{ type: 'video', video: imageUri.map((url) => url) }]
+          );
 
       const messages: any[] = [
         {
@@ -207,12 +211,13 @@ export class VlmService {
         },
       ];
 
-      const completions = await this.client.chat.completions.create({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const requestPayload = {
         messages,
         model: this.model,
         ...this.defaultParams(),
-      });
+      };
+
+      const completions = await this.client.chat.completions.create(requestPayload);
 
       let result: string | null = null;
 

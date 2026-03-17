@@ -1,0 +1,120 @@
+{{- $global := default (dict) .Values.global -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vllm.fullname" . }}
+  labels:
+    app: {{ include "vllm.fullname" . }}
+    {{- include "vllm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "vllm.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "vllm.fullname" . }}
+        {{- include "vllm.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      securityContext:
+        fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              name: http
+              protocol: TCP
+          securityContext:
+            runAsNonRoot: {{ .Values.containerSecurityContext.runAsNonRoot }}
+            privileged: {{ .Values.containerSecurityContext.privileged }}
+          env:
+            {{- if $global.huggingfaceToken }}
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: "{{ $global.huggingfaceToken }}"
+            {{- else if .Values.env.huggingfaceToken }}
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: "{{ .Values.env.huggingfaceToken }}"
+            {{- end }}
+            - name: HF_HOME
+              value: "{{ .Values.env.hfHome }}"
+            - name: VLLM_CPU_KVCACHE_SPACE
+              value: "{{ .Values.env.vllmCpuKvCacheSpace }}"
+            - name: VLLM_RPC_TIMEOUT
+              value: "{{ .Values.env.vllmRpcTimeout }}"
+            - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
+              value: "{{ .Values.env.vllmAllowLongMaxModelLen }}"
+            - name: VLLM_ENGINE_ITERATION_TIMEOUT_S
+              value: "{{ .Values.env.vllmEngineIterationTimeoutS }}"
+            - name: VLLM_CPU_NUM_OF_RESERVED_CPU
+              value: "{{ .Values.env.vllmCpuNumReservedCpu }}"
+            {{- if .Values.env.vllmLoggingLevel }}
+            - name: VLLM_LOGGING_LEVEL
+              value: "{{ .Values.env.vllmLoggingLevel }}"
+            {{- end }}
+          args:
+            - "--dtype"
+            - "{{ .Values.model.dtype }}"
+            - "--distributed-executor-backend"
+            - "{{ .Values.model.distributedExecutorBackend }}"
+            {{- if .Values.model.trustRemoteCode }}
+            - "--trust-remote-code"
+            {{- end }}
+            - "--block-size"
+            - "{{ .Values.model.blockSize }}"
+            {{- if .Values.model.enableChunkedPrefill }}
+            - "--enable-chunked-prefill"
+            {{- end }}
+            - "--max-num-batched-tokens"
+            - "{{ .Values.model.maxNumBatchedTokens }}"
+            - "--max-num-seqs"
+            - "{{ .Values.model.maxNumSeqs }}"
+            {{- if .Values.model.enableLogRequests }}
+            - "--enable-log-requests"
+            {{- end }}
+            - "--model"
+            - "{{ default .Values.model.name $global.vlmName }}"
+            - "--tensor-parallel-size"
+            - "{{ .Values.model.tensorParallelSize }}"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: {{ .Values.probes.startup.port }}
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: {{ .Values.probes.liveness.port }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: {{ .Values.probes.readiness.port }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: cache
+              mountPath: {{ .Values.volumes.cache.mountPath }}
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.volumes.shm.sizeLimit }}
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ .Values.pvc.name }}
