@@ -1,6 +1,9 @@
 name: "[DLSPS] [U22/U24] Build weekly cache imgs"
 run-name: "[DLSPS] [U22/U24] Build weekly cache imgs"
 on:
+  push:
+    branches:
+      - 'main'
   schedule:
     - cron: '0 5 * * MON' # 5:00 UTC each Monday
   workflow_dispatch:
