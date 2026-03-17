@@ -50,6 +50,27 @@ spec:
               done
               echo "OVMS service is ready!"
         {{- end }}
+        {{- if .Values.vllm.enabled }}
+        - name: wait-for-vllm
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for vLLM service to be ready..."
+              RETRIES=0
+              MAX_RETRIES=120
+              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.vllm.service.name }}:{{ .Values.vllm.service.port }}/health; do
+                RETRIES=$((RETRIES+1))
+                echo "vLLM service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.vllm.service.name }}:{{ .Values.vllm.service.port }}/health"
+                if [ $RETRIES -ge $MAX_RETRIES ]; then
+                  echo "vLLM service health check failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+                sleep 10
+              done
+              echo "vLLM service is ready!"
+        {{- end }}
         {{- if .Values.vlminference.enabled }}
         - name: wait-for-vlm
           image: curlimages/curl:latest
@@ -75,9 +96,13 @@ spec:
           ports:
             - containerPort: 3000
               name: {{ .Values.pipelinemanager.containerPortName }}
+          {{- with .Values.pipelinemanager.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,{{ .Values.vllm.service.name }},{{ .Values.vllm.service.name }}.{{ .Release.Namespace }}.svc.cluster.local,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -113,7 +138,7 @@ spec:
             - name: LLM_SUMMARIZATION_KEY
               value: "{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_KEY }}"
             - name: LLM_SUMMARIZATION_API
-              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
+              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else if .Values.vllm.enabled }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
             - name: LLM_SUMMARIZATION_DEVICE
               value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
             - name: LLM_MODEL_NAME
@@ -121,7 +146,7 @@ spec:
             - name: VLM_CAPTIONING_KEY
               value: "{{ .Values.pipelinemanager.env.VLM_CAPTIONING_KEY }}"
             - name: VLM_CAPTIONING_API
-              value: "http://{{ .Values.vlminference.name }}:8000/v1"
+              value: {{ if .Values.vllm.enabled }}{{ printf "http://%s:%d/v1" (default "cpu-vllm-service" .Values.vllm.service.name) (default 80 .Values.vllm.service.port | int) | quote }}{{ else }}{{ printf "http://%s:8000/v1" .Values.vlminference.name | quote }}{{ end }}
             - name: VLM_CAPTIONING_DEVICE
               value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}{{ .Values.pipelinemanager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
@@ -176,6 +201,8 @@ spec:
             {{- end }}
             - name: USE_OVMS
               value: "{{ .Values.pipelinemanager.env.USE_OVMS }}"
+            - name: USE_VLLM
+              value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"
           {{- if .Values.vsscollector.enabled }}
           volumeMounts:
             - name: collector-signals
@@ -188,8 +215,6 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      tolerations:
-        {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
       tolerations:
         {{- toYaml .Values.pipelinemanager.tolerations | nindent 8 }}
       {{- if .Values.vsscollector.enabled }}

@@ -1,0 +1,87 @@
+nameOverride: ""
+fullnameOverride: ""
+
+deployment:
+  replicaCount: 1
+
+image:
+  repository: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo
+  tag: v0.13.0
+  pullPolicy: IfNotPresent
+
+serviceAccountName: default
+
+podSecurityContext:
+  fsGroup: 0
+
+containerSecurityContext:
+  runAsNonRoot: false
+  privileged: false
+
+service:
+  name: cpu-vllm-service
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+pvc:
+  enabled: true
+  name: vllm-model-cache
+  accessModes:
+    - ReadWriteOnce
+  size: 80Gi
+
+resources: {}
+
+env:
+  huggingfaceToken: ""
+  hfHome: /cache
+  vllmCpuKvCacheSpace: "48"
+  vllmRpcTimeout: "100000"
+  vllmAllowLongMaxModelLen: "1"
+  vllmEngineIterationTimeoutS: "120"
+  vllmCpuNumReservedCpu: "0"
+  vllmLoggingLevel: ""
+
+model:
+  name: ""
+  dtype: bfloat16
+  distributedExecutorBackend: mp
+  trustRemoteCode: true
+  blockSize: 128
+  enableChunkedPrefill: true
+  maxNumBatchedTokens: 2048
+  maxNumSeqs: 256
+  enableLogRequests: true
+  tensorParallelSize: 1
+
+probes:
+  startup:
+    path: /health
+    port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 40
+  liveness:
+    path: /health
+    port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 60
+    timeoutSeconds: 30
+    failureThreshold: 3
+  readiness:
+    path: /health
+    port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+volumes:
+  shm:
+    sizeLimit: 32Gi
+  cache:
+    mountPath: /cache
+
+containerPort: 8000

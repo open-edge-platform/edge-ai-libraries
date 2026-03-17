@@ -45,7 +45,7 @@ how-it-works
 how-to-access-api
 how-to-configure
 api-reference
-release-notes
+Release Notes <release-notes.md>
 
 :::
 

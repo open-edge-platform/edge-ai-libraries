@@ -27,7 +27,7 @@ For older release notes, check out:
 :maxdepth: 5
 :hidden:
 
-./release-notes/release-notes-2025.md
+Release Notes 2025 <./release-notes/release-notes-2025.md>
 
 ```
 hide_directive-->

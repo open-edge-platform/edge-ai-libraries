@@ -63,6 +63,10 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
           imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          {{- with .Values.videoingestion.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.videoingestion.containerPort }}
               name: {{ .Values.videoingestion.containerPortName }}
