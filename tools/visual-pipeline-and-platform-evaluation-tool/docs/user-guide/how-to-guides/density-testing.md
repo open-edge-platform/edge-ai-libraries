@@ -81,25 +81,11 @@ Example:
 - Pipeline B: `40`
 - Total: `100` (valid)
 
-## Important constraints
-
-- Duplicate pipeline references are not allowed. Each pipeline must be unique in the request.
-- Density tests do not support `live_stream` output mode.
-- Use only `disabled` or `file` for `output_mode`.
-- For stable comparison between platforms, keep the same FPS floor, input data, and pipeline configuration.
-
-## Typical errors
-
-Common request validation errors:
-
-- `Pipeline` field cannot be empty
-- `Participation Rate` must sum to `100%` for all pipelines
-- Duplicate pipeline identifier in one request
-
 ## Result interpretation
 
 Use density results together with performance metrics:
 
 - Higher **total streams** at the same FPS floor indicates better density.
 - **Per-stream FPS** should stay at or above the configured floor.
+- For stable comparison between platforms, keep the same FPS floor, input data, and pipeline configuration.
 - Compare results across devices using the same test profile.
