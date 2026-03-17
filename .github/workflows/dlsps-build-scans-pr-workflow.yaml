@@ -87,11 +87,11 @@ jobs:
         echo "BASE_IMAGE which will be used for Unit tests: ${BASE_IMAGE}"
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         make build
-        make test | tee /tmp/pytest_output.txt
+        make test | tee /tmp/pytest_output-${{ matrix.ubuntu_version }}.txt
 
     - name: Create Unit Test Summary
       run: |
-        pytest_output=$(cat /tmp/pytest_output.txt)
+        pytest_output=$(cat /tmp/pytest_output-${{ matrix.ubuntu_version }}.txt)
         summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
         echo "### Unit Test Completed for DLSPS commit id ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
@@ -102,7 +102,7 @@ jobs:
     - name: Upload unit test results to Github
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: DLSPS_Coverage-reports
+        name: DLSPS_Coverage-reports-${{ matrix.ubuntu_version }}
         path: /tmp/htmlcov
 
     - name: Scan Docker image with Trivy
