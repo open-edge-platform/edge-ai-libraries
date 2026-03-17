@@ -60,6 +60,10 @@ jobs:
         "${DLS_PATH}"
         echo "BASE_IMAGE=${deb_final_img}" >> $GITHUB_ENV
 
+    - name: Switch back to default Docker builder
+      run: |
+        docker buildx use default
+
     - name: Build dls-pipeline-server-img
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
