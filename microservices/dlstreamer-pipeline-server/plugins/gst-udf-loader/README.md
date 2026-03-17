@@ -9,7 +9,7 @@
 
 # User Defined Functions (UDF) Overview
 For more information about User Defined Functions (UDFs), refer to this [link.](../../common/video/udfs/README.md)
-- Sample Python UDFs here [udfs/python](../user_scripts/udfs/python)
+- Sample Python UDFs here [udfs/python](../../user_scripts/udfs/python)
 
 ## UDF Config
 For more information about UDF configuration, refer to this [link](../../common/video/udfs/README.md).
@@ -32,7 +32,7 @@ Examples of UDF config with native and python udfs together
 }
 ```
 
-##  Gstreamer `udfloader` Plug-in 
+## Gstreamer `udfloader` Plug-in
 
 Gstreamer `udfloader` plug-in supports loading and executing of python [UDFs](../user_scripts/udfs).
 
