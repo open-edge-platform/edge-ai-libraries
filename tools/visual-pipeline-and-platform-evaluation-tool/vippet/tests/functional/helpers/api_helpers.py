@@ -228,7 +228,6 @@ def poll_job_not_failed(
     )
 
     deadline = time.monotonic() + duration_seconds
-    last_status = initial
     while time.monotonic() < deadline:
         time.sleep(poll_interval)
         response = session.get(status_url, timeout=30)
