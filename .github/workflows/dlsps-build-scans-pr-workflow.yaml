@@ -111,7 +111,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
       with:
-        scan_target: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
+        scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -137,7 +137,7 @@ jobs:
     - name: Scan Docker extended image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@249a8bec26b242358cf0790a68cdc8f2f16aed6c #v0.69.3
       with:
-        scan_target: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
+        scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
