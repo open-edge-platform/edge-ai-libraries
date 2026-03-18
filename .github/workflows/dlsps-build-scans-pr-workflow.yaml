@@ -202,7 +202,7 @@ jobs:
         count_vulns() {
           local file=$1
           if [ -f "$file" ]; then
-            grep -E "Total: [0-9]+" "$file" \
+            grep -E "Total: [0-9]+" "$file" 2>/dev/null \
               | awk '{sum += $2} END {print sum+0}'
           else
             echo "N/A"
