@@ -215,7 +215,7 @@ jobs:
           if [ "$base_vulns" = "0" ] || [ -z "$base_vulns" ]; then
             echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ❌ **$base_vulns vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
@@ -228,7 +228,7 @@ jobs:
           if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
             echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ❌ **$base_vulns vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
