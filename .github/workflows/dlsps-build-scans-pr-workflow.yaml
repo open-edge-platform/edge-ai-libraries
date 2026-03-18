@@ -111,7 +111,7 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: table
+        format: json
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-img"
         scan-scope: all
         timeout: 20m
@@ -121,12 +121,12 @@ jobs:
       run: |
         echo "📝 Renaming Trivy report for base image..."
         if [ -d "security-results/trivy" ]; then
-          latest=$(ls -t security-results/trivy/trivy-results-*.table 2>/dev/null | head -n 1)
+          latest=$(ls -t security-results/trivy/trivy-results-*.json 2>/dev/null | head -n 1)
           if [ -n "$latest" ]; then
-            mv "$latest" "security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
-            echo "✅ Renamed to: trivy-base-${{ matrix.ubuntu_version }}.table"
+            mv "$latest" "security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.json"
+            echo "✅ Renamed to: trivy-base-${{ matrix.ubuntu_version }}.json"
           else
-            echo "⚠️ No .table file found to rename"
+            echo "⚠️ No .json file found to rename"
           fi
         fi
       shell: bash
@@ -137,7 +137,7 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: table
+        format: json
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-extended-img"
         scan-scope: all
         timeout: 20m
@@ -147,12 +147,12 @@ jobs:
       run: |
         echo "📝 Renaming Trivy report for extended image..."
         if [ -d "security-results/trivy" ]; then
-          latest=$(ls -t security-results/trivy/trivy-results-*.table 2>/dev/null | head -n 1)
+          latest=$(ls -t security-results/trivy/trivy-results-*.json 2>/dev/null | head -n 1)
           if [ -n "$latest" ]; then
-            mv "$latest" "security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
-            echo "✅ Renamed to: trivy-extended-${{ matrix.ubuntu_version }}.table"
+            mv "$latest" "security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.json"
+            echo "✅ Renamed to: trivy-extended-${{ matrix.ubuntu_version }}.json"
           else
-            echo "⚠️ No .table file found to rename"
+            echo "⚠️ No .json file found to rename"
           fi
         fi
       shell: bash
@@ -163,8 +163,8 @@ jobs:
       with:
         name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
         path: |
-          security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table
-          security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table
+          security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.json
+          security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.json
 
     - name: Run Trivy Filesystem Scan
       if: matrix.ubuntu_version == 'ubuntu22'
@@ -192,8 +192,8 @@ jobs:
         echo "### 🔍 Trivy Security Scan Results for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        base_file="security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
-        extended_file="security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
+        base_file="security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.json"
+        extended_file="security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.json"
 
         # Function to count vulnerabilities
         count_vulns() {
