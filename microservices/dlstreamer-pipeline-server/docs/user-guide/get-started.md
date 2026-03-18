@@ -25,8 +25,8 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 To check the render ID group you can use below command:
 
   ```sh
-     stat -c "%g" /dev/dri/render* | head -1
-   ```
+  stat -c "%g" /dev/dri/render* | head -1
+  ```
 
 - Pull the image with the latest tag from docker registry
 
