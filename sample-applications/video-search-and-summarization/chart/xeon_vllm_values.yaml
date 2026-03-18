@@ -29,16 +29,20 @@ pipelinemanager:
   env:
     USE_OVMS: "CONFIG_OFF"
     USE_VLLM: "CONFIG_ON"
+    TICK_INTERVAL_MS: "1000" # EVAM uses TICK (in milliseconds)
+    FAST_TICK_INTERVAL_MS: "100" # VLM/LLM uses FAST_TICK (in milliseconds)
+    LLM_CONCURRENT: "4"
+    VLM_CONCURRENT: "6"
 
 vllm:
   enabled: true
   resources:
     requests:
-      cpu: "48"
+      cpu: "16"
       memory: 128Gi
       ephemeral-storage: 40Gi
     limits:
-      cpu: "48"
+      cpu: "16"
       memory: 128Gi
       ephemeral-storage: 50Gi
 
@@ -47,7 +51,7 @@ audioanalyzer:
   audioanalyzer:
     resources:
       requests:
-        cpu: "4"
+        cpu: "2"
         memory: "4Gi"
       limits:
         cpu: "6"
@@ -58,7 +62,7 @@ videoingestion:
   videoingestion:
     resources:
       requests:
-        cpu: "6"
+        cpu: "3"
         memory: "6Gi"
       limits:
         cpu: "10"
@@ -89,7 +93,7 @@ vdmsdataprep:
   # Resource overrides for vdms-dataprep subchart
   resources:
     requests:
-      cpu: "2"
+      cpu: "1"
       memory: "6Gi"
     limits:
       cpu: "4"
@@ -99,7 +103,7 @@ vdmsvectordb:
   # Resource overrides for vdms-vectordb subchart
   resources:
     requests:
-      cpu: "4"
+      cpu: "2"
       memory: "32Gi"
     limits:
       cpu: "6"
