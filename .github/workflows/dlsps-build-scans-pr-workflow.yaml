@@ -1,6 +1,9 @@
 name: "[DLSPS] Build, scan and test"
 run-name: "[DLSPS] Build, scan and test (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
+  push:
+    branches:
+      - 'nsz-fix-trivy-img-dlsps'
   workflow_call:
   workflow_dispatch:
 permissions: {}
