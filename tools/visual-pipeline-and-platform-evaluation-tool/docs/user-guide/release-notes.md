@@ -1,42 +1,85 @@
-<!--
-# How to Use This Template
-
-1. **Purpose**:
-   - Summarize new features, improvements, bug fixes, and known issues for each release.
-   - Help developers quickly understand updates and adapt workflows accordingly.
-
-2. **Content Customization**:
-   - Replace placeholders (e.g., `[Version X.X.X]`, `[YYYY-MM-DD]`, `<description>`) with specific release details.
-   - Refer to the user stories in comments to understand what information developers expect to find.
-
-3. **Style Guidelines**:
-   - Use bullet points and concise descriptions for clarity.
-   - Organize changes by category: New Features, Improvements, Bug Fixes, and Known Issues.
-   - Use active voice and developer-focused language.
-   - Follow the **Microsoft Developer Writing Style Guide**.
-
-4. **GitHub Copilot Tool Can Help**:
-   - **For Style Adherence**:
-     - This template specifies the style guide to be followed, ask GitHub Copilot tool to check.
-     - GitHub Copilot tool can generate suggestions in line with the specified writing style.
-   - **To Validate Content Completeness**:
-     - The template includes in comments the user stories and acceptance criteria to be fulfilled by its content in
-       each section. GitHub Copilot tool can check if you have included all required information.
-5. **Validation**:
-   - Verify all details, links, and formatting before publishing.
-   - Ensure that descriptions are accurate and actionable.
-
--->
-
 # Release Notes
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [Version 2025.2]
+## Current Release: [2026.0.0]
+
+**Release Date**: [2026-03-25]
+
+### New Features (2026.0.0)
+
+- **Demo mode**:
+  - A dedicated demo page is available at the `/demo` endpoint, providing a streamlined presentation view
+    of the application with pre-configured scenarios and adjusted visual styling.
+
+- **Pipeline variants**:
+  - Each pipeline can now contain multiple variants (for example CPU, GPU, and NPU), each with its own
+    graph definition. Users can switch between variants to quickly match the pipeline to the available
+    hardware without creating separate pipelines.
+  - Variants are fully integrated across the pipeline editor, performance tests, density tests, and demo mode.
+
+- **Pipeline templates and creation from templates**:
+  - Predefined pipeline templates (such as Detect and Detect + Classify) are now available as read-only
+    starting points for creating new pipelines.
+  - Users can create a new pipeline from a template and customize it by selecting a model, input source,
+    and adding tags.
+
+- **Simple view for pipeline graphs**:
+  - A simplified pipeline view is now available alongside the advanced graph editor. It hides technical
+    GStreamer elements and shows only the key processing steps, making pipelines easier to understand
+    and configure for less advanced users.
+  - Changes made in the simple view are automatically synchronized with the advanced graph, and vice versa.
+
+- **Redesigned pipeline editor layout**:
+  - A refined pipeline nodes view with flow visualization and automatic adjustment to the results charts window.
+
+- **New navigation and updated look and feel**:
+  - A new navigation view between pages and an updated overall look and feel across the application.
+
+- **New predefined pipelines**:
+  - **Retail analytics**: Face detection, age/gender recognition, YOLO 11n object detection, and
+    EfficientNet B0 classification pipelines, each available in CPU and GPU variants.
+  - **Pallet defect detection**: AI-powered quality control pipelines for detecting defects on pallets,
+    available in CPU, GPU, and NPU variants.
+  - **Smart parking**: Parking-space occupancy detection pipelines with color classification support,
+    available in CPU, GPU, and NPU variants.
+  - All predefined pipelines include matching sample videos and model configurations.
+
+- **Camera discovery and management**:
+  - A new camera discovery service automatically detects both USB cameras (via `v4l2-ctl`) and network
+    cameras (via the ONVIF protocol with WS-Discovery).
+  - Discovered cameras are listed in a dedicated Cameras view, where network cameras can be authenticated
+    to retrieve their RTSP stream profiles.
+  - In the pipeline editor, users can choose between a video file and a camera as the input source directly
+    from a dropdown. Only authenticated network cameras appear in the list.
+
+- **Live pipeline output preview**:
+  - A WebRTC-based video player is integrated into the UI, enabling real-time preview of pipeline output
+    during execution. Live preview works with both video file and camera inputs.
+
+- **Timed pipeline execution**:
+  - Pipelines can now be configured to run for a specified duration. When the video file is shorter than
+    the requested time, it loops automatically. When the duration is reached, the pipeline stops gracefully.
+
+- **Redesigned metrics charts**:
+  - The performance view now displays up to eight live charts — including GPU frequency, GPU power consumption,
+    GPU memory usage, GPU utilization, CPU temperature, CPU frequency, CPU utilization, and CPU power —
+    depending on the available hardware. When multiple GPUs are present, users can select a specific device.
+  - After a pipeline run completes, the collected metrics and charts remain visible, allowing users to
+    review the full run results without data loss. Persistent charts are fully integrated across the
+    pipeline editor, performance tests, density tests, and demo mode.
+
+- **Custom gvapython scripts**:
+  - Users can now add custom Python scripts to pipelines using the `gvapython` element. A new guide
+    explains how to configure and integrate these scripts.
+
+---
+
+## 2025.2.0
 
 **Release Date**: [2025-12-10]
 
-### New Features (v2025.2)
+### New Features (2025.2.0)
 
 - **New graphical user interface (GUI)**:
   - A visual representation of the underlying `gst-launch` pipeline graph is provided, presenting elements, links, and
@@ -67,7 +110,7 @@ Details about the changes, improvements, and known issues in this release of the
   - Integration with the DL Streamer Optimizer has been added to simplify configuration of GStreamer-based pipelines.
   - Optimized elements and parameters can be applied automatically, improving performance and reducing manual tuning.
 
-### Improvements (v2025.2)
+### Improvements (2025.2.0)
 
 - **Model management enhancements**:
   - Supported models can now be added and removed directly through the application.
@@ -76,7 +119,7 @@ Details about the changes, improvements, and known issues in this release of the
 
 ---
 
-## Current Release: [Version 1.2]
+## v1.2
 
 **Release Date**: [2025-08-20]
 
@@ -95,7 +138,9 @@ Details about the changes, improvements, and known issues in this release of the
 
 - **Issue**: Metrics are displayed only for the last GPU when the system has multiple discrete GPUs.
 
-## Version 1.0.0
+---
+
+## v1.0.0
 
 **Release Date**: [2025-03-31]
 

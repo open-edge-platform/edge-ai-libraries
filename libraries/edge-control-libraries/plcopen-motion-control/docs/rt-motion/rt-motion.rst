@@ -8,7 +8,7 @@ The PLCopen motion standard provides a way to have standard and modular applicat
 
 The motion control market displays a wide variety of incompatible systems and solutions. In businesses where different systems are used, this incompatibility induces considerable costs for the end-users, learning is confusing, engineering becomes difficult, and the process of market growth slows down. Standardization would certainly reduce these negative factors. Standardization means not only the programming languages themselves, (as standardization is achieved using the worldwide IEC 61131-3 standard) but also standardizing the interface towards different motion control solutions. In this way the programming of these motion control solutions is less hardware dependent. The reusability of the application software is increased, and the costs involved in training and support are reduced.
 
-**RTmotion** is an C++ library created by Intel Corporation. **RTmotion** implements part of the single axis motion control function blocks defined in parts `1&2 <https://www.plcopen.org/download_file/force/9f19d854-2dbf-4e07-a2ff-e5ff1a3e293a/342/>`_ (PDF), `3 <https://www.plcopen.org/download_file/force/1f500e89-0c3c-467f-908b-85cd73e51a22/342/>`_ (PDF) and `5 <https://www.plcopen.org/download_file/force/a43abb73-7d50-4037-8da6-41fb9ae6a3c6/342/>`_ (PDF) of PLCopen motion control standard. The figure below shows the connections between **RTmotion** and other components in |ECI|.
+**RTmotion** is an C++ library created by Intel Corporation. **RTmotion** implements part of the single axis motion control function blocks defined in parts `1&2 <https://www.plcopen.org/download_file/force/9f19d854-2dbf-4e07-a2ff-e5ff1a3e293a/342/>`__ (PDF), `3 <https://www.plcopen.org/download_file/force/1f500e89-0c3c-467f-908b-85cd73e51a22/342/>`__ (PDF) and `5 <https://www.plcopen.org/download_file/force/a43abb73-7d50-4037-8da6-41fb9ae6a3c6/342/>`__ (PDF) of PLCopen motion control standard. The figure below shows the connections between **RTmotion** and other components in |ECI|.
 
 .. image:: ../assets/overview/softmotion_overview.png
    :width: 85%
@@ -128,7 +128,7 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
   * ``MC_CamTableSelect``: Selects the CAM tables by setting the connections to the relevant tables.
 - State Management
 
-  * RTmotion manages the axis states through a motion kernel in accordance with the state diagram defined in the section 2.1 of the PLCopen motion control part `1&2 <https://plcopen.org/downloads/plcopen-motion-control-part-1-version-20>`_.
+  * RTmotion manages the axis states through a motion kernel in accordance with the state diagram defined in the section 2.1 of the PLCopen motion control part `1&2 <https://plcopen.org/downloads/plcopen-motion-control-part-1-version-20>`__.
 - S-Curve Trajectory Plan
 
   * RTmotion supports trajectory planning with the continuous of acceleration to avoid generating torque spike that could damage the servo motor or influence control accuracy. Please refer to Level-2 5.1 for the details of s-curve planning.
