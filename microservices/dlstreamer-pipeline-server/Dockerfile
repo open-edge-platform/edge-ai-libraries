@@ -283,11 +283,11 @@ RUN . /etc/os-release && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir geti-sdk==2.7.1 && \
+        pip3 install --no-cache-dir geti-sdk==2.13.1 && \
         # clean up Rust installation files
         rm -rf /root/.cargo /root/.rustup; \
     else \
-        pip3 install --no-cache-dir geti-sdk==2.7.1; \
+        pip3 install --no-cache-dir geti-sdk==2.13.1; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
