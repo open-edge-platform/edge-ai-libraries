@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
@@ -91,6 +92,8 @@ export const PerformanceTests = () => {
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -195,6 +198,7 @@ export const PerformanceTests = () => {
   const handleRunTest = async () => {
     setTestResult(null);
     setErrorMessage(null);
+    startRecording();
     try {
       const hasCameraInput = pipelineSelections.some((selection) => {
         const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
@@ -234,6 +238,7 @@ export const PerformanceTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
+      freezeSnapshot(status.total_fps ?? status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -244,6 +249,7 @@ export const PerformanceTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+      freezeSnapshot(null);
     }
   };
 
@@ -548,74 +554,6 @@ export const PerformanceTests = () => {
           </Button>
         )}
 
-        {jobStatus && (
-          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              Test Status: {jobStatus.state}
-            </p>
-            {jobStatus.state === "RUNNING" && (
-              <div className="mt-2">
-                <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-magenta-chart"></div>
-                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
-                    Running performance test...
-                  </span>
-                </div>
-                {livePreviewEnabled &&
-                  jobStatus &&
-                  "live_stream_urls" in jobStatus &&
-                  jobStatus.live_stream_urls && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
-                        Live Preview:
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(jobStatus.live_stream_urls).map(
-                          ([pipelineRefKey]) => {
-                            const reference =
-                              parsePipelineVariantReference(pipelineRefKey);
-                            const streamUrl = getLiveStreamUrl(reference);
-
-                            return (
-                              <div
-                                key={reference.rawKey}
-                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
-                              >
-                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
-                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
-                                    <PipelineName
-                                      pipelineId={reference.pipelineId}
-                                      variantId={reference.variantId}
-                                    />
-                                  </p>
-                                </div>
-
-                                {streamUrl ? (
-                                  <div className="w-full aspect-video bg-black">
-                                    <WebRTCVideoPlayer
-                                      pipelineId={reference.pipelineId}
-                                      streamUrl={streamUrl}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
-                                    Waiting for live stream to be published...
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          },
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                <TestProgressIndicator />
-              </div>
-            )}
-          </div>
-        )}
-
         {errorMessage && (
           <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
@@ -691,6 +629,86 @@ export const PerformanceTests = () => {
                   </div>
                 </div>
               )}
+          </div>
+        )}
+
+        {jobStatus && (
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Test Status: {jobStatus.state}
+            </p>
+            {jobStatus.state === "RUNNING" && (
+              <div className="mt-2">
+                <div className="animate-pulse flex items-center gap-2">
+                  <div className="h-2 w-2 bg-magenta-chart"></div>
+                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
+                    Running performance test...
+                  </span>
+                </div>
+                {livePreviewEnabled &&
+                  jobStatus &&
+                  "live_stream_urls" in jobStatus &&
+                  jobStatus.live_stream_urls && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                        Live Preview:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(jobStatus.live_stream_urls).map(
+                          ([pipelineRefKey]) => {
+                            const reference =
+                              parsePipelineVariantReference(pipelineRefKey);
+                            const streamUrl = getLiveStreamUrl(reference);
+
+                            return (
+                              <div
+                                key={reference.rawKey}
+                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                              >
+                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                    <PipelineName
+                                      pipelineId={reference.pipelineId}
+                                      variantId={reference.variantId}
+                                    />
+                                  </p>
+                                </div>
+
+                                {streamUrl ? (
+                                  <div className="w-full aspect-video bg-black">
+                                    <WebRTCVideoPlayer
+                                      pipelineId={reference.pipelineId}
+                                      streamUrl={streamUrl}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                    Waiting for live stream to be published...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                <TestProgressIndicator />
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isRunning && frozenSummary && (
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <TestProgressIndicator
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
           </div>
         )}
       </div>

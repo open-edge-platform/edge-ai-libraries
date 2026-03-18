@@ -109,7 +109,8 @@ export const Pipelines = () => {
   );
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
-  const detailsPanelSizeRef = useRef(30);
+  const nodeDetailsPanelSizeRef = useRef(24);
+  const runPanelSizeRef = useRef(35);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
@@ -355,8 +356,6 @@ export const Pipelines = () => {
       await stopPerformanceTest({
         jobId: jobStatus.id,
       }).unwrap();
-
-      setShowDetailsPanel(false);
       setCompletedVideoPath(null);
     } catch (error) {
       handleApiError(error, "Failed to stop pipeline");
@@ -412,6 +411,17 @@ export const Pipelines = () => {
   }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
+    const detailsPanelType: "node" | "run" | null = showDetailsPanel
+      ? selectedNode
+        ? "node"
+        : "run"
+      : null;
+    const activePanelSize =
+      detailsPanelType === "node"
+        ? nodeDetailsPanelSizeRef.current
+        : detailsPanelType === "run"
+          ? runPanelSizeRef.current
+          : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
 
@@ -435,6 +445,8 @@ export const Pipelines = () => {
             initialViewport={currentViewport}
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
+            showDetailsPanel={showDetailsPanel}
+            detailsPanelType={detailsPanelType}
           />
         </div>
       </div>
@@ -776,50 +788,66 @@ export const Pipelines = () => {
           <ResizablePanelGroup
             orientation="horizontal"
             className="w-full h-full"
-            onLayoutChange={(sizes) => {
-              const sizeValues = Object.values(sizes);
-              if (sizeValues.length === 2) {
-                detailsPanelSizeRef.current = sizeValues[1];
-              }
-            }}
           >
             <ResizablePanel
-              defaultSize={
-                showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
-              }
+              defaultSize={showDetailsPanel ? 100 - activePanelSize : 100}
               minSize={30}
             >
               {editorContent}
             </ResizablePanel>
 
-            {showDetailsPanel && (
+            {detailsPanelType === "run" && (
               <>
                 <ResizableHandle withHandle />
 
                 <ResizablePanel
-                  defaultSize={detailsPanelSizeRef.current}
-                  minSize={20}
+                  defaultSize={runPanelSizeRef.current}
+                  minSize={900}
+                  onResize={(size) => {
+                    if (typeof size === "number") {
+                      runPanelSizeRef.current = size;
+                    }
+                  }}
                 >
                   <div
                     ref={detailsPanelRef}
                     className="w-full h-full bg-background overflow-auto relative"
                   >
-                    {showDetailsPanel && !selectedNode ? (
-                      <PerformanceTestPanel
-                        isRunning={jobStatus?.state === "RUNNING"}
-                        completedVideoPath={completedVideoPath}
-                        livePreviewEnabled={livePreviewEnabled}
-                        liveStreamUrl={
-                          Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
-                          null
-                        }
-                      />
-                    ) : (
-                      <NodeDataPanel
-                        selectedNode={selectedNode}
-                        onNodeDataUpdate={handleNodeDataUpdate}
-                      />
-                    )}
+                    <PerformanceTestPanel
+                      isRunning={jobStatus?.state === "RUNNING"}
+                      completedVideoPath={completedVideoPath}
+                      livePreviewEnabled={livePreviewEnabled}
+                      liveStreamUrl={
+                        Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
+                        null
+                      }
+                    />
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+
+            {detailsPanelType === "node" && (
+              <>
+                <ResizableHandle withHandle />
+
+                <ResizablePanel
+                  defaultSize={nodeDetailsPanelSizeRef.current}
+                  minSize={400}
+                  onResize={(size) => {
+                    if (typeof size === "number") {
+                      nodeDetailsPanelSizeRef.current = size;
+                    }
+                  }}
+                >
+                  <div
+                    ref={detailsPanelRef}
+                    className="w-full h-full bg-background overflow-auto relative"
+                  >
+                    <NodeDataPanel
+                      selectedNode={selectedNode}
+                      onNodeDataUpdate={handleNodeDataUpdate}
+                    />
                   </div>
                 </ResizablePanel>
               </>
