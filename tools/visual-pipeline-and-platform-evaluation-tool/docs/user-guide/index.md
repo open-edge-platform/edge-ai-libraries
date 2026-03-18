@@ -52,9 +52,9 @@ performance under controlled conditions.
 
 - [System Requirements](./get-started/system-requirements)
 - [Get Started](./get-started)
-- [How to Build Source](./get-started/how-to-build-source)
+- [How to Build Source](./get-started/build-from-source)
 - [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
-- [How to use Video Generator](./how-to-guides/how-to-use-video-generator)
+- [How to use Video Generator](./how-to-guides/use-video-generator)
 - [Release Notes](./release-notes)
 
 <!--hide_directive

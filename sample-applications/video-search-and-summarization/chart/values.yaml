@@ -112,6 +112,7 @@ pipelinemanager:
     AUDIO_DEVICE: "cpu"
     OTLP_TRACE_URL: ""
     USE_OVMS: "CONFIG_OFF"
+    USE_VLLM: "CONFIG_OFF"
     SUMMARY_FEATURE: "FEATURE_ON"
     SEARCH_FEATURE: "FEATURE_OFF"
   nodeSelector: {}
@@ -152,6 +153,13 @@ vlminference:
   enabled: false
   name: vlm-inference-microservice
   claimSize: "40Gi"
+
+vllm:
+  enabled: false
+  service:
+    name: cpu-vllm-service
+    type: ClusterIP
+    port: 80
 
 # Add nginx configuration
 nginx:

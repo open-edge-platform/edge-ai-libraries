@@ -1,10 +1,10 @@
-### Geti UDF:
+# Geti UDF:
 
-This geti udf supports functionality for deploying a project for local inference with OpenVINO using Intel® Geti™ SDK python package.
+This Geti UDF supports functionality for deploying a project for local inference with OpenVINO using Intel® Geti™ SDK python package.
 
-As a pre-requisite for running this geti udf, one would need to populate the deployment directory generated from Geti to the [geti udf directory]([WORKDIR]/dlstreamer-pipeline-server/user-scripts/udfs/geti_udf) before running DL Streamer Pipeline Server service.
+As a pre-requisite for running this Geti UDF, first populate the deployment directory generated from Geti to the Geti UDF directory at `[WORKDIR]/dlstreamer-pipeline-server/user-scripts/udfs/geti_udf` before running DL Streamer Pipeline Server service.
 
-Refer the below config for the default config used for this geti udf:
+Refer to the config below for the default config used for this Geti UDF:
 
 ```json
  "udfs": [
@@ -20,4 +20,4 @@ Refer the below config for the default config used for this geti udf:
 
 ```
 
-As seen in the above snip the path to the deployment directory is fixed to the mentioned path. In case the UDF is not able to find the deployment directory in the mentioned path (i.e. inside the geti_udf) directory it will fail.
+As seen in the above snippet, the path to the deployment directory is fixed to the mentioned path. In case the UDF is not able to find the deployment directory in the mentioned path directory (i.e. inside the geti_udf), it will fail.

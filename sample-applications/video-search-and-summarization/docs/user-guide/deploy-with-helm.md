@@ -102,6 +102,7 @@ Update or edit the values in YAML file as follows:
 | `global.gpu.ovmsEnabled ` | To enable OVMS on GPU | true or false |
 | `global.gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node | Your cluster GPU node key |
 | `global.gpu.device` | Set to `GPU` if need to deploy the inference workload on GPU device | GPU |
+| `vllm.enabled` | Enable vLLM as the LLM inference backend (alternative to VLM Microservice or OVMS) | `true` or `false` |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `vsscollector.enabled` | Enable the telemetry collector sidecar (telegraf-based) | `true` or `false` |
@@ -170,6 +171,30 @@ helm install vss . -f summary_override.yaml -f ovms_override.yaml -f user_values
 ```
 
 > **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
+
+#### **Use Case 2a: Video Summarization with vLLM (CPU-based LLM Inference)**
+
+If you want to use vLLM as the LLM inference backend for CPU-based deployment, deploy with the vLLM override values:
+
+```bash
+helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml -n $my_namespace
+```
+
+**vLLM Configuration Details:**
+- vLLM provides an OpenAI-compatible API for efficient LLM inference on CPU
+- The `xeon_vllm_values.yaml` override file includes:
+  - vLLM service with 48 CPU cores and 128Gi memory allocation
+  - Resource configurations for all dependent services (PostgreSQL, RabbitMQ, audio-analyzer, etc.)
+  - Automatic disabling of the VLM Inference Microservice (`vlminference.enabled=false`)
+
+**Prerequisites for vLLM:**
+- Ensure your Kubernetes node has sufficient CPU resources (minimum 96 logical cores recommended)
+- The vLLM container requires at least 128Gi of memory for typical LLM models
+- Cache storage must be configured (default 80Gi PVC for model cache)
+
+> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
+>
+> **Performance Tip:** vLLM's performance scales with available CPU cores. If you have nodes with different CPU counts, consider using node affinity to deploy vLLM on high-CPU nodes.
 
 #### **Use Case 3: Video Search Only**
 
@@ -274,6 +299,12 @@ Similarly, for updating storage for OVMS in Video Summarization mode, we can ins
 
 ```bash
 helm install vss . -f summary_override.yaml -f user_values_override.yaml -f ovms_override.yaml --set ovms.claimSize=10Gi -n $my_namespace
+```
+
+For updating storage for vLLM in Video Summarization mode with vLLM backend :
+
+```bash
+helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml --set vllm.pvc.size=100Gi -n $my_namespace
 ```
 
 Let's look at one more example, for updating storage for Minio Server in the combined Video Search and Summarization mode :
