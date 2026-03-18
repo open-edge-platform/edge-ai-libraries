@@ -50,7 +50,7 @@ export const Jobs = () => {
 
   return (
     <>
-      <div className="container pl-16 mx-auto py-10">
+      <div className="container pl-16 mx-auto pt-10 pb-16">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Jobs</h1>
           <p className="text-muted-foreground mt-2">
@@ -83,7 +83,7 @@ export const Jobs = () => {
         {/* Tab Content */}
         <div className="mt-6">
           {currentTab === "performance" && (
-            <div>
+            <div className="pb-16">
               <h2 className="text-xl font-semibold mb-4">Performance Jobs</h2>
               {isLoadingPerformance ? (
                 <p className="text-muted-foreground">Loading jobs...</p>
@@ -136,7 +136,7 @@ export const Jobs = () => {
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"
                                     ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                    : job.state === "ERROR"
+                                    : job.state === "FAILED"
                                       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                                       : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
                               }`}
@@ -171,7 +171,7 @@ export const Jobs = () => {
           )}
 
           {currentTab === "density" && (
-            <div>
+            <div className="pb-6 mb-16">
               <h2 className="text-xl font-semibold mb-4">Density Jobs</h2>
               {isLoadingDensity ? (
                 <p className="text-muted-foreground">Loading jobs...</p>
@@ -209,7 +209,7 @@ export const Jobs = () => {
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"
                                     ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                    : job.state === "ERROR"
+                                    : job.state === "FAILED"
                                       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                                       : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
                               }`}
@@ -255,7 +255,7 @@ export const Jobs = () => {
           )}
 
           {currentTab === "optimize" && (
-            <div>
+            <div className="pb-16">
               <h2 className="text-xl font-semibold mb-4">Optimization Jobs</h2>
               {isLoadingOptimization ? (
                 <p className="text-muted-foreground">Loading jobs...</p>
@@ -299,7 +299,7 @@ export const Jobs = () => {
                                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                   : job.state === "RUNNING"
                                     ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                    : job.state === "ERROR"
+                                    : job.state === "FAILED"
                                       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                                       : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
                               }`}
