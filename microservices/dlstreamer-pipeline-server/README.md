@@ -157,21 +157,21 @@ Run the following commands:
 To enable GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
 To check the render ID group you can use below command:
 
-    ```sh
-     stat -c "%g" /dev/dri/render* | head -1
-   ```
+  ```sh
+  stat -c "%g" /dev/dri/render* | head -1
+  ```
 
-   ```sh
-     cd docker
-     source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
-     docker compose build
-   ```
+  ```sh
+  cd docker
+  source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
+  docker compose build
+  ```
 
    The docker image of DL Streamer Pipeline Server is now built (based on the .env changes done above) and available for you to run.
 
-   ```sh
-     docker compose up
-   ```
+  ```sh
+  docker compose up
+  ```
 
 ---
 ### Run default sample
