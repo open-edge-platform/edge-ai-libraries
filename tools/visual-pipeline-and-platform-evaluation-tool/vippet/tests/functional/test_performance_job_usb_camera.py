@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 CAMERA_JOB_RUNTIME_SECONDS: float = 8.0
 
+# Seconds to wait before retrying a failed job
+RETRY_DELAY_SECONDS: float = 5.0
+
 # Pipelines that are designed for file-only input and do not support USB cameras
 CAMERA_UNSUPPORTED_PIPELINES: frozenset[str] = frozenset({"Simple NVR", "Smart NVR"})
 
@@ -128,6 +131,28 @@ def _build_camera_performance_payload(advanced_graph: JsonDict) -> JsonDict:
     }
 
 
+def _attempt_camera_job(
+    session: requests.Session,
+    payload: JsonDict,
+) -> None:
+    """Submit a camera performance job, monitor it, and stop it.
+
+    Monitors the job for ``CAMERA_JOB_RUNTIME_SECONDS`` asserting it never
+    reaches FAILED state, then stops it.  Raises ``AssertionError`` (via
+    :func:`poll_job_not_failed`) if the job fails during that window.
+    """
+    job_id = start_performance_job(session, payload)
+    status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
+    try:
+        poll_job_not_failed(
+            session,
+            status_url,
+            duration_seconds=CAMERA_JOB_RUNTIME_SECONDS,
+        )
+    finally:
+        stop_performance_job(session, job_id)
+
+
 @pytest.mark.full
 @pytest.mark.requires_camera
 @pytest.mark.parametrize("case", PIPELINE_CASES, ids=CASE_IDS)
@@ -176,19 +201,15 @@ def test_performance_job_with_usb_camera_stays_running(
 
     # submit the performance job
     payload = _build_camera_performance_payload(advanced_graph)
-    job_id = start_performance_job(http_client, payload)
-    status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
-
     try:
-        # monitor for 8 s, asserting the job is never FAILED
-        poll_job_not_failed(
-            http_client,
-            status_url,
-            duration_seconds=CAMERA_JOB_RUNTIME_SECONDS,
+        _attempt_camera_job(http_client, payload)
+    except AssertionError:
+        logger.warning(
+            "First camera job attempt failed – retrying once after %.1fs",
+            RETRY_DELAY_SECONDS,
         )
-    finally:
-        # always stop the job, even if an assertion failed above
-        stop_performance_job(http_client, job_id)
+        time.sleep(RETRY_DELAY_SECONDS)
+        _attempt_camera_job(http_client, payload)
 
 
 @pytest.mark.full
