@@ -1,0 +1,66 @@
+name: "[DLSPS] [U22/U24] Build weekly cache imgs"
+run-name: "[DLSPS] [U22/U24] Build weekly cache imgs"
+on:
+  schedule:
+    - cron: '0 5 * * MON' # 5:00 UTC each Monday
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        required: false
+        type: string
+permissions: {}
+env:
+  dlstreamer-version: "2026.0.0"
+  DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dlstreamer"
+
+jobs:
+  build-dls-pipeline-server-image:
+    name: Build DL Streamer cache ${{ matrix.ubuntu_version }} img
+    runs-on: ubuntu-24.04-16core-64GB
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu22.Dockerfile
+            ubuntu_version: ubuntu22
+          - path_dockerfile: ./edge-ai-libraries-repo/libraries/dlstreamer/docker/ubuntu/ubuntu24.Dockerfile
+            ubuntu_version: ubuntu24
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        cd edge-ai-libraries-repo
+        git submodule update --init --recursive libraries/dlstreamer
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build DL Streamer cache ${{ matrix.ubuntu_version }} img
+      env:
+        deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
+      run: |
+        docker buildx build \
+        --target dlstreamer \
+        --cache-from=type=registry,ref=${deb_final_img_cached} \
+        --cache-to=type=registry,ref=${deb_final_img_cached},mode=max \
+        --output=type=cacheonly \
+        --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
+        --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
+        -f "${{ matrix.path_dockerfile }}" \
+        "${DLS_REL_PATH}"
