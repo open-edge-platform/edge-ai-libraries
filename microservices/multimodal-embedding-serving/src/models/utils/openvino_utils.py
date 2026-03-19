@@ -89,7 +89,7 @@ def check_and_convert_openvino_models(
 
 
 def load_openvino_models(
-    image_encoder_path, text_encoder_path, device, gpu_batch_size: int = 64
+    image_encoder_path, text_encoder_path, device, reshape_shape=(1, 3, 224, 224)
 ):
     """
     Load and compile OpenVINO IR models for inference.
@@ -102,7 +102,7 @@ def load_openvino_models(
         image_encoder_path: Path to the image encoder IR model file (.xml)
         text_encoder_path: Path to the text encoder IR model file (.xml)
         device: Target device for inference (e.g., "CPU", "GPU", "AUTO")
-        gpu_batch_size: Static batch size for GPU reshape (default: 64)
+        reshape_shape: Optional shape for reshaping the input tensor (default: (1, 3, 224, 224))
 
     Returns:
         Tuple of (compiled_image_encoder, compiled_text_encoder) ready for inference
@@ -236,17 +236,12 @@ def load_openvino_models(
             ov_text_encoder = core.compile_model(text_encoder_path, device, config)
         else:
             logger.info(
-                f"iGPU configuration: Reshaping to static batch size {gpu_batch_size} - {config}"
+                f"iGPU configuration: Reshaping to static batch size {reshape_shape} - {config}"
             )
             image_encoder_model = core.read_model(image_encoder_path)
             image_encoder_model.reshape(
                 {
-                    image_encoder_model.input().get_any_name(): [
-                        gpu_batch_size,
-                        3,
-                        224,
-                        224,
-                    ]
+                    image_encoder_model.input().get_any_name(): reshape_shape
                 }
             )
             ov_image_encoder = core.compile_model(image_encoder_model, device, config)
@@ -279,13 +274,14 @@ class AsyncBatchInference:
     def __init__(
         self,
         compiled_model: ov.CompiledModel,
-        batch_size: int = 64,
         embedding_dim: int = 512,
+        preprocess_shape: tuple = (1, 3, 224, 224),
     ):
         self.compiled_model = compiled_model
-        self.batch_size = batch_size
+        self.batch_size = preprocess_shape[0] if preprocess_shape is not None else 64
         self.embedding_dim = embedding_dim
         self.async_queue = ov.AsyncInferQueue(compiled_model)
+        self.preprocess_shape = preprocess_shape
 
     def infer(self, images: np.ndarray) -> np.ndarray:
         """
@@ -321,7 +317,7 @@ class AsyncBatchInference:
                 # For uneven batch sizes, Pad with zeros to fill the batch
                 # TODO: handle shape more elegantly.
                 # Its a standard CLIP image encoder input shape, but can be made more flexible
-                padded = np.zeros((self.batch_size, 3, 224, 224), dtype=np.float32)
+                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
                 padded[:samples_in_batch] = batch_np
                 batch_np = padded
 

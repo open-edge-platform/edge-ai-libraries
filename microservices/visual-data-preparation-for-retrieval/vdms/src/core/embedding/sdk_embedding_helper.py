@@ -60,25 +60,6 @@ _global_detector = None
 DONE = object()  # Sentinel value to signal completion
 
 
-import threading
-import traceback
-
-
-def custom_thread_exception(args):
-    print(f"\nThread exception in {args.thread.name}")
-    print(f"Exception type: {args.exc_type}")
-    print(f"Exception value: {args.exc_value}")
-    traceback.print_tb(args.exc_traceback)
-
-
-threading.excepthook = custom_thread_exception
-
-# import debugpy
-
-# debugpy.listen(5678)
-# debugpy.wait_for_client()
-
-
 @dataclass
 class FrameMetadata:
     video_id: str = "unknown"
@@ -376,10 +357,9 @@ def preload_sdk_client() -> bool:
         if sdk_client.supports_image:
             # Perform image warmup with a small test pattern
             import numpy as np
-            from PIL import Image
 
-            test_image = Image.fromarray(np.random.randint(0, 255, (8, 8, 3), dtype=np.uint8))
-            test_embedding = sdk_client.generate_embedding_for_image(test_image)
+            test_image = np.random.randint(0, 255, (8, 8, 3), dtype=np.uint8)
+            test_embedding = sdk_client.generate_embedding_for_images([test_image])
 
             if test_embedding is not None:
                 openvino_status = (
@@ -419,32 +399,24 @@ def preload_sdk_client() -> bool:
         logger.error(f"Failed to preload SDK client: {e}")
         return False
 
-
 class SimplePipelineManager:
     """Simple pipeline manager for parallel frame processing with conditional thread safety and object detection."""
-
-    def __init__(
-        self,
-        sdk_client: SDKVDMSClient,
-        enable_object_detection: bool = False,
-        detection_confidence: float = 0.85,
-    ):
+    
+    def __init__(self, sdk_client: SDKVDMSClient, enable_object_detection: bool = False, detection_confidence: float = 0.85):
         self.master_sdk_client = sdk_client
         self.config = get_pipeline_config()
         self._thread_local = threading.local()
         self.supports_image_embeddings = sdk_client.supports_image
-
+        
         # Object detection configuration
         self.enable_object_detection = enable_object_detection
         self.detection_confidence = detection_confidence
         self.detector = None
-        self.process_pool = ProcessPoolExecutor(max_workers=2)
-        self.thread_pool = ThreadPoolExecutor(max_workers=self.config["pipeline_count"])
-
+        
         # Initialize object detector if needed
         if self.enable_object_detection:
             self._initialize_object_detector()
-
+        
         # Log device consistency across all components
         logger.info(
             f"Device consistency: Processing={settings.DEVICE}, "
@@ -452,18 +424,14 @@ class SimplePipelineManager:
             f"Detection={'N/A' if not self.enable_object_detection else self.detector.device if self.detector else 'Failed'}, "
             f"ImageEmbeddingsSupported={self.supports_image_embeddings}"
         )
-
+        
         # Remove inference locking - use thread-safe infer_new_request pattern
         self._inference_lock = None
-        if self.config["use_openvino"]:
-            logger.info(
-                "OpenVINO parallel mode: Using thread-safe infer_new_request pattern (maximum performance)"
-            )
+        if self.config['use_openvino']:
+            logger.info("OpenVINO parallel mode: Using thread-safe infer_new_request pattern (maximum performance)")
         else:
-            logger.info(
-                "PyTorch mode: Using shared model instance across all threads (thread-safe)"
-            )
-
+            logger.info("PyTorch mode: Using shared model instance across all threads (thread-safe)")
+    
     @staticmethod
     def _summarize_stage_times(samples: List[float]) -> Dict[str, float]:
         """Compute aggregate statistics for a collection of stage timings."""
@@ -488,128 +456,192 @@ class SimplePipelineManager:
     def _initialize_object_detector(self):
         """Initialize object detector for frame processing."""
         logger.info("Using global object detector for SDK mode...")
-
+        
         # Use the global detector instance instead of creating a new one
         self.detector = get_global_detector(
             enable_object_detection=self.enable_object_detection,
-            detection_confidence=self.detection_confidence,
+            detection_confidence=self.detection_confidence
         )
-
+        
         if self.detector is None:
             logger.warning("Object detector not available - disabling object detection")
             self.enable_object_detection = False
         else:
-            logger.info(
-                f"Using global object detector with confidence threshold: {self.detection_confidence}"
-            )
+            logger.info(f"Using global object detector with confidence threshold: {self.detection_confidence}")
+        
+    
+    def _process_frame_with_detection(self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]) -> List[Tuple[Image.Image, Dict[str, Any]]]:
+        """
+        Process a single frame and optionally detect objects to create crops.
+        
+        Args:
+            frame_numpy: Frame as numpy array (H, W, C)
+            frame_metadata: Metadata for the frame
+            
+        Returns:
+            List of (image, metadata) tuples for processing
+        """
+        results = []
+        
+        # Always include the full frame
+        frame_pil = Image.fromarray(frame_numpy)
+        results.append((frame_pil, frame_metadata))
+        
+        # If object detection is enabled, detect objects and create crops
+        if self.enable_object_detection and self.detector is not None:
+            try:
+                detections = self.detector.detect(frame_numpy, return_metadata=True)
 
-    def _process_frames_with_parallel_detection(
-        self, all_frames: List[np.ndarray], all_metadata: List[Dict[str, Any]]
-    ) -> Tuple[List[Image.Image], List[Dict[str, Any]]]:
+                if detections:
+                    logger.debug(
+                        "Detected %d objects in frame %s",
+                        len(detections),
+                        frame_metadata.get("frame_id", "unknown"),
+                    )
+
+                    for crop_idx, det_meta in enumerate(detections):
+                        try:
+                            box = det_meta.get("bbox")
+                            score = det_meta.get("confidence")
+                            class_id = det_meta.get("class_id")
+                            class_name = det_meta.get("class_name")
+
+                            if not box or score is None or class_id is None:
+                                logger.debug("Skipping detection %d due to incomplete metadata", crop_idx)
+                                continue
+
+                            x1, y1, x2, y2 = box
+
+                            h, w = frame_numpy.shape[:2]
+                            x1 = max(0, min(int(x1), w - 1))
+                            y1 = max(0, min(int(y1), h - 1))
+                            x2 = max(x1 + 1, min(int(x2), w))
+                            y2 = max(y1 + 1, min(int(y2), h))
+
+                            if (x2 - x1) < 10 or (y2 - y1) < 10:
+                                continue
+
+                            crop = frame_numpy[y1:y2, x1:x2]
+                            crop_pil = Image.fromarray(crop)
+
+                            crop_metadata = frame_metadata.copy()
+                            crop_metadata.update(
+                                {
+                                    "frame_type": "detected_crop",
+                                    "is_detected_crop": True,
+                                    "crop_index": crop_idx,
+                                    "detection_confidence": float(score),
+                                    "crop_bbox": [int(x1), int(y1), int(x2), int(y2)],
+                                    "detected_class_id": int(class_id),
+                                    "detected_label": class_name,
+                                    "merged_boxes_count": det_meta.get("merged_boxes_count"),
+                                    "context_expansion_applied": det_meta.get("context_expansion_applied"),
+                                    "frame_id": f"{frame_metadata.get('frame_id', 'unknown')}_crop_{crop_idx}",
+                                }
+                            )
+
+                            results.append((crop_pil, crop_metadata))
+
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to create crop %d from frame %s: %s",
+                                crop_idx,
+                                frame_metadata.get("frame_id", "unknown"),
+                                e,
+                            )
+                            continue
+
+            except Exception as e:
+                logger.warning(
+                    "Object detection failed for frame %s: %s",
+                    frame_metadata.get("frame_id", "unknown"),
+                    e,
+                )
+        
+        return results
+    
+    def _process_frames_with_parallel_detection(self, all_frames: List[np.ndarray], all_metadata: List[Dict[str, Any]]) -> Tuple[List[Image.Image], List[Dict[str, Any]]]:
         """
         Process frames with parallel object detection.
-
+        
         Args:
             all_frames: List of frame numpy arrays
             all_metadata: List of frame metadata
-
+            
         Returns:
             Tuple of (images_list, metadata_list) including original frames and detected crops
         """
         logger.info(f"Starting parallel object detection on {len(all_frames)} frames")
-
+        
         # Create batches for parallel detection processing
-        detection_batch_size = max(1, len(all_frames) // self.config["pipeline_count"])
+        detection_batch_size = max(1, len(all_frames) // self.config['pipeline_count'])
         detection_batches = []
-
+        
         for i in range(0, len(all_frames), detection_batch_size):
-            batch_frames = all_frames[i : i + detection_batch_size]
-            batch_metadata = all_metadata[i : i + detection_batch_size]
+            batch_frames = all_frames[i:i + detection_batch_size]
+            batch_metadata = all_metadata[i:i + detection_batch_size]
             detection_batches.append((batch_frames, batch_metadata))
-
-        logger.info(
-            f"Created {len(detection_batches)} detection batches (batch_size={detection_batch_size})"
-        )
-
+        
+        logger.info(f"Created {len(detection_batches)} detection batches (batch_size={detection_batch_size})")
+        
         # Process detection batches in parallel
         all_images_for_embedding = []
         all_metadata_for_embedding = []
-
-        with ThreadPoolExecutor(max_workers=self.config["pipeline_count"]) as executor:
+        
+        with ThreadPoolExecutor(max_workers=self.config['pipeline_count']) as executor:
             detection_futures = [
                 executor.submit(self._process_detection_batch, batch_frames, batch_metadata)
                 for batch_frames, batch_metadata in detection_batches
             ]
-
+            
             # Process completed futures as they finish (true parallel processing)
             for future in as_completed(detection_futures):
                 batch_images, batch_metadata = future.result()
                 all_images_for_embedding.extend(batch_images)
                 all_metadata_for_embedding.extend(batch_metadata)
-
-        logger.info(
-            f"Parallel object detection completed: {len(all_frames)} frames -> {len(all_images_for_embedding)} items"
-        )
+        
+        logger.info(f"Parallel object detection completed: {len(all_frames)} frames -> {len(all_images_for_embedding)} items")
         return all_images_for_embedding, all_metadata_for_embedding
-
-    def _process_detection_batch(
-        self, batch_frames: List[np.ndarray], batch_metadata: List[Dict[str, Any]]
-    ) -> Tuple[List[Image.Image], List[Dict[str, Any]]]:
+    
+    def _process_detection_batch(self, batch_frames: List[np.ndarray], batch_metadata: List[Dict[str, Any]]) -> Tuple[List[Image.Image], List[Dict[str, Any]]]:
         """
         Process a batch of frames for object detection.
-
+        
         Args:
             batch_frames: Batch of frame numpy arrays
             batch_metadata: Batch of frame metadata
-
+            
         Returns:
             Tuple of (images_list, metadata_list) for this batch
         """
         batch_images = []
         batch_metadata_results = []
-
+        
         for frame_numpy, frame_metadata in zip(batch_frames, batch_metadata):
             # Process frame with detection (returns full frame + detected crops)
             frame_results = self._process_frame_with_detection(frame_numpy, frame_metadata)
-
+            
             for image_pil, metadata in frame_results:
                 batch_images.append(image_pil)
                 batch_metadata_results.append(metadata)
-
-        logger.debug(
-            f"Detection batch processed: {len(batch_frames)} frames -> {len(batch_images)} items"
-        )
+        
+        logger.debug(f"Detection batch processed: {len(batch_frames)} frames -> {len(batch_images)} items")
         return batch_images, batch_metadata_results
-
-    # TODO: non-functional, needs cleanup or remove if no dependency
-    def process_batched_frames_parallel(
-        self,
-        batch_index: int,
-        batched_frames: List[Tuple[int, np.ndarray]],
-        batched_metadata: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+    
+    def process_frames_parallel(self, all_frames: List[np.ndarray], all_metadata: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process frames in parallel for embedding generation with optional object detection and per-batch storage."""
-
-        batch_frame_length = len(batched_frames)
-        logger.info(
-            f"Processing {batch_frame_length} frames with {self.config['pipeline_count']} maximum parallel workers"
-        )
-
+        logger.info(f"Processing {len(all_frames)} frames with {self.config['pipeline_count']} maximum parallel workers")
+        
         if self.enable_object_detection:
-            logger.info(
-                f"Object detection enabled with confidence threshold: {self.detection_confidence}"
-            )
-
+            logger.info(f"Object detection enabled with confidence threshold: {self.detection_confidence}")
+        
         try:
-            detection_status = (
-                "with object detection"
-                if self.enable_object_detection
-                else "without object detection"
-            )
-            logger.info(
-                f"Created {batch_frame_length} batches for parallel processing ({detection_status})"
-            )
-
+            # Create batches of frames for parallel processing
+            logger.info(f"About to create batches from {len(all_frames)} frames with batch_size={self.config['batch_size']}")
+            batches = self.create_frame_batches(all_frames, all_metadata)
+            detection_status = "with object detection" if self.enable_object_detection else "without object detection"
+            logger.info(f"Created {len(batches)} batches for parallel processing ({detection_status})")
+            
             # Process batches in parallel - each batch will do optional object detection + embedding generation + immediate storage
             total_embeddings_stored = 0
             all_stored_ids = []
@@ -619,368 +651,64 @@ class SimplePipelineManager:
             storage_times: List[float] = []
             total_items_after_detection = 0
             completed_batches: List[Dict[str, Any]] = []
-
-            logger.info(
-                f"Starting parallel execution of {batch_frame_length} batches with {self.config['pipeline_count']} maximum workers"
-            )
-
-            parallel_start_time = time.perf_counter()
-
-            try:
-
-                try:
-                    logger.info(
-                        f"[Batch {batch_index}] Processing {batch_frame_length} frames "
-                        f"(object detection: {self.enable_object_detection})"
+            
+            logger.info(f"Starting parallel execution of {len(batches)} batches with {self.config['pipeline_count']} maximum workers")
+            
+            parallel_start_time = time.time()
+            with ThreadPoolExecutor(max_workers=self.config['pipeline_count']) as executor:
+                total_batches = len(batches)
+                future_to_index: Dict[Any, int] = {}
+                batch_futures = []
+                for batch_index, (batch_frames, batch_metadata) in enumerate(batches, start=1):
+                    future = executor.submit(
+                        self._process_single_batch,
+                        batch_frames,
+                        batch_metadata,
+                        batch_index,
+                        total_batches,
                     )
-
-                    if not self.supports_image_embeddings:
+                    batch_futures.append(future)
+                    future_to_index[future] = batch_index
+                
+                logger.info(f"Submitted {len(batch_futures)} batch jobs to thread pool")
+                logger.info(f"True parallel processing enabled - batches will complete in any order as they finish")
+                
+                # Process completed batches as they finish (true parallel processing)
+                batch_counter = 0
+                timeout_per_batch = 300  # 5 minutes per batch maximum
+                for future in as_completed(batch_futures, timeout=timeout_per_batch * len(batch_futures)):
+                    batch_counter += 1
+                    try:
+                        batch_result = future.result()
+                        embeddings_count = batch_result['embeddings_count']
+                        stored_ids = batch_result['stored_ids']
+                        processing_time = batch_result['processing_time']
+                        batch_index = future_to_index.get(future, batch_counter)
+                        batch_detection_time = batch_result.get('detection_time', 0.0)
+                        batch_embedding_time = batch_result.get('embedding_time', 0.0)
+                        batch_storage_time = batch_result.get('storage_time', 0.0)
+                        batch_items_after_detection = batch_result.get('items_after_detection', 0)
+                        
+                        total_embeddings_stored += embeddings_count
+                        all_stored_ids.extend(stored_ids)
+                        batch_processing_times.append(processing_time)
+                        detection_times.append(batch_detection_time)
+                        embedding_times.append(batch_embedding_time)
+                        storage_times.append(batch_storage_time)
+                        total_items_after_detection += batch_items_after_detection
+                        completed_batches.append(batch_result)
+                        
                         logger.info(
-                            "Embedding model %s does not support image/video embeddings; skipping batch %d",
-                            self.master_sdk_client.model_id,
-                            batch_index,
+                            f"Batch {batch_index}/{len(batch_futures)} completed: {embeddings_count} embeddings stored"
                         )
-                        return {
-                            "status": "skipped_no_image_support",
-                            "embeddings_count": 0,
-                            "stored_ids": [],
-                            "processing_time": time.perf_counter() - batch_start_time,
-                            "detection_time": 0.0,
-                            "embedding_time": 0.0,
-                            "storage_time": 0.0,
-                            "items_after_detection": 0,
-                            "input_frames": batch_frame_length,
-                        }
-
-                    # Step 1: Process frames with object detection to expand the batch
-                    logger.debug(
-                        f"Step 1: Starting object detection for {batch_frame_length} frames..."
-                    )
-
-                    # def _process_single_frame(args):
-                    #     """
-                    #     Helper for parallel execution.
-                    #     """
-                    #     i, video_index, frame_numpy, frame_metadata = args
-
-                    #     logger.debug(
-                    #         "Processing frame %d for object detection",
-                    #         i + 1,
-                    #     )
-
-                    #     return self._process_frame_with_detection(
-                    #         video_index, frame_numpy, frame_metadata
-                    #     )
-
-                    batch_start_time = time.perf_counter()
-
-                    num_frames = batch_frame_length
-
-                    # Prepare arguments once
-                    # tasks = [
-                    #     (i, video_index, frame_numpy, frame_metadata)
-                    #     for i, ((video_index, frame_numpy), frame_metadata) in enumerate(
-                    #         zip(batched_frames, batched_metadata)
-                    #     )
-                    # ]
-
-                    # embedding_metadata_collection: List[Tuple[np.ndarray, Dict[str, Any]]] = []
-                    batch_embedding_generation_time = 0.0
-                    batch_storage_time = 0.0
-                    total_time = 0.0
-                    total_embeddings_generation_time = 0.0
-                    total_storage_time = 0.0
-                    stored_ids = []
-                    total_extracted_crops = 0
-                    total_embedding_count = 0
-                    # Parallel frame processing
-                    max_workers = min(2, num_frames)  # tune based on CPU & detector behavior
-
-                    # TPE handles embedding creation for detected crops in batches to prevent memory bloat, while still allowing parallel detection processing
-                    if self.enable_object_detection:
-                        detection_start = time.perf_counter()
-                        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
-
-                        #     in_flight = set()
-
-                        #     cropped_images_for_embedding = []
-                        #     cropped_metadata_for_embedding = []
-
-                        #     # futures = [executor.submit(_process_single_frame, task) for task in tasks]
-
-                        #     for task in tasks:
-                        #         in_flight.add(executor.submit(_process_single_frame, task))
-
-                        #         if len(in_flight) >= max_workers:
-                        #             done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
-
-                        #             for future in done:
-                        #                 try:
-                        #                     frame_results = future.result()
-                        #                 except Exception as e:
-                        #                     logger.error(f"Error in detection future:", exc_info=True)
-                        #                     future.exception()  # Clear exception to help GC free traceback references
-                        #                     del future
-                        #                     continue
-                        #                 finally:
-                        #                     del future
-
-                        #                 for image, metadata in frame_results:
-                        #                     cropped_images_for_embedding.append(image)
-                        #                     cropped_metadata_for_embedding.append(metadata)
-
-                        #                 del frame_results
-
-                        #                 if len(cropped_images_for_embedding) >= 64:
-                        #                     total_extracted_crops += len(cropped_images_for_embedding)
-                        #                     # Generate embeddings for the current batch of crops to prevent memory bloat
-                        #                     embedding_start = time.perf_counter()
-                        #                     embeddings = self.master_sdk_client.generate_embeddings_for_images(cropped_images_for_embedding)
-                        #                     batch_embedding_generation_time += time.perf_counter() - embedding_start
-                        #                     total_embedding_count += len(embeddings)
-
-                        #                     # Persist embeddings for this batch of crops
-                        #                     store_start = time.perf_counter()
-                        #                     stored_ids += self.master_sdk_client.store_frame_embeddings(embeddings, cropped_metadata_for_embedding)
-                        #                     batch_storage_time += time.perf_counter() - store_start
-
-                        #                     del embeddings
-                        #                     cropped_images_for_embedding.clear()
-                        #                     cropped_metadata_for_embedding.clear()
-
-                        #     tasks.clear()  # Help GC free memory immediately
-                        #     del tasks
-
-                        #     for future in in_flight:
-                        #         try:
-                        #             frame_results = future.result()
-                        #         except Exception as e:
-                        #             logger.error(f"Error in detection future: {e}")
-                        #             future.exception()  # Clear exception to help GC free traceback references
-                        #             del future
-                        #             continue
-                        #         finally:
-                        #             del future
-                        #         # frame_results already includes full frame + crops
-
-                        #         for image, metadata in frame_results:
-                        #             cropped_images_for_embedding.append(image)
-                        #             cropped_metadata_for_embedding.append(metadata)
-
-                        #         del frame_results
-
-                        #         if len(cropped_images_for_embedding) >= 64:
-                        #             total_extracted_crops += len(cropped_images_for_embedding)
-                        #             # Generate embeddings for the current batch of crops to prevent memory bloat
-                        #             embedding_start = time.perf_counter()
-                        #             embeddings = self.master_sdk_client.generate_embeddings_for_images(cropped_images_for_embedding)
-                        #             batch_embedding_generation_time += time.perf_counter() - embedding_start
-                        #             total_embedding_count += len(embeddings)
-
-                        #             # Persist embeddings for this batch of crops
-                        #             store_start = time.perf_counter()
-                        #             stored_ids += self.master_sdk_client.store_frame_embeddings(embeddings, cropped_metadata_for_embedding)
-                        #             batch_storage_time += time.perf_counter() - store_start
-
-                        #             cropped_images_for_embedding.clear()
-                        #             cropped_metadata_for_embedding.clear()
-                        #             del embeddings
-
-                        #     # Process any remaining crops
-                        #     if len(cropped_images_for_embedding) > 0:
-                        #         total_extracted_crops += len(cropped_images_for_embedding)
-                        #         embedding_start = time.perf_counter()
-                        #         embeddings = self.master_sdk_client.generate_embeddings_for_images(cropped_images_for_embedding)
-                        #         batch_embedding_generation_time += time.perf_counter() - embedding_start
-
-                        #         store_start = time.perf_counter()
-                        #         stored_ids += self.master_sdk_client.store_frame_embeddings(embeddings, cropped_metadata_for_embedding)
-                        #         batch_storage_time += time.perf_counter() - store_start
-                        #         total_embedding_count += len(embeddings)
-
-                        #         del embeddings
-                        #         cropped_images_for_embedding.clear()
-                        #         cropped_metadata_for_embedding.clear()
-                        #         del cropped_images_for_embedding
-                        #         del cropped_metadata_for_embedding
-
-                        images_for_embedding = []
-                        metadata_for_embedding = []
-                        for i, (video_index, frame_numpy) in enumerate(batched_frames):
-                            print(
-                                f"Processing frame {i + 1}/{batch_frame_length} for object detection and embedding..."
-                            )
-                            frame_metadata = batched_metadata[i]
-                            # extracted_cropped_frames = self._process_frame_with_detection(video_index, frame_numpy, frame_metadata)
-
-                            images_for_embedding.append(frame_numpy)
-                            metadata_for_embedding.append(frame_metadata)
-
-                            # for image, metadata in extracted_cropped_frames:
-                            #     images_for_embedding.append(image)
-                            #     metadata_for_embedding.append(metadata)
-
-                            if len(images_for_embedding) >= 64:
-                                total_extracted_crops += len(images_for_embedding)
-                                # Generate embeddings for the current batch of crops to prevent memory bloat
-                                embedding_start = time.perf_counter()
-                                embeddings = self.master_sdk_client.generate_embeddings_for_images(
-                                    images_for_embedding
-                                )
-                                print(
-                                    len(embeddings),
-                                    f"embeddings generated for current batch {i} of crops",
-                                )
-                                batch_embedding_generation_time += (
-                                    time.perf_counter() - embedding_start
-                                )
-                                total_embedding_count += len(embeddings)
-
-                                # Persist embeddings for this batch of crops
-                                store_start = time.perf_counter()
-                                stored_ids += self.master_sdk_client.store_frame_embeddings(
-                                    embeddings, metadata_for_embedding
-                                )
-                                batch_storage_time += time.perf_counter() - store_start
-
-                                del embeddings
-                                embeddings = None  # Help GC free memory immediately
-                                images_for_embedding.clear()
-                                metadata_for_embedding.clear()
-
-                        # Process any remaining crops
-                        if len(images_for_embedding) > 0:
-                            total_extracted_crops += len(images_for_embedding)
-                            embedding_start = time.perf_counter()
-                            embeddings = self.master_sdk_client.generate_embeddings_for_images(
-                                images_for_embedding
-                            )
-                            batch_embedding_generation_time += time.perf_counter() - embedding_start
-
-                            store_start = time.perf_counter()
-                            stored_ids += self.master_sdk_client.store_frame_embeddings(
-                                embeddings, metadata_for_embedding
-                            )
-                            batch_storage_time += time.perf_counter() - store_start
-                            total_embedding_count += len(embeddings)
-
-                            del embeddings
-                            embeddings = None  # Help GC free memory immediately
-                            images_for_embedding.clear()
-                            metadata_for_embedding.clear()
-
-                        detection_time = (
-                            time.perf_counter()
-                            - detection_start
-                            - batch_embedding_generation_time
-                            - batch_storage_time
-                        )
-                        logger.info(
-                            f"Object detection and embedding completed for batch {batch_index}: "
-                            f"{total_extracted_crops} total crops extracted, "
-                            f"detection time: {detection_time:.3f}s, "
-                            f"embedding time for crops: {batch_embedding_generation_time:.3f}s, "
-                            f"storage time for crops: {batch_storage_time:.3f}s"
-                        )
-
-                    # Generate embedding for full frames.
-                    # full_frame_embedding_time_start = time.perf_counter()
-                    # batched_frames = [arr for _, arr in batched_frames]
-                    # embeddings = self.master_sdk_client.generate_embeddings_for_images(batched_frames)
-                    # total_embeddings_generation_time = time.perf_counter() - full_frame_embedding_time_start
-                    # total_embedding_count += len(embeddings)
-
-                    # Store the embeddings for full frames
-                    # full_frame_store_start = time.perf_counter()
-                    # stored_ids += self.master_sdk_client.store_frame_embeddings(embeddings, batched_metadata)
-                    # total_storage_time += time.perf_counter() - full_frame_store_start
-
-                    total_time = time.perf_counter() - batch_start_time
-
-                    if self.enable_object_detection:
-                        total_embeddings_generation_time += batch_embedding_generation_time
-                        total_storage_time += batch_storage_time
-
-                    logger.info(
-                        f"[Batch {batch_index}] Embedding step completed: "
-                        f"Full frame embedding time: {total_embeddings_generation_time:.3f}s, "
-                        f"Full frame storage time: {total_storage_time:.3f}s, "
-                    )
-
-                    batch_result = {
-                        "batch_index": batch_index,
-                        "embeddings_count": total_embedding_count,
-                        "stored_ids": stored_ids,
-                        "processing_time": total_time,
-                        "detection_time": detection_time,
-                        "embedding_time": total_embeddings_generation_time,
-                        "storage_time": total_storage_time,
-                        "items_after_detection": total_extracted_crops,
-                        "input_frames": num_frames,
-                    }
-
-                except Exception as e:
-                    logger.error(f"[Batch {batch_index}] Error processing batch: {e}")
-                    e.__traceback__ = None  # Help GC free traceback references
-                    batch_result = {
-                        "batch_index": batch_index,
-                        "embeddings_count": 0,
-                        "stored_ids": [],
-                        "processing_time": total_time if "total_time" in locals() else 0.0,
-                        "detection_time": detection_time if "detection_time" in locals() else 0.0,
-                        "embedding_time": (
-                            total_embeddings_generation_time
-                            if "total_embeddings_generation_time" in locals()
-                            else 0.0
-                        ),
-                        "storage_time": (
-                            total_storage_time if "total_storage_time" in locals() else 0.0
-                        ),
-                        "items_after_detection": (
-                            total_extracted_crops if "total_extracted_crops" in locals() else 0
-                        ),
-                        "input_frames": num_frames,
-                    }
-
-                logger.info(
-                    f"Batch {batch_index} processing completed in parallel worker"
-                    f" - embeddings stored: {batch_result.get('embeddings_count', 0)}, "
-                    f" - items after detection: {batch_result.get('items_after_detection', 0)}"
-                )
-
-                logger.info(
-                    f"True parallel processing enabled - batches will complete in any order as they finish"
-                )
-
-                embeddings_count = batch_result["embeddings_count"]
-                stored_ids = batch_result["stored_ids"]
-                processing_time = batch_result["processing_time"]
-                batch_detection_time = batch_result.get("detection_time", 0.0)
-                batch_embedding_time = batch_result.get("embedding_time", 0.0)
-                batch_storage_time = batch_result.get("storage_time", 0.0)
-                batch_items_after_detection = batch_result.get("items_after_detection", 0)
-
-                total_embeddings_stored += embeddings_count
-                all_stored_ids.extend(stored_ids)
-                batch_processing_times.append(processing_time)
-                detection_times.append(batch_detection_time)
-                embedding_times.append(batch_embedding_time)
-                storage_times.append(batch_storage_time)
-                total_items_after_detection += batch_items_after_detection
-                completed_batches.append(batch_result)
-
-                logger.info(
-                    f"Batch {batch_index}/{batch_frame_length} completed: {embeddings_count} embeddings stored"
-                )
-            except Exception as e:
-                logger.error(f"Batch {batch_index} failed: {e.with_traceback(e.__traceback__)}")
-                # Continue processing other batches
-
-            parallel_time = time.perf_counter() - parallel_start_time
-            logger.info(
-                f"Parallel processing completed: {total_embeddings_stored} embeddings generated and stored"
-            )
-
+                    except Exception as e:
+                        failed_index = future_to_index.get(future, batch_counter)
+                        logger.error(f"Batch {failed_index} failed: {e}")
+                        # Continue processing other batches
+            
+            parallel_time = time.time() - parallel_start_time
+            logger.info(f"Parallel processing completed: {total_embeddings_stored} embeddings generated and stored")
+            
             detection_stats = self._summarize_stage_times(detection_times)
             embedding_stats = self._summarize_stage_times(embedding_times)
             storage_stats = self._summarize_stage_times(storage_times)
@@ -995,135 +723,105 @@ class SimplePipelineManager:
                     "avg_s": avg_time,
                     "max_s": stats.get("max", 0.0),
                     "total_s": stats.get("total", 0.0),
-                    "avg_pct_of_batch": (
-                        (avg_time / avg_batch_time * 100.0) if avg_batch_time else 0.0
-                    ),
+                    "avg_pct_of_batch": (avg_time / avg_batch_time * 100.0) if avg_batch_time else 0.0,
                 }
 
             stage_breakdown = {
-                "batch_index": batch_index,
                 "detection": _build_stage_summary(detection_stats),
                 "embedding": _build_stage_summary(embedding_stats),
                 "storage": _build_stage_summary(storage_stats),
             }
-
             logger.info(
                 "Performance: total parallel time %.3fs, avg batch time %.3fs, max batch time %.3fs",
                 parallel_time,
                 avg_batch_time,
                 max_batch_time,
             )
-
+            
             return {
-                "batch_index": batch_index,
-                "total_embeddings": total_embeddings_stored,
-                "stored_ids": all_stored_ids,
-                "processing_time": parallel_time,
-                "batches_processed": batch_frame_length,
-                "avg_batch_time": avg_batch_time,
-                "max_batch_time": max_batch_time,
-                "batch_processing_times": batch_processing_times,
-                "batch_detection_times": detection_times,
-                "batch_embedding_times": embedding_times,
-                "batch_storage_times": storage_times,
-                "batch_stage_breakdown": stage_breakdown,
-                "batch_stats": {
-                    "avg_s": avg_batch_time,
-                    "max_s": max_batch_time,
-                    "count": batch_time_stats.get("count", 0),
+                'total_embeddings': total_embeddings_stored,
+                'stored_ids': all_stored_ids,
+                'processing_time': parallel_time,
+                'batches_processed': len(batches),
+                'avg_batch_time': avg_batch_time,
+                'max_batch_time': max_batch_time,
+                'stage_breakdown': stage_breakdown,
+                'batch_stats': {
+                    'avg_s': avg_batch_time,
+                    'max_s': max_batch_time,
+                    'count': batch_time_stats.get('count', 0),
                 },
-                "batch_details": completed_batches,
-                "pipeline_config": {
-                    "pipeline_count": self.config.get("pipeline_count"),
-                    "batch_size": self.config.get("batch_size"),
-                    "use_openvino": self.config.get("use_openvino"),
-                    "object_detection_enabled": self.enable_object_detection,
-                    "detection_confidence": self.detection_confidence,
+                'batch_details': completed_batches,
+                'pipeline_config': {
+                    'pipeline_count': self.config.get('pipeline_count'),
+                    'batch_size': self.config.get('batch_size'),
+                    'use_openvino': self.config.get('use_openvino'),
+                    'object_detection_enabled': self.enable_object_detection,
+                    'detection_confidence': self.detection_confidence,
                 },
-                "post_detection_items": total_items_after_detection,
-                "input_frames": batch_frame_length,
+                'post_detection_items': total_items_after_detection,
+                'input_frames': len(all_frames)
             }
-
+            
         except Exception as e:
             logger.error(f"Error in parallel processing: {e}")
             return {
-                "total_embeddings": 0,
-                "stored_ids": [],
-                "processing_time": 0,
-                "batches_processed": 0,
-                "avg_batch_time": 0.0,
-                "max_batch_time": 0.0,
-                "batch_stage_breakdown": {
-                    "detection": {
-                        "avg_s": 0.0,
-                        "max_s": 0.0,
-                        "total_s": 0.0,
-                        "avg_pct_of_batch": 0.0,
-                    },
-                    "embedding": {
-                        "avg_s": 0.0,
-                        "max_s": 0.0,
-                        "total_s": 0.0,
-                        "avg_pct_of_batch": 0.0,
-                    },
-                    "storage": {
-                        "avg_s": 0.0,
-                        "max_s": 0.0,
-                        "total_s": 0.0,
-                        "avg_pct_of_batch": 0.0,
-                    },
+                'total_embeddings': 0,
+                'stored_ids': [],
+                'processing_time': 0,
+                'batches_processed': 0,
+                'avg_batch_time': 0.0,
+                'max_batch_time': 0.0,
+                'stage_breakdown': {
+                    'detection': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
+                    'embedding': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
+                    'storage': {'avg_s': 0.0, 'max_s': 0.0, 'total_s': 0.0, 'avg_pct_of_batch': 0.0},
                 },
-                "batch_stats": {"avg_s": 0.0, "max_s": 0.0, "count": 0},
-                "batch_details": completed_batches,
-                "pipeline_config": {
-                    "pipeline_count": self.config.get("pipeline_count"),
-                    "batch_size": self.config.get("batch_size"),
-                    "use_openvino": self.config.get("use_openvino"),
-                    "object_detection_enabled": self.enable_object_detection,
-                    "detection_confidence": self.detection_confidence,
+                'batch_stats': {'avg_s': 0.0, 'max_s': 0.0, 'count': 0},
+                'batch_details': completed_batches,
+                'pipeline_config': {
+                    'pipeline_count': self.config.get('pipeline_count'),
+                    'batch_size': self.config.get('batch_size'),
+                    'use_openvino': self.config.get('use_openvino'),
+                    'object_detection_enabled': self.enable_object_detection,
+                    'detection_confidence': self.detection_confidence,
                 },
-                "post_detection_items": 0,
-                "input_frames": len(batched_frames),
+                'post_detection_items': 0,
+                'input_frames': len(all_frames)
             }
-
-    # TODO: non-functional, needs cleanup or remove if no dependency
-    def create_frame_batches(
-        self, frames: List[np.ndarray], metadata: List[Dict[str, Any]]
-    ) -> List[tuple]:
+    
+    def create_frame_batches(self, frames: List[np.ndarray], metadata: List[Dict[str, Any]]) -> List[tuple]:
         """Create batches of frames for parallel processing (including object detection)."""
-        batch_size = self.config["batch_size"]
+        batch_size = self.config['batch_size']
         total_frames = len(frames)
-
+        
         logger.info(f"Creating frame batches: {total_frames} frames, batch_size={batch_size}")
-
+        
         batches = []
-
+        
         for i in range(0, total_frames, batch_size):
-            batch_frames = frames[i : i + batch_size]
-            batch_metadata = metadata[i : i + batch_size]
+            batch_frames = frames[i:i + batch_size]
+            batch_metadata = metadata[i:i + batch_size]
             batch_num = len(batches) + 1
-
-            logger.debug(
-                f"Batch {batch_num}: frames {i} to {min(i + batch_size - 1, total_frames - 1)} ({len(batch_frames)} frames)"
-            )
+            
+            logger.debug(f"Batch {batch_num}: frames {i} to {min(i + batch_size - 1, total_frames - 1)} ({len(batch_frames)} frames)")
             batches.append((batch_frames, batch_metadata))
-
-        logger.info(
-            f"Created {len(batches)} batches from {total_frames} frames (avg {total_frames/len(batches):.1f} frames/batch)"
-        )
+        
+        logger.info(f"Created {len(batches)} batches from {total_frames} frames (avg {total_frames/len(batches):.1f} frames/batch)")
         return batches
-
-    # TODO: non-functional, needs cleanup or remove if no dependency
+    
     def _process_single_batch(
         self,
-        batch_frames: List[Tuple[int, np.ndarray]],
+        batch_frames: List[np.ndarray],
         batch_metadata: List[Dict],
         batch_index: int,
+        total_batches: int,
     ) -> Dict[str, Any]:
         """Process a single batch of frames: object detection + embedding generation + immediate storage."""
+        batch_start_time = time.time()
         try:
             logger.info(
-                f"[Batch {batch_index}] Processing {len(batch_frames)} frames "
+                f"[Batch {batch_index}/{total_batches}] Processing {len(batch_frames)} frames "
                 f"(object detection: {self.enable_object_detection})"
             )
 
@@ -1134,292 +832,159 @@ class SimplePipelineManager:
                     batch_index,
                 )
                 return {
-                    "status": "skipped_no_image_support",
-                    "embeddings_count": 0,
-                    "stored_ids": [],
-                    "processing_time": time.perf_counter() - batch_start_time,
-                    "detection_time": 0.0,
-                    "embedding_time": 0.0,
-                    "storage_time": 0.0,
-                    "items_after_detection": 0,
-                    "input_frames": len(batch_frames),
+                    'status': 'skipped_no_image_support',
+                    'embeddings_count': 0,
+                    'stored_ids': [],
+                    'processing_time': time.time() - batch_start_time,
+                    'detection_time': 0.0,
+                    'embedding_time': 0.0,
+                    'storage_time': 0.0,
+                    'items_after_detection': 0,
+                    'input_frames': len(batch_frames)
                 }
-
+            
             # Step 1: Process frames with object detection to expand the batch
             logger.debug(f"Step 1: Starting object detection for {len(batch_frames)} frames")
-
-            def _process_single_frame(args):
-                """
-                Helper for parallel execution.
-                """
-                i, video_index, frame_numpy, frame_metadata = args
-
-                logger.debug(
-                    "Processing frame %d for object detection",
-                    i + 1,
-                )
-
-                return self._process_frame_with_detection(video_index, frame_numpy, frame_metadata)
-
-            batch_start_time = time.perf_counter()
-
-            num_frames = len(batch_frames)
-
-            # Prepare arguments once
-            tasks = [
-                (i, video_index, frame_numpy, frame_metadata)
-                for i, ((video_index, frame_numpy), frame_metadata) in enumerate(
-                    zip(batch_frames, batch_metadata)
-                )
-            ]
-
-            # embedding_metadata_collection: List[Tuple[np.ndarray, Dict[str, Any]]] = []
-            batch_embedding_generation_time = 0.0
-            batch_storage_time = 0.0
-            total_time = 0.0
-            total_embeddings_generation_time = 0.0
-            total_storage_time = 0.0
-            stored_ids = []
-            total_extracted_crops = 0
-            total_embedding_count = 0
-            # Parallel frame processing
-            max_workers = min(2, num_frames)  # tune based on CPU & detector behavior
-
-            # TPE handles embedding creation for detected crops in batches to prevent memory bloat, while still allowing parallel detection processing
-            if self.enable_object_detection:
-                detection_start = time.perf_counter()
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-
-                    in_flight = set()
-
-                    cropped_images_for_embedding = []
-                    cropped_metadata_for_embedding = []
-
-                    # futures = [executor.submit(_process_single_frame, task) for task in tasks]
-
-                    for task in tasks:
-                        in_flight.add(executor.submit(_process_single_frame, task))
-
-                        if len(in_flight) >= max_workers:
-                            done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
-
-                            for future in done:
-                                try:
-                                    frame_results = future.result()
-                                except Exception as e:
-                                    logger.error(f"Error in detection future:", exc_info=True)
-                                    future.exception()  # Clear exception to help GC free traceback references
-                                    del future
-                                    continue
-                                finally:
-                                    del future
-
-                                for image, metadata in frame_results:
-                                    cropped_images_for_embedding.append(image)
-                                    cropped_metadata_for_embedding.append(metadata)
-
-                                del frame_results
-
-                                if len(cropped_images_for_embedding) >= 64:
-                                    total_extracted_crops += len(cropped_images_for_embedding)
-                                    # Generate embeddings for the current batch of crops to prevent memory bloat
-                                    embedding_start = time.perf_counter()
-                                    embeddings = (
-                                        self.master_sdk_client.generate_embeddings_for_images(
-                                            cropped_images_for_embedding
-                                        )
-                                    )
-                                    batch_embedding_generation_time += (
-                                        time.perf_counter() - embedding_start
-                                    )
-                                    total_embedding_count += len(embeddings)
-
-                                    # Persist embeddings for this batch of crops
-                                    store_start = time.perf_counter()
-                                    stored_ids += self.master_sdk_client.store_frame_embeddings(
-                                        embeddings, cropped_metadata_for_embedding
-                                    )
-                                    batch_storage_time += time.perf_counter() - store_start
-
-                                    del embeddings
-                                    cropped_images_for_embedding.clear()
-                                    cropped_metadata_for_embedding.clear()
-
-                    for future in in_flight:
-                        try:
-                            frame_results = future.result()
-                        except Exception as e:
-                            logger.error(f"Error in detection future: {e}")
-                            future.exception()  # Clear exception to help GC free traceback references
-                            del future
-                            continue
-                        finally:
-                            del future
-                        # frame_results already includes full frame + crops
-
-                        for image, metadata in frame_results:
-                            cropped_images_for_embedding.append(image)
-                            cropped_metadata_for_embedding.append(metadata)
-
-                        del frame_results
-
-                        if len(cropped_images_for_embedding) >= 64:
-                            total_extracted_crops += len(cropped_images_for_embedding)
-                            # Generate embeddings for the current batch of crops to prevent memory bloat
-                            embedding_start = time.perf_counter()
-                            embeddings = self.master_sdk_client.generate_embeddings_for_images(
-                                cropped_images_for_embedding
-                            )
-                            batch_embedding_generation_time += time.perf_counter() - embedding_start
-                            total_embedding_count += len(embeddings)
-
-                            # Persist embeddings for this batch of crops
-                            store_start = time.perf_counter()
-                            stored_ids += self.master_sdk_client.store_frame_embeddings(
-                                embeddings, cropped_metadata_for_embedding
-                            )
-                            batch_storage_time += time.perf_counter() - store_start
-
-                            cropped_images_for_embedding.clear()
-                            cropped_metadata_for_embedding.clear()
-                            del embeddings
-
-                    # Process any remaining crops
-                    if len(cropped_images_for_embedding) > 0:
-                        total_extracted_crops += len(cropped_images_for_embedding)
-                        embedding_start = time.perf_counter()
-                        embeddings = self.master_sdk_client.generate_embeddings_for_images(
-                            cropped_images_for_embedding
-                        )
-                        batch_embedding_generation_time += time.perf_counter() - embedding_start
-
-                        store_start = time.perf_counter()
-                        stored_ids += self.master_sdk_client.store_frame_embeddings(
-                            embeddings, cropped_metadata_for_embedding
-                        )
-                        batch_storage_time += time.perf_counter() - store_start
-                        total_embedding_count += len(embeddings)
-
-                        del embeddings
-                        cropped_images_for_embedding.clear()
-                        cropped_metadata_for_embedding.clear()
-                        del cropped_images_for_embedding
-                        del cropped_metadata_for_embedding
-
-                detection_time = (
-                    time.perf_counter()
-                    - detection_start
-                    - batch_embedding_generation_time
-                    - batch_storage_time
-                )
-                logger.info(
-                    f"Object detection and embedding completed for batch {batch_index}: "
-                    f"{total_extracted_crops} total crops extracted, "
-                    f"detection time: {detection_time:.3f}s, "
-                    f"embedding time for crops: {batch_embedding_generation_time:.3f}s, "
-                    f"storage time for crops: {batch_storage_time:.3f}s"
-                )
-
-            # Generate embedding for full frames.
-            full_frame_embedding_time_start = time.perf_counter()
-            batch_frames = [arr for _, arr in batch_frames]
-            embeddings = self.master_sdk_client.generate_embeddings_for_images(batch_frames)
-            total_embeddings_generation_time = time.perf_counter() - full_frame_embedding_time_start
-            total_embedding_count += len(embeddings)
-
-            # Store the embeddings for full frames
-            full_frame_store_start = time.perf_counter()
-            stored_ids += self.master_sdk_client.store_frame_embeddings(embeddings, batch_metadata)
-            total_storage_time += time.perf_counter() - full_frame_store_start
-
-            total_time = time.perf_counter() - batch_start_time
-
-            # batch_frames.clear()  # Help GC free memory immediately
-            # batch_metadata.clear()
-            del batch_frames
-            del batch_metadata
-            del embeddings
-
-            # del batch_frames
-            # del batch_metadata
-
-            if self.enable_object_detection:
-                total_embeddings_generation_time += batch_embedding_generation_time
-                total_storage_time += batch_storage_time
-
+            all_images_for_embedding = []
+            all_metadata_for_embedding = []
+            
+            detection_start = time.time()
+            for i, (frame_numpy, frame_metadata) in enumerate(zip(batch_frames, batch_metadata)):
+                logger.debug(f"Processing frame {i+1}/{len(batch_frames)} for object detection")
+                # Process frame with detection (returns full frame + detected crops)
+                frame_results = self._process_frame_with_detection(frame_numpy, frame_metadata)
+                
+                for image_pil, metadata in frame_results:
+                    all_images_for_embedding.append(image_pil)
+                    all_metadata_for_embedding.append(metadata)
+            detection_time = time.time() - detection_start
+            
+            expansion_info = f"(including crops)" if self.enable_object_detection else "(frames only)"
             logger.info(
-                f"[Batch {batch_index}] Embedding step completed: "
-                f"Full frame embedding time: {total_embeddings_generation_time:.3f}s, "
-                f"Full frame storage time: {total_storage_time:.3f}s, "
+                f"[Batch {batch_index}/{total_batches}] Expanded from {len(batch_frames)} frames "
+                f"to {len(all_images_for_embedding)} items {expansion_info} in {detection_time:.3f}s"
             )
-
+            items_after_detection = len(all_images_for_embedding)
+            # Step 2: Generate embeddings for all images in the expanded batch
+            logger.debug(f"Step 2: Starting embedding generation for {len(all_images_for_embedding)} images")
+            thread_sdk_client = self.master_sdk_client
+            
+            # Use parallel-safe embedding generation
+            # The multimodal embedding service now uses thread-safe infer_new_request
+            logger.debug(
+                f"[Batch {batch_index}/{total_batches}] Using parallel mode - no locking needed with infer_new_request"
+            )
+            embedding_start = time.time()
+            embeddings = thread_sdk_client.generate_embeddings_for_images(all_images_for_embedding)
+            embedding_time = time.time() - embedding_start
+            logger.debug(
+                f"[Batch {batch_index}/{total_batches}] Step 2 completed: Generated {len(embeddings)} "
+                f"embeddings in {embedding_time:.3f}s"
+            )
+            
+            # Step 3: Prepare valid embeddings and metadata for storage
+            logger.debug(f"Step 3: Validating embeddings")
+            valid_embeddings = []
+            valid_metadatas = []
+            for i, (image, metadata, embedding) in enumerate(zip(all_images_for_embedding, all_metadata_for_embedding, embeddings)):
+                if embedding is not None:
+                    valid_embeddings.append(embedding)
+                    valid_metadatas.append(metadata)
+                else:
+                    if self.supports_image_embeddings:
+                        logger.warning(f"Failed to generate embedding for image {metadata['frame_id']}")
+                    else:
+                        logger.debug(
+                            "Skipping embedding for %s because model does not support image modality", 
+                            metadata['frame_id']
+                        )
+            logger.debug(
+                f"[Batch {batch_index}/{total_batches}] Step 3 completed: {len(valid_embeddings)} valid "
+                f"embeddings out of {len(embeddings)}"
+            )
+            
+            # Step 4: Store embeddings immediately for this batch (prevents OutOfJournalSpace)
+            logger.debug(f"Step 4: Starting storage for {len(valid_embeddings)} embeddings")
+            storage_start = time.time()
+            stored_ids = []
+            if valid_embeddings:
+                logger.debug(
+                    f"[Batch {batch_index}/{total_batches}] Storing {len(valid_embeddings)} embeddings immediately"
+                )
+                stored_ids = thread_sdk_client.store_frame_embeddings(valid_embeddings, valid_metadatas)
+                logger.debug(
+                    f"[Batch {batch_index}/{total_batches}] Successfully stored {len(stored_ids)} embeddings"
+                )
+            storage_time = time.time() - storage_start
+            logger.debug(
+                f"[Batch {batch_index}/{total_batches}] Step 4 completed: Storage took {storage_time:.3f}s"
+            )
+            
+            batch_time = time.time() - batch_start_time
+            logger.info(
+                f"[Batch {batch_index}/{total_batches}] Completed: {len(valid_embeddings)} embeddings "
+                f"(detection: {detection_time:.3f}s, embedding: {embedding_time:.3f}s, "
+                f"storage: {storage_time:.3f}s, total: {batch_time:.3f}s)"
+            )
+            
             return {
-                "batch_index": batch_index,
-                "embeddings_count": total_embedding_count,
-                "stored_ids": stored_ids,
-                "processing_time": total_time,
-                "detection_time": detection_time,
-                "embedding_time": total_embeddings_generation_time,
-                "storage_time": total_storage_time,
-                "items_after_detection": total_extracted_crops,
-                "input_frames": num_frames,
+                'batch_index': batch_index,
+                'embeddings_count': len(valid_embeddings),
+                'stored_ids': stored_ids,
+                'processing_time': batch_time,
+                'detection_time': detection_time,
+                'embedding_time': embedding_time,
+                'storage_time': storage_time,
+                'items_after_detection': items_after_detection,
+                'input_frames': len(batch_frames)
             }
-
+            
         except Exception as e:
-            logger.error(f"[Batch {batch_index}] Error processing batch: {e}")
-            e.__traceback__ = None  # Help GC free traceback references
+            logger.error(f"[Batch {batch_index}/{total_batches}] Error processing batch: {e}")
             return {
-                "batch_index": batch_index,
-                "embeddings_count": 0,
-                "stored_ids": [],
-                "processing_time": total_time if "total_time" in locals() else 0.0,
-                "detection_time": detection_time if "detection_time" in locals() else 0.0,
-                "embedding_time": (
-                    total_embeddings_generation_time
-                    if "total_embeddings_generation_time" in locals()
-                    else 0.0
-                ),
-                "storage_time": total_storage_time if "total_storage_time" in locals() else 0.0,
-                "items_after_detection": (
-                    total_extracted_crops if "total_extracted_crops" in locals() else 0
-                ),
-                "input_frames": num_frames,
+                'batch_index': batch_index,
+                'embeddings_count': 0,
+                'stored_ids': [],
+                'processing_time': time.time() - batch_start_time,
+                'detection_time': detection_time if 'detection_time' in locals() else 0.0,
+                'embedding_time': embedding_time if 'embedding_time' in locals() else 0.0,
+                'storage_time': storage_time if 'storage_time' in locals() else 0.0,
+                'items_after_detection': len(all_images_for_embedding) if 'all_images_for_embedding' in locals() else 0,
+                'input_frames': len(batch_frames)
             }
-
-    def _process_sequential_fallback(
-        self, frames: List[np.ndarray], metadata: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    
+    def _process_sequential_fallback(self, frames: List[np.ndarray], metadata: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Fallback to sequential processing with object detection support."""
         logger.warning("Using sequential fallback processing")
         embeddings = []
-
+        
         # Get the appropriate SDK client based on mode
         thread_sdk_client = self.master_sdk_client
-
+        
         for frame_numpy, frame_metadata in zip(frames, metadata):
             try:
                 # Process frame with detection (returns full frame + detected crops)
                 frame_results = self._process_frame_with_detection(frame_numpy, frame_metadata)
-
+                
                 for image_pil, metadata_item in frame_results:
                     try:
                         # Use parallel-safe embedding generation
                         embedding = thread_sdk_client.generate_embedding_for_image(image_pil)
-
+                            
                         if embedding:
-                            embeddings.append({"embedding": embedding, "metadata": metadata_item})
+                            embeddings.append({
+                                'embedding': embedding,
+                                'metadata': metadata_item
+                            })
                     except Exception as e:
-                        logger.error(
-                            f"Error generating embedding for {metadata_item.get('frame_id', 'unknown')}: {e}"
-                        )
+                        logger.error(f"Error generating embedding for {metadata_item.get('frame_id', 'unknown')}: {e}")
                         continue
-
+                        
             except Exception as e:
                 logger.error(f"Error in sequential processing: {e}")
                 continue
-
+        
         return embeddings
-
 
 def generate_video_embedding_sdk(
     video_content: bytes,
@@ -1971,7 +1536,6 @@ def _process_video_from_memory_simple_pipeline(
         shm_pool = SharedMemoryPool(max_blocks=2048, block_size=1920 * 1080 * 3)
         crop_pool = SharedMemoryPool(max_blocks=shm_pool.max_blocks, block_size=shm_pool.block_size)
         extraction_batch_size = 64
-        frame_interval = 1
         
         config = VideoFrameConfig(
             batch_size=extraction_batch_size,  # Large batch for efficient extraction
@@ -1982,11 +1546,6 @@ def _process_video_from_memory_simple_pipeline(
         # Create video input from bytes and extract frames
         logger.info("Initializing video frame extractor with in-memory video content...")
 
-        # "/home/sunilach/workspace/repos/sample-videos/driver-action-recognition.mp4",
-        # "/home/sunilach/workspace/repos/sample-videos/one-by-one-person-detection.mp4",
-        # "/home/sunilach/workspace/repos/sample-videos/bolt-multi-size-detection.mp4",
-        # "rtsp://10.223.24.242:8554/livingroom",
-        # "rtsp://10.223.24.242:8554/backyard",
         extractor = VideoFrameExtractor(
             video_uris,
             config,
@@ -2045,8 +1604,8 @@ def _process_video_from_memory_simple_pipeline(
         detection_thread.start()
         embed_sink_thread.start()
         result_thread.start()
-        # Step 1: Extract frames from video in memory using decoder.py APIs
-        # Convert numpy arrays to list and build metadata
+        
+
         total_frames_processed = 0
 
         logger.info("Extracting frames from video in memory using decoder APIs...")
@@ -2057,29 +1616,11 @@ def _process_video_from_memory_simple_pipeline(
         tags = metadata_dict.get("tags", [])
         video_url = metadata_dict.get("video_url", "")
         video_rel_url = metadata_dict.get("video_rel_url", "")
-
-        # pipeline_manager = SimplePipelineManager(
-        #     sdk_client,
-        #     enable_object_detection=enable_object_detection,
-        #     detection_confidence=detection_confidence,
-        # )
-
-        # Configure frame extraction using PyAV decoder APIs
         
-
         # Process batches in parallel - each batch will do optional object detection + embedding generation + immediate storage
         # total_embeddings_stored = 0
         total_stored_ids = 0
         all_stored_ids = []
-        # post_detection_items = 0
-        # stage_breakdown: List[Dict[str, Any]] = []
-        # batch_stats: List[Dict[str, Any]] = []
-        completed_batches: List[Dict[str, Any]] = []
-        summary = {"decode": 0, "detection": 0, "embedding": 0, "storage": 0}
-        # batch_processing_times: List[float] = []
-        # detection_times: List[float] = []
-        # embedding_times: List[float] = []
-        # storage_times: List[float] = []
 
         total_wall_time_start = time.perf_counter()
         # Assuming single video input; can be extended for multiple videos

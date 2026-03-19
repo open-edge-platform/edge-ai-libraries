@@ -1,7 +1,6 @@
 """
-Video Frame Extraction Utility for Multimodal Embedding Serving.
-Provides efficient, batched video frame extraction with concurrent
-PIL image conversion using a producer-consumer pattern with multiprocessing support.
+Video Frame Extraction Utility for data preparation
+Provides efficient, batched video frame extraction from various sources (files, RTSP streams, bytes) using PyAV.
 """
 
 from __future__ import annotations
@@ -10,15 +9,16 @@ import io
 import logging
 import os
 import queue
-import signal
 import threading
+import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from fractions import Fraction
-import time
+from multiprocessing import shared_memory
 from typing import Any
 from typing import Dict
 from typing import Generator
@@ -29,26 +29,8 @@ from typing import Union
 import av
 import numpy as np
 
-
 INTERRUPT = object()  # interrupt signal (unique, non-colliding)
 DONE = object()  # consumer → main completion signal
-
-import queue
-from multiprocessing import shared_memory
-
-import numpy as np
-
-import threading
-import traceback
-
-def custom_thread_exception(args):
-    print(f"\nThread exception in {args.thread.name}")
-    print(f"Exception type: {args.exc_type}")
-    print(f"Exception value: {args.exc_value}")
-    traceback.print_tb(args.exc_traceback)
-
-threading.excepthook = custom_thread_exception
-
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -64,7 +46,7 @@ class SharedMemoryPool:
         self.block_size = block_size
         self.blocks = []
 
-        for i in range(max_blocks):
+        for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
             self.blocks.append(shm)
             self.free.put(shm.name)
@@ -251,6 +233,7 @@ def decode_stream_and_batch_generator(
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
+
     def flush_batch(batch, batch_id):
         frames_meta = list(
             thread_pool.map(
@@ -332,7 +315,7 @@ def decode_stream_and_batch_generator(
                 DONE,
                 stream_id,
                 (start_time, end_time, end_time - start_time),
-            )  # end-of-stream sentinel
+            )
 
         finally:
             if shutdown_event and shutdown_event.is_set():
@@ -363,7 +346,6 @@ def decode_and_batch_generator(
         batch_start_time = time.perf_counter()
         for frame_id, frame in enumerate(container.decode(video=0)):
 
-            # TODO: Shutdown signal check
             if shutdown_event and shutdown_event.is_set():
                 logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
                 end_time = time.perf_counter()
@@ -418,12 +400,11 @@ def decode_and_batch_generator(
             DONE,
             stream_id,
             (start_time, end_time, end_time - start_time),
-        )  # end-of-stream sentinel
+        )
 
 
 def generator_to_queue(gen, result_queue):
     for item in gen:
-        # logger.info(f"[generator_to_queue] Put item in queue: item type: {type(item)} - {item[0]} item content: {item if isinstance(item, dict) else 'non-dict item'}")
         result_queue.put(item)
         if isinstance(item, tuple) and item[0] is INTERRUPT:
             break
@@ -435,21 +416,6 @@ class VideoFrameExtractor:
 
     Uses a producer-consumer pattern with multiprocessing support for
     parallel decoding of multiple video sources.
-
-    Example:
-        # Single video file
-        extractor = VideoFrameExtractor(input, config)
-        for batch in extractor.extract_batches(VideoInput.from_file("video.mp4")):
-            embeddings = model.encode(batch)
-
-        # RTSP stream
-        for batch in extractor.extract_batches(VideoInput.from_rtsp("rtsp://...")):
-            process(batch)
-
-        # Multiple parallel sources
-        inputs = [VideoInput.from_file(f) for f in video_files]
-        for batch in extractor.extract_batches_parallel(inputs):
-            process(batch)
     """
 
     def __init__(
@@ -610,9 +576,7 @@ class VideoFrameExtractor:
 
                 except queue.Empty:
                     if self._shutdown.is_set():
-                        logger.info(
-                            "[DECODER MAIN] Shutdown event set, stopping frame extraction"
-                        )
+                        logger.info("[DECODER MAIN] Shutdown event set, stopping frame extraction")
                         break
                     continue
 
@@ -650,9 +614,7 @@ class VideoFrameExtractor:
 
         finally:
             self._shutdown.set()
-            logger.info(
-                "[DECODER MAIN] All threads have been signaled to shutdown."
-            )
+            logger.info("[DECODER MAIN] All threads have been signaled to shutdown.")
 
 
 def extract_batched_frames(
@@ -686,32 +648,3 @@ def extract_batched_frames(
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
     print(f"extractor metadata: {extractor.metadata_list}")
     yield from extractor.decode_frames()
-
-
-# shm_pool = SharedMemoryPool(
-#     max_blocks=512, block_size=1920 * 1080 * 3
-# )  # Example for 1080p RGB frames
-# for i, batch in enumerate(
-#     extract_batched_frames(
-#         video_inputs=[
-#             "/home/sunilach/workspace/repos/sample-videos/one-by-one-person-detection.mp4",
-#             "/home/sunilach/workspace/repos/sample-videos/driver-action-recognition.mp4",
-#         ],
-#         frame_interval=1,
-#         batch_size=64,
-#         shm_pool=shm_pool,
-#     )
-# ):
-#     print(f"Received batch {i} with {len(batch)} frames")
-#     data, timing_info = batch
-#     print(
-#         f"Batch {i} - {type(data)} - {len(data['frames'])} frames - timing info: start_time={timing_info[0]}, end_time={timing_info[1]}, duration={timing_info[2]}"
-#     )
-#     for frame_meta in data["frames"]:
-#         shm = shared_memory.SharedMemory(name=frame_meta["shm"])
-#         arr = np.ndarray(eval(frame_meta["shape"]), dtype=frame_meta["dtype"], buffer=shm.buf)
-#         # shm.close()  # Close the handle in this process, the consumer will open it when needed
-#         print(f"Processing frame {frame_meta['frame_id']} from stream {frame_meta['stream_id']}")
-#         shm_pool.release(frame_meta["shm"])  # Release shared memory after processing
-
-#     print(f"Batch {i} processing complete, shared memory released.")

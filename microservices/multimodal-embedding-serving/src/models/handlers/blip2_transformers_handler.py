@@ -26,8 +26,9 @@ The handler maintains the same interface as other model handlers while providing
 BLIP-2's advanced vision-language capabilities through the Q-Former architecture.
 """
 
+import os
 from pathlib import Path
-from typing import List, Union, Dict, Any
+from typing import List, Optional, Union, Dict, Any
 import torch
 import torch.nn.functional as F
 import gc
@@ -35,10 +36,11 @@ import openvino as ov
 from PIL import Image
 
 from ..base import BaseEmbeddingModel
-from ...utils import logger
+from ...utils import logger, ParallelImagePreprocessor
 from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
+    AsyncBatchInference
 )
 
 
@@ -260,10 +262,15 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         # This model includes vision_projection and text_projection (768D → 256D)
         # Note: Both pretrain and pretrain_vitL use the same HuggingFace model
         self.retrieval_model = "Salesforce/blip2-itm-vit-g"  # ITM = Image-Text Matching
-        
+        self.infer_batch_size = model_config.get("infer_batch_size", 64)
+
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
+        self._embedding_dim: Optional[int] = None
+        self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
+        self.async_infer = None
+        self.parallel_preprocessor = None
         
     def _get_transformers_model_name(self):
         """
@@ -342,11 +349,24 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device
+            image_encoder_path, text_encoder_path, self.device, self.infer_batch_size
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         model, processor, _ = self._load_transformers_model()
         self.processor = processor
+
+        self.parallel_preprocessor = ParallelImagePreprocessor(
+            preprocess_fn=self.processor,
+            max_workers=self._preprocess_workers
+        )
+        embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
+        logger.info(f"DIMENSION OF IMAGE ENCODER OUTPUT: {embedding_dim}")
+        self.async_infer = AsyncBatchInference(
+            compiled_model=self.ov_image_encoder,
+            batch_size=self.infer_batch_size,
+            embedding_dim=embedding_dim,
+        )
+
         # Create a simplified tokenizer for OpenVINO
         self.tokenizer = lambda texts: {
             "input_ids": processor(text=texts, return_tensors="pt", padding=True, truncation=True).input_ids,
@@ -415,24 +435,21 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         
         Returns 256D embeddings for semantic search.
         """
-        if isinstance(images, torch.Tensor):
-            pixel_values = images
-        elif isinstance(images, Image.Image):
-            inputs = self.processor(images=images, return_tensors="pt")
-            pixel_values = inputs.pixel_values
-        else:  # List of images
-            inputs = self.processor(images=images, return_tensors="pt")
-            pixel_values = inputs.pixel_values
+        if isinstance(images, Image.Image):
+            images = [images]
         
-        if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO image encoder with infer_new_request for thread safety
+        if self.use_openvino and self.async_infer is not None:
+            # Use OpenVINO image encoder with async inference
             # The converted model already includes Q-Former + projection + normalization
-            result = self.ov_image_encoder.infer_new_request({
-                self.ov_image_encoder.inputs[0]: pixel_values.numpy()
-            })
-            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
+            images = self.parallel_preprocessor.preprocess_images(images)
+            image_features = self.async_infer.infer(images)
         else:
             # Use PyTorch model (already includes projection + normalization)
+            if isinstance(images, torch.Tensor):
+                pixel_values = images
+            else:
+                inputs = self.processor(images=images, return_tensors="pt")
+                pixel_values = inputs.pixel_values
             image_features = self.model.encode_image(pixel_values)
         
         return image_features
