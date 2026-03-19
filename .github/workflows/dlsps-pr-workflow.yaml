@@ -5,10 +5,32 @@ on:
     branches:
       - 'main'
     paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
+      - 'microservices/dlstreamer-pipeline-server/configs/**'
+      - 'microservices/dlstreamer-pipeline-server/docker/**'
+      - 'microservices/dlstreamer-pipeline-server/helm/**'
+      - 'microservices/dlstreamer-pipeline-server/packages/**'
+      - 'microservices/dlstreamer-pipeline-server/plugins/**'
+      - 'microservices/dlstreamer-pipeline-server/resources/**'
+      - 'microservices/dlstreamer-pipeline-server/src/**'
+      - 'microservices/dlstreamer-pipeline-server/tests/**'
+      - 'microservices/dlstreamer-pipeline-server/user_scripts/**'
+      - 'microservices/dlstreamer-pipeline-server/utils/**'
+      - 'microservices/dlstreamer-pipeline-server/Dockerfile'
+      - 'microservices/dlstreamer-pipeline-server/unittests.Dockerfile'
   pull_request:
     paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
+      - 'microservices/dlstreamer-pipeline-server/configs/**'
+      - 'microservices/dlstreamer-pipeline-server/docker/**'
+      - 'microservices/dlstreamer-pipeline-server/helm/**'
+      - 'microservices/dlstreamer-pipeline-server/packages/**'
+      - 'microservices/dlstreamer-pipeline-server/plugins/**'
+      - 'microservices/dlstreamer-pipeline-server/resources/**'
+      - 'microservices/dlstreamer-pipeline-server/src/**'
+      - 'microservices/dlstreamer-pipeline-server/tests/**'
+      - 'microservices/dlstreamer-pipeline-server/user_scripts/**'
+      - 'microservices/dlstreamer-pipeline-server/utils/**'
+      - 'microservices/dlstreamer-pipeline-server/Dockerfile'
+      - 'microservices/dlstreamer-pipeline-server/unittests.Dockerfile'
   workflow_call:
   workflow_dispatch:
 permissions: {}

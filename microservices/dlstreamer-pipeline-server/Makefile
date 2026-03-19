@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -25,7 +25,7 @@ test:
 	@# Help: Runs test stage
 	@echo "---MAKEFILE TEST---"
 
-	docker run --entrypoint /home/pipeline-server/tests/run_tests.sh -v /tmp:/tmp:rw intel/dlstreamer-pipeline-server-test:3.1.0
+	docker run --entrypoint /home/pipeline-server/tests/run_tests.sh -v /tmp:/tmp:rw intel/dlstreamer-pipeline-server-test:latest
 	@echo "---END MAKEFILE TEST---"
 
 coverage:
