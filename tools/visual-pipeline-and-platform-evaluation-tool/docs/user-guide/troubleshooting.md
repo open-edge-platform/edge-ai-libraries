@@ -49,7 +49,7 @@ Elements with suffixes like `D129`, `D130`, etc. are typically mapped to specifi
 `GPU.1`, `GPU.2`). The exact mapping between `varenderD129*` / `varenderD130*` elements and `GPU.X` devices depends on
 your platform configuration and DL Streamer’s GPU selection rules. For details on how these IDs map to GPU devices and
 how to choose the correct elements for each GPU, see the DL Streamer documentation on GPU device selection:
-[GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/dev_guide/gpu_device_selection.html).
+[GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/dev_guide/gpu_device_selection.html).
 
 ---
 
@@ -65,7 +65,7 @@ the ViPPET application is **restarted**.
 
 For more information about DLSOptimizer behavior and limitations, see the DLSOptimizer limitations section in the
 DL Streamer repository:
-[DLSOptimizer limitations](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/libraries/dl-streamer/scripts/optimizer/README.md#limitations).
+[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/optimizer.md#limitations).
 
 **If ViPPET is restarted while DLSOptimizer is running:**
 
@@ -156,7 +156,7 @@ existing pipeline. To avoid confusion and potential issues, use the following gu
 
      For precise and up‑to‑date mapping between `GPU.X` devices and `varenderDXXX*` elements on your platform,
      as well as additional examples, see the DL Streamer GPU device selection guide:
-     [GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/dl-streamer/dev_guide/gpu_device_selection.html).
+     [GPU device selection in DL Streamer](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/dlstreamer/dev_guide/gpu_device_selection.html).
 
 ---
 
@@ -251,13 +251,13 @@ Even if some elements are not shown as expected in the UI, the underlying **pipe
 
 ViPPET currently supports only models defined in:
 
-- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
+- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
 
 A user can try to extend this file with new models whose `source` is either `public` or `pipeline-zoo-models`, but
 there is **no guarantee** that such models will work out of the box.
 
 - Models with `source: public` must be supported by the following script:
-  [download_public_models.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2025.2.0/libraries/dl-streamer/samples/download_public_models.sh)
+  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/samples/download_public_models.sh)
 - Models with `source: pipeline-zoo-models` must already exist in this repository:
   [pipeline-zoo-models](https://github.com/dlstreamer/pipeline-zoo-models)
 

@@ -3,8 +3,8 @@
 It is a powerful, flexible solution for real-time analysis of time series data. Built on top of Kapacitor, it enables both streaming and batch processing, seamlessly integrating with InfluxDB for efficient data storage and retrieval.
 
 > **Note**:
-Please note this prebuilt docker image is not intended for production. For production use, build the docker image yourself using the [Dockerfile](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/time-series-analytics/Dockerfile)
-by following these [build instructions](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/time-series-analytics/get-started.html#build-docker-image).
+Please note this prebuilt docker image is not intended for production. For production use, build the docker image yourself using the [Dockerfile](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/time-series-analytics/Dockerfile)
+by following these [build instructions](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/time-series-analytics/get-started.html#build-docker-image).
 
 ## Supported versions
 ---
