@@ -33,10 +33,10 @@ For demonstration, we will use SeaweedFS as the S3 storage for frames, launching
 > to avoid conflict with DL Streamer Pipeline Server (which uses port 8080).
 
     - For metadata publishing, we would be using MQTT. To enable it, we need to add the host and port details of MQTT broker in `.env` file mentioned above.
-        ```sh
-        MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
-        MQTT_PORT=1883
-        ```
+      ```sh
+      MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
+      MQTT_PORT=1883
+      ```
 > **Note:** the default compose file from DL Streamer Pipeline Server provides an MQTT broker.
 > If you already have a broker running, only the host and port details are to be added to the
 > environment variables.
