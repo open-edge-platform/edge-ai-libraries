@@ -20,6 +20,7 @@ For this tutorial we will be following this approach.
 For demonstration, we will use SeaweedFS as the S3 storage for frames, launching it together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
 1. Modify environment variables in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.
+
    - Provide the S3 storage server details and credentials.
 
      ```sh
