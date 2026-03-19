@@ -37,7 +37,7 @@ RUN \
 RUN \
     python3 -m venv /python3venv && \
     /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
+    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==82.0.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
@@ -218,7 +218,7 @@ COPY ./src/ ./src
 
 USER root
 
-RUN pip3 install --no-cache-dir wheel==0.45.1 setuptools==80.9.0 packaging==25.0 && \
+RUN pip3 install --no-cache-dir wheel==0.46.2 setuptools==82.0.1 packaging==25.0 && \
     pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
     pip3 install --no-cache-dir Flask==2.2.5 && \
@@ -283,11 +283,11 @@ RUN . /etc/os-release && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir geti-sdk==2.7.1 && \
+        pip3 install --no-cache-dir geti-sdk==2.13.1 && \
         # clean up Rust installation files
         rm -rf /root/.cargo /root/.rustup; \
     else \
-        pip3 install --no-cache-dir geti-sdk==2.7.1; \
+        pip3 install --no-cache-dir geti-sdk==2.13.1; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache

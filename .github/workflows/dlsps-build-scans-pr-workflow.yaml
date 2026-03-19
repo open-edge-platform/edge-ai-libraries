@@ -199,7 +199,7 @@ jobs:
         count_vulns() {
           local file=$1
           if [ -f "$file" ]; then
-            awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1
+            awk '/Total: [0-9]+/ {sum += $2} END {print sum+0}' "$file"
           else
             echo "N/A"
           fi
@@ -214,7 +214,7 @@ jobs:
           if [ "$base_vulns" = "0" ] || [ -z "$base_vulns" ]; then
             echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ❌ **Vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
@@ -227,13 +227,18 @@ jobs:
           if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
             echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ❌ **Vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
         fi
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "---" >> $GITHUB_STEP_SUMMARY
+
+        echo "=== Vulnerability Summary ==="
+        echo "Base vulnerabilities     : ${base_vulns:-<empty>}"
+        echo "Extended vulnerabilities : ${extended_vulns:-<empty>}"
+        echo "============================"
 
         # Store results for final check
         echo "BASE_VULNS=$base_vulns" >> $GITHUB_ENV
