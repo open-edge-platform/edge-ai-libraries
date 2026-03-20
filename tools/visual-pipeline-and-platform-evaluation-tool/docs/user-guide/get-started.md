@@ -50,6 +50,7 @@ For alternative ways to set up the sample application, refer to
 2. **Download all required files**:
 
    # TODO: Replace `ktaube/update-get-started-doc` with `v2026.0.0` once 2026.0.0 is released
+
    ```bash
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/ktaube/update-get-started-doc/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/ktaube/update-get-started-doc/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
@@ -81,7 +82,8 @@ For alternative ways to set up the sample application, refer to
 
 5. **Access the application**:
 
-   - Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>` if accessing from a different device on the same network) to access the Visual Pipeline and Platform Evaluation Tool.
+   - Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>` if accessing from a different
+     device on the same network) to access the Visual Pipeline and Platform Evaluation Tool.
 
 6. **Access the application API documentation**:
 

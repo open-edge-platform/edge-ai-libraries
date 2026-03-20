@@ -220,5 +220,6 @@ If the ONVIF Discovery service does not find any cameras on the network, check t
 If you are able to discover network cameras but cannot authenticate to them, check the following:
 
 - Verify that the correct username and password are being used for each camera.
-- Ensure time synchronization between the ViPPET host and the cameras, as some ONVIF implementations require closely synchronized clocks for authentication.
+- Ensure time synchronization between the ViPPET host and the cameras,
+  as some ONVIF implementations require closely synchronized clocks for authentication.
 - Check for any specific ONVIF profiles or settings required by the cameras for authentication.
