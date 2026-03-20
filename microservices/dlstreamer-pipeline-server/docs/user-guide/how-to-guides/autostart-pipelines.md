@@ -37,9 +37,9 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 > the curl request as shown below. In this case, curl request need not have any parameters as all
 > the required parameters to start the pipeline is already mentioned in the pipeline config above.
 
-    ```sh
-    curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{}'
-    ```
+  ```sh
+  curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{}'
+  ```
 
 
 ### Method 2 - Add REST payload under `"payload"` section of the pipeline config.

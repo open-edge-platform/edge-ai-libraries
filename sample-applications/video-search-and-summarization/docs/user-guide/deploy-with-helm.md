@@ -183,12 +183,12 @@ helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_val
 **vLLM Configuration Details:**
 - vLLM provides an OpenAI-compatible API for efficient LLM inference on CPU
 - The `xeon_vllm_values.yaml` override file includes:
-  - vLLM service with 48 CPU cores and 128Gi memory allocation
+  - vLLM service with 16 CPU cores and 128Gi memory allocation
   - Resource configurations for all dependent services (PostgreSQL, RabbitMQ, audio-analyzer, etc.)
   - Automatic disabling of the VLM Inference Microservice (`vlminference.enabled=false`)
 
 **Prerequisites for vLLM:**
-- Ensure your Kubernetes node has sufficient CPU resources (minimum 96 logical cores recommended)
+- Ensure your Kubernetes node has sufficient CPU resources (minimum 32 logical cores recommended)
 - The vLLM container requires at least 128Gi of memory for typical LLM models
 - Cache storage must be configured (default 80Gi PVC for model cache)
 

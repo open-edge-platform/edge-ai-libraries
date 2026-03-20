@@ -263,7 +263,7 @@ export const PipelineActionsMenu = ({
 
       if (!validationStatus.is_valid) {
         toast.error("Pipeline validation failed", {
-          description: formatErrorMessage(validationStatus.error_message),
+          description: formatErrorMessage(validationStatus.details),
         });
         return;
       }

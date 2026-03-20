@@ -157,7 +157,7 @@ const injectedRtkApi = api
         GetValidationJobStatusApiResponse,
         GetValidationJobStatusApiArg
       >({
-        query: (queryArg) => ({
+        query: (queryArg) =>  ({
           url: `/jobs/validation/${queryArg.jobId}/status`,
         }),
         providesTags: ["jobs"],
