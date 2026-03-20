@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
@@ -67,6 +68,8 @@ export const DensityTests = () => {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -187,6 +190,7 @@ export const DensityTests = () => {
 
     setTestResult(null);
     setErrorMessage(null);
+    startRecording();
     try {
       const status = await runTest({
         densityTestSpec: {
@@ -213,6 +217,7 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
+      freezeSnapshot(status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -223,6 +228,7 @@ export const DensityTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+      freezeSnapshot(null);
     }
   };
 
@@ -480,6 +486,18 @@ export const DensityTests = () => {
                 <TestProgressIndicator />
               </div>
             )}
+          </div>
+        )}
+
+        {!isRunning && frozenSummary && (
+          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <TestProgressIndicator
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
           </div>
         )}
 

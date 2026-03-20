@@ -88,6 +88,11 @@ export default () => ({
         seed: 42,
       },
     },
+  tick: {
+    interval: parseInt(process.env.TICK_INTERVAL_MS ?? '5000', 10),
+    fastInterval: parseInt(process.env.FAST_TICK_INTERVAL_MS ?? '2000', 10),
+  },
+
     vlmCaptioning: {
       apiKey: process.env.VLM_CAPTIONING_KEY ?? '',
       apiBase: process.env.VLM_CAPTIONING_API,

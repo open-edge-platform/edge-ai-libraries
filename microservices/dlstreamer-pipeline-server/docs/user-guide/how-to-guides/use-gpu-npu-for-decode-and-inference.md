@@ -15,9 +15,9 @@ For containerized applications such as the Deep Learning Streamer Pipeline Serve
 
 Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` or export it using below command:
 
-    ```sh
-        export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
-    ```
+  ```sh
+  export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+  ```
 
 ### Hardware specific encoder/decoders
 

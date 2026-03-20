@@ -13,8 +13,8 @@ export class AppService {
   tickInterval: NodeJS.Timeout;
   fastTickInterval: NodeJS.Timeout;
 
-  tickSpeed = 5_000;
-  fastTick = 2_000;
+  tickSpeed = this.$config.get<number>('tick.interval', 5_000);
+  fastTick = this.$config.get<number>('tick.fastInterval', 2_000);
 
   constructor(
     private $emitter: EventEmitter2,

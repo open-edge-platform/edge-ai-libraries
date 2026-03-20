@@ -23,20 +23,22 @@ By following this guide, you will learn how to:
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
 - Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
-- `jq` command-line JSON processor: [Installation Guide](https://jqlang.github.io/jq/download/).
+- `jq` command-line JSON processor: [Installation Guide](https://jqlang.org/download/).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
 -->
 
 ## Supported Models
+
 All models - embedding, reranker, and LLM - which are supported by the chosen model serving can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models.
 
 The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
 
 ### Embedding Models validated for each model server
+
    | Model Server | Models Validated |
-   |--------------|-------------------|
+   |--------------|------------------|
    | `TEI` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
    | `OVMS` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
 
@@ -48,11 +50,13 @@ The sample application has been validated with a few models just to validate the
    | `TGI` (deprecated) | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
 **Note:**
+
 1. Limited validation was done on DeepSeek model.
 2. Effective 2025.2.0 release, support for vLLM and TGI is deprecated. The functionality is not guaranteed to work and the user is advised not to use them. Should there be a strong requirement for the same, please raise an issue in github.
 
 ### Reranker Models validated
-   | Model Server | Models Validated |
+
+   | Model Server | Models Validated  |
    |--------------|-------------------|
    | `TEI` | `BAAI/bge-reranker-base` |
 
@@ -83,6 +87,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    # Alternatively, Clone a specific release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
+
    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Bring Up the Model Download Microservice**:
@@ -134,6 +139,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     Refer to the supported model list in the [Get Started](./get-started.md) document.
 
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
+
     ```bash
     export REGISTRY="intel/"
     export TAG=latest
@@ -149,6 +155,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    docker compose up
    ```
+
    - Refer to [the application architecture diagram](./how-it-works.md#technical-architecture-diagram) .
 
 6. **Verify the Application**:
@@ -175,6 +182,7 @@ Refer to [Deploy with Helm](./get-started/deploy-with-helm.md) for the details. 
 1. Ensure you have the necessary environment variables set up as mentioned in the setup section.
 
 2. Run the tests using `pytest`:
+
    ```sh
    cd sample-applications/chat-question-and-answer/tests/unit_tests/
    poetry run pytest
