@@ -25,11 +25,11 @@ cd edge-ai-libraries/microservices
 Run the command to build images:
 
 ```bash
-docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
+docker build -t dataprep-visualdata-milvus:2025.2.0 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
 
 # build the dependency image
 cd multimodal-embedding-serving
-docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
+docker build -t multimodal-embedding-serving:2025.2.0 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
 ```
 
 #### Option 2: use remote prebuilt images
@@ -38,7 +38,7 @@ Set a remote registry by exporting environment variables:
 
 ```bash
 export REGISTRY="intel/"
-export TAG="latest"
+export TAG="2025.2.0"
 ```
 
 **Note**: If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
