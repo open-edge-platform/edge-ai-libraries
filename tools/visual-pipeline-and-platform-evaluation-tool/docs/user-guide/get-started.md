@@ -80,8 +80,8 @@ For alternative ways to set up the sample application, refer to
 
 5. **Access the application**:
 
-   - Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>` if accessing from a different
-     device on the same network) to access the Visual Pipeline and Platform Evaluation Tool.
+   - Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>`) to access
+     the Visual Pipeline and Platform Evaluation Tool.
 
 6. **Access the application API documentation**:
 
