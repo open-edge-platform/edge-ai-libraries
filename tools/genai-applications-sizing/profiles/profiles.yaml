@@ -46,6 +46,16 @@ profiles:
     prompt: "Analyze and interpret the sonnet My mistress eyes are nothing like the sun by William Shakespeare. Identify the main themes, poetic devices used, and the overall message of the poem while summarizing its significance in the context of Shakespeare body of work. Present your analysis clearly and concisely, making sure to include details on the structure of the sonnet, such as the rhyme scheme and meter. Provide insight into how this sonnet challenges conventional beauty standards of the time. Use evidence from the text to support your interpretations."
     max_tokens: "1024"    # ~100-200 tokens
 
+  
+  chatqna_warmup_profile:
+    input_type: "text"
+    input_size: "small"  # ~100 words
+    files:
+      - name: "file1.txt"
+        path: "data/file.txt" 
+    prompt: "warmup test prompt"
+    max_tokens: "1024"    # ~100-200 tokens
+
   video_search_warmup_profile:
     input_type: "video"
     input_size: "warmup"

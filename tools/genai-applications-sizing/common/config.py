@@ -116,13 +116,14 @@ def get_enabled_apis(input_file):
     return stream_log_api_enabled, document_api_enabled
 
 
-def get_stream_api_profile_details(profile_path, input_file):
+def get_stream_api_profile_details(profile_path, input_file, warmup=False):
     """
     Retrieve stream API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
         input_file: Path to the input configuration file.
+        warmup: Boolean flag indicating if warmup mode is enabled.
         
     Returns:
         tuple: (profile, chat_endpoint, doc_endpoint, prompt, filename, 
@@ -142,7 +143,11 @@ def get_stream_api_profile_details(profile_path, input_file):
     profile = stream_log_api_details.get("input_profile", {})
     
     # Load profile-specific details
-    stream_log_profile_details = get_profile_details(profile_path=profile_path, profile_name=profile)
+    if warmup:
+        stream_log_profile_details = get_profile_details(profile_path=profile_path, profile_name='chatqna_warmup_profile')
+    else:
+        stream_log_profile_details = get_profile_details(profile_path=profile_path, profile_name=profile)
+        
     prompt = stream_log_profile_details.get("prompt")
     max_tokens = stream_log_profile_details.get("max_tokens", "1024")
     

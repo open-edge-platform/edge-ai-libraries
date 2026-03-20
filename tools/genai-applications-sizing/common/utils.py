@@ -13,12 +13,13 @@ for backward compatibility. Use specific submodule imports for new code:
 - common.video: Video file processing
 - common.perf_tools: Performance tool management
 
-Note: This module uses gevent for async I/O. The monkey.patch_all() call
-must remain at the top of the file before other imports.
+Note: Gevent monkey-patching should be done at the entry point (profile-runner.py)
+BEFORE any other imports to avoid ssl-related RecursionError.
 """
 
 from gevent import monkey
-monkey.patch_all()
+if not monkey.is_module_patched('ssl'):
+    monkey.patch_all()
 
 import ast
 import json

@@ -12,7 +12,7 @@ import os
 
 from common.config import get_enabled_apis
 from src.base import BasePerformanceProfiler
-from src.chat_question_and_answer.utilities.utils import run_document_hw_sizing, run_chat_hw_sizing
+from src.chat_question_and_answer.utilities.utils import run_document_hw_sizing, run_chat_hw_sizing, run_chat_warmup
 
 
 class ChatQnAModularProfiler(BasePerformanceProfiler):
@@ -29,6 +29,14 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
     
     def get_enabled_apis(self):
         return get_enabled_apis(self.input_file)
+
+    def run_warmup(self, profile_path, input_file):
+        """Execute warmup requests for enabled APIs."""
+        stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
+        
+        if stream_log_api_enabled:
+            run_chat_warmup(self.warmup_time, self.ip, profile_path, input_file)
+
     
     def run_profiling(self, report_dir):
         stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
@@ -46,7 +54,7 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
             )
 
 
-def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file, collect_resource_metrics):
+def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file, collect_resource_metrics, warmup_time=0):
     """
     Execute hardware sizing for ChatQnA Modular by running Locust tests for enabled APIs.
 
@@ -60,7 +68,7 @@ def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file
         ip: Host IP address where the application is deployed.
         input_file: Path to the input YAML configuration file.
         collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
-
+        warmup_time: Duration of the warmup phase in seconds.
     Raises:
         FileNotFoundError: If the input configuration file doesn't exist.
         ValueError: If users or request_count are not positive integers.
@@ -77,6 +85,7 @@ def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file
         ip=ip,
         input_file=input_file,
         collect_resource_metrics=collect_resource_metrics,
-        spawn_rate=spawn_rate
+        spawn_rate=spawn_rate,
+        warmup_time=warmup_time
     )
     profiler.execute()

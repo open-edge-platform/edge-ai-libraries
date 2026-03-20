@@ -10,6 +10,9 @@ sizing tests against the ChatQnA Modular application APIs.
 
 import json
 import subprocess
+from time import time
+
+import requests
 
 from common.utils import (
     get_document_api_profile_details,
@@ -18,6 +21,44 @@ from common.utils import (
     delete_existing_docs
 )
 
+def run_chat_warmup(warmup_time, ip, profile_path, input_file):
+    """
+    Run warmup requests for Chat API to prime the system.
+    
+    Uploads a document and runs a chat conversation to ensure the model and pipeline
+    are loaded and ready for performance testing.
+    
+    Args:
+        warmup_time: Duration in seconds for warmup requests.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
+    """
+    chat_profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
+        profile_path, input_file, warmup=True
+    )
+    
+    host = f"http://{ip}"
+    chat_url = f"{host}:{chat_endpoint}"
+    
+    print(f"Sending warmup requests to chat API...")    
+   
+    warmup_start = time()
+    body = {"conversation_messages":[{"role":"user","content":prompt}],"max_tokens":max_tokens}
+    headers = {'Content-Type': 'application/json'}
+    while (time() - warmup_start) < warmup_time:
+        try:
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(chat_url, headers=headers, json=body, stream=True)
+            
+            if response.status_code == 200:
+                for chunk in response.iter_lines():
+                    pass
+            
+        except Exception as e:
+            print(f"Warmup request failed: {e}")
+            continue
+    
 
 def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
     """

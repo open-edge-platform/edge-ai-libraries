@@ -1,6 +1,11 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# Gevent monkey-patching must be done BEFORE any other imports
+# to avoid RecursionError with ssl module
+from gevent import monkey
+monkey.patch_all()
+
 import argparse
 import os
 import re
@@ -143,7 +148,7 @@ def main():
 
     # Run the appropriate application profiling
     if args.app == "chatqna":        
-        chatqna_performance.chatqna_modular_performance(users=1, request_count=args.request_count, spawn_rate=args.spawn_rate, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics)
+        chatqna_performance.chatqna_modular_performance(users=1, request_count=args.request_count, spawn_rate=args.spawn_rate, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
     elif args.app == "chatqna_core":
         chatqna_core_performance.chatqna_core_performance(users=1, request_count=args.request_count, spawn_rate=args.spawn_rate, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics)
     elif args.app == "video_summary_search":
