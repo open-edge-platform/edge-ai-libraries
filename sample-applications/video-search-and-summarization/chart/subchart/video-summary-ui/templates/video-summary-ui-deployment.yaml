@@ -21,6 +21,10 @@ spec:
           ports:
             - containerPort: 8080
               name: {{ .Values.containerPortName }}
+          {{- with .Values.image.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: APP_ENDPOINT_URL
               value: "{{ .Values.global.env.APP_ENDPOINT_URL }}"

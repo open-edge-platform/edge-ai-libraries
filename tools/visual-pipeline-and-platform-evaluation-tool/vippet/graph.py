@@ -45,6 +45,11 @@ SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
     "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
 )
 
+# Default latency (in ms) applied to rtspsrc elements that do not specify it explicitly.
+RTSPSRC_DEFAULT_LATENCY_MS: int = int(
+    os.environ.get("RTSPSRC_DEFAULT_LATENCY_MS", "100")
+)
+
 
 def _compile_visibility_patterns(pattern_string: str) -> list[re.Pattern]:
     """
@@ -494,6 +499,47 @@ class Graph:
                     node.data["max-size-time"] = "10000000000"
                 if not node.data.get("max-files"):
                     node.data["max-files"] = "100"
+
+        return modified_graph
+
+    def apply_rtsp_connection_settings(self) -> "Graph":
+        """
+        Apply connection settings to all rtspsrc nodes in the pipeline.
+
+        Settings applied to each rtspsrc node:
+        - user-id / user-pw: credentials looked up from CameraManager by RTSP URL.
+        - latency: set to RTSPSRC_DEFAULT_LATENCY_MS if not already explicitly configured.
+
+        If no rtspsrc node is found, the graph is returned unchanged.
+
+        Returns:
+            Modified Graph object with connection settings applied to rtspsrc nodes.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if node.type != "rtspsrc":
+                continue
+
+            location = node.data.get("location")
+            if not location:
+                continue
+
+            details = CameraManager().get_network_camera_details_by_rtsp_url(location)
+            if details is not None:
+                if details.username is not None:
+                    node.data["user-id"] = details.username
+                if details.password is not None:
+                    node.data["user-pw"] = details.password
+
+            node.data.setdefault("latency", str(RTSPSRC_DEFAULT_LATENCY_MS))
+            logger.debug(f"Applied RTSP connection settings to rtspsrc node {node.id}")
 
         return modified_graph
 

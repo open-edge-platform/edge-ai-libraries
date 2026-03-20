@@ -19,15 +19,19 @@
 [submodule "libraries/robotics-ai-libraries/flann/flann"]
 	path = libraries/robotics-ai-libraries/flann/flann
 	url = https://github.com/flann-lib/flann.git
+	shallow = true
 [submodule "libraries/robotics-ai-libraries/pcl/pcl"]
 	path = libraries/robotics-ai-libraries/pcl/pcl
 	url = https://github.com/PointCloudLibrary/pcl.git
+	shallow = true
 [submodule "libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat"]
 	path = libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat
 	url = https://gitlab.com/etherlab.org/ethercat.git
+	shallow = true
 [submodule "libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk"]
 	path = libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk
 	url = https://github.com/YDLIDAR/sdk.git
+	shallow = true
 [submodule "microservices/isolation-forest"]
 	path = microservices/isolation-forest
 	url = https://github.com/intel/isolation-forest-microservice

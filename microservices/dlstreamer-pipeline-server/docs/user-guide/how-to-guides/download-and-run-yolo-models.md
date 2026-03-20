@@ -29,7 +29,7 @@ pip install openvino==2025.0.0 ultralytics
 ```
 
 #### Step 5: Download Yolo11 model
-Run the Python script from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/yolo_models.md#2-yolov8-yolov9-yolov10-yolo11) to download and convert yolo11 model in Intel OpenVINO format. Replace the `model_name` and `model_type` in the script with relevant value as required for other models.
+Run the Python script from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/yolo_models.md) to download and convert yolo11 model to Intel OpenVINO format.
 
 #### Step 6: Deactivate virtual environment
 ```sh

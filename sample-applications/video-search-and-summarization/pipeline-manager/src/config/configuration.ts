@@ -70,6 +70,7 @@ export default () => ({
   openai: {
     usecase: 'default',
     useOVMS: process.env.USE_OVMS ?? CONFIG_STATE.OFF,
+    useVLLM: process.env.USE_VLLM ?? CONFIG_STATE.OFF,
     llmSummarization: {
       apiKey: process.env.LLM_SUMMARIZATION_KEY ?? '',
       apiBase: process.env.LLM_SUMMARIZATION_API,
@@ -87,6 +88,11 @@ export default () => ({
         seed: 42,
       },
     },
+  tick: {
+    interval: parseInt(process.env.TICK_INTERVAL_MS ?? '5000', 10),
+    fastInterval: parseInt(process.env.FAST_TICK_INTERVAL_MS ?? '2000', 10),
+  },
+
     vlmCaptioning: {
       apiKey: process.env.VLM_CAPTIONING_KEY ?? '',
       apiBase: process.env.VLM_CAPTIONING_API,

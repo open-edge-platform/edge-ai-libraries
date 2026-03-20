@@ -5,16 +5,17 @@ This guide provides step-by-step instructions for deploying the ChatQ&A Sample A
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
+
 - Kubernetes cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
-- Model download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Guide](../../../../microservices/model-download/docs/user-guide/deploy-with-helm.md) for deployment instructions.
+- Model download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Chart Guide](../../../../../microservices/model-download/docs/user-guide/deploy-with-helm-chart.md) for deployment instructions.
 - Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying ChatQnA. Refer to the [Model Download Get Started Guide](../../../../../microservices/model-download/docs/user-guide/get-started.md).
 
 ## Steps to deploy with Helm
 
-Following steps should be followed to deploy ChatQ&A using Helm. You can install from source code or pull the chart from Docker hub.
+Following steps should be followed to deploy Chat Q&A using Helm. You can install from source code or pull the chart from Docker hub.
 
 **_Steps 1 to 4 vary depending on whether you build from source or pull Helm chart details from Docker Hub._**
 
@@ -32,7 +33,7 @@ Use the following command to pull the Helm chart from [Docker Hub](https://hub.d
 helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <version-no>
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
+Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
 
 #### Step 3: Extract the `.tgz` File
 
@@ -83,7 +84,7 @@ For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment sc
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
 | `global.affinity.enabled`| Default is false, true to enable affinity | `false` |
 | `global.affinity.key` | Provide the key for the affinity,default is kubernetes.io/hostname | `kubernetes.io/hostname`  |
-| `global.affinity.value` | Provide the values for the respective key | | 
+| `global.affinity.value` | Provide the values for the respective key | |
 | `dataprepPgvector.env.ALLOWED_HOSTS` | Mandatory comma-separated trusted domains for URL ingestion (SSRF mitigation) | `example.com,subdomain.example.com` |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
@@ -215,7 +216,6 @@ helm uninstall <name> -n <your-namespace>
 ChatQnA uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
 
 Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall ChatQnA first, then clean up `model-download` resources, and remove the PVC if needed.
-
 
 ## Related links
 

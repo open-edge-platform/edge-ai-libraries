@@ -1,4 +1,5 @@
 import { useTheme } from "next-themes";
+import type { RefObject } from "react";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import {
@@ -16,11 +17,13 @@ import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 type PipelineTagsComboboxProps = {
   value: string[];
   onChange: (tags: string[]) => void;
+  portalContainer?: RefObject<HTMLElement | ShadowRoot | null>;
 };
 
 export const PipelineTagsCombobox = ({
   value,
   onChange,
+  portalContainer,
 }: PipelineTagsComboboxProps) => {
   const { theme } = useTheme();
   const pipelines = useAppSelector(selectPipelines);
@@ -64,7 +67,7 @@ export const PipelineTagsCombobox = ({
           }}
         />
       </ComboboxChips>
-      <ComboboxContent>
+      <ComboboxContent portalContainer={portalContainer}>
         <ComboboxList>
           {availableTags.length > 0 ? (
             availableTags.map((tag) => (
