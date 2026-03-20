@@ -37,8 +37,7 @@ logger = logging.getLogger(__name__)
 # special hardware / environment that is not present in the standard CI setup.
 _COVERAGE_EXCLUDED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
-        # Requires a physical network camera to be connected.
-        ("POST", "/cameras/{camera_id}/profiles"),
+        # Example: ("POST", "/cameras/{camera_id}/profiles"),  # Requires a physical network camera.
     }
 )
 
