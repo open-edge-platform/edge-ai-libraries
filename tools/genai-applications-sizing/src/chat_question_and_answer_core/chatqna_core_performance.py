@@ -1,6 +1,13 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+ChatQnA Core Application Performance Profiling.
+
+This module provides functionality to profile the ChatQnA core application
+by executing Locust-based load tests against enabled APIs (Stream Log and Document APIs).
+"""
+
 import os
 from datetime import datetime
 from common.utils import (
@@ -15,15 +22,24 @@ from src.chat_question_and_answer_core.utilities.utils import run_stream_log_hw_
 
 def chatqna_core_performance(users, request_count, spawn_rate, ip, input_file, collect_resource_metrics):
     """
-    Executes hardware sizing for ChatQnA Core by running Locust tests for enabled APIs.
+    Execute hardware sizing for ChatQnA Core by running Locust tests for enabled APIs.
+
+    This function orchestrates the performance profiling workflow:
+    1. Calculates total requests based on users and request count
+    2. Retrieves enabled APIs and global configuration
+    3. Creates timestamped report directory
+    4. Optionally starts resource metrics collection
+    5. Runs Stream Log API profiling (if enabled)
+    6. Runs Document API profiling (if enabled)
+    7. Generates performance graphs from collected metrics
 
     Args:
-        users (int): Number of users for the test.
-        request_count (int): Number of requests per user.
-        spawn_rate (int): Rate at which users are spawned.
-        ip (str): Host IP address where the application is deployed.
-        input_file (str): Path to the input YAML configuration file.
-        collect_resource_metrics (bool): Whether to collect resource metrics.   
+        users: Number of concurrent users for the test.
+        request_count: Number of requests per user.
+        spawn_rate: Rate at which users are spawned per second.
+        ip: Host IP address where the application is deployed.
+        input_file: Path to the input YAML configuration file.
+        collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
     """
     # Calculate total request count (Locust limitation execution stops after specified number of iterations)
     total_requests = users * request_count

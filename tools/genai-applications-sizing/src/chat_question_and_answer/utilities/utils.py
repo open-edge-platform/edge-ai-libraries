@@ -1,22 +1,36 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utility functions for ChatQnA Modular profiling.
+
+This module provides helper functions for running Locust-based hardware
+sizing tests against the ChatQnA Modular application APIs.
+"""
+
 import json
 import subprocess
-from common.utils import get_document_api_profile_details, get_stream_api_profile_details, upload_document_before_conversation, delete_existing_docs
+
+from common.utils import (
+    get_document_api_profile_details,
+    get_stream_api_profile_details,
+    upload_document_before_conversation,
+    delete_existing_docs
+)
 
 
 def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
     """
-    Runs Locust tests for the Document API hardware sizing.
+    Run Locust tests for the Document API hardware sizing.
 
     Args:
-        users (int): Number of users for the test.
-        total_requests (int): Total number of requests.
-        ip (str): Host IP address where the application is deployed.
-        profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
-        report_dir (str): Directory to save the test reports.
+        users: Number of concurrent users for the test.
+        total_requests: Total number of requests.
+        spawn_rate: Rate at which users are spawned per second.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
+        report_dir: Directory to save the test reports.
     """
     from src.chat_question_and_answer.locust_files import document
 
@@ -24,6 +38,7 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
     print(f"Hardware sizing started for the '{doc_profile}' profile...")
     doc_url = f"http://{ip}:{document_endpoint}"
     delete_existing_docs(doc_url)
+    
     # Construct and execute the Locust command
     cmd = [
         "locust",
@@ -42,21 +57,21 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
     subprocess.run(cmd, check=True)
 
 
-
 def run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
     """
-    Runs Locust tests for the Chat API hardware sizing.
+    Run Locust tests for the Chat API hardware sizing.
 
     Args:
-        users (int): Number of users for the test.
-        total_requests (int): Total number of requests.
-        spawn_rate (int): Rate at which users are spawned.
-        ip (str): Host IP address where the application is deployed.
-        profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
-        report_dir (str): Directory to save the test reports.
+        users: Number of concurrent users for the test.
+        total_requests: Total number of requests.
+        spawn_rate: Rate at which users are spawned per second.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
+        report_dir: Directory to save the test reports.
     """
     from src.chat_question_and_answer.locust_files import chat
+    
     profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
         profile_path, input_file
     )

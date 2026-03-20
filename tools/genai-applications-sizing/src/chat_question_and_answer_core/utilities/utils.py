@@ -1,54 +1,74 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utility functions for ChatQnA Core profiling.
+
+This module provides helper functions for running Locust-based hardware
+sizing tests against the ChatQnA Core application APIs.
+"""
+
 import subprocess
+from functools import lru_cache
 from transformers import LlamaTokenizerFast
 from common.utils import get_document_api_profile_details, get_stream_api_profile_details, upload_document_before_conversation
-# from gevent import monkey
-# monkey.patch_all()
+
+
+@lru_cache(maxsize=1)
+def _get_tokenizer():
+    """
+    Get or create a cached tokenizer instance.
+    
+    Uses LRU cache to avoid reloading the tokenizer on every call,
+    significantly improving performance for repeated tokenization.
+    
+    Returns:
+        LlamaTokenizerFast: The cached tokenizer instance.
+    """
+    return LlamaTokenizerFast.from_pretrained(
+        "hf-internal-testing/llama-tokenizer", legacy=False
+    )
+
 
 def get_token_length(text):
     """
-    Calculates the token length of a given text using the LlamaTokenizerFast.
+    Calculate the token length of a given text using LlamaTokenizerFast.
+
+    Uses a cached tokenizer instance for efficient repeated calls.
 
     Args:
-        text (str): The input text to tokenize.
+        text: The input text to tokenize.
 
     Returns:
         int: The number of tokens in the input text. Returns 0 if an error occurs.
     """
     try:
-        # Load the tokenizer
-        tokenizer = LlamaTokenizerFast.from_pretrained(
-            "hf-internal-testing/llama-tokenizer", legacy=False
-        )
-        
-        # Encode the text and calculate token length
-        token_length = len(tokenizer.encode(text))
-        return token_length
+        tokenizer = _get_tokenizer()
+        return len(tokenizer.encode(text))
     except Exception as e:
-        # Log the error and return 0
         print(f"Token length calculation failed with error: {e}")
         return 0
 
 
 def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
     """
-    Runs Locust tests for the Stream Log API hardware sizing.
+    Run Locust tests for the Stream Log API hardware sizing.
 
     Args:
-        users (int): Number of users for the test.
-        total_requests (int): Total number of requests.
-        ip (str): Host IP address where the application is deployed.
-        profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
-        report_dir (str): Directory to save the test reports.
+        users: Number of users for the test.
+        total_requests: Total number of requests.
+        spawn_rate: Rate at which users are spawned per second.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
+        report_dir: Directory to save the test reports.
     """
     # Import stream_log here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import stream_log
     
-
-    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, max_tokens, service_name = get_stream_api_profile_details(
+    # Note: get_stream_api_profile_details returns tuple in order:
+    # (profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens)
+    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
         profile_path, input_file
     )
     print(f"Hardware sizing started for the '{profile}' profile...")

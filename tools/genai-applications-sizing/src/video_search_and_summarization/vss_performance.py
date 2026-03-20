@@ -1,6 +1,13 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Video Search and Summarization Performance Profiling.
+
+This module provides functionality to profile video search and summarization APIs
+by executing Locust-based load tests with optional warmup periods.
+"""
+
 import os
 from datetime import datetime
 from src.video_search_and_summarization.utilities.utils import run_video_summary_hw_sizing, run_video_search_hw_sizing, run_video_summary_warmup, run_video_search_warmup
@@ -9,16 +16,25 @@ from common.utils import get_enabled_video_apis, get_global_details, start_perf_
 
 def vss_performance(users, request_count, ip, input_file, collect_resource_metrics, warmup_time=0):
     """
-    Executes hardware sizing for ChatQnA Modular by running Locust tests for enabled APIs.
+    Execute hardware sizing for Video Summary and Search APIs.
+
+    This function orchestrates the video profiling workflow:
+    1. Calculates total requests based on users and request count
+    2. Retrieves enabled APIs and global configuration
+    3. Creates timestamped report directory
+    4. Runs optional warmup requests to prime the system
+    5. Starts resource metrics collection (if requested)
+    6. Runs Video Summary API profiling (if enabled)
+    7. Runs Video Search API profiling (if enabled)
+    8. Generates performance graphs from collected metrics
 
     Args:
-        users (int): Number of users for the test.
-        request_count (int): Number of requests per user.
-        spawn_rate (int): Rate at which users are spawned.
-        ip (str): Host IP address where the application is deployed.
-        input_file (str): Path to the input YAML configuration file.
-        collect_resource_metrics (bool): Whether to collect resource metrics.
-        warmup_time (int): Duration in seconds for warmup requests (default: 0).   
+        users: Number of concurrent users for the test.
+        request_count: Number of requests per user.
+        ip: Host IP address where the application is deployed.
+        input_file: Path to the input YAML configuration file.
+        collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
+        warmup_time: Duration in seconds for warmup requests (default: 0).
     """
     # Calculate total request count (Locust limitation)
     total_requests = users * request_count

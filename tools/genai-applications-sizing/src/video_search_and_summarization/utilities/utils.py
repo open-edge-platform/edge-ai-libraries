@@ -1,24 +1,43 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utility functions for Video Search and Summarization profiling.
+
+This module provides helper functions for running warmup requests and
+Locust-based hardware sizing tests against the Video Summary and Search APIs.
+"""
+
 from gevent import monkey
 monkey.patch_all()
+
 import subprocess
 import time
+
 import requests
-import json
-from common.utils import get_video_summary_profile_details, get_video_search_profile_details, upload_video_file, wait_for_video_summary_complete, embedding_video_file, safe_parse_string_to_dict
+
+from common.utils import (
+    get_video_summary_profile_details,
+    get_video_search_profile_details,
+    upload_video_file,
+    wait_for_video_summary_complete,
+    embedding_video_file,
+    safe_parse_string_to_dict
+)
 
 
 def run_video_summary_warmup(warmup_time, ip, profile_path, input_file):
     """
-    Runs warmup requests for video summary API to ensure the system is ready.
+    Run warmup requests for video summary API to prime the system.
+    
+    Uploads a video and runs summarization to ensure the model and pipeline
+    are loaded and ready for performance testing.
     
     Args:
-        warmup_time (int): Duration in seconds for which warmup requests should run.
-        ip (str): Host IP address where the application is deployed.
-        profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
+        warmup_time: Duration in seconds for warmup requests.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
     """
     video_profile, upload_endpoint, summary_endpoint, states_endpoint, telemetry_endpoint, filename, filepath, payload = get_video_summary_profile_details(
         profile_path, input_file, warmup=True

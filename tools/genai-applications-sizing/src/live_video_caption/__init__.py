@@ -1,4 +1,4 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""ChatQnA modular application profiling module."""
+"""Live video caption profiling module for GenAI application sizing."""

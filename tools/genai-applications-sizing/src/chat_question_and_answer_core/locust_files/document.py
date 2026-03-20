@@ -1,11 +1,20 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from locust import task, constant, events, HttpUser
-import time
-from common.utils import setup_document_upload, rest_api_metrics, safe_parse_string_to_dict
+"""
+Locust load test for ChatQnA Core Document API.
+
+This module defines a Locust user class that simulates document upload
+requests to the ChatQnA Core API, with cleanup before each upload.
+"""
+
 import os
+import time
+
 import requests
+from locust import task, constant, events, HttpUser
+
+from common.utils import setup_document_upload, rest_api_metrics, safe_parse_string_to_dict
 
 
 @events.init_command_line_parser.add_listener

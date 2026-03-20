@@ -1,10 +1,20 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from locust import task, constant, events, HttpUser
+"""
+Locust load test for ChatQnA Chat API.
+
+This module defines a Locust user class that simulates chat requests
+to the ChatQnA modular API, measuring latency, time-to-first-token (TTFT),
+inter-token latency (ITL), and tokens per second (TPS).
+"""
+
+import json
 import os
 import time
-import json
+
+from locust import task, constant, events, HttpUser
+
 from common.utils import get_response, write_metrics, write_chatqna_metrics_to_csv
 from src.chat_question_and_answer_core.utilities.utils import get_token_length
 

@@ -1,11 +1,27 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from locust import task, events, HttpUser
+"""
+Locust load test for Video Search API.
+
+This module defines a Locust user class that simulates video upload,
+embedding creation, and search requests for performance analysis.
+"""
+
+import itertools
 import os
 import time
-from common.utils import convert_search_metrics_to_wsf_format, get_video_search_telemetry_kpis, save_video_summary_search_telemetry_kpis, upload_video_file, embedding_video_file, safe_parse_string_to_dict
-import itertools
+
+from locust import task, events, HttpUser
+
+from common.utils import (
+    convert_search_metrics_to_wsf_format,
+    get_video_search_telemetry_kpis,
+    save_video_summary_search_telemetry_kpis,
+    upload_video_file,
+    embedding_video_file,
+    safe_parse_string_to_dict
+)
 
 @events.init_command_line_parser.add_listener
 def add_custom_arguments(parser):

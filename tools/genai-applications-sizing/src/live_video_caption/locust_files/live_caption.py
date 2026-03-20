@@ -1,10 +1,26 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Locust load test for Live Video Caption API.
+
+This module defines a Locust user class that simulates live video captioning
+requests, collecting streaming metadata and performance metrics.
+"""
+
 import json
-from locust import task, events, HttpUser
 import os
-from common.utils import get_live_caption_metadata, stop_all_run_request, safe_parse_string_to_dict, get_live_caption_metrics, save_live_video_caption_telemetry_kpis, save_metrics_to_wsf_format
+
+from locust import task, events, HttpUser
+
+from common.utils import (
+    get_live_caption_metadata,
+    stop_all_run_request,
+    safe_parse_string_to_dict,
+    get_live_caption_metrics,
+    save_live_video_caption_telemetry_kpis,
+    save_metrics_to_wsf_format
+)
 from src.live_video_caption.utilities.utils import run_live_caption_warmup
 
 
@@ -50,7 +66,7 @@ class LiveCaptionHwSize(HttpUser):
         LiveCaptionHwSize.run_url = f"{self.host}:{self.runs_endpoint}"
         self.report_dir = parsed_opts.report_dir
         
-        print("The Live video caption H\W Sizing runs for a set duration, so request_count is ignored.")
+        print("Note: Live video caption HW sizing runs for a set duration; request_count is ignored.")
         
         if not LiveCaptionHwSize.report_dir:
             report_dir = parsed_opts.report_dir

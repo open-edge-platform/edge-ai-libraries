@@ -83,9 +83,21 @@ def validate_args(args):
 
 
 def main():
-
     """
     Main function to parse arguments and run the appropriate application performance profiling.
+    
+    This function serves as the entry point for the GenAI application sizing tool.
+    It parses command-line arguments, validates inputs, and dispatches to the
+    appropriate performance profiling module based on the selected application.
+    
+    Supported applications:
+        - chatqna: ChatQnA modular application profiling
+        - chatqna_core: ChatQnA core application profiling
+        - video_summary_search: Video summary and search profiling
+        - live_caption: Live video captioning profiling
+    
+    Raises:
+        SystemExit: If input validation fails or required arguments are missing.
     """
 
     # Create the parser
@@ -138,9 +150,8 @@ def main():
         vss_performance.vss_performance(users=1, request_count=args.request_count, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
     elif args.app == "live_caption":
         lvc_performance.lvc_performance(users=1, request_count=1, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
-    else:
-        print("Invalid application name. Please choose from chatqna, chatqna_core, video_summary_search, or live_caption.")
+    # Note: No else branch needed - argparse choices validation ensures valid app names
 
-    
+
 if __name__ == "__main__":
     main()

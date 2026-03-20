@@ -1,10 +1,28 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from locust import task, events, HttpUser
+"""
+Locust load test for Video Summary API.
+
+This module defines a Locust user class that simulates video upload and
+summarization requests, collecting telemetry KPIs for performance analysis.
+"""
+
 import os
 import time
-from common.utils import convert_summary_metrics_to_wsf_format, get_video_summary, get_video_summary_telemetry_kpis, save_video_summary_search_telemetry_kpis, upload_video_file, wait_for_video_summary_complete, get_video_details, safe_parse_string_to_dict
+
+from locust import task, events, HttpUser
+
+from common.utils import (
+    convert_summary_metrics_to_wsf_format,
+    get_video_summary,
+    get_video_summary_telemetry_kpis,
+    save_video_summary_search_telemetry_kpis,
+    upload_video_file,
+    wait_for_video_summary_complete,
+    get_video_details,
+    safe_parse_string_to_dict
+)
 
 
 

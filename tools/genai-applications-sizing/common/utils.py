@@ -1,40 +1,79 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utility functions for GenAI application performance profiling.
+
+This module provides common utilities for:
+- Configuration file reading and parsing
+- Metrics calculation and reporting
+- Video file processing and analysis
+- API endpoint interaction
+- Performance monitoring tool management
+
+Note: This module uses gevent for async I/O. The monkey.patch_all() call
+must remain at the top of the file before other imports.
+"""
+
 from gevent import monkey
 monkey.patch_all()
-import time
-import sys
-import subprocess
-import json
-import ast
-from datetime import datetime, timezone
-import numpy as np
+
+# Standard library imports
 import csv
+import json
 import os
-import yaml
+import subprocess
+import time
+from datetime import datetime, timezone
+
+# Third-party imports
+import ast
+import numpy as np
 import requests
 import shutil
+import yaml
 from moviepy import VideoFileClip
+
+
+# ==============================================================================
+# Constants
+# ==============================================================================
+
+# Timeout values in seconds
+VIDEO_SUMMARY_TIMEOUT_SECONDS = 3600  # 1 hour timeout for video summary completion
+POLLING_INTERVAL_SECONDS = 10  # Interval between status poll requests
+PERF_TOOL_STOP_DELAY_SECONDS = 2  # Delay before stopping performance tool
+DOCKER_REMOVAL_TIMEOUT_SECONDS = 5  # Timeout for docker container removal
+
+# Frame extraction ratios
+FRAME_EXTRACTION_RATIO = 15  # Extract 1 frame per N frames for embedding
+NORMALIZED_FPS_BASELINE = 30  # Baseline FPS for normalized RTF calculation
+
+# File permissions
+DIRECTORY_PERMISSION = 0o770  # rwxrwx---
+UMASK_VALUE = 0o007  # Inverse of 0o770
+
+# Bucket name for document storage
+DEFAULT_BUCKET_NAME = "appuser.gai.ragfiles"
 
 
 def setup_report_permissions(report_dir):
     """
-    Sets up permissions on the report directory and configures umask for inheritance.
+    Set up permissions on the report directory and configure umask for inheritance.
     
     All subdirectories and files created after this call will inherit permissions:
     - Directories: 0o770 (rwxrwx---)
     - Files: 0o660 (rw-rw----)
     
     Args:
-        report_dir (str): Path to the root report directory.
+        report_dir: Path to the root report directory.
     """
     # Set umask so new files get 0o660 and directories get 0o770
-    os.umask(0o007)
+    os.umask(UMASK_VALUE)
     
     # Set permissions on root directory
     try:
-        os.chmod(report_dir, 0o770)
+        os.chmod(report_dir, DIRECTORY_PERMISSION)
     except OSError as e:
         print(f"Warning: Failed to set permissions on {report_dir}: {e}")
 
@@ -334,10 +373,13 @@ def get_stream_api_profile_details(profile_path, input_file):
 
 def delete_existing_docs(url):
     """
-    Deletes all existing documents from the specified bucket.
+    Delete all existing documents from the specified bucket.
+    
+    Args:
+        url: The API endpoint URL for document deletion.
     """
     print("Deleting existing documents...")
-    params = {"bucket_name": "appuser.gai.ragfiles", "delete_all": True}
+    params = {"bucket_name": DEFAULT_BUCKET_NAME, "delete_all": True}
     
     try:
         response = requests.delete(url, params=params, timeout=30)
@@ -654,11 +696,18 @@ def embedding_video_file(url, video_id):
     
 def wait_for_video_summary_complete(url):
     """
-    Polls the video summary API endpoint until processing is complete.
+    Poll the video summary API endpoint until processing is complete.
+    
+    Args:
+        url: The API endpoint URL to poll for status.
+        
+    Returns:
+        tuple: (completion_status, response) where completion_status is True if
+               video summary completed successfully, False otherwise.
     """
     video_summary_complete = False
     response = ""
-    must_end = time.time() + 3600  # 1 hour timeout
+    must_end = time.time() + VIDEO_SUMMARY_TIMEOUT_SECONDS
     print("Waiting for video summary to complete...")
     
     while time.time() < must_end:
@@ -676,11 +725,11 @@ def wait_for_video_summary_complete(url):
             if json_response.get("videoSummaryStatus") == "complete":
                 video_summary_complete = True
                 break            
-            time.sleep(10)
+            time.sleep(POLLING_INTERVAL_SECONDS)
 
         except KeyboardInterrupt:
             print("Keyboard interrupt received. Exiting...")
-            sys.exit(130)
+            raise SystemExit(130)
         except requests.exceptions.RequestException as e:
             print(f"Connection error, retrying: {e}...")
             time.sleep(1)
@@ -740,8 +789,11 @@ def write_vss_metrics(report_dir, metrics):
 
 def write_video_summary_metrics(report_dir, metrics):
     """
-    Writes individual video summary API metrics to a JSON file.
-        None
+    Write individual video summary API metrics to a JSON file.
+    
+    Args:
+        report_dir: Directory path where the metrics file will be saved.
+        metrics: Dictionary containing metrics data to be written.
     """
     json_file = os.path.join(report_dir, "summary_api_individual_metrics.json")
     try:
@@ -934,21 +986,15 @@ def start_perf_tool(repo_url, report_dir):
 
 def stop_perf_tool():
     """
-    Stops and removes the performance monitoring Docker container.
+    Stop and remove the performance monitoring Docker container.
     
     This function gracefully shuts down the metrics-collector Docker container
     that was started by the start_perf_tool function. It waits briefly to ensure
     any pending metrics are flushed before forcefully removing the container.
-    
-    Args:
-        None
-    
-    Returns:
-        None
     """
     try:
         # Brief delay to ensure metrics are flushed
-        time.sleep(2)
+        time.sleep(PERF_TOOL_STOP_DELAY_SECONDS)
         
         # Force remove the metrics collector container
         subprocess.run(
@@ -956,7 +1002,7 @@ def stop_perf_tool():
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=5
+            timeout=DOCKER_REMOVAL_TIMEOUT_SECONDS
         )
         
         print("Performance tool stopped.")
@@ -1060,7 +1106,14 @@ def get_video_details(video_file_path):
 
 def embedding_creation_per_sec(video_details, embedding_time):
     """
-    Calculates the embedding creation rate in frames per second.   
+    Calculate the embedding creation rate in frames per second.
+    
+    Args:
+        video_details: Dictionary containing video metadata (Duration, FPS).
+        embedding_time: Time taken for embedding creation in seconds.
+        
+    Returns:
+        float: Embedding creation rate in frames per second, or 0.0 on error.
     """
     try:
         duration = video_details.get("Duration (s)", 0)
@@ -1071,8 +1124,7 @@ def embedding_creation_per_sec(video_details, embedding_time):
             return 0.0        
         
         total_frames = duration * fps
-        extracted_frames = total_frames / 15
-        # embedding_rate = total_frames / embedding_time
+        extracted_frames = total_frames / FRAME_EXTRACTION_RATIO
         embedding_rate = extracted_frames / embedding_time
         
         return round(embedding_rate, 2)
@@ -1354,7 +1406,10 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
             
             video_details["wall_time_seconds"] = item.get("timestamps", {}).get("wall_time_seconds", 0)
             video_details["embedding_per_sec"] = item.get("throughput", {}).get("embeddings_per_second", 0)     
-            relative_rtf = (video_details.get("wall_time_seconds", 0) / video_details.get("duration_seconds", 1)) * (30 / video_details.get("fps", 1))   
+            relative_rtf = (
+                (video_details.get("wall_time_seconds", 0) / video_details.get("duration_seconds", 1)) 
+                * (NORMALIZED_FPS_BASELINE / video_details.get("fps", 1))
+            )
             video_details["Normalized_Embedding_RTF"] = round(relative_rtf, 4) 
             input_videos.append(video_details)            
             

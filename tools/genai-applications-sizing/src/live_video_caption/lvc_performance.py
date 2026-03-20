@@ -1,6 +1,13 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Live Video Caption Performance Profiling.
+
+This module provides functionality to profile live video captioning APIs
+by executing Locust-based load tests with optional warmup periods.
+"""
+
 import os
 from datetime import datetime
 from src.live_video_caption.utilities.utils import run_live_caption_hw_sizing
@@ -9,16 +16,23 @@ from common.utils import get_enabled_live_caption_apis, get_global_details, star
 
 def lvc_performance(users, request_count, ip, input_file, collect_resource_metrics, warmup_time):
     """
-    Executes hardware sizing for Live video caption by running Locust tests for enabled APIs.
+    Execute hardware sizing for Live Video Caption API.
+
+    This function orchestrates the live video caption profiling workflow:
+    1. Calculates total requests based on users and request count
+    2. Retrieves enabled APIs and global configuration
+    3. Creates timestamped report directory
+    4. Starts resource metrics collection (if requested)
+    5. Runs Live Caption API profiling (if enabled)
+    6. Generates performance graphs from collected metrics
 
     Args:
-        users (int): Number of users for the test.
-        request_count (int): Number of requests per user.
-        spawn_rate (int): Rate at which users are spawned.
-        ip (str): Host IP address where the application is deployed.
-        input_file (str): Path to the input YAML configuration file.
-        collect_resource_metrics (bool): Whether to collect resource metrics.
-        warmup_time (int): Duration in seconds for warmup requests (default: 0).   
+        users: Number of concurrent users for the test.
+        request_count: Number of requests per user.
+        ip: Host IP address where the application is deployed.
+        input_file: Path to the input YAML configuration file.
+        collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
+        warmup_time: Duration in seconds for warmup requests.
     """
     # Calculate total request count (Locust limitation)
     total_requests = users * request_count

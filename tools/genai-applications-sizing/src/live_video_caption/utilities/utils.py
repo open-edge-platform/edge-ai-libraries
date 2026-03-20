@@ -1,13 +1,30 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utility functions for Live Video Caption profiling.
+
+This module provides helper functions for running warmup requests
+and Locust-based hardware sizing tests for the Live Caption API.
+"""
+
 import subprocess
 import time
+
 import requests
+
 from common.utils import get_live_caption_profile_details, stop_all_run_request
 
 
 def run_live_caption_warmup(url, payload, warmup_time):
+    """
+    Run warmup requests to prime the live caption pipeline.
+    
+    Args:
+        url: The API endpoint URL for starting caption runs.
+        payload: JSON payload for the caption request.
+        warmup_time: Duration in seconds to keep the warmup running.
+    """
     response = requests.post(url, headers={'Content-Type': 'application/json'}, data=payload)
     if response.status_code == 200:
         run_id = response.json().get("runId")
@@ -22,16 +39,16 @@ def run_live_caption_warmup(url, payload, warmup_time):
 
 def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir, warmup_time):
     """
-    Runs Locust tests for the Live Caption API hardware sizing.
+    Run Locust tests for the Live Caption API hardware sizing.
 
     Args:
-        users (int): Number of users for the test.
-        total_requests (int): Total number of requests.
-        ip (str): Host IP address where the application is deployed.
-        profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
-        report_dir (str): Directory to save the test reports.
-        warmup_time (int): Duration in seconds for warmup requests.
+        users: Number of concurrent users for the test.
+        total_requests: Total number of requests.
+        ip: Host IP address where the application is deployed.
+        profile_path: Path to the profile YAML file.
+        input_file: Path to the input YAML configuration file.
+        report_dir: Directory to save the test reports.
+        warmup_time: Duration in seconds for warmup requests.
     """
     from src.live_video_caption.locust_files import live_caption
     lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_live_caption_profile_details(profile_path, input_file)

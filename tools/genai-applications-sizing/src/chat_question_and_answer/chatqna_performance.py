@@ -1,6 +1,13 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+ChatQnA Modular Application Performance Profiling.
+
+This module provides functionality to profile the ChatQnA modular application
+by executing Locust-based load tests against enabled APIs (Chat and Document APIs).
+"""
+
 import os
 from datetime import datetime
 from common.utils import (
@@ -15,15 +22,27 @@ from src.chat_question_and_answer.utilities.utils import run_document_hw_sizing,
 
 def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file, collect_resource_metrics):
     """
-    Executes hardware sizing for ChatQnA Modular by running Locust tests for enabled APIs.
+    Execute hardware sizing for ChatQnA Modular by running Locust tests for enabled APIs.
+
+    This function orchestrates the performance profiling workflow:
+    1. Validates inputs and retrieves configuration
+    2. Creates timestamped report directory
+    3. Optionally starts resource metrics collection
+    4. Runs Chat API profiling (if enabled)
+    5. Runs Document API profiling (if enabled)
+    6. Generates performance graphs from collected metrics
 
     Args:
-        users (int): Number of users for the test.
-        request_count (int): Number of requests per user.
-        spawn_rate (int): Rate at which users are spawned.
-        ip (str): Host IP address where the application is deployed.
-        input_file (str): Path to the input YAML configuration file.
-        collect_resource_metrics (bool): Whether to collect resource metrics.        
+        users: Number of concurrent users for the test.
+        request_count: Number of requests per user.
+        spawn_rate: Rate at which users are spawned per second.
+        ip: Host IP address where the application is deployed.
+        input_file: Path to the input YAML configuration file.
+        collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
+
+    Raises:
+        FileNotFoundError: If the input configuration file doesn't exist.
+        ValueError: If users or request_count are not positive integers.
     """
 
     # Validate inputs

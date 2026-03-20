@@ -1,9 +1,18 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from locust import task, constant, events, HttpUser
+"""
+Locust load test for ChatQnA Core Stream Log API.
+
+This module defines a Locust user class that simulates streaming chat requests
+to the ChatQnA Core API, measuring latency, TTFT, ITL, and TPS.
+"""
+
 import os
 import time
+
+from locust import task, constant, events, HttpUser
+
 from common.utils import get_response, write_chatqna_metrics_to_csv, write_metrics
 from src.chat_question_and_answer_core.utilities.utils import get_token_length
 
