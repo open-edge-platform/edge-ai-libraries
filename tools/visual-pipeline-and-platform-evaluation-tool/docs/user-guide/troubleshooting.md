@@ -201,3 +201,24 @@ port, e.g. `http://localhost:8081`:
       ports:
         - "8081:80"
   ```
+
+---
+
+## 13. Network Camera Discovery does not find cameras
+
+If the ONVIF Discovery service does not find any cameras on the network, check the following:
+
+- Ensure that the cameras are ONVIF‑compliant and support discovery.
+- Verify that the cameras have ONVIF services enabled.
+- Confirm that the cameras are on the same network segment as the ViPPET application.
+- Check for any firewall rules or network configurations that may block discovery traffic.
+
+---
+
+## 14. Network Camera Authentication fails
+
+If you are able to discover network cameras but cannot authenticate to them, check the following:
+
+- Verify that the correct username and password are being used for each camera.
+- Ensure time synchronization between the ViPPET host and the cameras, as some ONVIF implementations require closely synchronized clocks for authentication.
+- Check for any specific ONVIF profiles or settings required by the cameras for authentication.
