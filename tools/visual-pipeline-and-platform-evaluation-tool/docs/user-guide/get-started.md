@@ -85,7 +85,8 @@ For alternative ways to set up the sample application, refer to
 
 6. **Access the application API documentation**:
 
-   - Open a browser and navigate to `http://localhost/api/v1/docs` to access the Swagger UI.
+   - Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
+     to access the Swagger UI.
 
 ## Validation
 
