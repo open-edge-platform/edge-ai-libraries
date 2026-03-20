@@ -12,7 +12,7 @@ the ViPPET application is **restarted**.
 
 For more information about DLSOptimizer behavior and limitations, see the DLSOptimizer limitations section in the
 DL Streamer repository:
-[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/optimizer.md#limitations).
+[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/optimizer.md#limitations).
 
 **If ViPPET is restarted while DLSOptimizer is running:**
 
@@ -129,7 +129,7 @@ A user can try to extend this file with new models whose `source` is either `pub
 there is **no guarantee** that such models will work out of the box.
 
 - Models with `source: public` must be supported by the following script:
-  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/download_public_models.md)
+  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/download_public_models.md)
 - Models with `source: pipeline-zoo-models` must already exist in this repository:
   [pipeline-zoo-models](https://github.com/dlstreamer/pipeline-zoo-models)
 
