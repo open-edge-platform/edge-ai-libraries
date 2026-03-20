@@ -43,11 +43,13 @@ For alternative ways to set up the sample application, refer to
    mkdir -p visual-pipeline-and-platform-evaluation-tool/onvif_discovery
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/onvif
    cd visual-pipeline-and-platform-evaluation-tool
    ```
 
 2. **Download all required files**:
 
+   # TODO: Replace `ktaube/update-get-started-doc` with `v2026.0.0` once 2026.0.0 is released
    ```bash
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/ktaube/update-get-started-doc/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
    curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/ktaube/update-get-started-doc/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
