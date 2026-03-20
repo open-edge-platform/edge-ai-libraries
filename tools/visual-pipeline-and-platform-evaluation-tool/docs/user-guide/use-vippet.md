@@ -34,6 +34,7 @@ You can also adjust element parameters and prepare variants for testing.
 Related article:
 
 - [Configure Pipeline](./how-to-guides/configure-pipelines.md)
+- [How To Use Gvapython Scripts](./how-to-guides/use-gvapython-scripts.md)
 
 ## Performance
 
@@ -88,7 +89,7 @@ Use this section to manage camera-like inputs used by tests and pipelines.
 
 Related article:
 
-- [How To Use Gvapython Scripts](./how-to-guides/use-gvapython-scripts.md)
+- [How To Use Cameras](./how-to-guides/use-cameras.md)
 
 <!--hide_directive
 :::{toctree}
@@ -100,6 +101,7 @@ Related article:
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
 ./how-to-guides/density-testing.md
+./how-to-guides/use-cameras
 
 :::
 hide_directive-->

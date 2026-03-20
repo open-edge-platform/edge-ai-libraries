@@ -7,7 +7,7 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean clean-output-videos help \
-	build-videogenerator build-models docker-build env-setup \
+	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
 	install-models-once install-models-force install-models-all \
 	test-smoke test-full
 
@@ -85,6 +85,9 @@ build-videogenerator: env-setup ## Build videogenerator image
 
 build-models: env-setup ## Build model image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
+
+build-onvif-discovery: env-setup ## Build onvif discovery image
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
 
 docker-build: build build-videogenerator build-models ## Build all images
 

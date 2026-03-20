@@ -35,7 +35,7 @@ Following options are provided to build the microservice.
    ```bash
    # Optional: Set registry URL and project name for docker image naming
    export REGISTRY_URL=<your-registry-url>
-   export TAG=<your-yag> # Default: latest
+   export TAG=<your-yag>
    ```
 
    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`
