@@ -65,7 +65,7 @@ the ViPPET application is **restarted**.
 
 For more information about DLSOptimizer behavior and limitations, see the DLSOptimizer limitations section in the
 DL Streamer repository:
-[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/optimizer.md#limitations).
+[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/optimizer.md#limitations).
 
 **If ViPPET is restarted while DLSOptimizer is running:**
 
