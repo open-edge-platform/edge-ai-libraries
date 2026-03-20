@@ -9,28 +9,49 @@ by executing Locust-based load tests against enabled APIs (Chat and Document API
 """
 
 import os
-from datetime import datetime
-from common.utils import (
-    get_enabled_apis,
-    get_global_details,
-    plot_graphs,
-    start_perf_tool,
-    stop_perf_tool
-)
+
+from common.config import get_enabled_apis
+from src.base import BasePerformanceProfiler
 from src.chat_question_and_answer.utilities.utils import run_document_hw_sizing, run_chat_hw_sizing
+
+
+class ChatQnAModularProfiler(BasePerformanceProfiler):
+    """
+    Performance profiler for ChatQnA Modular application.
+    
+    This profiler executes hardware sizing tests against the Chat and Document
+    APIs of the ChatQnA Modular application.
+    """
+    
+    @property
+    def app_name(self):
+        return "chatqna_modular"
+    
+    def get_enabled_apis(self):
+        return get_enabled_apis(self.input_file)
+    
+    def run_profiling(self, report_dir):
+        stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
+        
+        if stream_log_api_enabled:
+            run_chat_hw_sizing(
+                self.users, self.total_requests, self.spawn_rate,
+                self.ip, self.profile_path, self.input_file, report_dir
+            )
+        
+        if document_api_enabled:
+            run_document_hw_sizing(
+                self.users, self.total_requests, self.spawn_rate,
+                self.ip, self.profile_path, self.input_file, report_dir
+            )
 
 
 def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file, collect_resource_metrics):
     """
     Execute hardware sizing for ChatQnA Modular by running Locust tests for enabled APIs.
 
-    This function orchestrates the performance profiling workflow:
-    1. Validates inputs and retrieves configuration
-    2. Creates timestamped report directory
-    3. Optionally starts resource metrics collection
-    4. Runs Chat API profiling (if enabled)
-    5. Runs Document API profiling (if enabled)
-    6. Generates performance graphs from collected metrics
+    This function is the entry point that uses the ChatQnAModularProfiler class
+    to orchestrate the complete profiling workflow.
 
     Args:
         users: Number of concurrent users for the test.
@@ -44,48 +65,18 @@ def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file
         FileNotFoundError: If the input configuration file doesn't exist.
         ValueError: If users or request_count are not positive integers.
     """
-
     # Validate inputs
     if not os.path.exists(input_file):
         raise FileNotFoundError(f"Input file not found: {input_file}")
     if users <= 0 or request_count <= 0:
         raise ValueError("Users and request count must be positive integers")
-        
-    # Calculate total request count (Locust limitation)
-    total_requests = users * request_count
-
-    # Retrieve enabled APIs and global configuration
-    stream_log_api_enabled, document_api_enabled = get_enabled_apis(input_file)
-    report_dir, perf_tool_repo, profile_path = get_global_details(input_file)
-
-    # Create report directory with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_dir = os.path.join(report_dir, f"chatqna_modular_{timestamp}")
-    os.makedirs(report_dir, exist_ok=True)
-      
-    try:
-        # Start performance metrics collection if requested
-        if collect_resource_metrics:
-            # Start retail perfomace tool
-            log_dir = start_perf_tool(repo_url=perf_tool_repo, report_dir=report_dir)
-
-        # Run Chat API hardware sizing if enabled
-        if stream_log_api_enabled:
-            run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir)
-
-        # Run Document API hardware sizing if enabled
-        if document_api_enabled:
-            run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir)       
-
-    finally:        
-        try:
-            if collect_resource_metrics and log_dir:                    
-                stop_perf_tool()
-                plot_graphs(log_dir)
-            print(f"Hardware sizing completed for all enabled profiles. Check the '{report_dir}' directory for results.")
-        except Exception as e:
-            print(f"Error occurred while parsing and plotting perf_tool logs: {e}")
-        
-
-
-
+    
+    profiler = ChatQnAModularProfiler(
+        users=users,
+        request_count=request_count,
+        ip=ip,
+        input_file=input_file,
+        collect_resource_metrics=collect_resource_metrics,
+        spawn_rate=spawn_rate
+    )
+    profiler.execute()

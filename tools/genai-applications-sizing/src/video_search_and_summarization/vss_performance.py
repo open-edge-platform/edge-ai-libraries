@@ -8,25 +8,63 @@ This module provides functionality to profile video search and summarization API
 by executing Locust-based load tests with optional warmup periods.
 """
 
-import os
-from datetime import datetime
-from src.video_search_and_summarization.utilities.utils import run_video_summary_hw_sizing, run_video_search_hw_sizing, run_video_summary_warmup, run_video_search_warmup
-from common.utils import get_enabled_video_apis, get_global_details, start_perf_tool, stop_perf_tool, plot_graphs
+from common.config import get_enabled_video_apis
+from src.base import BasePerformanceProfiler
+from src.video_search_and_summarization.utilities.utils import (
+    run_video_summary_hw_sizing,
+    run_video_search_hw_sizing,
+    run_video_summary_warmup,
+    run_video_search_warmup
+)
+
+
+class VSSProfiler(BasePerformanceProfiler):
+    """
+    Performance profiler for Video Search and Summarization application.
+    
+    This profiler executes hardware sizing tests against the Video Summary
+    and Video Search APIs with optional warmup support.
+    """
+    
+    @property
+    def app_name(self):
+        return "video_summary_search"
+    
+    def get_enabled_apis(self):
+        return get_enabled_video_apis(self.input_file)
+    
+    def run_warmup(self, profile_path, input_file):
+        """Execute warmup requests for enabled video APIs."""
+        video_summary_enabled, video_search_enabled = self.get_enabled_apis()
+        
+        if video_summary_enabled:
+            run_video_summary_warmup(self.warmup_time, self.ip, profile_path, input_file)
+        
+        if video_search_enabled:
+            run_video_search_warmup(self.warmup_time, self.ip, profile_path, input_file)
+    
+    def run_profiling(self, report_dir):
+        video_summary_enabled, video_search_enabled = self.get_enabled_apis()
+        
+        if video_summary_enabled:
+            run_video_summary_hw_sizing(
+                self.users, self.total_requests, self.ip,
+                self.profile_path, self.input_file, report_dir
+            )
+        
+        if video_search_enabled:
+            run_video_search_hw_sizing(
+                self.users, self.total_requests, self.ip,
+                self.profile_path, self.input_file, report_dir
+            )
 
 
 def vss_performance(users, request_count, ip, input_file, collect_resource_metrics, warmup_time=0):
     """
     Execute hardware sizing for Video Summary and Search APIs.
 
-    This function orchestrates the video profiling workflow:
-    1. Calculates total requests based on users and request count
-    2. Retrieves enabled APIs and global configuration
-    3. Creates timestamped report directory
-    4. Runs optional warmup requests to prime the system
-    5. Starts resource metrics collection (if requested)
-    6. Runs Video Summary API profiling (if enabled)
-    7. Runs Video Search API profiling (if enabled)
-    8. Generates performance graphs from collected metrics
+    This function is the entry point that uses the VSSProfiler class
+    to orchestrate the complete profiling workflow.
 
     Args:
         users: Number of concurrent users for the test.
@@ -36,51 +74,12 @@ def vss_performance(users, request_count, ip, input_file, collect_resource_metri
         collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
         warmup_time: Duration in seconds for warmup requests (default: 0).
     """
-    # Calculate total request count (Locust limitation)
-    total_requests = users * request_count
-
-    # Retrieve enabled APIs and global configuration
-    video_summary_enabled, video_search_enabled = get_enabled_video_apis(input_file)
-    report_dir, perf_tool_repo, profile_path = get_global_details(input_file)
-
-    # Create report directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_dir = os.path.join(report_dir, f"video_summary_search_{timestamp}")
-    os.makedirs(report_dir, exist_ok=True)
-
-    try:
-        # Run warmup requests if warmup_time is specified
-        if warmup_time > 0:
-            
-            # Run warmup for video summary if enabled
-            if video_summary_enabled:
-                run_video_summary_warmup(warmup_time, ip, profile_path, input_file)
-            
-            # Run warmup for video search if enabled
-            if video_search_enabled:
-                run_video_search_warmup(warmup_time, ip, profile_path, input_file)
-            
-        
-        # Start performance metrics collection after warmup
-        if collect_resource_metrics:
-            # Start retail perfomace tool
-            log_dir = start_perf_tool(repo_url=perf_tool_repo, report_dir=report_dir)
-
-        # Run Stream Log API hardware sizing if enabled
-        if video_summary_enabled:
-            run_video_summary_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir)
-
-        # Run Document API hardware sizing if enabled
-        if video_search_enabled:
-            run_video_search_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir)
-
-        #print(f"Hardware sizing completed for all enabled profiles. Check the '{report_dir}' directory for results.")
-
-    finally:
-        try:
-            if collect_resource_metrics and log_dir:                    
-                stop_perf_tool()
-                plot_graphs(log_dir)
-            print(f"Hardware sizing completed for all enabled profiles. Check the '{report_dir}' directory for results.")
-        except Exception as e:
-            print(f"Error occurred while parsing and plotting perf_tool logs: {e}")
+    profiler = VSSProfiler(
+        users=users,
+        request_count=request_count,
+        ip=ip,
+        input_file=input_file,
+        collect_resource_metrics=collect_resource_metrics,
+        warmup_time=warmup_time
+    )
+    profiler.execute()
