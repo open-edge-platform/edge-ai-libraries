@@ -9,25 +9,29 @@ sizing tests against the ChatQnA Core application APIs.
 """
 
 import subprocess
-from functools import lru_cache
 from transformers import LlamaTokenizerFast
 from common.utils import get_document_api_profile_details, get_stream_api_profile_details, upload_document_before_conversation
 
+# Module-level cached tokenizer instance
+_tokenizer = None
 
-@lru_cache(maxsize=1)
+
 def _get_tokenizer():
     """
     Get or create a cached tokenizer instance.
     
-    Uses LRU cache to avoid reloading the tokenizer on every call,
+    Uses module-level caching to avoid reloading the tokenizer on every call,
     significantly improving performance for repeated tokenization.
     
     Returns:
         LlamaTokenizerFast: The cached tokenizer instance.
     """
-    return LlamaTokenizerFast.from_pretrained(
-        "hf-internal-testing/llama-tokenizer", legacy=False
-    )
+    global _tokenizer
+    if _tokenizer is None:
+        _tokenizer = LlamaTokenizerFast.from_pretrained(
+            "hf-internal-testing/llama-tokenizer", legacy=False
+        )
+    return _tokenizer
 
 
 def get_token_length(text):
