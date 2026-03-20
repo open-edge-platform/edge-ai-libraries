@@ -101,6 +101,7 @@ Related article:
 ./how-to-guides/configure-pipelines
 ./how-to-guides/performance-testing
 ./how-to-guides/density-testing.md
+./how-to-guides/use-cameras
 
 :::
 hide_directive-->
