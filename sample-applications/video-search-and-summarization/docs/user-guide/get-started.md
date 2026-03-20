@@ -315,6 +315,10 @@ Follow these steps to run the application:
     ENABLE_VLLM=true source setup.sh --summary
     ```
 
+    > **Note:**
+    > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
+    > - Review [docker/compose.vllm.yaml](../../docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
+
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
    ```bash

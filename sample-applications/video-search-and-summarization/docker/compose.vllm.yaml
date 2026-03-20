@@ -6,13 +6,13 @@ services:
   vllm-cpu-service:
     profiles:
       - vllm
-    image: ${VLLM_IMAGE:-public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.13.0}
+    image: ${VLLM_IMAGE:-public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.17.1}
     hostname: vllm-cpu-service
     ports:
       - "${VLLM_HOST_PORT:-8200}:8000"
     ipc: "host"
     environment:
-      no_proxy: ${no_proxy},localhost
+      no_proxy: ${no_proxy},${MINIO_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       HUGGING_FACE_HUB_TOKEN: ${HUGGINGFACE_TOKEN:-}
@@ -22,6 +22,7 @@ services:
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: ${VLLM_ALLOW_LONG_MAX_MODEL_LEN:-1}
       VLLM_ENGINE_ITERATION_TIMEOUT_S: ${VLLM_ENGINE_ITERATION_TIMEOUT_S:-120}
       VLLM_CPU_NUM_OF_RESERVED_CPU: ${VLLM_CPU_NUM_OF_RESERVED_CPU:-0}
+      VLLM_LOGGING_LEVEL: ${VLLM_LOGGING_LEVEL:-INFO}
     command:
       - "--model"
       - "${VLM_MODEL_NAME}"
@@ -37,7 +38,8 @@ services:
       - "${VLLM_MAX_NUM_BATCHED_TOKENS:-2048}"
       - "--max-num-seqs"
       - "${VLLM_MAX_NUM_SEQS:-256}"
-      - "--disable-log-requests"
+      - "--max_model_len"
+      - "${VLLM_MAX_MODEL_LEN:-32000}"
       - "--tensor-parallel-size"
       - "${VLLM_TENSOR_PARALLEL_SIZE:-1}"
     volumes:
