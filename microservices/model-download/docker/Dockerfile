@@ -8,7 +8,7 @@ FROM python:3.12-slim AS python-base
 WORKDIR /opt
 
 # Install system dependencies required for uv and the application
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libsm6 \
     curl \

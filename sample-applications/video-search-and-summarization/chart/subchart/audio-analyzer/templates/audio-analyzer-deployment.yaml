@@ -40,6 +40,10 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
             {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- with .Values.audioanalyzer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: DEBUG
               value: {{ .Values.audioanalyzer.env.DEBUG | quote }}

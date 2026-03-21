@@ -104,6 +104,8 @@ pipelinemanager:
     VLM_CAPTIONING_DEVICE: "CPU"
     LLM_CONCURRENT: "2"
     VLM_CONCURRENT: "4"
+    TICK_INTERVAL_MS: "5000" # EVAM uses TICK
+    FAST_TICK_INTERVAL_MS: "2000" # VLM/LLM uses FAST_TICK
     SUMMARIZATION_MAX_COMPLETION_TOKENS: "4000"
     CAPTIONING_MAX_COMPLETION_TOKENS: "1024"
     MAX_CONTEXT_LENGTH: "90000"
@@ -112,6 +114,7 @@ pipelinemanager:
     AUDIO_DEVICE: "cpu"
     OTLP_TRACE_URL: ""
     USE_OVMS: "CONFIG_OFF"
+    USE_VLLM: "CONFIG_OFF"
     SUMMARY_FEATURE: "FEATURE_ON"
     SEARCH_FEATURE: "FEATURE_OFF"
   nodeSelector: {}
@@ -152,6 +155,13 @@ vlminference:
   enabled: false
   name: vlm-inference-microservice
   claimSize: "40Gi"
+
+vllm:
+  enabled: false
+  service:
+    name: cpu-vllm-service
+    type: ClusterIP
+    port: 80
 
 # Add nginx configuration
 nginx:

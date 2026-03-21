@@ -5,6 +5,7 @@ videosearch:
     repository: intel/video-search
     tag: "latest"
     pullPolicy: IfNotPresent
+  resources: {}
   env:
     VDMS_VDB_HOST: "vdms-vectordb"
     VDMS_VDB_PORT: "55555"

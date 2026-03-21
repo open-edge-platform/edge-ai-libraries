@@ -189,7 +189,7 @@ export GATED_MODEL=true
 export HUGGINGFACE_TOKEN=<your_huggingface_token>
 ```
 
-Once exported, run the setup script as mentioned [here](#running-the-application). Switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you no longer use gated models. This avoids unnecessary authentication step during setup.
+Once exported, run the setup script as mentioned [here](#run-the-application). Switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you no longer use gated models. This avoids unnecessary authentication step during setup.
 
 ## Application Mode Overview
 

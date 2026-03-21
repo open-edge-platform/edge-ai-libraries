@@ -12,6 +12,7 @@ image:
   repository: intel/vss-ui
   tag: "latest"
   pullPolicy: IfNotPresent
+  resources: {}
 
 containerPortName: vs-ui-port  # Optional name to refer containerPort
 service:

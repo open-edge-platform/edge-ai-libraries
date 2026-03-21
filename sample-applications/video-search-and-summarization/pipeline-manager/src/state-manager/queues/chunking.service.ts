@@ -141,7 +141,7 @@ export class ChunkingService {
     this.processing = this.processing.filter((el) => el.stateId !== stateId);
   }
 
-  @OnEvent(AppEvents.TICK)
+  @OnEvent(AppEvents.FAST_TICK)
   checkProcessing() {
     if (
       this.waiting.length > 0 &&

@@ -130,7 +130,7 @@ export class SummaryQueueService {
     this.processing = this.processing.filter((el) => el.stateId !== stateId);
   }
 
-  @OnEvent(AppEvents.TICK)
+  @OnEvent(AppEvents.FAST_TICK)
   processQueue() {
     if (this.waiting.length > 0 && this.$inferenceCount.hasLlmSlots()) {
       const queueItem = this.waiting.shift();

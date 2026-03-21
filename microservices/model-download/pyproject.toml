@@ -55,7 +55,7 @@ openvino = [
     "numpy==2.2.6",
     "openvino-tokenizers==2025.4.0.0",
     "openvino==2025.4.0",
-    "pillow==12.0.0",
+    "pillow==12.1.1",
     "sentence-transformers==5.1.2",
     "sentencepiece==0.2.1",  # Required by: transformers
     "timm==1.0.22",

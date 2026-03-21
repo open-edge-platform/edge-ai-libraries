@@ -51,6 +51,8 @@ videoingestion:
     port: 8080 # Port on which service exposes connection
     portName: http  # Service port name. Useful when service exposes multiple ports.
 
+  resources: {}
+
   env:
     RUN_MODE: EVA
     DETECTION_DEVICE: cpu
