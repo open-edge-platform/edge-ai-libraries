@@ -8,7 +8,6 @@ import time
 import traceback
 import uuid
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from typing import Dict
 from typing import List
@@ -59,7 +58,7 @@ class SDKVDMSClient:
     - Uses optimized batch sizes for VDMS operations
     - Aligns with standard persistence flows to maintain index continuity
     """
-    
+
     @staticmethod
     def _to_list(embedding: Any) -> List[float]:
         """Convert an embedding tensor/array into a plain Python list."""
@@ -208,7 +207,7 @@ class SDKVDMSClient:
 
             if self.supports_image:
                 logger.debug("Probing dimensions via image pathway")
-                dummy_image = Image.new('RGB', (224, 224), color='white')
+                dummy_image = Image.new("RGB", (224, 224), color="white")
                 dummy_image = np.array(dummy_image).astype(np.uint8)
                 test_embedding = self.model_handler.encode_image([dummy_image])
                 logger.debug(
@@ -216,7 +215,7 @@ class SDKVDMSClient:
                     type(test_embedding),
                     len(test_embedding) if test_embedding is not None else 'None',
                 )
-                if test_embedding and len(test_embedding) > 0:
+                if test_embedding is not None and len(test_embedding) > 0:
                     embedding_list = self._to_list(test_embedding[0])
                     if embedding_list:
                         dimensions = len(embedding_list)
@@ -488,13 +487,14 @@ class SDKVDMSClient:
             logger.error("Error generating image embedding: %s", exc)
             return None
 
-    def generate_embeddings_for_images(self, image_inputs: List[np.ndarray]) -> List[Optional[List[float]]]:
+    def generate_embeddings_for_images(self, image_inputs: List[Any], metrics_out: bool = False) -> List[Optional[List[float]]]:
         """
         Generate embeddings for multiple images using SDK in batch.
         
         Args:
             image_inputs: List of image inputs (numpy arrays)
-            
+            metrics_out: Whether to return metrics along with embeddings
+
         Returns:
             List of embeddings as lists of floats or None for failed images
         """
@@ -508,18 +508,21 @@ class SDKVDMSClient:
                 )
                 return [None] * image_len
 
-            # Convert all inputs to PIL Images
-            # with ThreadPoolExecutor(max_workers=8) as pool:
-            #     image_inputs = list(pool.map(Image.fromarray, image_inputs))
-
             # Generate embeddings using the model handler in batch
             results = []
-            embeddings = self.model_handler.encode_image(image_inputs)
+            infer_result = self.model_handler.encode_image(image_inputs, metrics_out=metrics_out)
+            embeddings = infer_result["embeddings"] if metrics_out else infer_result
             results.extend([self._to_list(e) if e is not None else None for e in embeddings])
             del embeddings, image_inputs
 
+            if metrics_out:
+                return results, (
+                    infer_result.get("preprocess_time_s"),
+                    infer_result.get("inference_time_s"),
+                )
+
             return results
-            
+
         except Exception as exc:
             logger.error("Error generating batch image embeddings: %s", exc)
             return [None] * image_len
@@ -599,5 +602,3 @@ class SDKVDMSClient:
             texts=[text],
             metadatas=[cleaned_metadata],
         )
-    
-

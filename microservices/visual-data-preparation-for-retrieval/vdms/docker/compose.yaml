@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 services:
     minio-server:
@@ -13,7 +13,7 @@ services:
             - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
         command: |
             server /data 
-            --address ":9000"
+            --address ":9000" 
             --console-address ":9001"
 
     vdms-vector-db:
@@ -88,6 +88,11 @@ services:
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
         devices:
             - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
+        ipc: host
         group_add:
             - ${USER_GROUP_ID:-1000}
             - ${VIDEO_GROUP_ID:-44}

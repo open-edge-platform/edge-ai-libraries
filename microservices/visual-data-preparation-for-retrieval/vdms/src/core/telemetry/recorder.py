@@ -38,6 +38,8 @@ def _build_stage_timings(
 	frame_extraction_seconds: float,
 	detection_seconds: float,
 	embedding_seconds: float,
+	embedding_preprocess_seconds: float,
+	embedding_inference_seconds: float,
 	storage_seconds: float,
 	total_wall_seconds: float,
 ) -> List[TelemetryStageTiming]:
@@ -45,6 +47,8 @@ def _build_stage_timings(
 		("extraction", frame_extraction_seconds),
 		("detection", detection_seconds),
 		("embedding", embedding_seconds),
+		("embedding_preprocess", embedding_preprocess_seconds),
+		("embedding_inference", embedding_inference_seconds),
 		("storage", storage_seconds),
 	]
 	safe_wall = max(total_wall_seconds, 1e-9)
@@ -57,7 +61,7 @@ def _build_stage_timings(
 	parallel_total = sum(
 		max(seconds, 0.0)
 		for name, seconds in stages
-		if name != "extraction"
+		if name not in ("extraction", "embedding_preprocess", "embedding_inference")
 	)
 
 	results: List[TelemetryStageTiming] = []
@@ -111,6 +115,8 @@ def record_video_telemetry(
 		extraction_seconds = float(pipeline_stats.get("frame_extraction_seconds", 0.0))
 		detection_seconds = float(pipeline_stats.get("detection_seconds", 0.0))
 		embedding_seconds = float(pipeline_stats.get("embedding_seconds_total", 0.0))
+		embedding_preprocess_seconds = float(pipeline_stats.get("embedding_preprocess_seconds_avg", 0.0))
+		embedding_inference_seconds = float(pipeline_stats.get("embedding_inference_seconds_avg", 0.0))
 		storage_seconds = float(pipeline_stats.get("storage_seconds_total", 0.0))
 		frame_count = int(pipeline_stats.get("frames_extracted", 0))
 		items_after_detection = int(pipeline_stats.get("items_after_detection", 0))
@@ -120,6 +126,8 @@ def record_video_telemetry(
 			frame_extraction_seconds=extraction_seconds,
 			detection_seconds=detection_seconds,
 			embedding_seconds=embedding_seconds,
+			embedding_preprocess_seconds=embedding_preprocess_seconds,
+			embedding_inference_seconds=embedding_inference_seconds,
 			storage_seconds=storage_seconds,
 			total_wall_seconds=total_wall,
 		)

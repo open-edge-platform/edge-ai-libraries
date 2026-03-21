@@ -67,6 +67,7 @@ class VideoStreamMetadata:
     """Metadata about the video stream for tracability."""
 
     source_type: VideoSourceType
+    video_index: int
     stream_name: str | None
     stream_source: str | None
     total_frames: int | None
@@ -172,7 +173,6 @@ class VideoFrameConfig:
 
     batch_size: int = 1
     num_workers: int | None = None
-    num_decoders: int = 1
     queue_size: int = 32
     frame_interval: int = 1
     keyframes_only: bool = False
@@ -184,8 +184,6 @@ class VideoFrameConfig:
             raise ValueError("queue_size must be >= 1")
         if self.frame_interval < 1:
             raise ValueError("frame_interval must be >= 1")
-        if self.num_decoders < 1:
-            raise ValueError("num_decoders must be >= 1")
         if self.keyframes_only and self.frame_interval != 1:
             raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
 
@@ -420,11 +418,15 @@ class VideoFrameExtractor:
     def __init__(
         self,
         video_input: VideoInput | str | bytes | list[VideoInput | str | bytes],
-        config: VideoFrameConfig | None = None,
+        configs: VideoFrameConfig | list[VideoFrameConfig] | None = None,
         shm_pool: SharedMemoryPool | None = None,
         shutdown_event: threading.Event | None = None,
     ):
-        self.config = config or VideoFrameConfig()
+        self.configs = configs
+
+        if configs is None:
+            self.configs = [VideoFrameConfig()] * len(video_input) if isinstance(video_input, list) else [VideoFrameConfig()]
+
         self.shm_pool = shm_pool
 
         # Use external shutdown_event if provided, else create internal one
@@ -439,12 +441,13 @@ class VideoFrameExtractor:
         self.metadata_list = []
 
         if len(self.video_inputs) > 0:
-            for video_input in self.video_inputs:
+            for video_index, video_input in enumerate(self.video_inputs):
                 with self._open_video_source(video_input) as container:
                     stream = container.streams.video[0]
 
                     self.metadata_list.append(
                         VideoStreamMetadata(
+                            video_index=video_index,
                             stream_id=stream.index,
                             stream_name=stream.name,
                             stream_source=(
@@ -547,18 +550,18 @@ class VideoFrameExtractor:
                 stream_gen = decode_stream_and_batch_generator(
                     container=container,
                     stream_id=video_index,
-                    stream_config=self.config,
+                    stream_config=self.configs[video_index],
                     shm_pool=self.shm_pool,
-                    batch_size=self.config.batch_size,
+                    batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
                 )
             else:
                 stream_gen = decode_and_batch_generator(
                     container=container,
                     stream_id=video_index,
-                    stream_config=self.config,
+                    stream_config=self.configs[video_index],
                     shm_pool=self.shm_pool,
-                    batch_size=self.config.batch_size,
+                    batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
                 )
 
@@ -619,7 +622,7 @@ class VideoFrameExtractor:
 def extract_batched_frames(
     video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
     frame_interval: int = 1,
-    batch_size: int = 128,
+    batch_size: int = 64,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
 ) -> Generator[List[Tuple[int, np.ndarray]], None, None]:
@@ -645,7 +648,7 @@ def extract_batched_frames(
     )
     if shm_pool is None:
         # Create a default shared memory pool if not provided
-        shm_pool = SharedMemoryPool(max_blocks=512, block_size=1920 * 1080 * 3)  # Assuming max 1080p RGB frames
+        shm_pool = SharedMemoryPool(max_blocks=batch_size * 4, block_size=1920 * 1080 * 3)  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
     print(f"extractor metadata: {extractor.metadata_list}")

@@ -5,7 +5,6 @@
 Application-level embedding model that wraps the focused model handlers.
 This class provides the application-specific functionality like video processing,
 URL handling, etc., built on top of the core text/image encoding capabilities.
-
 """
 
 from typing import List, Union, Dict, Any
@@ -24,7 +23,6 @@ from .utils import (
     delete_file,
     download_image,
     download_video,
-    extract_video_frames,
     logger,
     extract_batched_frames
 )
@@ -179,7 +177,6 @@ class EmbeddingModel:
         Returns:
             List of frame embedding lists
         """
-        print("Triggered get_video_embedding_from_url")
         if not self.handler.supports_video():
             raise RuntimeError("Video embeddings are not supported by the active model")
         try:
@@ -487,28 +484,8 @@ class EmbeddingModel:
         except Exception as e:
             logger.error(f"Error getting video embedding from frames manifest: {e}")
             raise RuntimeError(f"Failed to get video embedding from frames manifest: {e}")
-    
-    def get_video_keyframes_embeddings(self, video_path: str) ->  List[List[float]]:
-        """
-        Get keyframes embeddings from a video file.
-        
-        Args:
-            video_path: Path to the video file
 
-        Returns:
-            List of keyframe embeddings.
-        """
 
-        embeddings = []
-        for i, frame_batch in enumerate(extract_batched_frames(video_path, keyframes_only=True)):
-            logger.debug(f"Processing batch {i} of keyframes with {len(frame_batch)} frames")
-            batch_embeddings = self.handler.encode_image(frame_batch)
-            batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)
-            embeddings.append(batch_embeddings.tolist())
-        logger.info(f"Extracted embeddings for {len(embeddings)} keyframes from video: {video_path}")
-
-        return embeddings
-    
     #TODO: Support SHM + Metadata-based optimized processing for sampled frames as well (similar to get_video_embedding_from_frames_manifest)
     def get_video_sampled_embeddings(self, video_path: str, frame_interval: int = 1) -> List[List[float]]:
         """
@@ -523,14 +500,9 @@ class EmbeddingModel:
         embeddings = []
         start = time.perf_counter()
         encode_time = 0.0
-        prep_batch_time = 0.0
-        wall_time = 0.0
-        batch_size = 64
         try:
-            for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=1, batch_size=batch_size)):
-                prep_batch_time_start = time.perf_counter()
+            for i, frame_batch in enumerate(extract_batched_frames(video_path, frame_interval=frame_interval)):
                 frame_batch = [f for _ , f in frame_batch]
-                prep_batch_time += (time.perf_counter() - prep_batch_time_start)
                 encode_time_start = time.perf_counter()
                 batch_embeddings = self.handler.encode_image(frame_batch)
 
@@ -541,8 +513,8 @@ class EmbeddingModel:
                 embeddings.append(batch_embeddings)
                 encode_time += (time.perf_counter() - encode_time_start)
             total_Wall_time = time.perf_counter() - start
-            logger.info(f"Total Time (parallel decode+pre-process+inference): {total_Wall_time:.2f} seconds [{batch_size} batch size]")
-            logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval})")
+            logger.info(f"Extracted embeddings for sampled frames from video: {video_path} (interval: {frame_interval}) - "
+                        f"Total wall time: {total_Wall_time:.2f}s, Encoding time: {encode_time:.2f}s")
         except Exception as e:
             logger.error(f"Error extracting sampled frame embeddings from video: {e.with_traceback(e.__traceback__)}")
             raise RuntimeError(f"Failed to extract sampled frame embeddings from video: {e}")   

@@ -135,6 +135,8 @@ def _record_sdk_pipeline(
             "frame_extraction_seconds": sdk_result.get("timing", {}).get("frame_extraction_time", 0.0),
             "detection_seconds": stage_detection.get("total_s", 0.0),
             "embedding_seconds_total": stage_embedding.get("total_s", 0.0),
+            "embedding_preprocess_seconds_avg": stage_embedding.get("preprocess", {}).get("avg_s", 0.0),
+            "embedding_inference_seconds_avg": stage_embedding.get("inference", {}).get("avg_s", 0.0),
             "storage_seconds_total": stage_storage.get("total_s", 0.0),
             "total_wall_seconds": sdk_result.get("timing", {}).get("pipeline_wall_time", 0.0),
             "batches": sdk_result.get("batch_details", []),
@@ -150,7 +152,7 @@ def _record_sdk_pipeline(
             video_rel_url=metadata_dict.get("video_rel_url"),
             fps=video_props.get("fps"),
             total_frames=video_props.get("total_frames"),
-            video_duration_seconds=video_props.get("video_duration_seconds"),
+            video_duration_seconds=video_props.get("video_duration_seconds", video_props.get("total_frames") / video_props.get("fps") if video_props.get("fps") else 0.0),
             processing_mode=metadata_dict.get("processing_mode"),
         )
 
@@ -228,7 +230,7 @@ def _record_api_pipeline(
             video_rel_url=summary.get("video_rel_url"),
             fps=summary.get("fps"),
             total_frames=summary.get("total_frames"),
-            video_duration_seconds=summary.get("video_duration_seconds"),
+            video_duration_seconds=summary.get("video_duration_seconds", summary.get("total_frames") / summary.get("fps") if summary.get("fps") else 0.0),
             processing_mode="api",
         )
 

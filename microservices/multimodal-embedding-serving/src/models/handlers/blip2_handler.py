@@ -88,12 +88,13 @@ class BLIP2Handler(BaseEmbeddingModel):
         self.use_openvino = model_config.get("use_openvino", False)
         self.device = model_config.get("device", "CPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
-        self.infer_batch_size = model_config.get("infer_batch_size", 64)
 
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
         self._embedding_dim: Optional[int] = None
+        infer_batch_size = model_config.get("infer_batch_size", 64)
+        self.preprocess_shape = (infer_batch_size, 3, self.image_size, self.image_size)  # Default shape for CLIP image encoder input
         self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
         self.async_infer = None
         self.parallel_preprocessor = None
@@ -149,7 +150,7 @@ class BLIP2Handler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device, self.infer_batch_size
+            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         model, vis_processors, _ = self._load_lavis_model_and_preprocess()
@@ -162,8 +163,8 @@ class BLIP2Handler(BaseEmbeddingModel):
         logger.info(f"DIMENSION OF IMAGE ENCODER OUTPUT: {embedding_dim}")
         self.async_infer = AsyncBatchInference(
             compiled_model=self.ov_image_encoder,
-            batch_size=self.infer_batch_size,
             embedding_dim=embedding_dim,
+            preprocess_shape=self.preprocess_shape
         )
         self.tokenizer = lambda texts: {
             "input_ids": model.tokenizer(texts, return_tensors="pt", padding=True).input_ids,
@@ -208,30 +209,37 @@ class BLIP2Handler(BaseEmbeddingModel):
         text_features = F.normalize(text_features, dim=-1)
         return text_features
     
-    def encode_image(self, images: Union[np.ndarray, List[np.ndarray], torch.Tensor]) -> torch.Tensor:
-        """Encode images using BLIP-2 image encoder."""
+    def encode_image(self, images: Union[np.ndarray, List[np.ndarray], torch.Tensor], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
+        """Encode images using SigLIP image encoder."""
+
+        if isinstance(images, np.ndarray):
+            images = [images]
 
         if self.use_openvino and self.ov_image_encoder is not None:
-            if isinstance(images, np.ndarray):
-                images = [images]
-
+            # Use OpenVINO inference with infer_new_request for thread safety
             logger.info(f"====AsyncInferQueue====")
-            start = time.perf_counter()
+            pre_process_start = time.perf_counter()
             images = self.parallel_preprocessor.preprocess_images(images)
-            end = time.perf_counter()
-            logger.info(f"Preprocessing time {len(images)} images: {end - start:.4f} seconds")
-            start = time.perf_counter()
-            image_features = self.async_infer.infer(images)
-            end = time.perf_counter()
-            logger.info(f"Inference time for batch of {len(images)} images: {end - start:.4f} seconds")
+            preprocess_end = time.perf_counter()
+            infer_start = time.perf_counter()
+            embeddings = self.async_infer.infer(images)
+            infer_end = time.perf_counter()
+            logger.info(f"Inference time for batch of {len(images)} images: {infer_end - infer_start:.4f} seconds")
+            image_features = torch.from_numpy(embeddings)
+            if metrics_out:
+                return {
+                    "embeddings": image_features,
+                    "preprocess_time_s": preprocess_end - pre_process_start,
+                    "inference_time_s": infer_end - infer_start,
+                    "total_time_s": infer_end - pre_process_start,
+                    "processed_images": len(images)
+                }
         else:
             # Use PyTorch model
             with torch.no_grad():
-                if not isinstance(image_tensor, torch.Tensor):
-                    image_tensor = torch.from_numpy(image_tensor)
-                image_features = self.model.encode_image(image_tensor)
+                image_features = self.model.encode_image(torch.from_numpy(np.stack(images)))
         
-                image_features = F.normalize(image_features, dim=-1)
+        image_features = F.normalize(image_features, dim=-1)
         return image_features
 
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:

@@ -19,8 +19,11 @@ The handler supports various SigLIP architectures and includes OpenVINO optimiza
 for efficient inference deployment.
 """
 
+import os
 from pathlib import Path
-from typing import List, Union, Dict, Any
+import time
+from typing import List, Optional, Union, Dict, Any
+import numpy as np
 import torch
 import torch.nn.functional as F
 import types
@@ -30,10 +33,11 @@ from PIL import Image
 import open_clip
 
 from ..base import BaseEmbeddingModel
-from ...utils import logger
+from ...utils import logger, ParallelImagePreprocessor
 from ..utils import (
     check_and_convert_openvino_models,
     load_openvino_models,
+    AsyncBatchInference,
 )
 
 
@@ -70,6 +74,13 @@ class SigLIPHandler(BaseEmbeddingModel):
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
+
+        self._embedding_dim: Optional[int] = None
+        infer_batch_size = model_config.get("infer_batch_size", 64)
+        self.preprocess_shape = (infer_batch_size, 3, self.image_size, self.image_size)  # Default shape for CLIP image encoder input
+        self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
+        self.async_infer = None
+        self.parallel_preprocessor = None
         
     def load_model(self) -> None:
         """Load SigLIP model using open_clip."""
@@ -105,12 +116,25 @@ class SigLIPHandler(BaseEmbeddingModel):
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
-            image_encoder_path, text_encoder_path, self.device
+            image_encoder_path, text_encoder_path, self.device, self.preprocess_shape
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         _, _, self.preprocess = open_clip.create_model_and_transforms(
             self.model_name, pretrained=self.pretrained
         )
+        
+        self.parallel_preprocessor = ParallelImagePreprocessor(
+            preprocess_fn=self.preprocess,
+            max_workers=self._preprocess_workers
+        )
+        embedding_dim = int(self.ov_image_encoder.output().get_partial_shape()[-1].to_string())
+        logger.info(f"DIMENSION OF IMAGE ENCODER OUTPUT: {embedding_dim}")
+        self.async_infer = AsyncBatchInference(
+            compiled_model=self.ov_image_encoder,
+            embedding_dim=embedding_dim,
+            preprocess_shape=self.preprocess_shape
+        )
+
         self.tokenizer = open_clip.get_tokenizer(self.model_name)
         logger.info(f"SigLIP OpenVINO models loaded successfully on device: {self.device}")
     
@@ -133,23 +157,36 @@ class SigLIPHandler(BaseEmbeddingModel):
         text_features = F.normalize(text_features, dim=-1)
         return text_features
     
-    def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
+    def encode_image(self, images: Union[np.ndarray, List[np.ndarray], torch.Tensor], metrics_out: bool = False) -> Union[Dict[str, Any], torch.Tensor]:
         """Encode images using SigLIP image encoder."""
-        if isinstance(images, torch.Tensor):
-            image_tensor = images
-        elif isinstance(images, Image.Image):
-            image_tensor = self.preprocess(images).unsqueeze(0)
-        else:  # List of images
-            image_tensor = torch.stack([self.preprocess(img) for img in images])
-        
+
+        if isinstance(images, np.ndarray):
+            images = [images]
+
         if self.use_openvino and self.ov_image_encoder is not None:
             # Use OpenVINO inference with infer_new_request for thread safety
-            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
-            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
+
+            logger.info(f"====AsyncInferQueue====")
+            pre_process_start = time.perf_counter()
+            images = self.parallel_preprocessor.preprocess_images(images)
+            preprocess_end = time.perf_counter()
+            infer_start = time.perf_counter()
+            embeddings = self.async_infer.infer(images)
+            infer_end = time.perf_counter()
+            logger.info(f"Inference time for batch of {len(images)} images: {infer_end - infer_start:.4f} seconds")
+            image_features = torch.from_numpy(embeddings)
+            if metrics_out:
+                return {
+                    "embeddings": image_features,
+                    "preprocess_time_s": preprocess_end - pre_process_start,
+                    "inference_time_s": infer_end - infer_start,
+                    "total_time_s": infer_end - pre_process_start,
+                    "processed_images": len(images)
+                }
         else:
             # Use PyTorch model
             with torch.no_grad():
-                image_features = self.model.encode_image(image_tensor)
+                image_features = self.model.encode_image(torch.from_numpy(np.stack(images)))
         
         image_features = F.normalize(image_features, dim=-1)
         return image_features

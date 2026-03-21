@@ -24,8 +24,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import os
-import openvino as ov
-from PIL import Image
+
 import open_clip
 import shutil
 
@@ -71,8 +70,8 @@ class CLIPHandler(BaseEmbeddingModel):
         super().__init__(model_config)
         self.model_name = model_config["model_name"]
         self.pretrained = model_config["pretrained"]
-        self.use_openvino = model_config.get("use_openvino", True)
-        self.device = model_config.get("device", "GPU")
+        self.use_openvino = model_config.get("use_openvino", False)
+        self.device = model_config.get("device", "CPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
         
         # OpenVINO models
@@ -84,8 +83,6 @@ class CLIPHandler(BaseEmbeddingModel):
         self._preprocess_workers = model_config.get("preprocess_workers", min(8, (os.cpu_count() or 4) * 2))
         self.async_infer = None
         self.parallel_preprocessor = None
-        
-
         
     def load_model(self) -> None:
         """
@@ -248,7 +245,6 @@ class CLIPHandler(BaseEmbeddingModel):
                 "processed_images": len(images)
             }
         return embeddings
-
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
         """Convert CLIP model to OpenVINO format using Optimum Intel for robust conversion."""
         ov_models_path = Path(ov_models_dir)
@@ -370,8 +366,8 @@ class CLIPHandler(BaseEmbeddingModel):
                 raise RuntimeError("OpenVINO async inference not initialized. Call load_model() first.")
 
             # Create random dummy image as numpy array with batch size 1
-            dummy_image = np.random.randint(0, 255, (image_size, image_size, 3), dtype=np.uint8)
-            result = self.async_infer.infer([dummy_image])
+            dummy_image = np.random.randint(0, 255, (1, 3, image_size, image_size), dtype=np.uint8)
+            result = self.async_infer.infer(dummy_image)
             self._embedding_dim = int(result.shape[-1])
         else:
             if self.model is None:

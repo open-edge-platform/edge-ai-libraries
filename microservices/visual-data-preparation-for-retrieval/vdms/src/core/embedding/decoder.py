@@ -11,7 +11,6 @@ import os
 import queue
 import threading
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -68,14 +67,14 @@ class VideoStreamMetadata:
     """Metadata about the video stream for tracability."""
 
     source_type: VideoSourceType
+    video_index: int
     stream_name: str | None
     stream_source: str | None
     total_frames: int | None
     fps: float | None
-    duration_seconds: float | None
+    video_duration_seconds: float | None
     stream_id: int | None
     time_base: str | None
-    total_frames: int | None
     average_rate: str | None
     base_rate: str | None
     guessed_rate: str | None
@@ -84,7 +83,6 @@ class VideoStreamMetadata:
     pixel_format: str | None
     aspect_ratio: str | None
     display_aspect_ratio: str | None
-    duration_seconds: float | None
     duration: float | None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -173,7 +171,6 @@ class VideoFrameConfig:
 
     batch_size: int = 1
     num_workers: int | None = None
-    num_decoders: int = 1
     queue_size: int = 32
     frame_interval: int = 1
     keyframes_only: bool = False
@@ -185,8 +182,6 @@ class VideoFrameConfig:
             raise ValueError("queue_size must be >= 1")
         if self.frame_interval < 1:
             raise ValueError("frame_interval must be >= 1")
-        if self.num_decoders < 1:
-            raise ValueError("num_decoders must be >= 1")
         if self.keyframes_only and self.frame_interval != 1:
             raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
 
@@ -251,7 +246,7 @@ def decode_stream_and_batch_generator(
     batch_id = 0
     global_frame_idx = 0
     start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=8) as thread_pool:
+    with container, ThreadPoolExecutor(max_workers=6) as thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -263,7 +258,7 @@ def decode_stream_and_batch_generator(
 
                 if shutdown_event and shutdown_event.is_set():
                     end_time = time.perf_counter()
-                    logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
+                    logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
                     yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                     break
 
@@ -280,7 +275,7 @@ def decode_stream_and_batch_generator(
                 for frame in frames:
                     if shutdown_event and shutdown_event.is_set():
                         end_time = time.perf_counter()
-                        logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
+                        logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
                         yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                         break
 
@@ -336,7 +331,7 @@ def decode_and_batch_generator(
     batch_id = 0
     logger.info(f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}")
     start_time = time.perf_counter()
-    with container, ThreadPoolExecutor(max_workers=8) as _thread_pool:
+    with container, ThreadPoolExecutor(max_workers=6) as _thread_pool:
         stream = container.streams.video[0]
         stream.thread_type = "AUTO"
 
@@ -347,7 +342,7 @@ def decode_and_batch_generator(
         for frame_id, frame in enumerate(container.decode(video=0)):
 
             if shutdown_event and shutdown_event.is_set():
-                logger.info(f"Stream {stream_id} stopped by shutdown event during decoding")
+                logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
                 end_time = time.perf_counter()
                 yield (INTERRUPT, stream_id, (start_time, end_time, end_time - start_time))
                 break
@@ -356,14 +351,14 @@ def decode_and_batch_generator(
                 continue
 
             batch.append((frame_id, frame))
-
+            logger.debug(f"[DECODER] Stream {stream_id} decoded frame {frame_id}, batch size {len(batch)}")
             if len(batch) >= batch_size:
                 frames_meta = list(
                     _thread_pool.map(
                         lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
                     )
                 )
-                logger.info(
+                logger.debug(
                     f"[Decoder] Stream {stream_id} batch {batch_id} with {len(frames_meta)} frames"
                 )
                 yield BatchFrameMetadata(
@@ -384,7 +379,7 @@ def decode_and_batch_generator(
                     lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
                 )
             )
-            logger.info(f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames")
+            logger.debug(f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames")
             yield BatchFrameMetadata(
                 stream_id=stream_id, batch_id=batch_id, frames=frames_meta
             ).to_dict(), (
@@ -421,11 +416,23 @@ class VideoFrameExtractor:
     def __init__(
         self,
         video_input: VideoInput | str | bytes | list[VideoInput | str | bytes],
-        config: VideoFrameConfig | None = None,
+        configs: VideoFrameConfig | list[VideoFrameConfig] | None = None,
         shm_pool: SharedMemoryPool | None = None,
         shutdown_event: threading.Event | None = None,
     ):
-        self.config = config or VideoFrameConfig()
+        self.configs = configs
+
+        if configs is None:
+            self.configs = [VideoFrameConfig()] * len(video_input) if isinstance(video_input, list) else [VideoFrameConfig()]
+        
+        elif isinstance(configs, VideoFrameConfig):
+            self.configs = [configs] * len(video_input) if isinstance(video_input, list) else [configs]
+
+        elif isinstance(configs, list):
+            if len(configs) != len(video_input):
+                raise ValueError("Length of configs list must match number of video inputs")
+            self.configs = configs
+
         self.shm_pool = shm_pool
 
         # Use external shutdown_event if provided, else create internal one
@@ -440,12 +447,13 @@ class VideoFrameExtractor:
         self.metadata_list = []
 
         if len(self.video_inputs) > 0:
-            for video_input in self.video_inputs:
+            for video_index, video_input in enumerate(self.video_inputs):
                 with self._open_video_source(video_input) as container:
                     stream = container.streams.video[0]
 
                     self.metadata_list.append(
                         VideoStreamMetadata(
+                            video_index=video_index,
                             stream_id=stream.index,
                             stream_name=stream.name,
                             stream_source=(
@@ -474,7 +482,7 @@ class VideoFrameExtractor:
                                 if stream.display_aspect_ratio
                                 else None
                             ),
-                            duration_seconds=(
+                            video_duration_seconds=(
                                 float(stream.duration * Fraction(str(stream.time_base)))
                                 if stream.duration and stream.time_base
                                 else None
@@ -536,7 +544,11 @@ class VideoFrameExtractor:
             for inp in self.video_inputs
         ]
 
-        result_queue: queue.Queue = queue.Queue(maxsize=self.config.queue_size)
+        queue_size = 32
+        for config in self.configs:
+            queue_size += max(config.queue_size, queue_size)
+            
+        result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
         finished_set = set()
 
         threads = []
@@ -548,18 +560,18 @@ class VideoFrameExtractor:
                 stream_gen = decode_stream_and_batch_generator(
                     container=container,
                     stream_id=video_index,
-                    stream_config=self.config,
+                    stream_config=self.configs[video_index],
                     shm_pool=self.shm_pool,
-                    batch_size=self.config.batch_size,
+                    batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
                 )
             else:
                 stream_gen = decode_and_batch_generator(
                     container=container,
                     stream_id=video_index,
-                    stream_config=self.config,
+                    stream_config=self.configs[video_index],
                     shm_pool=self.shm_pool,
-                    batch_size=self.config.batch_size,
+                    batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
                 )
 
@@ -576,7 +588,7 @@ class VideoFrameExtractor:
 
                 except queue.Empty:
                     if self._shutdown.is_set():
-                        logger.info("[DECODER MAIN] Shutdown event set, stopping frame extraction")
+                        logger.debug("[DECODER MAIN] Shutdown event set, stopping frame extraction")
                         break
                     continue
 
@@ -584,10 +596,10 @@ class VideoFrameExtractor:
                 if isinstance(batch, tuple):
 
                     if batch[0] is INTERRUPT:
-                        logger.info(
+                        logger.debug(
                             f"[DECODER MAIN] Interrupt signal received for stream {batch[1]}, shutting down..."
                         )
-                        logger.info(
+                        logger.debug(
                             f"[DECODER MAIN] Timing info: start_time={batch[2][0]}, end_time={batch[2][1]}, duration={batch[2][2]}"
                         )
                         break
@@ -613,14 +625,13 @@ class VideoFrameExtractor:
             raise
 
         finally:
-            self._shutdown.set()
-            logger.info("[DECODER MAIN] All threads have been signaled to shutdown.")
+            logger.info("[DECODER MAIN] Frame extraction finished")
 
 
 def extract_batched_frames(
     video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
     frame_interval: int = 1,
-    batch_size: int = 128,
+    batch_size: int = 64,
     keyframes_only: bool = False,
     shm_pool: SharedMemoryPool | None = None,
 ) -> Generator[List[Tuple[int, np.ndarray]], None, None]:
@@ -644,7 +655,10 @@ def extract_batched_frames(
         batch_size=batch_size,
         keyframes_only=keyframes_only,
     )
+    if shm_pool is None:
+        # Create a default shared memory pool if not provided
+        shm_pool = SharedMemoryPool(max_blocks=batch_size * 4, block_size=1920 * 1080 * 3)  # Assuming max 1080p RGB frames
 
     extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
-    print(f"extractor metadata: {extractor.metadata_list}")
+    logger.debug(f"[DECODER] Extractor metadata: {extractor.metadata_list}")
     yield from extractor.decode_frames()

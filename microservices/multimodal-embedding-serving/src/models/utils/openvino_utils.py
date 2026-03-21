@@ -36,25 +36,24 @@ class BatchMetadata:
 
 
 def check_and_convert_openvino_models(
-    model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir
-):
+    model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir):
     """
     Check if OpenVINO IR models exist and convert them if necessary.
-
+    
     This function manages the OpenVINO conversion pipeline by checking for existing
     IR model files and performing conversion only when needed. It handles both
     image and text encoder models typical in multimodal embedding architectures.
-
+    
     Args:
         model_key: Unique identifier for the model (used in filenames)
         model_loader: Callable that returns (model, _, preprocess) tuple
         tokenizer_loader: Callable that returns the tokenizer
         convert_func: Function to perform the actual OpenVINO conversion
         ov_models_dir: Directory to store OpenVINO IR model files
-
+        
     Returns:
         Tuple of (image_encoder_path, text_encoder_path) as strings
-
+        
     Note:
         The function creates the models directory if it doesn't exist and
         cleans up temporary models after conversion to free memory.
@@ -68,17 +67,17 @@ def check_and_convert_openvino_models(
         logger.info(
             f"OpenVINO models not found for {model_key}. Converting to OpenVINO format..."
         )
-
+        
         # Handle the case where model and tokenizer loaders are None
         # This happens when using Optimum Intel which handles loading internally
         if model_loader is not None and tokenizer_loader is not None:
             # Load model and tokenizer for conversion
             model, _, _ = model_loader()
             tokenizer = tokenizer_loader()
-
+            
             # Call the convert function with the loaded model and tokenizer
             convert_func(ov_models_dir, model, tokenizer)
-
+            
             del model
             gc.collect()
         else:
@@ -93,20 +92,20 @@ def load_openvino_models(
 ):
     """
     Load and compile OpenVINO IR models for inference.
-
+    
     This function loads the pre-converted OpenVINO IR models for both image
     and text encoders and compiles them for the specified target device.
     Uses the same pattern as the detector for thread-safe parallel processing.
-
+    
     Args:
         image_encoder_path: Path to the image encoder IR model file (.xml)
-        text_encoder_path: Path to the text encoder IR model file (.xml)
+        text_encoder_path: Path to the text encoder IR model file (.xml)  
         device: Target device for inference (e.g., "CPU", "GPU", "AUTO")
         reshape_shape: Optional shape for reshaping the input tensor (default: (1, 3, 224, 224))
 
     Returns:
         Tuple of (compiled_image_encoder, compiled_text_encoder) ready for inference
-
+        
     Note:
         The returned models are compiled and ready for thread-safe inference using
         infer_new_request() method, similar to the detector implementation.
@@ -145,9 +144,7 @@ def load_openvino_models(
     logger.info("Using OpenVINO performance mode: %s", performance_mode)
 
     if performance_mode == "LATENCY":
-        logger.info(
-            "Latency mode selected; compiling with default OpenVINO settings (no overrides)."
-        )
+        logger.info("Latency mode selected; compiling with default OpenVINO settings (no overrides).")
         ov_image_encoder = core.compile_model(image_encoder_path, device)
         ov_text_encoder = core.compile_model(text_encoder_path, device)
     else:
@@ -162,15 +159,12 @@ def load_openvino_models(
 
         config = {
             "PERFORMANCE_HINT": performance_mode,
+            "PERFORMANCE_HINT_NUM_REQUESTS": perf_hint_requests,
             "NUM_STREAMS": "AUTO",
         }
 
         device_upper = (device or "").upper()
-        if (
-            device_upper in {"CPU", "AUTO"}
-            or device_upper.startswith("CPU")
-            or "CPU" in device_upper
-        ):
+        if device_upper in {"CPU", "AUTO"} or device_upper.startswith("CPU") or "CPU" in device_upper:
             target_cores = max(1, int(total_cpus * 0.8))
 
             max_workers_env = os.getenv("MAX_PARALLEL_WORKERS")
@@ -217,9 +211,7 @@ def load_openvino_models(
                             core.get_property(candidate, "SUPPORTED_PROPERTIES")
                         )
                 except Exception as exc:  # pragma: no cover - diagnostic path
-                    logger.debug(
-                        f"Unable to query supported properties for {candidate}: {exc}"
-                    )
+                    logger.debug(f"Unable to query supported properties for {candidate}: {exc}")
 
             logger.info(f"cpu_specific_config: {cpu_specific_config}")
             for prop_key, prop_value in cpu_specific_config.items():
