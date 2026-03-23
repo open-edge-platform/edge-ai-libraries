@@ -93,7 +93,7 @@ Further details on the system architecture and customizable options are availabl
 
 ## How to Use the Application
 
-Refer to the [Get Started](./get-started) page to get started with the sample-application.
+Refer to the [Get Started](./get-started.md) page to get started with the sample-application.
 The UI is the recommended mode of interaction with the sample-application though users can
 also use the CLI approach using the REST endpoints. The Chat Q&A sample application consists
 of two main parts:
