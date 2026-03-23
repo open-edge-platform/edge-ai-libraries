@@ -301,9 +301,9 @@ Follow these steps to run the application:
 
 - **To run Video Summarization with OpenVINO model server microservice for a final summary :**
 
-       ```bash
-       ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
-       ```
+    ```bash
+    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+    ```
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
