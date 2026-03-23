@@ -154,7 +154,7 @@ python profile-runner.py \
 | `--users` | Number of concurrent users (currently set to 1) | `1` | No |
 | `--spawn_rate` | Rate at which users are spawned per second | `1` | No |
 | `--warmup_time` | Duration in seconds for warmup requests | `0` | No |
-| `--collect_resource_metrics` | Enable resource metrics collection (`yes`/`no`). When set to `yes`, the tool and application must be running on the same machine. | `no` | No |
+| `--collect_resource_metrics` | Enable resource metrics collection (`yes`/`no`). When set to `yes`, the tool and target application must be running on the same machine. | `no` | No |
 
 ### Example: Video Summary with Warmup
 
@@ -224,25 +224,6 @@ Completed warmup requests.!
 
 Report saved to: reports/video_summary_search_20260320_143044/
 ```
-
-## Video Summary Workflow
-
-When profiling the Video Summary application, the tool executes the following steps:
-
-1. **Video Upload**: Uploads the test video to the VSS application
-2. **Summary Request**: Initiates the video summarization pipeline
-3. **Status Polling**: Monitors the summarization progress
-4. **Metrics Collection**: Captures timing and telemetry data
-5. **Report Generation**: Saves results to the report directory
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Upload    │────▶│   Summary   │────▶│   Monitor   │────▶│   Report    │
-│   Video     │     │   Request   │     │   Status    │     │   Results   │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-```
-
----
 
 ## Other Application References
 
