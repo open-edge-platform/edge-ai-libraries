@@ -154,7 +154,7 @@ python profile-runner.py \
 | `--users` | Number of concurrent users (currently set to 1) | `1` | No |
 | `--spawn_rate` | Rate at which users are spawned per second | `1` | No |
 | `--warmup_time` | Duration in seconds for warmup requests | `0` | No |
-| `--collect_resource_metrics` | Enable resource metrics collection (`yes`/`no`) | `no` | No |
+| `--collect_resource_metrics` | Enable resource metrics collection (`yes`/`no`). When set to `yes`, the tool and application must be running on the same machine. | `no` | No |
 
 ### Example: Video Summary with Warmup
 
