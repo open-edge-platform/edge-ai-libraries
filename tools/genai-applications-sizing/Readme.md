@@ -419,7 +419,7 @@ Before running a full profiling session:
      --request_count=1
    ```
 
-## Next Steps
+## Supporting Resources
 
 - **Video Search and Summarization**
   - [API Reference](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
@@ -432,7 +432,4 @@ Before running a full profiling session:
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
 
-## License
 
-Copyright (C) 2024-2025 Intel Corporation  
-SPDX-License-Identifier: Apache-2.0
