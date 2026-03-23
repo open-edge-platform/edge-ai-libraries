@@ -45,57 +45,57 @@ The Model Download is a microservice that downloads models from multiple hubs as
       ```
     - To use the Geti™ plugin, set these variables:
 
-          ```bash
-          export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
-          export GETI_HOST=<GETI_HOST_ADDRESS>
-          export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-          export GETI_SERVER_API_VERSION=v1
-          export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
-          ```
+      ```bash
+      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+      export GETI_HOST=<GETI_HOST_ADDRESS>
+      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+      export GETI_SERVER_API_VERSION=v1
+      export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
+      ```
 
     > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
 4.  **Launch the service and enable the plugins**
 
-          ```bash
-          source scripts/run_service.sh up --plugins all --model-path <host path>
-          ```
+      ```bash
+      source scripts/run_service.sh up --plugins all --model-path <host path>
+      ```
 
     > **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format.
 
 > **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
-      The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
+The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 
-      Options available with the script:
+Options available with the script:
 
-        __Usage__:
-        ```bash
-          source scripts/run_service.sh [options] [action]
-        ```
+   __Usage__:
+   ```bash
+   source scripts/run_service.sh [options] [action]
+   ```
 
-        __Actions__:
-        ```text
-            up                     Start the services (default)
-            down                   Stop the services
-        ```
-        __Options__:
-        | Option                   | Description                                                                                      |
-        |--------------------------|--------------------------------------------------------------------------------------------------|
-        | `--build`                | Builds the Docker image before running                                                            |
-        | `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
-        | `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
-        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics, or geti`) or `all` to enable all available plugins |
-        | `--help`                 | Shows this help message                                                                           |
+   __Actions__:
+   ```text
+   up                     Start the services (default)
+   down                   Stop the services
+   ```
+__Options__:
+| Option                   | Description                                                                                      |
+|--------------------------|--------------------------------------------------------------------------------------------------|
+| `--build`                | Builds the Docker image before running                                                            |
+| `--rebuild`              | This flag instructs to ignore any existing cached images, and rebuild them from scratch using the Dockerfile definitions|
+| `--model-path <path>`    | Sets the custom model path (default: `$HOME/models/`)                                           |
+| `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,openvino,ultralytics, or geti`) or `all` to enable all available plugins |
+| `--help`                 | Shows this help message                                                                           |
 
-      **Examples**:
-        - Start the service with default settings: `source scripts/run_service.sh up`
-        - Stop the service: `source scripts/run_service.sh down`
-        - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
-        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,geti`
-        - Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
-        - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
-        - Display usage information: `source scripts/run_service.sh --help`
+**Examples**:
+- Start the service with default settings: `source scripts/run_service.sh up`
+- Stop the service: `source scripts/run_service.sh down`
+- Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
+- Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics,geti`
+- Use a custom model storage: `source scripts/run_service.sh up --model-path /data/my-models`
+- Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
+- Display usage information: `source scripts/run_service.sh --help`
 
 5. **Access the service**
 
