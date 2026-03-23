@@ -12,7 +12,7 @@ The following is the Video Search mode UI:
 
 ![Video Search web interface](./_assets/VideoSearch_Webpage.png)
 
-### Purpose
+### Purpose of Video Search
 
 The Video Search mode:
 
@@ -26,7 +26,7 @@ The Video Search mode:
 
 - Showcase how popular frameworks like the LangChain framework can be used to implement or customize the Video Search pipeline quickly and deploy the pipeline on Intel’s Edge AI systems.
 
-### Key Features
+### Key Features of Video Search
 
 - User-Friendly and Intuitive: You can use natural language through the easy-to-use interface to search.
 
@@ -75,7 +75,7 @@ You can develop, customize, and deploy Video Summarization solutions in diverse 
 The following is the Video Summarization mode UI:
 ![Video Summary web interface](./_assets/VideoSumm_Webpage.png)
 
-### Purpose
+### Purpose of Video Summarization
 
 The Video Summarization mode allows you to customize the accuracy-performance trade-off. The following figure shows an example of pipeline configurations with different compute requirements.
 
@@ -94,7 +94,7 @@ To create a summary with the best possible accuracy for a given compute, the Vid
 
 - Provides reference sample microservices for capabilities like video ingestion and UI frontend, which reduces the effort to customize the application.
 
-### Key Features
+### Key Features of Video Summarization
 
 - User-Friendly and Intuitive: You can use natural language through the easy-to-use interface to search.
 
@@ -144,7 +144,7 @@ The following is the Video Search and Summarization mode UI:
 
 ![Video Summary web interface](./_assets/VideoSearch_Summary_Webpage.png)
 
-### Purpose
+### Purpose of Video Search and Summarization
 
 The combined Video Search and Summarization mode is useful for rapid access to relevant video content and complex use cases. The following are several examples:
 
@@ -170,7 +170,7 @@ To create a summary with the best possible accuracy for a given compute, the Vid
 
 The combined mode shows that the Intel's Edge AI systems portfolio can run complex use cases. The sample application runs in its fullest configuration in the combined mode, thereby showcasing a resource intensive usage. You can customize the application on multiple levels including model configuration, and use it to size the application. The sizing runs allows you to select the right hardware configuration to run the combined mode.
 
-### Key Features
+### Key Features of Video Search and Summarization
 
 The following are the key features, see the combined Video Search and Summarization mode documentation for a baseline view of each:
 
