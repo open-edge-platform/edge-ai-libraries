@@ -5,4 +5,6 @@ __pycache__
 shared/collector-signals/
 shared/models/output/*
 shared/videos/input/*
+shared/videos/output/*
 shared/videos/video-generator/*
+shared/onvif/*
