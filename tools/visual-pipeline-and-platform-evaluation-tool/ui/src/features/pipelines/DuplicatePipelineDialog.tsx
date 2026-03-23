@@ -7,17 +7,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.tsx";
 import {
-  useCreatePipelineMutation,
   type Pipeline,
+  useCreatePipelineMutation,
 } from "@/api/api.generated.ts";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils.ts";
+import { handleApiError } from "@/lib/apiUtils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field.tsx";
 import {
-  pipelineMetadataSchema,
   type PipelineMetadataFormData,
+  pipelineMetadataSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 
@@ -77,10 +77,7 @@ export const DuplicatePipelineDialog = ({
       toast.success("Pipeline duplicated successfully");
       onSuccess?.();
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error(`Failed to duplicate pipeline: ${errorMessage}`);
+      handleApiError(error, "Failed to duplicate pipeline");
       console.error("Failed to duplicate pipeline:", error);
     }
   };

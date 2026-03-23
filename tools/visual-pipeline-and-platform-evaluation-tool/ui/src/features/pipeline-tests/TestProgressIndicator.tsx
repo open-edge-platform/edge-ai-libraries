@@ -1,27 +1,184 @@
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
-import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
+import {
+  useMetricHistory,
+  type MetricHistoryPoint,
+  type GpuMetrics,
+} from "@/hooks/useMetricHistory.ts";
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
+
+const CHART_MAX_DATA_POINTS = 30;
+
+const getRecentYAxisMax = (
+  values: number[],
+  maxDataPoints: number,
+  minMax: number,
+  headroomFactor = 1.15,
+) => {
+  const recentValues = values.slice(-maxDataPoints).filter(Number.isFinite);
+  if (recentValues.length === 0) return minMax;
+
+  const recentMax = Math.max(...recentValues, 0);
+  if (recentMax <= 0) return minMax;
+
+  return Math.max(recentMax * headroomFactor, minMax);
+};
+
+const stabilizeSingleZeroDropSeries = <T extends Record<string, number>>(
+  data: T[],
+  keys: (keyof T)[],
+): T[] => {
+  const previousByKey: Partial<Record<keyof T, number>> = {};
+  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
+
+  return data.map((point) => {
+    const stabilizedPoint = { ...point };
+
+    keys.forEach((key) => {
+      const value = point[key];
+      const previousValue = previousByKey[key] ?? 0;
+      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
+
+      if (value === 0 && previousValue > 0) {
+        const nextZeroStreak = currentZeroStreak + 1;
+        zeroStreakByKey[key] = nextZeroStreak;
+        if (nextZeroStreak === 1) {
+          stabilizedPoint[key] = previousValue as T[keyof T];
+          return;
+        }
+      } else {
+        zeroStreakByKey[key] = 0;
+      }
+
+      if (value > 0) {
+        previousByKey[key] = value;
+      }
+    });
+
+    return stabilizedPoint;
+  });
+};
+
+const stabilizeSingleZeroDropOptionalSeries = <
+  T extends Record<string, number | undefined>,
+>(
+  data: T[],
+  keys: (keyof T)[],
+): T[] => {
+  const previousByKey: Partial<Record<keyof T, number>> = {};
+  const zeroStreakByKey: Partial<Record<keyof T, number>> = {};
+
+  return data.map((point) => {
+    const stabilizedPoint = { ...point };
+
+    keys.forEach((key) => {
+      const value = point[key];
+      if (value === undefined) return;
+
+      const previousValue = previousByKey[key] ?? 0;
+      const currentZeroStreak = zeroStreakByKey[key] ?? 0;
+
+      if (value === 0 && previousValue > 0) {
+        const nextZeroStreak = currentZeroStreak + 1;
+        zeroStreakByKey[key] = nextZeroStreak;
+        if (nextZeroStreak === 1) {
+          stabilizedPoint[key] = previousValue as T[keyof T];
+          return;
+        }
+      } else {
+        zeroStreakByKey[key] = 0;
+      }
+
+      if (value > 0) {
+        previousByKey[key] = value;
+      }
+    });
+
+    return stabilizedPoint;
+  });
+};
 
 interface MetricCardProps {
   title: string;
   value: number;
   unit: string;
   icon: React.ReactNode;
+  isSummary?: boolean;
+  forceDark?: boolean;
+  useDemoStyles?: boolean;
+  summaryCardClassName?: string;
+  summaryIconClassName?: string;
+  summaryTitleClassName?: string;
+  summaryUnitClassName?: string;
 }
 
-const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-background shadow-md p-4 flex items-center space-x-3">
-    <div className="shrink-0 p-2 bg-classic-blue/5 dark:bg-teal-chart">
+const MetricCard = ({
+  title,
+  value,
+  unit,
+  icon,
+  isSummary = false,
+  forceDark = false,
+  useDemoStyles = false,
+  summaryCardClassName = "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30",
+  summaryIconClassName = "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20",
+  summaryTitleClassName = "text-energy-blue-tint-1",
+  summaryUnitClassName = "text-energy-blue-tint-2",
+}: MetricCardProps) => (
+  <div
+    className={`${
+      useDemoStyles
+        ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+        : "bg-background"
+    } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} flex items-center space-x-3 transition-all ${
+      isSummary
+        ? summaryCardClassName
+        : useDemoStyles
+          ? forceDark
+            ? "border border-neutral-800/50"
+            : "border border-border"
+          : ""
+    }`}
+  >
+    <div
+      className={`shrink-0 p-3 rounded-lg backdrop-blur-sm ${
+        useDemoStyles
+          ? isSummary
+            ? summaryIconClassName
+            : "bg-gradient-to-br from-white/10 to-white/5"
+          : "bg-classic-blue/5 dark:bg-teal-chart p-2 rounded-none"
+      }`}
+    >
       {icon}
     </div>
-    <div>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <p className="text-2xl font-bold text-foreground">
+    <div className={useDemoStyles ? "flex-1" : undefined}>
+      <h3
+        className={`${
+          useDemoStyles
+            ? `text-[11px] font-semibold uppercase tracking-widest mb-3 ${
+                isSummary ? summaryTitleClassName : "text-neutral-400"
+              }`
+            : "text-sm font-medium text-foreground mb-2"
+        }`}
+      >
+        {title}
+      </h3>
+      <p
+        className={`text-3xl font-bold ${
+          useDemoStyles && forceDark ? "text-white" : "text-foreground"
+        }`}
+      >
         {value.toFixed(2)}
-        <span className="text-sm text-muted-foreground ml-1">{unit}</span>
+        <span
+          className={`text-sm ml-1.5 font-semibold ${
+            isSummary ? summaryUnitClassName : "text-muted-foreground"
+          }`}
+        >
+          {unit}
+        </span>
       </p>
     </div>
   </div>
@@ -29,14 +186,58 @@ const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
 
 interface TestProgressIndicatorProps {
   className?: string;
+  forceDark?: boolean;
+  useDemoStyles?: boolean;
+  historyOverride?: MetricHistoryPoint[];
+  metricsOverride?: {
+    fps: number;
+    cpu: number;
+    memory: number;
+    availableGpuIds: string[];
+    gpuDetailedMetrics: Record<string, GpuMetrics>;
+  };
 }
 
 export const TestProgressIndicator = ({
   className = "",
+  forceDark = false,
+  useDemoStyles = false,
+  historyOverride,
+  metricsOverride,
 }: TestProgressIndicatorProps) => {
-  const metrics = useMetrics();
-  const history = useMetricHistory();
+  const isSummary = !!metricsOverride;
+  const { resolvedTheme } = useTheme();
+  const isDarkTheme = resolvedTheme === "dark" || forceDark;
+  const liveMetrics = useMetrics();
+  const liveHistory = useMetricHistory();
+  const metrics = metricsOverride ?? {
+    fps: liveMetrics.fps,
+    cpu: liveMetrics.cpu,
+    memory: liveMetrics.memory,
+    availableGpuIds: liveMetrics.availableGpuIds,
+    gpuDetailedMetrics: liveMetrics.gpuDetailedMetrics,
+  };
+  const history = historyOverride ?? liveHistory;
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
+
+  const summaryContainerClassName = isDarkTheme
+    ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
+    : "p-4 rounded-xl border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
+  const summaryCardClassName = isDarkTheme
+    ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
+    : "border-2 border-classic-blue/60 shadow-classic-blue/20 shadow-lg ring-2 ring-classic-blue/20";
+  const summarySectionClassName = isDarkTheme
+    ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
+    : "border-2 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20";
+  const summaryIconClassName = isDarkTheme
+    ? "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20"
+    : "bg-gradient-to-br from-classic-blue/15 to-classic-blue/25";
+  const summaryTitleClassName = isDarkTheme
+    ? "text-energy-blue-tint-1"
+    : "text-classic-blue";
+  const summaryUnitClassName = isDarkTheme
+    ? "text-energy-blue-tint-2"
+    : "text-classic-blue";
 
   // get available GPU IDs from metrics
   const availableGpus = metrics.availableGpuIds.map((id) => parseInt(id));
@@ -53,7 +254,7 @@ export const TestProgressIndicator = ({
 
   const gpuData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => {
+    const rawGpuData = history.map((point) => {
       const gpu = point.gpus[gpuId];
       return {
         timestamp: point.timestamp,
@@ -64,6 +265,14 @@ export const TestProgressIndicator = ({
         videoEnhance: gpu?.videoEnhance,
       };
     });
+
+    return stabilizeSingleZeroDropOptionalSeries(rawGpuData, [
+      "compute",
+      "render",
+      "copy",
+      "video",
+      "videoEnhance",
+    ]);
   }, [history, selectedGpu]);
 
   // determine which GPU engines are available (have at least one non-undefined value)
@@ -84,12 +293,13 @@ export const TestProgressIndicator = ({
     return engines;
   }, [gpuData]);
 
-  // filter and prepare data for chart - only include available engines and replace undefined with 0
+  // filter and prepare data for chart - only include available engines
+  // and stabilize single zero drops to keep continuity like other GPU charts
   const gpuChartData = useMemo(() => {
-    return gpuData.map((point) => {
-      const chartPoint: Record<string, number | undefined> & {
-        timestamp: number;
-      } = {
+    const normalizedGpuChartData: Array<
+      { timestamp: number } & Record<string, number>
+    > = gpuData.map((point) => {
+      const chartPoint: { timestamp: number } & Record<string, number> = {
         timestamp: point.timestamp,
       };
 
@@ -100,23 +310,58 @@ export const TestProgressIndicator = ({
 
       return chartPoint;
     });
+
+    return stabilizeSingleZeroDropSeries(
+      normalizedGpuChartData,
+      availableEngines,
+    );
   }, [gpuData, availableEngines]);
   const gpuFrequencyData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => ({
+    const rawGpuFrequencyData = history.map((point) => ({
       timestamp: point.timestamp,
       frequency: point.gpus[gpuId]?.frequency ?? 0,
     }));
+
+    return stabilizeSingleZeroDropSeries(rawGpuFrequencyData, ["frequency"]);
   }, [history, selectedGpu]);
 
   const gpuPowerData = useMemo(() => {
     const gpuId = selectedGpu.toString();
-    return history.map((point) => ({
+    const rawGpuPowerData = history.map((point) => ({
       timestamp: point.timestamp,
       gpuPower: point.gpus[gpuId]?.gpuPower ?? 0,
       pkgPower: point.gpus[gpuId]?.pkgPower ?? 0,
     }));
+
+    return stabilizeSingleZeroDropSeries(rawGpuPowerData, [
+      "gpuPower",
+      "pkgPower",
+    ]);
   }, [history, selectedGpu]);
+
+  const displayedGpuUsage = useMemo(() => {
+    const latestGpuPoint = gpuData.at(-1);
+    if (!latestGpuPoint) {
+      const gpuMetrics = metrics.gpuDetailedMetrics[selectedGpu.toString()];
+      if (!gpuMetrics) return 0;
+      return Math.max(
+        gpuMetrics.compute ?? 0,
+        gpuMetrics.render ?? 0,
+        gpuMetrics.copy ?? 0,
+        gpuMetrics.video ?? 0,
+        gpuMetrics.videoEnhance ?? 0,
+      );
+    }
+
+    return Math.max(
+      latestGpuPoint.compute ?? 0,
+      latestGpuPoint.render ?? 0,
+      latestGpuPoint.copy ?? 0,
+      latestGpuPoint.video ?? 0,
+      latestGpuPoint.videoEnhance ?? 0,
+    );
+  }, [gpuData, metrics.gpuDetailedMetrics, selectedGpu]);
 
   const cpuTempData = history.map((point) => ({
     timestamp: point.timestamp,
@@ -132,6 +377,36 @@ export const TestProgressIndicator = ({
     timestamp: point.timestamp,
     memory: point.memory ?? 0,
   }));
+
+  const fpsYAxisMax = getRecentYAxisMax(
+    fpsData.map((point) => point.value),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const cpuTempYAxisMax = getRecentYAxisMax(
+    cpuTempData.map((point) => point.temp),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const cpuFrequencyYAxisMax = getRecentYAxisMax(
+    cpuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    0.1,
+  );
+
+  const gpuPowerYAxisMax = getRecentYAxisMax(
+    gpuPowerData.map((point) => Math.max(point.gpuPower, point.pkgPower)),
+    CHART_MAX_DATA_POINTS,
+    1,
+  );
+
+  const gpuFrequencyYAxisMax = getRecentYAxisMax(
+    gpuFrequencyData.map((point) => point.frequency),
+    CHART_MAX_DATA_POINTS,
+    0.1,
+  );
 
   const engineColors: Record<string, string> = {
     compute: "var(--color-yellow-chart)",
@@ -149,15 +424,153 @@ export const TestProgressIndicator = ({
     videoEnhance: "Video Enhance",
   };
 
+  const powerUsageSection = (
+    <div
+      className={`${
+        useDemoStyles
+          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          : "bg-background"
+      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+        isSummary
+          ? summarySectionClassName
+          : useDemoStyles
+            ? forceDark
+              ? "border border-neutral-800/50"
+              : "border border-border"
+            : ""
+      }`}
+    >
+      <h3
+        className={`${
+          useDemoStyles
+            ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                isSummary ? summaryTitleClassName : "text-neutral-400"
+              }`
+            : "text-sm font-medium text-foreground mb-5"
+        }`}
+      >
+        Power Usage Over Time
+        {availableGpus.length > 1 && (
+          <>
+            {" "}
+            <span className="inline-block min-w-[0.5rem]">{selectedGpu}</span>
+          </>
+        )}
+      </h3>
+      <div className="flex gap-4 items-stretch overflow-hidden">
+        <div className="flex">
+          <GpuSelector
+            availableGpus={availableGpus}
+            selectedGpu={selectedGpu}
+            onGpuChange={setSelectedGpu}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <MetricChart
+            title=""
+            data={gpuPowerData}
+            dataKeys={["gpuPower", "pkgPower"]}
+            colors={["var(--color-red-chart)", "var(--color-yellow-chart)"]}
+            unit=" W"
+            yAxisDomain={[0, gpuPowerYAxisMax]}
+            showLegend={true}
+            className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+            labels={["GPU Power", "Package Power"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            hideSummaryBorder={true}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const gpuUsageSection = (
+    <div
+      className={`${
+        useDemoStyles
+          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          : "bg-background"
+      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+        isSummary
+          ? summarySectionClassName
+          : useDemoStyles
+            ? forceDark
+              ? "border border-neutral-800/50"
+              : "border border-border"
+            : ""
+      }`}
+    >
+      <h3
+        className={`${
+          useDemoStyles
+            ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                isSummary ? summaryTitleClassName : "text-neutral-400"
+              }`
+            : "text-sm font-medium text-foreground mb-5"
+        }`}
+      >
+        GPU
+        {availableGpus.length > 1 && (
+          <>
+            {" "}
+            <span className="inline-block min-w-[0.5rem]">{selectedGpu}</span>
+          </>
+        )}{" "}
+        Usage Over Time
+      </h3>
+      <div className="flex gap-4 items-stretch overflow-hidden">
+        <div className="flex">
+          <GpuSelector
+            availableGpus={availableGpus}
+            selectedGpu={selectedGpu}
+            onGpuChange={setSelectedGpu}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <MetricChart
+            title=""
+            data={gpuChartData}
+            dataKeys={availableEngines}
+            colors={availableEngines.map((e) => engineColors[e])}
+            unit="%"
+            yAxisDomain={[0, 100]}
+            labels={availableEngines.map((e) => engineLabels[e])}
+            wrapLegend={true}
+            className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            hideSummaryBorder={true}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className={`space-y-4 ${className} text-foreground`}>
+    <div
+      className={`space-y-4 ${className} text-foreground ${
+        isSummary ? summaryContainerClassName : ""
+      }`}
+    >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <div className="space-y-4">
           <MetricCard
-            title="Frame Rate"
+            title={isSummary ? "Frame Rate Average" : "Frame Rate"}
             value={metrics.fps}
             unit="fps"
             icon={<Gauge className="h-6 w-6 text-magenta-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
           />
           <MetricChart
             title="Frame Rate Over Time"
@@ -165,9 +578,13 @@ export const TestProgressIndicator = ({
             dataKeys={["value"]}
             colors={["var(--color-magenta-chart)"]}
             unit=" fps"
-            yAxisDomain={[0, Math.max(...fpsData.map((d) => d.value), 60)]}
+            yAxisDomain={[0, fpsYAxisMax]}
             showLegend={false}
             labels={["Frame Rate"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="Memory Utilization Over Time"
@@ -178,15 +595,26 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["Memory"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
         </div>
 
         <div className="space-y-4">
           <MetricCard
-            title="CPU Usage"
+            title={isSummary ? "CPU Usage Average" : "CPU Usage"}
             value={metrics.cpu}
             unit="%"
             icon={<Cpu className="h-6 w-6 text-green-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
           />
           <MetricChart
             title="CPU Usage Over Time"
@@ -197,6 +625,10 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             showLegend={false}
             labels={["CPU Usage"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="CPU Temperature Over Time"
@@ -204,9 +636,13 @@ export const TestProgressIndicator = ({
             dataKeys={["temp"]}
             colors={["var(--color-green-chart)"]}
             unit="°C"
-            yAxisDomain={[0, Math.max(...cpuTempData.map((d) => d.temp), 100)]}
+            yAxisDomain={[0, cpuTempYAxisMax]}
             showLegend={false}
             labels={["Temperature"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
           <MetricChart
             title="CPU Frequency Over Time"
@@ -214,82 +650,68 @@ export const TestProgressIndicator = ({
             dataKeys={["frequency"]}
             colors={["var(--color-green-chart)"]}
             unit=" GHz"
-            yAxisDomain={[
-              0,
-              Math.max(...cpuFrequencyData.map((d) => d.frequency), 5),
-            ]}
+            yAxisDomain={[0, cpuFrequencyYAxisMax]}
             showLegend={false}
             labels={["Frequency"]}
+            maxDataPoints={CHART_MAX_DATA_POINTS}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
           />
         </div>
 
         <div className="space-y-4">
           <MetricCard
-            title="GPU Usage"
-            value={(() => {
-              const gpuMetrics =
-                metrics.gpuDetailedMetrics[selectedGpu.toString()];
-              if (!gpuMetrics) return 0;
-              return Math.max(
-                gpuMetrics.compute ?? 0,
-                gpuMetrics.render ?? 0,
-                gpuMetrics.copy ?? 0,
-                gpuMetrics.video ?? 0,
-                gpuMetrics.videoEnhance ?? 0,
-              );
-            })()}
+            title={isSummary ? "GPU Usage Average" : "GPU Usage"}
+            value={displayedGpuUsage}
             unit="%"
             icon={<Gpu className="h-6 w-6 text-yellow-chart" />}
+            isSummary={isSummary}
+            forceDark={forceDark}
+            useDemoStyles={useDemoStyles}
+            summaryCardClassName={summaryCardClassName}
+            summaryIconClassName={summaryIconClassName}
+            summaryTitleClassName={summaryTitleClassName}
+            summaryUnitClassName={summaryUnitClassName}
           />
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
+          {!useDemoStyles && gpuUsageSection}
+          {powerUsageSection}
+          <div
+            className={`${
+              useDemoStyles
+                ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                : "bg-background"
+            } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+              isSummary
+                ? summarySectionClassName
+                : useDemoStyles
+                  ? forceDark
+                    ? "border border-neutral-800/50"
+                    : "border border-border"
+                  : ""
+            }`}
+          >
+            <h3
+              className={`${
+                useDemoStyles
+                  ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                      isSummary ? summaryTitleClassName : "text-neutral-400"
+                    }`
+                  : "text-sm font-medium text-foreground mb-5"
+              }`}
+            >
               GPU
               {availableGpus.length > 1 && (
                 <>
                   {" "}
-                  <span className="inline-block min-w-[1ch]">
-                    {selectedGpu}
-                  </span>
-                </>
-              )}{" "}
-              Usage Over Time
-            </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
-              <div className="flex">
-                <GpuSelector
-                  availableGpus={availableGpus}
-                  selectedGpu={selectedGpu}
-                  onGpuChange={setSelectedGpu}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <MetricChart
-                  title=""
-                  data={gpuChartData}
-                  dataKeys={availableEngines}
-                  colors={availableEngines.map((e) => engineColors[e])}
-                  unit="%"
-                  yAxisDomain={[0, 100]}
-                  className="!shadow-none !p-0"
-                  labels={availableEngines.map((e) => engineLabels[e])}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU
-              {availableGpus.length > 1 && (
-                <>
-                  {" "}
-                  <span className="inline-block min-w-[1ch]">
+                  <span className="inline-block min-w-[0.5rem]">
                     {selectedGpu}
                   </span>
                 </>
               )}{" "}
               Frequency Over Time
             </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
+            <div className="flex gap-4 items-stretch overflow-hidden">
               <div className="flex">
                 <GpuSelector
                   availableGpus={availableGpus}
@@ -304,64 +726,20 @@ export const TestProgressIndicator = ({
                   dataKeys={["frequency"]}
                   colors={["var(--color-yellow-chart)"]}
                   unit=" GHz"
-                  yAxisDomain={[
-                    0,
-                    Math.max(...gpuFrequencyData.map((d) => d.frequency), 3),
-                  ]}
+                  yAxisDomain={[0, gpuFrequencyYAxisMax]}
                   showLegend={false}
                   labels={["Frequency"]}
-                  className="!shadow-none !p-0"
+                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+                  maxDataPoints={CHART_MAX_DATA_POINTS}
+                  isSummary={isSummary}
+                  hideSummaryBorder={true}
+                  forceDark={forceDark}
+                  useDemoStyles={useDemoStyles}
                 />
               </div>
             </div>
           </div>
-          <div className="bg-background shadow-md p-4">
-            <h3 className="text-sm font-medium text-foreground mb-3">
-              GPU
-              {availableGpus.length > 1 && (
-                <>
-                  {" "}
-                  <span className="inline-block min-w-[1ch]">
-                    {selectedGpu}
-                  </span>
-                </>
-              )}{" "}
-              Power Usage Over Time
-            </h3>
-            <div className="flex gap-4 items-stretch -mt-3 overflow-hidden">
-              <div className="flex">
-                <GpuSelector
-                  availableGpus={availableGpus}
-                  selectedGpu={selectedGpu}
-                  onGpuChange={setSelectedGpu}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <MetricChart
-                  title=""
-                  data={gpuPowerData}
-                  dataKeys={["gpuPower", "pkgPower"]}
-                  colors={[
-                    "var(--color-red-chart)",
-                    "var(--color-yellow-chart)",
-                  ]}
-                  unit=" W"
-                  yAxisDomain={[
-                    0,
-                    Math.max(
-                      ...gpuPowerData.map((d) =>
-                        Math.max(d.gpuPower, d.pkgPower),
-                      ),
-                      50,
-                    ),
-                  ]}
-                  showLegend={true}
-                  labels={["GPU Power", "Package Power"]}
-                  className="!shadow-none !p-0"
-                />
-              </div>
-            </div>
-          </div>
+          {useDemoStyles && gpuUsageSection}
         </div>
       </div>
     </div>

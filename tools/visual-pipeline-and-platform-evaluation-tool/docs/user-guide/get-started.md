@@ -40,24 +40,28 @@ For alternative ways to set up the sample application, refer to
 
    ```bash
    mkdir -p visual-pipeline-and-platform-evaluation-tool/models
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/onvif_discovery
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/onvif
    cd visual-pipeline-and-platform-evaluation-tool
    ```
 
 2. **Download all required files**:
 
    ```bash
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.cpu.yml"
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml"
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml"
-   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
-   curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
-   curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
-   curl -Lo shared/videos/default_recordings.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/videos/default_recordings.yaml"
-   curl -Lo shared/models/supported_models.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2025.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.cpu.yml"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.gpu.yml"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/compose.npu.yml"
+   curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
+   curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
+   curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
+   curl -Lo onvif_discovery/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/onvif_discovery/Dockerfile"
+   curl -Lo onvif_discovery/onvif_discovery_agent.py "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/onvif_discovery/onvif_discovery_agent.py"
+   curl -Lo shared/videos/default_recordings.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/videos/default_recordings.yaml"
+   curl -Lo shared/models/supported_models.yaml "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml"
    chmod +x models/model_manager.sh
    chmod +x setup_env.sh
    ```
@@ -65,7 +69,7 @@ For alternative ways to set up the sample application, refer to
 3. **Start the application**:
 
    ```bash
-   make build-models run
+   make build-onvif-discovery build-models run
    ```
 
 4. **Verify that the application is running**:
@@ -76,11 +80,13 @@ For alternative ways to set up the sample application, refer to
 
 5. **Access the application**:
 
-   - Open a browser and navigate to `http://localhost` to access the Visual Pipeline and Platform Evaluation Tool.
-   
+   - Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>`) to access
+     the Visual Pipeline and Platform Evaluation Tool.
+
 6. **Access the application API documentation**:
 
-   - Open a browser and navigate to `http://localhost:7860/docs` to access the Swagger UI.
+   - Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
+     to access the Swagger UI.
 
 ## Validation
 

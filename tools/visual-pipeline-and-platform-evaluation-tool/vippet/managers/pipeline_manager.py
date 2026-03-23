@@ -1,28 +1,29 @@
 import logging
+import os
 import threading
 from copy import deepcopy
+from datetime import datetime
 from typing import Optional, List
 
-from api.api_schemas import (
-    PipelineSource,
-    Pipeline,
-    PipelineDefinition,
-    PipelineGraph,
-    Variant,
-)
 from graph import Graph, OUTPUT_PLACEHOLDER
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
+    InternalPipeline,
+    InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
+    InternalPipelineSource,
+    InternalVariant,
 )
 from pipelines.loader import PipelineLoader
 from utils import (
     generate_unique_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
+    slugify_text,
 )
 from video_encoder import VideoEncoder
+from videos import OUTPUT_VIDEO_DIR
 
 logger = logging.getLogger("pipeline_manager")
 
@@ -66,7 +67,9 @@ class PipelineManager:
         # List of pipelines managed by this instance
         self.pipelines = self.load_predefined_pipelines()
 
-    def add_pipeline(self, new_pipeline: PipelineDefinition):
+    def add_pipeline(
+        self, new_pipeline: InternalPipelineDefinition
+    ) -> InternalPipeline:
         """
         Create a new pipeline from a pipeline definition.
 
@@ -80,11 +83,10 @@ class PipelineManager:
         * Stores pipeline with variants containing both graph views
 
         Args:
-            new_pipeline: PipelineDefinition with name, description, tags, and variants.
-                Variants should be VariantCreate objects (without id, read_only, or timestamps).
+            new_pipeline: InternalPipelineDefinition with name, description, tags, and variants.
 
         Returns:
-            Pipeline: Created pipeline with generated ID and timestamps.
+            InternalPipeline: Created pipeline with generated ID and timestamps.
 
         Raises:
             ValueError: If pipeline definition is invalid.
@@ -113,7 +115,7 @@ class PipelineManager:
                 variant_id = generate_unique_id(trimmed_name, existing_variant_ids)
                 existing_variant_ids.append(variant_id)
 
-                variant_with_ts = Variant(
+                variant_with_ts = InternalVariant(
                     id=variant_id,
                     name=trimmed_name,
                     read_only=False,  # User-created variants are never read-only
@@ -124,7 +126,7 @@ class PipelineManager:
                 )
                 variants_with_timestamps.append(variant_with_ts)
 
-            pipeline = Pipeline(
+            pipeline = InternalPipeline(
                 id=pipeline_id,
                 name=new_pipeline.name,
                 description=new_pipeline.description,
@@ -140,11 +142,11 @@ class PipelineManager:
         self.logger.debug(f"Pipeline added: {pipeline}")
         return pipeline
 
-    def get_pipelines(self) -> list[Pipeline]:
+    def get_pipelines(self) -> list[InternalPipeline]:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
 
-    def get_pipeline_by_id(self, pipeline_id: str) -> Pipeline:
+    def get_pipeline_by_id(self, pipeline_id: str) -> InternalPipeline:
         """
         Retrieve a pipeline by its ID.
 
@@ -152,7 +154,7 @@ class PipelineManager:
             pipeline_id: The unique ID of the pipeline.
 
         Returns:
-            Pipeline: The pipeline object.
+            InternalPipeline: The pipeline object.
 
         Raises:
             ValueError: If pipeline with given ID is not found.
@@ -163,7 +165,7 @@ class PipelineManager:
                 return deepcopy(pipeline)
         raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
-    def get_variant_by_ids(self, pipeline_id: str, variant_id: str) -> Variant:
+    def get_variant_by_ids(self, pipeline_id: str, variant_id: str) -> InternalVariant:
         """
         Retrieve a variant by pipeline ID and variant ID.
 
@@ -172,7 +174,7 @@ class PipelineManager:
             variant_id: The unique ID of the variant.
 
         Returns:
-            Variant: The variant object.
+            InternalVariant: The variant object.
 
         Raises:
             ValueError: If pipeline with given ID is not found.
@@ -191,7 +193,7 @@ class PipelineManager:
 
             return deepcopy(variant)
 
-    def _find_pipeline_by_id(self, pipeline_id: str) -> Pipeline | None:
+    def _find_pipeline_by_id(self, pipeline_id: str) -> InternalPipeline | None:
         """Find a pipeline by its ID."""
         for pipeline in self.pipelines:
             if pipeline.id == pipeline_id:
@@ -199,8 +201,8 @@ class PipelineManager:
         return None
 
     def _find_variant_by_id(
-        self, pipeline: Pipeline, variant_id: str
-    ) -> Variant | None:
+        self, pipeline: InternalPipeline, variant_id: str
+    ) -> InternalVariant | None:
         """
         Find a variant by its ID within a pipeline.
 
@@ -209,7 +211,7 @@ class PipelineManager:
             variant_id: The unique ID of the variant.
 
         Returns:
-            Variant if found, None otherwise.
+            InternalVariant if found, None otherwise.
         """
         for variant in pipeline.variants:
             if variant.id == variant_id:
@@ -222,7 +224,7 @@ class PipelineManager:
         name: Optional[str] = None,
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
-    ) -> Pipeline:
+    ) -> InternalPipeline:
         """Update selected fields of an existing pipeline.
 
         Args:
@@ -232,7 +234,7 @@ class PipelineManager:
             tags: Optional list of tags.
 
         Returns:
-            The updated :class:`Pipeline` instance.
+            The updated :class:`InternalPipeline` instance.
 
         Raises:
             ValueError: If the pipeline with the given ID does not exist.
@@ -275,7 +277,7 @@ class PipelineManager:
             if pipeline is None:
                 raise ValueError(f"Pipeline with id '{pipeline_id}' not found.")
 
-            if pipeline.source == PipelineSource.PREDEFINED:
+            if pipeline.source == InternalPipelineSource.PREDEFINED:
                 raise ValueError(f"Cannot delete PREDEFINED pipeline '{pipeline_id}'.")
 
             self.pipelines.remove(pipeline)
@@ -295,7 +297,7 @@ class PipelineManager:
         * Validate that variant names and pipeline descriptions are non-empty
 
         Returns:
-            list[Pipeline]: List of predefined pipelines with both graph views.
+            list[InternalPipeline]: List of predefined pipelines with both graph views.
 
         Raises:
             ValueError: If name, variant name, or variant pipeline_description is empty.
@@ -344,27 +346,21 @@ class PipelineManager:
 
                 # Parse variant pipeline description into advanced graph
                 variant_graph = Graph.from_pipeline_description(variant_pipeline_desc)
-                variant_pipeline_graph = PipelineGraph.model_validate(
-                    variant_graph.to_dict()
-                )
 
                 # Generate simple view for variant
                 variant_simple_graph = variant_graph.to_simple_view()
-                variant_pipeline_graph_simple = PipelineGraph.model_validate(
-                    variant_simple_graph.to_dict()
-                )
 
                 # Generate variant ID from variant name
                 variant_id = generate_unique_id(variant_name, existing_variant_ids)
                 existing_variant_ids.append(variant_id)
 
                 variants_list.append(
-                    Variant(
+                    InternalVariant(
                         id=variant_id,
                         name=variant_name,
                         read_only=True,  # All predefined variants are read-only
-                        pipeline_graph=variant_pipeline_graph,
-                        pipeline_graph_simple=variant_pipeline_graph_simple,
+                        pipeline_graph=variant_graph,
+                        pipeline_graph_simple=variant_simple_graph,
                         created_at=current_time,
                         modified_at=current_time,
                     )
@@ -388,11 +384,11 @@ class PipelineManager:
             pipeline_id = generate_unique_id(pipeline_name, existing_pipeline_ids)
 
             predefined_pipelines.append(
-                Pipeline(
+                InternalPipeline(
                     id=pipeline_id,
                     name=pipeline_name,
                     description=pipeline_description,
-                    source=PipelineSource.PREDEFINED,
+                    source=InternalPipelineSource.PREDEFINED,
                     tags=tags,
                     variants=variants_list,
                     thumbnail=thumbnail_base64,
@@ -408,7 +404,7 @@ class PipelineManager:
         pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
         execution_config: InternalExecutionConfig,
         job_id: str,
-    ) -> tuple[str, dict[str, List[str]], dict[str, str]]:
+    ) -> tuple[str, dict[str, str], dict[str, str]]:
         """
         Build a complete executable GStreamer pipeline command from internal specifications.
 
@@ -416,15 +412,20 @@ class PipelineManager:
         stream counts, and constructs a complete GStreamer command line that can be executed
         to run all specified pipelines with all their streams.
 
+        Creates a job output directory structure:
+            OUTPUT_VIDEO_DIR/<timestamp>_<job_id>/<pipeline_id>/
+
+        Each pipeline's output files (intermediate and main) are placed in its own directory.
+
         Args:
             pipeline_performance_specs: List of InternalPipelinePerformanceSpec with
                 resolved pipeline_id, pipeline_name, pipeline_graph (as Graph object), and streams.
             execution_config: InternalExecutionConfig for output generation and runtime limits.
-            job_id: Unique job identifier used for generating output filenames and stream names.
+            job_id: Unique job identifier used for directory naming and stream names.
 
         Returns:
             tuple: (Complete GStreamer command string,
-                    dictionary mapping pipeline IDs to output file paths,
+                    dictionary mapping pipeline IDs to their output directory paths,
                     dictionary mapping pipeline IDs to live stream URLs)
 
             Note: live_stream_urls will be empty for density tests since they do not
@@ -456,8 +457,13 @@ class PipelineManager:
                 "or use output_mode='disabled' or 'live_stream' for time-limited execution."
             )
 
+        # Create job output directory: OUTPUT_VIDEO_DIR/<timestamp>_<job_id>/
+        job_dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id}"
+        job_dir = os.path.join(OUTPUT_VIDEO_DIR, slugify_text(job_dir_name))
+        os.makedirs(job_dir, exist_ok=True)
+
         pipeline_parts = []
-        video_output_paths: dict[str, List[str]] = {}
+        video_output_paths: dict[str, str] = {}
         live_stream_urls: dict[str, str] = {}
         output_subpipeline: str | None = None
 
@@ -474,6 +480,19 @@ class PipelineManager:
             pipeline_name = spec.pipeline_name
             base_graph = spec.pipeline_graph.unify_model_instance_ids()
 
+            # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
+            base_graph.validate_camera_sources_followed_by_decodebin3()
+
+            # Apply RTSP credentials and settings to rtspsrc nodes
+            base_graph = base_graph.apply_rtsp_connection_settings()
+
+            # Create pipeline output directory: <job_dir>/<pipeline_id>/
+            pipeline_dir = os.path.join(job_dir, slugify_text(pipeline_id))
+            os.makedirs(pipeline_dir, exist_ok=True)
+
+            # Store the pipeline directory path for later video file collection
+            video_output_paths[pipeline_id] = pipeline_dir
+
             # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
             if base_graph.has_decodebin3():
                 codec = base_graph.determine_input_codec()
@@ -486,35 +505,22 @@ class PipelineManager:
             if needs_looping:
                 base_graph = base_graph.apply_looping_modifications()
 
-            base_graph, intermediate_output_paths = (
-                base_graph.prepare_intermediate_output_sinks(pipeline_id, job_id)
-            )
-
-            video_output_paths[pipeline_id] = intermediate_output_paths
-
             output_mode = execution_config.output_mode
 
-            # prepare main video output path if output is enabled (file or live stream)
+            # Prepare main video output subpipeline if output is enabled (file or live stream)
             if output_mode != InternalOutputMode.DISABLED:
-                # Retrieve input sources and recommended encoder device
-                input_sources = base_graph.get_input_sources()
+                # Retrieve recommended encoder device
                 encoder_device = base_graph.get_recommended_encoder_device()
 
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
-                    output_subpipeline, output_path = (
-                        video_encoder.create_video_output_subpipeline(
-                            pipeline_id, encoder_device, input_sources, job_id
-                        )
+                    output_subpipeline = video_encoder.create_video_output_subpipeline(
+                        pipeline_dir, encoder_device
                     )
-                    video_output_paths[pipeline_id].append(output_path)
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
-                            pipeline_id,
-                            encoder_device,
-                            input_sources,
-                            job_id,
+                            pipeline_id, encoder_device, job_id
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url
@@ -523,9 +529,17 @@ class PipelineManager:
             for stream_index in range(spec.streams):
                 graph_instance = deepcopy(base_graph)
 
+                # Prepare intermediate output sinks per stream
+                graph_instance = graph_instance.prepare_intermediate_output_sinks(
+                    pipeline_dir, stream_index
+                )
+
                 if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
+
+                # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
+                graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
 
                 graph_instance = graph_instance.unify_all_element_names(
                     pipeline_index, stream_index
@@ -556,9 +570,9 @@ class PipelineManager:
         self,
         pipeline_id: str,
         name: str,
-        pipeline_graph: PipelineGraph,
-        pipeline_graph_simple: PipelineGraph,
-    ) -> Variant:
+        pipeline_graph: Graph,
+        pipeline_graph_simple: Graph,
+    ) -> InternalVariant:
         """
         Add a new variant to an existing pipeline.
 
@@ -573,11 +587,11 @@ class PipelineManager:
         Args:
             pipeline_id: ID of the pipeline to add variant to.
             name: Variant name (trimmed, must be non-empty after trimming).
-            pipeline_graph: Advanced graph representation.
-            pipeline_graph_simple: Simplified graph representation.
+            pipeline_graph: Advanced graph representation as Graph object.
+            pipeline_graph_simple: Simplified graph representation as Graph object.
 
         Returns:
-            Variant: Created variant with generated ID and timestamps.
+            InternalVariant: Created variant with generated ID and timestamps.
 
         Raises:
             ValueError: If pipeline with given ID is not found.
@@ -601,7 +615,7 @@ class PipelineManager:
             current_time = get_current_timestamp()
 
             # Create new variant with read_only=false for user-created variants
-            new_variant = Variant(
+            new_variant = InternalVariant(
                 id=variant_id,
                 name=trimmed_name,
                 read_only=False,
@@ -680,9 +694,9 @@ class PipelineManager:
         pipeline_id: str,
         variant_id: str,
         name: Optional[str] = None,
-        pipeline_graph: Optional[PipelineGraph] = None,
-        pipeline_graph_simple: Optional[PipelineGraph] = None,
-    ) -> Variant:
+        pipeline_graph: Optional[Graph] = None,
+        pipeline_graph_simple: Optional[Graph] = None,
+    ) -> InternalVariant:
         """
         Update an existing variant.
 
@@ -691,8 +705,8 @@ class PipelineManager:
         * Validates that variant exists and is not read-only
         * If name is provided, trims and validates it (raises ValueError if empty after trimming)
         * Ensures only one of pipeline_graph or pipeline_graph_simple is provided
-        * For pipeline_graph: validates and regenerates simple view using _validate_and_convert_advanced_to_simple()
-        * For pipeline_graph_simple: validates and merges changes using _validate_and_convert_simple_to_advanced()
+        * For pipeline_graph: validates and regenerates simple view using validate_and_convert_advanced_to_simple()
+        * For pipeline_graph_simple: validates and merges changes using validate_and_convert_simple_to_advanced()
         * Updates provided fields
         * Updates variant's modified_at timestamp
         * Updates pipeline's modified_at timestamp
@@ -702,16 +716,16 @@ class PipelineManager:
             pipeline_id: ID of the pipeline containing the variant.
             variant_id: ID of the variant to update.
             name: Optional new variant name (trimmed, must be non-empty after trimming if provided).
-            pipeline_graph: Optional new advanced graph. When provided, simple view
+            pipeline_graph: Optional new advanced graph as Graph object. When provided, simple view
                 is auto-generated from it. Mutually exclusive with pipeline_graph_simple.
-            pipeline_graph_simple: Optional modified simple graph with property changes only.
-                When provided, changes are merged into advanced view using
-                apply_simple_view_changes(), and both views are regenerated.
+            pipeline_graph_simple: Optional modified simple graph as Graph object with property changes only.
+                When provided, changes are merged into advanced view using validate_and_convert_simple_to_advanced(),
+                and both views are regenerated.
                 Structural changes (add/remove nodes or edges) are not allowed.
                 Mutually exclusive with pipeline_graph.
 
         Returns:
-            Variant: Updated variant object.
+            InternalVariant: Updated variant object.
 
         Raises:
             ValueError: If pipeline is not found.
@@ -752,19 +766,16 @@ class PipelineManager:
 
             # Update pipeline_graph (advanced view)
             if pipeline_graph is not None:
-                # Convert PipelineGraph to Graph for validation
-                graph = Graph.from_dict(pipeline_graph.model_dump())
-
                 # Validate and generate simple view
-                simple_graph = self.validate_and_convert_advanced_to_simple(graph)
+                simple_graph = self.validate_and_convert_advanced_to_simple(
+                    pipeline_graph
+                )
 
                 # Update advanced view
                 variant_to_update.pipeline_graph = pipeline_graph
 
                 # Update simple view
-                variant_to_update.pipeline_graph_simple = PipelineGraph.model_validate(
-                    simple_graph.to_dict()
-                )
+                variant_to_update.pipeline_graph_simple = simple_graph
 
                 self.logger.debug(
                     f"Updated variant {variant_id} with new pipeline_graph and auto-generated simple view"
@@ -772,26 +783,17 @@ class PipelineManager:
 
             # Update pipeline_graph_simple (simple view with property changes)
             elif pipeline_graph_simple is not None:
-                # Convert PipelineGraph to Graph for validation
-                modified_simple_graph = Graph.from_dict(
-                    pipeline_graph_simple.model_dump()
-                )
-
                 # Validate and generate advanced view
                 updated_advanced_graph = self.validate_and_convert_simple_to_advanced(
-                    variant_to_update, modified_simple_graph
+                    variant_to_update, pipeline_graph_simple
                 )
 
                 # Update both views
-                variant_to_update.pipeline_graph = PipelineGraph.model_validate(
-                    updated_advanced_graph.to_dict()
-                )
+                variant_to_update.pipeline_graph = updated_advanced_graph
 
                 # Regenerate simple view from updated advanced view
                 new_simple_graph = updated_advanced_graph.to_simple_view()
-                variant_to_update.pipeline_graph_simple = PipelineGraph.model_validate(
-                    new_simple_graph.to_dict()
-                )
+                variant_to_update.pipeline_graph_simple = new_simple_graph
 
                 self.logger.debug(
                     f"Updated variant {variant_id} with changes from pipeline_graph_simple and regenerated both views"
@@ -815,7 +817,6 @@ class PipelineManager:
         Does not modify the variant - only performs validation and conversion.
 
         Args:
-            variant: The variant context (used for error messages, not modified).
             pipeline_graph: Advanced graph (Graph object) to validate and convert.
 
         Returns:
@@ -845,7 +846,7 @@ class PipelineManager:
         return simple_graph
 
     def validate_and_convert_simple_to_advanced(
-        self, variant: Variant, pipeline_graph_simple: Graph
+        self, variant: InternalVariant, pipeline_graph_simple: Graph
     ) -> Graph:
         """
         Validate simple graph changes and merge them into advanced graph.
@@ -875,12 +876,10 @@ class PipelineManager:
             )
 
         # Load current advanced graph
-        current_advanced_graph = Graph.from_dict(variant.pipeline_graph.model_dump())
+        current_advanced_graph = variant.pipeline_graph
 
         # Load current simple graph (original, before user modifications)
-        current_simple_graph = Graph.from_dict(
-            variant.pipeline_graph_simple.model_dump()
-        )
+        current_simple_graph = variant.pipeline_graph_simple
 
         # Apply simple view changes to advanced graph
         # This validates that only property changes are made, no structural changes

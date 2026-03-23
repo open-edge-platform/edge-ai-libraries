@@ -118,7 +118,7 @@ export const Home = () => {
         <div className="flex gap-3">
           <BookOpen className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+            href="https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
@@ -133,14 +133,14 @@ export const Home = () => {
         <div className="flex gap-3">
           <Sparkles className="w-6 h-6 text-classic-blue dark:text-energy-blue shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
+            href="https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-classic-blue dark:hover:text-energy-blue transition-colors"
           >
             <h3 className="font-semibold text-base mb-1">What's new?</h3>
             <p className="text-sm text-muted-foreground">
-              Check out what's new in the latest ViPPET 2025.2 release
+              Check out what's new in the latest ViPPET 2026.0.0 release
             </p>
           </a>
         </div>

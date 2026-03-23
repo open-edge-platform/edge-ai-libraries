@@ -358,6 +358,26 @@ class MediaMTXWebRTCReader {
   private nonAdvertisedCodecs: string[];
   private closed: boolean;
 
+  private closeSession = (): void => {
+    const sessionUrl = this.sessionUrl;
+    if (!sessionUrl) {
+      return;
+    }
+
+    this.sessionUrl = null;
+
+    void fetch(sessionUrl, {
+      method: "DELETE",
+    }).then(
+      (res) => {
+        if ([404, 410].includes(res.status)) {
+          return;
+        }
+      },
+      () => {},
+    );
+  };
+
   constructor(conf: MediaMTXWebRTCReaderConfig) {
     this.conf = conf;
     this.state = "initializing";
@@ -388,12 +408,7 @@ class MediaMTXWebRTCReader {
 
     this.offerData = null;
 
-    if (this.sessionUrl !== null) {
-      fetch(this.sessionUrl, {
-        method: "DELETE",
-      });
-      this.sessionUrl = null;
-    }
+    this.closeSession();
 
     this.queuedCandidates = [];
 
@@ -593,11 +608,7 @@ class MediaMTXWebRTCReader {
     }
 
     if (this.sessionUrl !== null) {
-      fetch(this.sessionUrl, {
-        method: "DELETE",
-      }).finally(() => {
-        this.sessionUrl = null;
-      });
+      this.closeSession();
     }
 
     if (this.restartTimeout !== null) {
