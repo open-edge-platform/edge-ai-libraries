@@ -46,7 +46,7 @@ The Video Search mode:
 
 - Customizable: You can customize components of the pipeline, for example, video ingestion, model selection, and deployment options. You can also customize Intel’s Edge AI inference microservices.
 
-### How to Use the Application Effectively
+### How to Use Video Search Effectively
 
 The Video Search mode consists of two main functionalities:
 
@@ -120,7 +120,7 @@ To create a summary with the best possible accuracy for a given compute, the Vid
 
 - Customizable: You can customize the pipeline, for example, to focus on particular topics or themes within the video, or to enable context extraction from audio, before embedding and indexing.
 
-### How to Use the Application Effectively
+### How to Use Video Summarization Effectively
 
 The Video Summarization pipeline offers features to improve accuracy for complex, long-form videos.
 Choosing which features to use involves balancing accuracy and performance. You can configure the pipeline based on answers to the following key questions, to determine the trade-off between accuracy and compute:
@@ -196,7 +196,7 @@ The following are the key features, see the combined Video Search and Summarizat
 
 - Customizable: You can customize the pipeline, for example, to focus on particular topics or themes within the video, or to enable context extraction from audio, before embedding and indexing.
 
-### How to Use the Application Effectively
+### How to Use the Video Search and Summarization Effectively
 
 The Video Search and Summarization pipeline offers features to improve accuracy for complex, long-form videos.
 Choosing which features to use involves balancing accuracy and performance. You can configure the pipeline based on answers to the following key questions, to determine the trade-off between accuracy and compute:
