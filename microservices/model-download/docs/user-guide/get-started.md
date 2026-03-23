@@ -38,20 +38,21 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 3. **Configure the environment variables**:
 
-      ```bash
-      export REGISTRY="intel/"
-      export TAG=1.1.0-rc2
-      export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-      ```
-    - To use the Geti™ plugin, set these variables:
+   ```bash
+   export REGISTRY="intel/"
+   export TAG=1.1.0-rc2
+   export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+   ```
 
-      ```bash
-      export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
-      export GETI_HOST=<GETI_HOST_ADDRESS>
-      export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-      export GETI_SERVER_API_VERSION=v1
-      export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
-      ```
+   - To use the Geti™ plugin, set these variables:
+
+   ```bash
+   export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
+   export GETI_HOST=<GETI_HOST_ADDRESS>
+   export GETI_TOKEN=<GETI_ACCESS_TOKEN>
+   export GETI_SERVER_API_VERSION=v1
+   export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
+   ```
 
    > **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
