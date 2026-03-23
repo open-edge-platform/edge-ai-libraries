@@ -77,9 +77,9 @@ dynamically defined by the calling application.
 ```
 
 > **Note:** The model used in the above pipeline is an example of how it can be used from
-> [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
 
 #### Source Abstraction
 
@@ -95,9 +95,9 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
 
 **Sample audio pipeline**
 
@@ -110,9 +110,9 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
 > Refer to the documentation for DL Streamer on how to download any given model for
-> your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_preparation.md).
+> your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
 
 
 |    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks |
@@ -235,7 +235,7 @@ targets the same hardware device and video format.
 #### More Information
 
 For more information and examples of media analytics pipelines created
-with DL Streamer please see the [tutorial](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/get_started/tutorial.md).
+with DL Streamer please see the [tutorial](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/tutorial.md).
 
 ## Pipeline Parameters
 
@@ -748,13 +748,13 @@ Some models might have a separate `.txt` file for `labels`, in addition to or in
 If such a file exists, the Pipeline Server automatically looks for this file in the path
 `models/model-alias/model-version/*.txt`.
 
-For more details on model proc and labels see [Model Proc File](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/model_proc_file.md).
+For more details on model proc and labels see [Model Proc File](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_proc_file.md).
 
 #### Deep Learning Streamer (DL Streamer)
 
 For more information on DL Streamer `model-proc` files and samples for
 common models please see the DL Streamer
-[documentation](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
+[documentation](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
 and
 [samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
 
@@ -782,7 +782,7 @@ The hierarchical directory structure is made up of four levels:
 
 Here's a sample directory listing for the `yolo-v3-tf` model:
 
-> **Note:**: The mentioned model is available [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/supported_models.md).
+> **Note:**: The mentioned model is available [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
 
 ```
 models/

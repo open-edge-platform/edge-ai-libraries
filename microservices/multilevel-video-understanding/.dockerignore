@@ -1,0 +1,48 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Poetry and Python virtual environments
+.venv/
+venv/
+ENV/
+.python-version
+
+# Development and editor files
+.git/
+.github/
+.gitignore
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Local development artifacts
+**/outputs
+**/logs/
+.env
+.env.*
+wget-log*
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak

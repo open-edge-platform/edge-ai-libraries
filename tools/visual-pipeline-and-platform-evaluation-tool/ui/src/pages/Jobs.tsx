@@ -343,7 +343,7 @@ export const Jobs = () => {
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div
                                 key={pipeline.id}
-                                className="text-sm truncate"
+                                className="text-sm"
                               >
                                 <PipelineName pipelineId={pipeline.id} />
                                 <span className="text-muted-foreground ml-1">
