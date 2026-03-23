@@ -1,6 +1,6 @@
 # GenAI Applications Sizing Tool
 
-The GenAI Applications Sizing Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide walks you through setting up and running the tool with a focus on the **Video Search and Summarization (VSS)** application.
+The GenAI Applications Sizing Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide will walk you through the initial setup, configuration, and usage of the tool.
 
 ## Overview
 
