@@ -1,4 +1,4 @@
-# Getting Started with GenAI Applications Sizing Tool
+# GenAI Applications Sizing Tool
 
 The GenAI Applications Sizing Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide walks you through setting up and running the tool with a focus on the **Video Search and Summarization (VSS)** application.
 
@@ -33,14 +33,14 @@ The GenAI Applications Sizing Tool helps you:
 Before running the sizing tool, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
 
 **Video Search and Summarization:**
-- [Get Started](../../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- [System Requirements](../../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
+- [Get Started](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
+- [System Requirements](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
 
 **Chat Question and Answer:**
-- [Sample Application README](../../../sample-applications/chat-question-and-answer/README.md)
+- [Sample Application README](../../../main/sample-applications/chat-question-and-answer/README.md)
 
 **Chat Question and Answer Core:**
-- [Sample Application README](../../../sample-applications/chat-question-and-answer-core/README.md)
+- [Sample Application README](../../../main/sample-applications/chat-question-and-answer-core/README.md)
 
 ## Installation
 
@@ -293,7 +293,7 @@ chatqna_wsf:
 
 #### Deployment Reference
 
-- [Chat Question and Answer Sample Application](../../../sample-applications/chat-question-and-answer/README.md)
+- [Chat Question and Answer Sample Application](../../../main/sample-applications/chat-question-and-answer/README.md)
 
 ---
 
@@ -329,7 +329,7 @@ python profile-runner.py \
 
 #### Deployment Reference
 
-- [Chat Question and Answer Core Sample Application](../../../sample-applications/chat-question-and-answer-core/README.md)
+- [Chat Question and Answer Core Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
 
 ---
 
@@ -422,13 +422,13 @@ Before running a full profiling session:
 ## Next Steps
 
 - **Video Search and Summarization**
-  - [API Reference](../../../sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
-  - [Get Started Guide](../../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
+  - [API Reference](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
+  - [Get Started Guide](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
 - **Chat Question and Answer**
-  - [Sample Application](../../../sample-applications/chat-question-and-answer/README.md)
+  - [Sample Application](../../../main/sample-applications/chat-question-and-answer/README.md)
 - **Chat Question and Answer Core**
-  - [Sample Application](../../../sample-applications/chat-question-and-answer-core/README.md)
-- [Performance Tools Documentation](performance-tools/README.md)
+  - [Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
+- [Performance Tools Documentation](https://github.com/intel-retail/performance-tools)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
 
