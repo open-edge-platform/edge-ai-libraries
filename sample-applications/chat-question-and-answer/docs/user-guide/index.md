@@ -28,7 +28,7 @@ environments.
 Key features include:
 
 - **Optimized RAG pipeline on Intel Edge AI Systems hardware**: The application is
-[optimized](./benchmarks) to run efficiently on Intel® Edge AI systems hardware, ensuring
+[optimized](./benchmarks.md) to run efficiently on Intel® Edge AI systems hardware, ensuring
 high performance and reliability.
 - **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI
 [inference microservices](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices)
@@ -93,7 +93,7 @@ Further details on the system architecture and customizable options are availabl
 
 ## How to Use the Application
 
-Refer to the [Get Started](./get-started) page to get started with the sample-application.
+Refer to the [Get Started](./get-started.md) page to get started with the sample-application.
 The UI is the recommended mode of interaction with the sample-application though users can
 also use the CLI approach using the REST endpoints. The Chat Q&A sample application consists
 of two main parts:
@@ -112,14 +112,14 @@ response from the final set of documents. It is possible to use any supported mo
 the applications. Detailed documentation provides full information on validated models and
 models supported overall.
 
-Refer to the [detailed hardware and software requirements](./get-started/system-requirements).
+Refer to the [detailed hardware and software requirements](./get-started/system-requirements.md).
 
 This sample application is ready for deployment with Edge Orchestrator. Download the
-[deployment package](./get-started/deploy-with-edge-orchestrator) and follow the instructions.
+[deployment package](./get-started/deploy-with-edge-orchestrator.md) and follow the instructions.
 
 ## Benchmark Results
 
-Detailed metrics and analysis can be found in [the benchmark report](./benchmarks).
+Detailed metrics and analysis can be found in [the benchmark report](./benchmarks.md).
 
 <!--hide_directive
 :::{toctree}
