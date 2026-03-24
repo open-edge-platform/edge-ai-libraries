@@ -52,7 +52,7 @@ services:
 
   vlm-openvino-serving:
     profiles:
-      - vlm
+      - vlm-ov
     image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
     ipc: host
     ports:

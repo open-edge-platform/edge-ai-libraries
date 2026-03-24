@@ -17,7 +17,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 # Function to stop Docker containers
 stop_containers() {
     echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vlm --profile vllm down
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.vllm.yaml -f docker/compose.search.yaml -f docker/compose.telemetry.yaml --profile ovms --profile vlm-ov --profile vllm down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
@@ -640,7 +640,7 @@ export_model_for_ovms() {
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
-    BACKEND_PROFILE="vlm"
+    BACKEND_PROFILE="vlm-ov"
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
