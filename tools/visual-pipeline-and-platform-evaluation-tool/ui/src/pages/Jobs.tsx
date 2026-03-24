@@ -242,7 +242,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           {job.per_stream_fps !== null
@@ -256,7 +258,9 @@ export const Jobs = () => {
                               variant="destructive"
                               size="sm"
                               className="w-full"
-                              onClick={() => void handleStopPerformanceJob(job.id)}
+                              onClick={() =>
+                                void handleStopPerformanceJob(job.id)
+                              }
                               disabled={stoppingPerformanceJobIds.has(job.id)}
                             >
                               {stoppingPerformanceJobIds.has(job.id)
@@ -292,7 +296,9 @@ export const Jobs = () => {
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
                       <TableHead>Per Stream FPS</TableHead>
-                      <TableHead className="w-[220px]">Stream Distribution</TableHead>
+                      <TableHead className="w-[220px]">
+                        Stream Distribution
+                      </TableHead>
                       <TableHead className="w-[120px] min-w-[120px]">
                         Actions
                       </TableHead>
@@ -331,7 +337,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           {job.per_stream_fps !== null
@@ -341,10 +349,7 @@ export const Jobs = () => {
                         <TableCell className="max-w-[220px] whitespace-normal">
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
-                              <div
-                                key={pipeline.id}
-                                className="text-sm"
-                              >
+                              <div key={pipeline.id} className="text-sm">
                                 <PipelineName pipelineId={pipeline.id} />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
@@ -440,7 +445,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell className="w-[120px] min-w-[120px]">
                           <span className="text-muted-foreground">-</span>
