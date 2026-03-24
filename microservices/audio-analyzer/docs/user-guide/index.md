@@ -114,9 +114,9 @@ formats):
 
 ## Supporting Resources
 
-- [Get Started Guide](./get-started)
+- [Get Started Guide](./get-started.md)
 - [System Requirements](./get-started/system-requirements.md)
-- [API Reference](./api-reference)
+- [API Reference](./api-reference.md)
 - [Troubleshooting](./troubleshooting.md)
 
 <!--hide_directive

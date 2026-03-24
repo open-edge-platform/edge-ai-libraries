@@ -103,80 +103,80 @@ Before running the application, you need to set several environment variables:
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 
-    For automated video ingestion in search mode, you can use the directory watcher service:
+   For automated video ingestion in search mode, you can use the directory watcher service:
 
-    ```bash
-    # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
-    export VS_WATCHER_DIR="/path/to/your/video/directory"
-    ```
+   ```bash
+   # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
+   export VS_WATCHER_DIR="/path/to/your/video/directory"
+   ```
 
-    > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with the `--search` mode.
+   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with the `--search` mode.
 
 5. **Control the frame extraction interval (Video Search Mode)**:
 
-    The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh --search` to control how often frames are selected for processing.
+   The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh --search` to control how often frames are selected for processing.
 
-    ```bash
-    export FRAME_INTERVAL=15
-    ```
+   ```bash
+   export FRAME_INTERVAL=15
+   ```
 
-    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
+   In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
 6. **Enable ROI consolidation (Video Search Mode)**:
 
-    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
+   ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
-    ```bash
-    # Enable ROI consolidation (default: false)
-    export ROI_CONSOLIDATION_ENABLED=true
+   ```bash
+   # Enable ROI consolidation (default: false)
+   export ROI_CONSOLIDATION_ENABLED=true
 
-    # IoU threshold for grouping ROIs (higher = stricter merging)
-    export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
+   # IoU threshold for grouping ROIs (higher = stricter merging)
+   export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
 
-    # Only merge ROIs with the same class label when true
-    export ROI_CONSOLIDATION_CLASS_AWARE=false
+   # Only merge ROIs with the same class label when true
+   export ROI_CONSOLIDATION_CLASS_AWARE=false
 
-    # Expand merged ROIs by a fraction of width/height
-    export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
-    ```
+   # Expand merged ROIs by a fraction of width/height
+   export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
+   ```
 
-    The IoU calculation follows the standard formula:
+   The IoU calculation follows the standard formula:
 
-    $$
-    IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
-    $$
+   $$
+   IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
+   $$
 
-    > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
+   > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
 7. **Set advanced VLM Configuration Options**:
 
-    The following environment variables provide additional control over VLM inference behavior and logging:
+   The following environment variables provide additional control over VLM inference behavior and logging:
 
-    ```bash
-    # (Optional) OpenVINO configuration for VLM inference optimization
-    # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
-    # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-    # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
+   ```bash
+   # (Optional) OpenVINO configuration for VLM inference optimization
+   # Pass OpenVINO configuration parameters as a JSON string to fine-tune inference performance
+   # Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
+   # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
 
-    # Throughput-optimized configuration
-    export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-    ```
+   # Throughput-optimized configuration
+   export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
+   ```
 
-    > **_IMPORTANT:_** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
-    > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-    > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
+   > **IMPORTANT:** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
+   > For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
+   > **Note**: If OV_CONFIG is not set, the default configuration `{"PERFORMANCE_HINT": "LATENCY"}` will be used.
 
-7. **(Optional) Telemetry collection for Search**:
+8. **(Optional) Telemetry collection for Search**:
 
-    The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
+   The Video Search mode can start a lightweight telemetry collector (`vss-collector`) that streams CPU/RAM/GPU metrics to the Pipeline Manager and renders them in the UI.
 
-    ```bash
-    # Disabled by default for --search and --all
-    export ENABLE_VSS_COLLECTOR=false
+   ```bash
+   # Disabled by default for --search and --all
+   export ENABLE_VSS_COLLECTOR=false
 
-    # Enable the collector if you want telemetry
-    export ENABLE_VSS_COLLECTOR=true
-    ```
+   # Enable the collector if you want telemetry
+   export ENABLE_VSS_COLLECTOR=true
+   ```
 
 **🔐 Work with Gated Models**
 
@@ -205,10 +205,10 @@ The Video Summarization application offers multiple modes and deployment options
 
 ### Deployment Options for Video Summarization
 
-| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
+| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>(2)</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
-| VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | For usage with CPUs only; when inference speed is not a priority. |
-| VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` | For usage with CPUs and GPUs; when inference speed is a priority. |
+| VLM-CPU | vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | For usage with CPUs only; when inference speed is not a priority. |
+| VLM-GPU | vlm-openvino-serving | vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` | For usage with CPUs and GPUs; when inference speed is a priority. |
 | VLM-CPU-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs and microservices; when inference speed is not a priority. |
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 | VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
@@ -252,7 +252,7 @@ Follow these steps to run the application:
    ```bash
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
+   # Alternatively, clone a specific release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
@@ -262,7 +262,7 @@ Follow these steps to run the application:
 
 3. Run the setup script with the appropriate flag, depending on your use case.
 
-   > Note: Before switching to a different mode, always stop the current application mode by running:
+   > **Note:** Before switching to a different mode, always stop the current application mode by running:
 
    ```bash
    source setup.sh --down
@@ -272,41 +272,41 @@ Follow these steps to run the application:
 
    - **To run Video Summarization only:**
 
-       ```bash
-       source setup.sh --summary
-       ```
+     ```bash
+     source setup.sh --summary
+     ```
 
    - **To run Video Search only:**
 
-        ```bash
-        source setup.sh --search
-        ```
+     ```bash
+     source setup.sh --search
+     ```
 
-    > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
+     > **Telemetry**: By default, `--search` does not start the telemetry collector. To enable it:
 
-    ```bash
-    ENABLE_VSS_COLLECTOR=true source setup.sh --search
-    ```
+     ```bash
+     ENABLE_VSS_COLLECTOR=true source setup.sh --search
+     ```
 
-    > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
+     > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
 
-   - **To run a unified Video Search and Summarization :**
+   - **To run a unified Video Search and Summarization:**
 
-       ```bash
-       source setup.sh --all
-       ```
+     ```bash
+     source setup.sh --all
+     ```
 
-    > **Telemetry**: By default, `--all` does not start the telemetry collector. To enable it:
+     > **Telemetry**: By default, `--all` does not start the telemetry collector. To enable it:
 
-    ```bash
-    ENABLE_VSS_COLLECTOR=true source setup.sh --all
-    ```
+     ```bash
+     ENABLE_VSS_COLLECTOR=true source setup.sh --all
+     ```
 
-- **To run Video Summarization with OpenVINO model server microservice for a final summary :**
+   - **To run Video Summarization with OpenVINO model server microservice for a final summary:**
 
-       ```bash
-       ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
-       ```
+     ```bash
+     ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+     ```
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 

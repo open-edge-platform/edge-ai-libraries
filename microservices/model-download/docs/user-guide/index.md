@@ -1,5 +1,7 @@
 # Model Download
 
+> Note: Model Download replaces Model Registry that will be deprecated soon.
+
 The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, and handles optional format conversions.
 
 ## Architecture
