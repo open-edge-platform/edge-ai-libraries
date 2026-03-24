@@ -19,7 +19,7 @@ variants:
         model-instance-id=detect-cpu !
       gvametaconvert format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
-      gvafpscounter !
+      gvafpscounter starting-frame=100 !
       gvawatermark !
       fakesink name=default_output_sink sync=false async=false
   - name: GPU
@@ -35,7 +35,7 @@ variants:
         model-instance-id=detect-gpu !
       gvametaconvert format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
-      gvafpscounter !
+      gvafpscounter starting-frame=100 !
       gvawatermark !
       fakesink name=default_output_sink sync=false async=false
   - name: NPU
@@ -51,6 +51,6 @@ variants:
         model-instance-id=detect-npu !
       gvametaconvert format=json !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
-      gvafpscounter !
+      gvafpscounter starting-frame=100 !
       gvawatermark !
       fakesink name=default_output_sink sync=false async=false
