@@ -40,7 +40,7 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
    ```bash
    export REGISTRY="intel/"
-   export TAG=1.1.0-rc2
+   export TAG=1.1.0
    export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
    ```
 
