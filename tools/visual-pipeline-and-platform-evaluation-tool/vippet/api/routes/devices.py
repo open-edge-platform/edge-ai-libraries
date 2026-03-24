@@ -29,50 +29,62 @@ logger = logging.getLogger("api.routes.devices")
 )
 def get_devices():
     """
-    Return all devices discovered by the OpenVINO runtime.
+    **Return all devices discovered by the OpenVINO runtime.**
 
-    This endpoint discovers CPU, GPU and NPU devices available in the system and
-    exposes them in a simplified, API-friendly format.
+    ## Operation
+    Discovers CPU, GPU, and NPU devices available in the system and exposes
+    them in a simplified, API-friendly format.
 
-    Returns:
-        200 OK:
-            List[Device] with one entry per detected device. Each entry contains:
-            * device_name – short identifier used by the runtime (e.g. ``"CPU"``,
-              ``"GPU"``, ``"GPU.0"``, ``"NPU"``).
-            * full_device_name – human-readable name (e.g. CPU / GPU marketing name).
-            * device_type – ``INTEGRATED`` or ``DISCRETE``.
-            * device_family – ``CPU``, ``GPU`` or ``NPU``.
-            * gpu_id – integer index for GPU devices when applicable, otherwise null.
-        500 Internal Server Error:
-            MessageResponse with a generic error description if device discovery fails
-            unexpectedly (for example if OpenVINO cannot be initialized).
+    1. Initialize OpenVINO Core
+    2. Discover all available inference devices
+    3. Extract device properties and metadata
+    4. Return formatted device list
 
-    Success conditions:
-        * OpenVINO Core initializes correctly.
-        * At least zero devices are returned (empty list is still success).
+    ## Parameters
+    - **Path/Query parameters:** None
 
-    Failure conditions:
-        * 500 – any unhandled exception during device discovery.
+    ## Response Format
 
-    Successful response example (200):
-        .. code-block:: json
+    ### 200 OK
+    JSON array of Device objects.
 
-            [
-              {
-                "device_name": "CPU",
-                "full_device_name": "Intel(R) Core(TM) Ultra 7 155H",
-                "device_type": "INTEGRATED",
-                "device_family": "CPU",
-                "gpu_id": null
-              },
-              {
-                "device_name": "GPU.0",
-                "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
-                "device_type": "INTEGRATED",
-                "device_family": "GPU",
-                "gpu_id": 0
-              }
-            ]
+    **Each device includes:**
+    - `device_name` - Short identifier used by runtime (e.g., `"CPU"`, `"GPU"`, `"GPU.0"`, `"NPU"`)
+    - `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)
+    - `device_type` - `INTEGRATED` or `DISCRETE`
+    - `device_family` - `CPU`, `GPU`, or `NPU`
+    - `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`
+
+    ## Conditions
+
+    ### ✅ Success
+    - OpenVINO Core initializes correctly
+    - At least zero devices are returned (empty list is valid)
+
+    ### ❌ Failure
+    - Unhandled exception during device discovery → 500
+    - OpenVINO cannot be initialized → 500
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "device_name": "CPU",
+        "full_device_name": "Intel(R) Core(TM) Ultra 7 155H",
+        "device_type": "INTEGRATED",
+        "device_family": "CPU",
+        "gpu_id": null
+      },
+      {
+        "device_name": "GPU.0",
+        "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
+        "device_type": "INTEGRATED",
+        "device_family": "GPU",
+        "gpu_id": 0
+      }
+    ]
+    ```
     """
     try:
         device_list = DeviceDiscovery().list_devices()

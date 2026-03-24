@@ -5,9 +5,7 @@ import logging
 import os
 import re
 import time
-import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import List, Optional
 
 from slugify import slugify
@@ -36,7 +34,7 @@ def slugify_text(text: str, max_length: int = 0) -> str:
         >>> slugify_text("Very Long Name Here", max_length=10)
         'very-long'
     """
-    regex_pattern = r"[^-a-z0-9_]+"
+    regex_pattern = r"[^-a-z0-9_\.]+"
     if max_length > 0:
         return slugify(text, max_length=max_length, regex_pattern=regex_pattern)
     return slugify(text, regex_pattern=regex_pattern)
@@ -206,34 +204,6 @@ def make_tee_names_unique(
 
     logger.debug("Tee name replacement completed successfully")
     return pipeline_str
-
-
-def generate_unique_filename(filename: str) -> str:
-    """
-    Generate a unique filename by appending a timestamp and suffix before the file extension.
-
-    Args:
-        filename: Original filename (e.g., "video.mp4").
-
-    Returns:
-        str: Unique filename with timestamp and suffix (e.g., "video-20231012_153045-abc123.mp4").
-    """
-    # Extract stem and extension
-    path = Path(filename)
-    stem = slugify_text(Path(path.name).stem)
-    ext = path.suffix
-
-    if not ext:
-        ext = ".mp4"  # default extension
-
-    # Generate timestamp and short unique suffix
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    suffix = uuid.uuid4().hex[:6]
-
-    # Construct new filename
-    new_filename = f"{stem}-{timestamp}-{suffix}{ext}"
-
-    return new_filename
 
 
 def is_yolov10_model(model_path: str) -> bool:

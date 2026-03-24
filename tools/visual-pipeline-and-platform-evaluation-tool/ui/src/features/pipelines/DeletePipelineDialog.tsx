@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { type Pipeline, useDeletePipelineMutation } from "@/api/api.generated";
 import { toast } from "sonner";
-import { isApiError } from "@/lib/apiUtils";
+import { handleApiError } from "@/lib/apiUtils";
 import { Trash2 } from "lucide-react";
 
 type DeletePipelineDialogProps = {
@@ -39,10 +39,7 @@ export const DeletePipelineDialog = ({
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      const errorMessage = isApiError(error)
-        ? error.data.message
-        : "Unknown error";
-      toast.error(`Failed to delete pipeline: ${errorMessage}`);
+      handleApiError(error, "Failed to delete pipeline");
     }
   };
 

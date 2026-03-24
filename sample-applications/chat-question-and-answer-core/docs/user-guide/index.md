@@ -81,7 +81,7 @@ The Chat Question-and-Answer Core sample application consists of two main parts:
    relevant embeddings, returning a ranked list of documents based on semantic
    similarity. The LLM generates a context-aware response from the final set of documents.
 
-For more details, refer to the [Hardware and Software requirements](./get-started/system-requirements).
+For more details, refer to the [Hardware and Software requirements](./get-started/system-requirements.md).
 
 ## Benchmark Results
 

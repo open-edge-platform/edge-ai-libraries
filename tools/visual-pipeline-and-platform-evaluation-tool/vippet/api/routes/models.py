@@ -11,54 +11,63 @@ router = APIRouter()
 logger = logging.getLogger("api.routes.models")
 
 
-@router.get("", operation_id="get_models", response_model=List[schemas.Model])
+@router.get(
+    "",
+    operation_id="get_models",
+    summary="List All Models",
+    response_model=List[schemas.Model],
+    response_description="List of all installed and available models",
+)
 def get_models():
     """
-    List all installed and available models.
+    **List all installed and available models.**
 
-    Operation:
-        Read the supported models configuration, filter out models that are not
-        present on disk, and expose the remaining models in an API-friendly format.
+    ## Operation
+    Read the supported models configuration, filter out models that are not
+    present on disk, and expose the remaining models in an API-friendly format.
 
-    Path / query parameters:
-        None.
+    ## Parameters
+    - **Path/Query parameters:** None
 
-    Returns:
-        200 OK:
-            JSON array of Model objects. Each item contains:
-            * name: Internal model identifier.
-            * display_name: Human readable model name.
-            * category: Logical model category (classification, detection) or null
-              when the type from configuration is unknown.
-            * precision: Model precision (e.g. "FP32", "INT8") if available.
+    ## Response Format
 
-    Success:
-        * supported_models.yaml is loaded correctly by SupportedModelsManager.
-        * At least zero models are installed on disk (empty list is still success).
+    ### 200 OK
+    JSON array of Model objects.
 
-    Failure:
-        * If SupportedModelsManager cannot be initialized (e.g. file missing,
-          invalid YAML), the application exits at startup and this endpoint
-          will not be available.
-        * No additional non‑2xx codes are returned directly from this handler.
+    **Each model includes:**
+    - `name` - Internal model identifier
+    - `display_name` - Human-readable model name
+    - `category` - Logical model category (`classification`, `detection`) or `null` when type is unknown
+    - `precision` - Model precision (e.g., `"FP32"`, `"INT8"`) if available
 
-    Successful response example (200):
-        .. code-block:: json
+    ## Conditions
 
-            [
-              {
-                "name": "vehicle-detection-0202",
-                "display_name": "Vehicle Detection",
-                "category": "detection",
-                "precision": "FP32"
-              },
-              {
-                "name": "person-reidentification-0200",
-                "display_name": "Person Reidentification",
-                "category": "classification",
-                "precision": "INT8"
-              }
-            ]
+    ### ✅ Success
+    - `supported_models.yaml` is loaded correctly by SupportedModelsManager
+    - At least zero models are installed on disk (empty list is valid)
+
+    ### ❌ Failure
+    - If SupportedModelsManager cannot be initialized (e.g., file missing, invalid YAML),
+      the application exits at startup and this endpoint will not be available
+
+    ## Example Response
+
+    ```json
+    [
+      {
+        "name": "vehicle-detection-0202",
+        "display_name": "Vehicle Detection",
+        "category": "detection",
+        "precision": "FP32"
+      },
+      {
+        "name": "person-reidentification-0200",
+        "display_name": "Person Reidentification",
+        "category": "classification",
+        "precision": "INT8"
+      }
+    ]
+    ```
     """
     try:
         models = SupportedModelsManager().get_all_installed_models()
