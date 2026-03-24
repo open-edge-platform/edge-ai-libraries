@@ -50,7 +50,7 @@ Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "2.1.0-rc2"
+    tag: "2.1.0"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
