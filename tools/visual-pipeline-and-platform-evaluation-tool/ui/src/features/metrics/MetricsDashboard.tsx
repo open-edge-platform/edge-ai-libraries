@@ -3,31 +3,25 @@
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
-import { MetricChart } from "@/features/metrics/MetricChart";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
-import { GpuSelector } from "@/features/metrics/GpuSelector";
+import {
+  CHART_MAX_DATA_POINTS,
+  CpuFrequencyChart,
+  CpuTemperatureChart,
+  CpuUsageChart,
+  FrameRateChart,
+  getRecentYAxisMax,
+  GpuFrequencyChart,
+  GpuPowerChart,
+  GpuUsageChart,
+  MemoryUtilizationChart,
+} from "@/features/metrics/charts";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
   useMetricHistory,
   type GpuMetrics,
   type MetricHistoryPoint,
 } from "@/hooks/useMetricHistory.ts";
-
-const CHART_MAX_DATA_POINTS = 30;
-
-const getRecentYAxisMax = (
-  values: number[],
-  maxDataPoints: number,
-  minMax: number,
-) => {
-  const recentValues = values.slice(-maxDataPoints).filter(Number.isFinite);
-  if (recentValues.length === 0) return minMax;
-
-  const recentMax = Math.max(...recentValues, 0);
-  if (recentMax <= 0) return minMax;
-
-  return Math.max(recentMax, minMax);
-};
 
 const stabilizeSingleZeroDropSeries = <T extends Record<string, number>>(
   data: T[],
@@ -116,113 +110,6 @@ interface MetricsDashboardProps {
     gpuDetailedMetrics: Record<string, GpuMetrics>;
   };
 }
-
-interface MetricChartSectionProps {
-  title: string;
-  chartData: Array<{ timestamp: number } & Record<string, number>>;
-  chartDataKeys: string[];
-  chartColors: string[];
-  chartUnit: string;
-  chartYAxisDomain: [number, number];
-  chartLabels: string[];
-  selectedGpu?: number;
-  availableGpus?: number[];
-  onGpuChange?: (gpu: number) => void;
-  isSummary?: boolean;
-  forceDark?: boolean;
-  useDemoStyles?: boolean;
-  summarySectionClassName?: string;
-  summaryTitleClassName?: string;
-  wrapLegend?: boolean;
-}
-
-const MetricChartSection = ({
-  title,
-  chartData,
-  chartDataKeys,
-  chartColors,
-  chartUnit,
-  chartYAxisDomain,
-  chartLabels,
-  selectedGpu,
-  availableGpus,
-  onGpuChange,
-  isSummary = false,
-  forceDark = false,
-  useDemoStyles = false,
-  summarySectionClassName,
-  summaryTitleClassName,
-  wrapLegend = false,
-}: MetricChartSectionProps) => {
-  const hasGpuSelector =
-    selectedGpu !== undefined && availableGpus && onGpuChange;
-
-  return (
-    <div
-      className={`${
-        useDemoStyles
-          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-          : "bg-background"
-      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
-        isSummary
-          ? summarySectionClassName
-          : useDemoStyles
-            ? forceDark
-              ? "border border-neutral-800/50"
-              : "border border-border"
-            : ""
-      }`}
-    >
-      <h3
-        className={`${
-          useDemoStyles
-            ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
-                isSummary ? summaryTitleClassName : "text-neutral-400"
-              }`
-            : "text-sm font-medium text-foreground mb-5"
-        }`}
-      >
-        {title}
-        {hasGpuSelector && availableGpus.length > 1 && (
-          <>
-            {" "}
-            <span className="inline-block min-w-[0.5rem]">{selectedGpu}</span>
-          </>
-        )}
-      </h3>
-      <div className="flex gap-4 items-stretch overflow-hidden">
-        {hasGpuSelector && (
-          <div className="flex">
-            <GpuSelector
-              availableGpus={availableGpus}
-              selectedGpu={selectedGpu}
-              onGpuChange={onGpuChange}
-            />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <MetricChart
-            title=""
-            data={chartData}
-            dataKeys={chartDataKeys}
-            colors={chartColors}
-            unit={chartUnit}
-            yAxisDomain={chartYAxisDomain}
-            showLegend={true}
-            className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
-            labels={chartLabels}
-            wrapLegend={wrapLegend}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
-            isSummary={isSummary}
-            hideSummaryBorder={true}
-            forceDark={forceDark}
-            useDemoStyles={useDemoStyles}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export const MetricsDashboard = ({
   className = "",
@@ -469,30 +356,15 @@ export const MetricsDashboard = ({
             summaryTitleClassName={summaryTitleClassName}
             summaryUnitClassName={summaryUnitClassName}
           />
-          <MetricChart
-            title="Frame Rate Over Time"
+          <FrameRateChart
             data={fpsData}
-            dataKeys={["value"]}
-            colors={["var(--color-magenta-chart)"]}
-            unit=" fps"
-            yAxisDomain={[0, fpsYAxisMax]}
-            showLegend={false}
-            labels={["Frame Rate"]}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
+            yAxisMax={fpsYAxisMax}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
           />
-          <MetricChart
-            title="Memory Utilization Over Time"
+          <MemoryUtilizationChart
             data={memoryData}
-            dataKeys={["memory"]}
-            colors={["var(--color-magenta-chart)"]}
-            unit="%"
-            yAxisDomain={[0, 100]}
-            showLegend={false}
-            labels={["Memory"]}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -513,44 +385,22 @@ export const MetricsDashboard = ({
             summaryTitleClassName={summaryTitleClassName}
             summaryUnitClassName={summaryUnitClassName}
           />
-          <MetricChart
-            title="CPU Usage Over Time"
+          <CpuUsageChart
             data={cpuData}
-            dataKeys={["user"]}
-            colors={["var(--color-green-chart)"]}
-            unit="%"
-            yAxisDomain={[0, 100]}
-            showLegend={false}
-            labels={["CPU Usage"]}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
           />
-          <MetricChart
-            title="CPU Temperature Over Time"
+          <CpuTemperatureChart
             data={cpuTempData}
-            dataKeys={["temp"]}
-            colors={["var(--color-green-chart)"]}
-            unit="°C"
-            yAxisDomain={[0, cpuTempYAxisMax]}
-            showLegend={false}
-            labels={["Temperature"]}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
+            yAxisMax={cpuTempYAxisMax}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
           />
-          <MetricChart
-            title="CPU Frequency Over Time"
+          <CpuFrequencyChart
             data={cpuFrequencyData}
-            dataKeys={["frequency"]}
-            colors={["var(--color-green-chart)"]}
-            unit=" GHz"
-            yAxisDomain={[0, cpuFrequencyYAxisMax]}
-            showLegend={false}
-            labels={["Frequency"]}
-            maxDataPoints={CHART_MAX_DATA_POINTS}
+            yAxisMax={cpuFrequencyYAxisMax}
             isSummary={isSummary}
             forceDark={forceDark}
             useDemoStyles={useDemoStyles}
@@ -572,14 +422,11 @@ export const MetricsDashboard = ({
             summaryUnitClassName={summaryUnitClassName}
           />
           {!useDemoStyles && (
-            <MetricChartSection
-              title="GPU Usage Over Time"
-              chartData={gpuChartData}
-              chartDataKeys={availableEngines}
-              chartColors={availableEngines.map((engine) => engineColors[engine])}
-              chartUnit="%"
-              chartYAxisDomain={[0, 100]}
-              chartLabels={availableEngines.map((engine) => engineLabels[engine])}
+            <GpuUsageChart
+              data={gpuChartData}
+              dataKeys={availableEngines}
+              colors={availableEngines.map((engine) => engineColors[engine])}
+              labels={availableEngines.map((engine) => engineLabels[engine])}
               selectedGpu={selectedGpu}
               availableGpus={availableGpus}
               onGpuChange={setSelectedGpu}
@@ -588,17 +435,11 @@ export const MetricsDashboard = ({
               useDemoStyles={useDemoStyles}
               summarySectionClassName={summarySectionClassName}
               summaryTitleClassName={summaryTitleClassName}
-              wrapLegend={true}
             />
           )}
-          <MetricChartSection
-            title="Power Usage Over Time"
-            chartData={gpuPowerData}
-            chartDataKeys={["gpuPower", "pkgPower"]}
-            chartColors={["var(--color-red-chart)", "var(--color-yellow-chart)"]}
-            chartUnit=" W"
-            chartYAxisDomain={[0, gpuPowerYAxisMax]}
-            chartLabels={["GPU Power", "Package Power"]}
+          <GpuPowerChart
+            data={gpuPowerData}
+            yAxisMax={gpuPowerYAxisMax}
             selectedGpu={selectedGpu}
             availableGpus={availableGpus}
             onGpuChange={setSelectedGpu}
@@ -608,14 +449,9 @@ export const MetricsDashboard = ({
             summarySectionClassName={summarySectionClassName}
             summaryTitleClassName={summaryTitleClassName}
           />
-          <MetricChartSection
-            title="GPU Frequency Over Time"
-            chartData={gpuFrequencyData}
-            chartDataKeys={["frequency"]}
-            chartColors={["var(--color-yellow-chart)"]}
-            chartUnit=" GHz"
-            chartYAxisDomain={[0, gpuFrequencyYAxisMax]}
-            chartLabels={["Frequency"]}
+          <GpuFrequencyChart
+            data={gpuFrequencyData}
+            yAxisMax={gpuFrequencyYAxisMax}
             selectedGpu={selectedGpu}
             availableGpus={availableGpus}
             onGpuChange={setSelectedGpu}
@@ -626,14 +462,11 @@ export const MetricsDashboard = ({
             summaryTitleClassName={summaryTitleClassName}
           />
           {useDemoStyles && (
-            <MetricChartSection
-              title="GPU Usage Over Time"
-              chartData={gpuChartData}
-              chartDataKeys={availableEngines}
-              chartColors={availableEngines.map((engine) => engineColors[engine])}
-              chartUnit="%"
-              chartYAxisDomain={[0, 100]}
-              chartLabels={availableEngines.map((engine) => engineLabels[engine])}
+            <GpuUsageChart
+              data={gpuChartData}
+              dataKeys={availableEngines}
+              colors={availableEngines.map((engine) => engineColors[engine])}
+              labels={availableEngines.map((engine) => engineLabels[engine])}
               selectedGpu={selectedGpu}
               availableGpus={availableGpus}
               onGpuChange={setSelectedGpu}
@@ -642,7 +475,6 @@ export const MetricsDashboard = ({
               useDemoStyles={useDemoStyles}
               summarySectionClassName={summarySectionClassName}
               summaryTitleClassName={summaryTitleClassName}
-              wrapLegend={true}
             />
           )}
         </div>
