@@ -14,6 +14,27 @@ profiles:
     queries: 
       - query: "Show all scenes where a person in a blue jacket, picks up or closely looks at items in a store"
       - query: "Search for a person in a black t-shirt with cap, who is only walking in store aisle, without picking up or touching any items."
+  
+  video_search_multiple:
+      input_type: "video"
+      input_size: "multiple"
+      files:
+        - name: "CCID_security_mark_kelly__officer_lee_converted.mp4"
+          path: "data/CCID_security_mark_kelly__officer_lee_converted.mp4" 
+        - name: "CCID_Traffic_detector_daisy-gavilan_cctv_05172022_164843.mp4"
+          path: "data/CCID_Traffic_detector_daisy-gavilan_cctv_05172022_164843.mp4"
+        - name: "FIS_ForkliftAxis.mp4"
+          path: "data/FIS_ForkliftAxis.mp4"
+        - name: "HEC_Aurify_Gate_4 18-19.mp4"
+          path: "data/HEC_Aurify_Gate_4 18-19.mp4" 
+        - name: "HEC_Big_basket_chunk_15.mp4"
+          path: "data/HEC_Big_basket_chunk_15.mp4" 
+      queries: 
+        - query: "Find mark kelly officer who is chasing with gun."
+        - query: "Show me time and scene when traffic congestion or slow-moving vehicles are detected."
+        - query: "Jump to the scene where the female security guard stops customer and ask a customer to show the bill before leaving store."
+        - query: "Show the clip where a person is removing a tray that is obstructing the aisle"
+        - query: "Find the frame where the shipping label and barcode on the box are fully visible and clearly readable."
 
   video_summary_wsf:
     input_type: "video"

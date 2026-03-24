@@ -313,6 +313,18 @@ def convert_timestamp_to_float(timestamp):
         print(f"Error: Unexpected error converting timestamp to float: {e}")
         raise
 
+def wait_for_search_to_complete(search_url, query_id):
+    querySearchStatus = None 
+    while querySearchStatus != "idle":
+        get_response = requests.get(search_url)
+        for each in get_response.json():
+            if each.get("queryId") == query_id:
+                querySearchStatus = each.get("queryStatus")
+                each_search_time = convert_timestamp_to_float(each.get("updatedAt", 0)) - convert_timestamp_to_float(each.get("createdAt", 0))
+                each_response = each
+        time.sleep(1)
+    search_time = round(each_search_time, 4)
+    return search_time, each_response
 
 def get_live_caption_metadata(url, duration_seconds=DEFAULT_CAPTION_DURATION):
     """

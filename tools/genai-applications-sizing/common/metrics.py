@@ -553,7 +553,7 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
     return metrics, telemetry_details
 
 
-def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_details=None):
+def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_details=None, query_metrics=None):
     """
     Save video search telemetry KPIs to a JSON file.
     
@@ -561,12 +561,16 @@ def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_deta
         report_dir: Directory to save the files.
         metrics: Metrics dictionary to save.
         telemetry_details: Optional telemetry details to save.
-        
+        query_metrics: Optional query metrics to save.
     Returns:
         str: Path to the output file.
     """
     output_file = os.path.join(report_dir, "video_summary_search_metrics.json")
     telemetry_file = os.path.join(report_dir, "video_summary_search_telemetry_details.json")
+
+    telemetry_embedd_search_details = []
+    telemetry_embedd_search_details.append({"Embedding_telemetry": telemetry_details})
+    telemetry_embedd_search_details.append({"Search_telemetry": query_metrics})
     
     try:
         with open(output_file, "w") as file:
@@ -574,8 +578,9 @@ def save_video_summary_search_telemetry_kpis(report_dir, metrics, telemetry_deta
         print(f"Video summary and search embedding metrics written to: {output_file}")
 
         with open(telemetry_file, "w") as t_file:
-            json.dump(telemetry_details, t_file, indent=4)
-        print(f"Video summary and search embedding telemetry details written to: {telemetry_file}")
+            json.dump(telemetry_embedd_search_details, t_file, indent=4)
+        print(f"Video embedding telemetry details written to: {telemetry_file}")
+
 
     except IOError as e:
         print(f"Failed to write video search embedding metrics to {output_file}: {e}")

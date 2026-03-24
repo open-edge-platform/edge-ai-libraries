@@ -245,6 +245,7 @@ def get_enabled_video_apis(input_file):
     return video_summary_enabled, video_search_enabled
 
 
+
 def get_video_summary_profile_details(profile_path, input_file, warmup=False):
     """
     Retrieve video summary API profile details from configuration and profile files.

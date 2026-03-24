@@ -11,9 +11,8 @@ embedding creation, and search requests for performance analysis.
 import itertools
 import os
 import time
-
 from locust import task, events, HttpUser
-
+from common.video import wait_for_search_to_complete
 from common.utils import (
     convert_search_metrics_to_wsf_format,
     get_video_search_telemetry_kpis,
@@ -48,7 +47,7 @@ class VideoSearchHwSize(HttpUser):
     # Class variables for shared data across all instances
     metrics = []
     search_metrics = []
-    search_latencies = []
+    query_details = []
     queries = []
 
     def on_start(self):
@@ -84,7 +83,7 @@ class VideoSearchHwSize(HttpUser):
                 embedding_status = embedding_video_file(self.embedding_url, video_id)      
         
         VideoSearchHwSize.process_end_time = time.time()
-
+        VideoSearchHwSize.telemetry_response = self.client.get(f":{self.telemetry_endpoint}")
         # Create the query cycle after queries are populated
         self.query_cycle = itertools.cycle(VideoSearchHwSize.queries)
 
@@ -95,30 +94,30 @@ class VideoSearchHwSize(HttpUser):
         """
         qry = next(self.query_cycle)
         headers = {'Content-Type': 'application/json'}
+        search_url = f"{self.host}:{self.search_endpoint}" 
         
         try:          
-
-            search_start_time = time.time()
+            
+            print("Sending search request...")
             response = self.client.post(
                 f":{self.search_endpoint}", 
                 headers=headers, 
                 json=qry
             )
-            search_time = round(time.time() - search_start_time, 4)
             
             if response.status_code == 201:
+                queryId = response.json().get("queryId", None)                      
+                search_time, query_metrics = wait_for_search_to_complete(search_url, queryId)
                 print("Video search completed.")
             else:
                 print(f"Search failed with status {response.status_code}: {response.text}")
             
             # Append metrics efficiently
-            VideoSearchHwSize.search_latencies.append(search_time)
+            VideoSearchHwSize.query_details.append(query_metrics)
             VideoSearchHwSize.search_metrics.append({
                 **qry,
                 "query_search_seconds": search_time
-            })
-
-            VideoSearchHwSize.telemetry_response = self.client.get(f":{self.telemetry_endpoint}", headers=headers)
+            })           
             
         except Exception as e:
             print(f"Video search failed: {e}")
@@ -130,7 +129,6 @@ def collect_metrics(environment, **kwargs):
         Collect and write metrics
     """
     print("Collecting metrics...")
-    
     metrics, telemetry_details = get_video_search_telemetry_kpis(VideoSearchHwSize.process_start_time, VideoSearchHwSize.process_end_time, VideoSearchHwSize.telemetry_response.json(), VideoSearchHwSize.search_metrics)
-    json_file = save_video_summary_search_telemetry_kpis(VideoSearchHwSize.report_dir, metrics, telemetry_details)
+    json_file = save_video_summary_search_telemetry_kpis(VideoSearchHwSize.report_dir, metrics, telemetry_details, VideoSearchHwSize.query_details)
     convert_search_metrics_to_wsf_format(VideoSearchHwSize.report_dir, json_file)
