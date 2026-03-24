@@ -8,13 +8,13 @@ $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 name: "chatqna"
 displayName: "chatqna"
 description: "Chat Q&A Sample Application"
-version: "2.1.0-rc2"
+version: "2.1.0"
 
 applications:
   - name: chatqna-app
-    version: 2.1.0-rc2
+    version: 2.1.0
   - name: model-download-app
-    version: 1.1.0-rc1
+    version: 1.1.0
 
 applicationDependencies:
   - name: chatqna-app
