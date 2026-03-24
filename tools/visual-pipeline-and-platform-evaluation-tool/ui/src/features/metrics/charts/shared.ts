@@ -6,7 +6,8 @@ export const getRecentYAxisMax = (
   values: number[],
   maxDataPoints: number,
   minMax: number,
-) => Math.max(minMax, 0, ...values.slice(-maxDataPoints).filter(Number.isFinite));
+) =>
+  Math.max(minMax, 0, ...values.slice(-maxDataPoints).filter(Number.isFinite));
 
 export interface DashboardChartCommonProps {
   isSummary?: boolean;
