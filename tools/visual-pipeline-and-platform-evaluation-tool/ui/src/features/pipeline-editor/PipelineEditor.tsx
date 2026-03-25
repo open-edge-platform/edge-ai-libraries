@@ -20,7 +20,7 @@ import {
   useImperativeHandle,
   useState,
 } from "react";
-import { defaultNodeWidth, nodeTypes } from "@/features/pipeline-editor/nodes";
+import { nodeTypes } from "@/features/pipeline-editor/nodes";
 import { type Pipeline } from "@/api/api.generated";
 import {
   createGraphLayout,
@@ -50,6 +50,8 @@ interface PipelineEditorProps {
   initialViewport?: Viewport;
   shouldFitView?: boolean;
   isSimpleGraph: boolean;
+  showDetailsPanel?: boolean;
+  detailsPanelType?: "node" | "run" | null;
 }
 
 const PipelineEditorContent = forwardRef<
@@ -69,6 +71,8 @@ const PipelineEditorContent = forwardRef<
       initialViewport,
       shouldFitView,
       isSimpleGraph,
+      showDetailsPanel,
+      detailsPanelType,
     },
     ref,
   ) => {
@@ -125,6 +129,51 @@ const PipelineEditorContent = forwardRef<
       setHasInitialized(false);
     }, [isSimpleGraph]);
 
+    // Adjust viewport when panel opens/closes
+    useEffect(() => {
+      if (
+        hasInitialized &&
+        showDetailsPanel !== undefined &&
+        nodes.length > 0
+      ) {
+        const panelWidth = showDetailsPanel
+          ? detailsPanelType === "node"
+            ? 520
+            : 820
+          : 0;
+        const shiftDistance = panelWidth / 2;
+
+        // Use fitView with padding to automatically adjust zoom and position
+        setTimeout(() => {
+          fitView({
+            padding: 0.15,
+            minZoom: 0.3,
+            maxZoom: 1,
+          });
+
+          // Then shift the view horizontally based on panel state
+          const currentViewport = getViewport();
+          const newX = showDetailsPanel
+            ? currentViewport.x - shiftDistance
+            : currentViewport.x + shiftDistance;
+
+          setViewport({
+            x: newX,
+            y: currentViewport.y,
+            zoom: currentViewport.zoom,
+          });
+        }, 0);
+      }
+    }, [
+      showDetailsPanel,
+      detailsPanelType,
+      hasInitialized,
+      fitView,
+      getViewport,
+      setViewport,
+      nodes,
+    ]);
+
     useEffect(() => {
       if (!hasInitialized) {
         if (initialNodes && initialEdges) {
@@ -175,7 +224,20 @@ const PipelineEditorContent = forwardRef<
               if (initialViewport) {
                 setViewport(initialViewport);
               } else {
-                const viewportX = window.innerWidth / 2 - defaultNodeWidth / 2;
+                // Calculate viewport based on actual node positions
+                const nodePositions = nodesWithPositions.map(
+                  (n) => n.position?.x || 0,
+                );
+                const minX = Math.min(...nodePositions);
+                const maxX = Math.max(...nodePositions);
+                const graphWidth = maxX - minX;
+
+                // Adaptive padding - smaller for wider graphs, larger for narrow ones
+                const adaptivePadding = Math.max(
+                  150,
+                  Math.min(500, 500 - graphWidth / 4),
+                );
+                const viewportX = -minX + adaptivePadding;
                 setViewport({ x: viewportX, y: 50, zoom: 1 });
               }
             }, 0);
