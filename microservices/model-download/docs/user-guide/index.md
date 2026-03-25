@@ -104,9 +104,6 @@ This service does not replace full model registry solutions and has the followin
 :hidden:
 
 get-started
-system-requirements
-build-from-source
-deploy-with-helm-chart
 running-tests
 release-notes
 
