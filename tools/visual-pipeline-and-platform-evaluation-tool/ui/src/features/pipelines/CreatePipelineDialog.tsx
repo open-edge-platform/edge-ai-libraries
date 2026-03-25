@@ -421,7 +421,7 @@ export const CreatePipelineDialog = ({
                 id="pipeline-description"
                 {...register("pipelineDescription")}
                 placeholder="Paste or upload your pipeline description here..."
-                className="h-64 resize-none"
+                className="h-33 resize-none"
               />
               <FieldError
                 errors={
