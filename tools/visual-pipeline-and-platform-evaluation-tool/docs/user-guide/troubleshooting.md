@@ -73,7 +73,7 @@ lost, and you need to recreate or reimport your custom pipelines and rerun the j
 ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
-[DL Streamer release notes](https://github.com/open-edge-platform/dlstreamer/tree/main/docs/user-guide/release-notes)
+[DL Streamer release notes](https://github.com/open-edge-platform/dlstreamer/tree/main/docs/user-guide/release-notes.md)
 
 If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
