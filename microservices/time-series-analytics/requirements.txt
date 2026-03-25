@@ -1,9 +1,9 @@
-scikit-learn-intelex==2025.7.0
+scikit-learn-intelex==2025.11.0
 scikit-learn==1.6.1
-asyncua==1.1.5
-fastapi==0.121.0
-uvicorn==0.34.0
+asyncua==1.1.8
+fastapi==0.135.0
+uvicorn==0.41.0
 influxdb==5.3.2
-tomlkit==0.13.2
-protobuf==6.33.5
-dpctl==0.20.2
+tomlkit==0.14.0
+protobuf==7.34.0
+dpctl==0.21.1
