@@ -48,6 +48,7 @@ get-started
 how-it-works
 build-from-source
 deploy-with-helm
+Deploy VSS with vLLM <helm-installation-vLLM-guide>
 directory-watcher-guide
 api-reference
 troubleshooting
