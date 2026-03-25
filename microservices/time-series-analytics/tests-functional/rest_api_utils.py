@@ -214,7 +214,7 @@ def concurrent_api_requests(port):
             print(f"POST /config: {future_post_config.result()}")
 
             health_status_code = [200, 500, 503, 400]
-            health_status_json = [{"status": "Kapacitor daemon is running"}, {"detail": "503: Kapacitor daemon is not running"}]
+            health_status_json = [{"status": "Kapacitor daemon is running"}, {"status": "Kapacitor daemon is not running"}]
             assert get_health_result[0] in health_status_code
             assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200
@@ -223,7 +223,7 @@ def concurrent_api_requests(port):
             assert post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'}
             assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503
             assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
-                future_post_input.result()[1] == {'detail': '503: Kapacitor daemon is not running'}
+                future_post_input.result()[1] == {'status': 'Kapacitor daemon is not running'}
             assert future_post_config.result()[0] == 200
             assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
         except Exception as e:
