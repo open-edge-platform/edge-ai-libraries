@@ -160,7 +160,7 @@ This method provides the fastest way to get started with the microservice.
 
    ```bash
    export CONTAINER_REGISTRY_URL="intel/" #defaults to "intel/" if not set
-   export CONTAINER_TAG=1.2.4-rc1 #defaults to "latest" if not set
+   export CONTAINER_TAG=1.2.4 #defaults to "latest" if not set
 
    # Run the production environment for all services in daemon mode
    source ./run.sh
