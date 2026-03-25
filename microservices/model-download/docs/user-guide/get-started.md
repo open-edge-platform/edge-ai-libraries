@@ -2,6 +2,8 @@
 
 The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, and Ultralytics. It supports conversion to OpenVINO™ model server format for Hugging Face models, and exposes a RESTful API for managing model downloads and conversions.
 
+> Note: Model Download replaces Model Registry that will be deprecated soon. See [Migrate from Model Registry to Model Download](./migration.md) for the migration guidelines.
+
 ## Features
 
 - Downloads models from Hugging Face, Ollama, Geti software, and Ultralytics model hubs
@@ -304,3 +306,15 @@ See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address t
 For alternative ways to set up the sample application, see:
 
 - [How to Build from Source](./build-from-source.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+migration
+system-requirements
+build-from-source
+deploy-with-helm-chart
+
+:::
+hide_directive-->
