@@ -24,7 +24,7 @@ Following steps should be followed to deploy Document Summarization application 
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/document-summarization):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.5-rc2
+helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.5
 ```
 
 🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application.
@@ -36,7 +36,7 @@ Refer to the release notes for details on the latest version number to use for t
 After pulling the chart, extract the `.tgz` file:
 
 ```bash
-tar -xvf document-summarization-1.0.5-rc2.tgz
+tar -xvf document-summarization-1.0.5.tgz
 ```
 
 This will create a directory named `document-summarization` containing the chart files. Navigate to the extracted directory.
