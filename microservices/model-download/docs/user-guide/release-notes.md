@@ -1,37 +1,35 @@
 # Release Notes
 
-## Current Release
-
 ## Version 1.1.0
 
-**Release Date**: WW08 2026
-- Updated the OpenVINO™ plugin to support NPU for LLM models.
-- Enabled the OpenVINO plugin with VLM support.
+**February 20, 2026**
+
+**New**
+
 - Implemented component-based model conversion for models not supported by Optimum library.
 - Added a new Geti™ plugin for downloading models from Geti software.
+- Enabled the OpenVINO plugin with VLM support.
 
-**Known Issues or Behavior**:
+**Improved**
+
+- Updated the OpenVINO™ plugin to support NPU for LLM models.
+
+
+**Known Issues**:
 - Intel does not support Edge Manageability Framework deployment currently.
 
-## Version 1.0.1  
 
-**Release Date**: WW49 2025
-- Enhanced response structure consistency across all plugins.
+For older release notes, check out:
 
-**Known Issues or Behavior**:
-- Intel does not support Edge Manageability Framework deployment currently.
+- [Release notes 2025](./release-notes/release-notes-2025.md)
 
 
-## Version: 1.0.0
 
-**Release Date**: WW45 2025
-- Introduces a Model Download Microservice featuring a plugin-based architecture for extensibility.
-- Integrates pre-configured model hubs, enabling support for downloading models from sources such as Hugging Face, Ollama, and Ultralytics.
-- Currently supports conversion of Hugging Face models to the OpenVINO IR format.
-- Provides two plugin types: Conversion plugins (for model format conversion) and Hub plugins (for integrating new model sources).
-- Supports installing plugin dependencies during container startup.
-- Highlights that dependencies for selected plugins are automatically installed when the container starts.
-- Streamlines the setup process for users and ensures that all necessary components are available for the chosen plugins.
+<!--hide_directive
+```{toctree}
+:hidden:
 
-**Known Issues or Behavior**:
-- Intel does not support Edge Manageability Framework deployment currently.
+Release Notes 2025 <./release-notes/release-notes-2025.md>
+
+```
+hide_directive-->
