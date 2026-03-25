@@ -304,3 +304,15 @@ See [Deploy with Helm Chart](./deploy-with-helm-chart.md) for details. Address t
 For alternative ways to set up the sample application, see:
 
 - [How to Build from Source](./build-from-source.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+migration
+system-requirements
+build-from-source
+deploy-with-helm-chart
+
+:::
+hide_directive-->
