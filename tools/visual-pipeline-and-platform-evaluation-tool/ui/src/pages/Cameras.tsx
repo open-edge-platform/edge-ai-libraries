@@ -85,8 +85,7 @@ export const Cameras = () => {
             Cameras discovered in the platform
           </p>
         </div>
-        <Table>
-          <TableCaption>A list of loaded cameras.</TableCaption>
+        <Table className="mb-10">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[24%]">Name</TableHead>

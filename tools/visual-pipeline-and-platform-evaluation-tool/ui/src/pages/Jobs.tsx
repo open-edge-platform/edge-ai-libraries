@@ -169,7 +169,7 @@ export const Jobs = () => {
         {/* Tab Content */}
         <div className="mt-6">
           {currentTab === "performance" && (
-            <div className="pb-16">
+            <div>
               <h2 className="text-xl font-semibold mb-4">Performance Jobs</h2>
               {isLoadingPerformance ? (
                 <p className="text-muted-foreground">Loading jobs...</p>
@@ -178,7 +178,7 @@ export const Jobs = () => {
                   No performance jobs found
                 </p>
               ) : (
-                <Table>
+                <Table className="mb-10 border-separate border-spacing-4">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">Job ID</TableHead>
@@ -187,7 +187,7 @@ export const Jobs = () => {
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead>Per Stream FPS</TableHead>
+                      <TableHead className="max-w-[70px] whitespace-normal">Per Stream FPS</TableHead>
                       <TableHead>Total Streams</TableHead>
                       <TableHead className="w-[120px] min-w-[120px]">
                         Actions
@@ -205,7 +205,7 @@ export const Jobs = () => {
                             {job.id}
                           </Link>
                         </TableCell>
-                        <TableCell className="max-w-[220px] whitespace-normal">
+                        <TableCell className="max-w-[170px] whitespace-normal">
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div
@@ -283,7 +283,7 @@ export const Jobs = () => {
               ) : !densityJobs || densityJobs.length === 0 ? (
                 <p className="text-muted-foreground">No density jobs found</p>
               ) : (
-                <Table>
+                <Table className="mb-10 border-spacing-4">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">Job ID</TableHead>
@@ -291,7 +291,7 @@ export const Jobs = () => {
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead>Per Stream FPS</TableHead>
+                      <TableHead className="max-w-[70px] whitespace-normal">Per Stream FPS</TableHead>
                       <TableHead className="w-[220px]">Stream Distribution</TableHead>
                       <TableHead className="w-[120px] min-w-[120px]">
                         Actions
@@ -388,7 +388,7 @@ export const Jobs = () => {
                   No optimization jobs found
                 </p>
               ) : (
-                <Table>
+                <Table className="mb-10 border-separate border-spacing-4">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">Job ID</TableHead>

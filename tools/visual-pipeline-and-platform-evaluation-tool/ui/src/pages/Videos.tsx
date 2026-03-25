@@ -25,8 +25,7 @@ export const Videos = () => {
             Ready-to-use video clips available in the platform
           </p>
         </div>
-        <Table>
-          <TableCaption>A list of loaded videos.</TableCaption>
+        <Table className="mb-10">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[25%]">File name</TableHead>

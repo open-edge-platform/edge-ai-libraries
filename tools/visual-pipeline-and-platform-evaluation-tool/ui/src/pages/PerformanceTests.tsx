@@ -285,7 +285,7 @@ export const PerformanceTests = () => {
           </p>
         </div>
 
-        <div className="space-y-3 mb-6">
+        <div className="space-y-3 mb-6 mr-16">
           {pipelineSelections.map((selection, index) => {
             const selectedPipeline = pipelines.find(
               (p) => p.id === selection.pipelineId,
