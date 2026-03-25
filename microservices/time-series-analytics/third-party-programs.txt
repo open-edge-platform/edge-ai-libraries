@@ -34,11 +34,11 @@ tbb==2022.3.1
 daal==2025.11.0
 ----------------------------------------------------------------------
 
-License-Identifier: Apache License 2.0 / BSD 3-Clause License (dual licensed)
+License-Identifier: Apache License 2.0 / BSD-3-Clause License (dual licensed)
 python-dateutil==2.9.0.post0
 ----------------------------------------------------------------------
 
-License-Identifier: BSD-3 Clause
+License-Identifier: BSD-3-Clause
 click==8.3.1
 idna==3.11
 scikit-learn==1.6.1
