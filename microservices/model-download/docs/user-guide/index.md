@@ -116,7 +116,7 @@ This service does not replace full model registry solutions and has the followin
 
 get-started
 running-tests
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->
