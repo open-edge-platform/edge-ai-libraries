@@ -38,6 +38,8 @@ class PipelineResult:
         cancelled: Whether the run was cancelled by the user.
         stdout: Captured stdout lines from gst_runner.py.
         stderr: Captured stderr lines from gst_runner.py.
+        details: Human-readable description of which FPS metric source was
+            selected and for how many streams, or None if not applicable.
     """
 
     total_fps: float = 0.0
@@ -47,6 +49,7 @@ class PipelineResult:
     cancelled: bool = False
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
+    details: str | None = None
 
     def __repr__(self):
         return (
@@ -55,7 +58,8 @@ class PipelineResult:
             f"per_stream_fps={self.per_stream_fps}, "
             f"num_streams={self.num_streams}, "
             f"exit_code={self.exit_code}, "
-            f"cancelled={self.cancelled}"
+            f"cancelled={self.cancelled}, "
+            f"details={self.details!r}"
             f")"
         )
 
@@ -114,6 +118,8 @@ class PipelineRunner:
         self.inactivity_timeout = inactivity_timeout
         self.hard_timeout = hard_timeout
         self.logger = logging.getLogger("PipelineRunner")
+        self.logger_level = self._get_log_level()
+        self.logger.setLevel(self.logger_level)
         self.cancelled = False
 
         # Validate mode
@@ -177,7 +183,7 @@ class PipelineRunner:
             "--max-runtime",
             str(self.max_runtime),
             "--log-level",
-            self._get_log_level(),
+            self.logger_level,
             pipeline_command,
         ]
 
@@ -226,41 +232,6 @@ class PipelineRunner:
             stderr=self._parse_validation_stderr(stderr),
         )
 
-    def _parse_validation_stderr(self, raw_stderr: str) -> list[str]:
-        """
-        Parse raw stderr from gst_runner.py into a list of error messages.
-
-        This method:
-        - Splits stderr into lines
-        - Filters only lines starting with "gst_runner - ERROR - "
-        - Strips that prefix from each line
-        - Trims surrounding whitespace
-        - Discards empty lines
-
-        Args:
-            raw_stderr: Raw stderr output from gst_runner.py.
-
-        Returns:
-            List of error message strings.
-        """
-        if not raw_stderr:
-            return []
-
-        messages: list[str] = []
-        prefix = "gst_runner - ERROR - "
-
-        for line in raw_stderr.splitlines():
-            if not line.startswith(prefix):
-                continue
-
-            content = line[len(prefix) :].strip()
-            if not content:
-                continue
-
-            messages.append(content)
-
-        return messages
-
     def _run_normal(self, pipeline_command: str, total_streams: int) -> PipelineResult:
         """
         Run pipeline in normal mode and extract FPS metrics.
@@ -270,6 +241,42 @@ class PipelineRunner:
 
         After pipeline completion (success or failure), writes 0.0 to the FPS
         file to indicate that the pipeline is no longer running.
+
+        ## gvafpscounter emits three types of FPS metrics:
+
+        - **last**: FPS measured over only the most recent N-second window.
+          Resets after each print. Highly volatile — can spike during queue
+          flush at shutdown (e.g. 330 fps in a 0.47s window).
+
+        - **average**: Cumulative mean FPS from the first measured frame to
+          now. Printed every ~1 second, never resets. Represents the stable
+          steady-state throughput while the pipeline is actively running.
+
+        - **overall**: Same cumulative formula as average, but printed only
+          once when the pipeline terminates. Crucially, it includes the
+          shutdown period — during which GStreamer flushes buffered frames
+          rapidly and then streams finish unevenly. With many streams the
+          teardown can take several seconds, inflating the time denominator
+          while the frame numerator barely grows, resulting in a significantly
+          lower FPS than the true steady-state.
+
+        ## Why we prefer average over overall:
+
+        With looped pipelines stopped via max_runtime, all streams are alive
+        for the full measurement window (good for average stability), but the
+        forced SIGINT shutdown creates a flush burst and uneven stream
+        teardown. The more streams, the longer the teardown, and the bigger
+        the gap between average and overall. Using overall for benchmark
+        decisions causes the binary search to systematically underestimate
+        pipeline capacity.
+
+        ## Metric selection priority (post-run):
+
+        1. Last average line matching total_streams — best steady-state metric.
+        2. Overall line matching total_streams — fallback, includes shutdown.
+        3. Last average line for closest total_streams — stream count mismatch
+           but still a steady-state number.
+        4. Last "last" line — volatile, last resort.
 
         Args:
             pipeline_command: GStreamer pipeline description string.
@@ -291,7 +298,7 @@ class PipelineRunner:
             "--max-runtime",
             str(self.max_runtime),
             "--log-level",
-            self._get_log_level(),
+            self.logger_level,
             pipeline_command,
         ]
 
@@ -307,12 +314,29 @@ class PipelineRunner:
             total_fps = None
             per_stream_fps = None
             num_streams = None
-            last_fps = None
-            avg_fps_dict = {}
-            process_output = []
-            process_stderr = []
+            details: str | None = None
 
-            # Define patterns to capture FPSCounter metrics
+            # Storage for parsed metrics collected during the run.
+            # - last_fps: most recent "last" metric (any stream count)
+            # - avg_fps_dict: keyed by number_streams, value is the most recent
+            #   "average" metric for that stream count (overwritten each time)
+            # - overall_fps_dict: keyed by number_streams, value is the "overall"
+            #   metric for that stream count (should appear at most once)
+            last_fps: dict | None = None
+            avg_fps_dict: dict[int, dict] = {}
+            overall_fps_dict: dict[int, dict] = {}
+            process_output: list[bytes] = []
+            process_stderr: list[bytes] = []
+
+            # ----------------------------------------------------------------
+            # Regex patterns for the three gvafpscounter metric types.
+            #
+            # These patterns are MUTUALLY EXCLUSIVE: each line contains exactly
+            # one of the keywords "overall", "average", or "last" inside the
+            # FpsCounter(...) parentheses, so at most one pattern can match per
+            # line. We use `continue` after each successful match to skip
+            # unnecessary regex checks.
+            # ----------------------------------------------------------------
             overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
@@ -347,8 +371,25 @@ class PipelineRunner:
                     if r == process.stdout:
                         process_output.append(line)
 
-                        # Write the average FPS to file in real-time for monitoring
                         line_str = line.decode("utf-8")
+
+                        # ----------------------------------------------------------
+                        # Log ALL FpsCounter lines (last, average, overall) as info
+                        # for diagnostics.
+                        # Also log gst_runner lines at INFO level and above (skip
+                        # DEBUG) so the user can see pipeline lifecycle events
+                        # (e.g. "Pipeline parsed successfully", "Stopping pipeline").
+                        # ----------------------------------------------------------
+                        stripped = line_str.strip()
+                        if stripped.startswith(
+                            "FpsCounter"
+                        ) or self._is_loggable_gst_runner_line(stripped):
+                            self.logger.info(stripped)
+
+                        # ----------------------------------------------------------
+                        # Write the average FPS to file in real-time for monitoring.
+                        # Only average is used here — it's the stable running metric.
+                        # ----------------------------------------------------------
                         match = re.search(avg_pattern, line_str)
                         if match:
                             result = {
@@ -356,11 +397,6 @@ class PipelineRunner:
                                 "number_streams": int(match.group(3)),
                                 "per_stream_fps": float(match.group(4)),
                             }
-                            self.logger.info(
-                                f"Avg FPS: {result['total_fps']} fps; "
-                                f"Num Streams: {result['number_streams']}; "
-                                f"Per Stream FPS: {result['per_stream_fps']} fps."
-                            )
 
                             # Skip the result if the number of streams does not match
                             if result["number_streams"] != total_streams:
@@ -401,67 +437,141 @@ class PipelineRunner:
                     )
 
             # Capture remaining output after process ends
-            if exit_code is None:
-                exit_code = process.wait()
+            # Ensure we fully drain any remaining stdout/stderr from the pipes
+            # before parsing metrics to avoid losing final FPS lines printed
+            # right at shutdown.
+            try:
+                remaining_stdout, remaining_stderr = process.communicate()
+            except Exception:
+                remaining_stdout, remaining_stderr = (b"", b"")
 
-            # Process output and extract FPS metrics
+            if remaining_stdout:
+                process_output.append(remaining_stdout)
+            if remaining_stderr:
+                process_stderr.append(remaining_stderr)
+
+            if exit_code is None:
+                exit_code = process.returncode
+
+            # ================================================================
+            # POST-RUN: Parse all collected stdout lines to extract FPS metrics.
+            #
+            # We collect:
+            # - overall_fps_dict: keyed by number_streams (printed once at end)
+            # - avg_fps_dict: keyed by number_streams (last value wins, since
+            #   average is cumulative and the last print is the most complete)
+            # - last_fps: the very last "last" line regardless of stream count
+            #
+            # The three patterns are mutually exclusive (different keyword in
+            # parentheses), so we use continue after each match.
+            # ================================================================
             for line in process_output:
                 line_str = line.decode("utf-8")
 
                 match = re.search(overall_pattern, line_str)
                 if match:
-                    result = {
+                    parsed = {
                         "total_fps": float(match.group(2)),
                         "number_streams": int(match.group(3)),
                         "per_stream_fps": float(match.group(4)),
                     }
-                    if result["number_streams"] == total_streams:
-                        total_fps = result["total_fps"]
-                        num_streams = result["number_streams"]
-                        per_stream_fps = result["per_stream_fps"]
-                        break
+                    overall_fps_dict[parsed["number_streams"]] = parsed
+                    continue
 
                 match = re.search(avg_pattern, line_str)
                 if match:
-                    result = {
+                    parsed = {
                         "total_fps": float(match.group(2)),
                         "number_streams": int(match.group(3)),
                         "per_stream_fps": float(match.group(4)),
                     }
-                    avg_fps_dict[result["number_streams"]] = result
+                    # Overwrite: we want the LAST average for each stream count
+                    avg_fps_dict[parsed["number_streams"]] = parsed
+                    continue
 
                 match = re.search(last_pattern, line_str)
                 if match:
-                    result = {
+                    parsed = {
                         "total_fps": float(match.group(2)),
                         "number_streams": int(match.group(3)),
                         "per_stream_fps": float(match.group(4)),
                     }
-                    last_fps = result
+                    # Always overwrite: we only care about the very last one
+                    last_fps = parsed
+                    continue
 
-            # Fallback to average FPS if overall not found
-            if total_fps is None and avg_fps_dict.keys():
-                if total_streams in avg_fps_dict.keys():
-                    total_fps = avg_fps_dict[total_streams]["total_fps"]
-                    num_streams = avg_fps_dict[total_streams]["number_streams"]
-                    per_stream_fps = avg_fps_dict[total_streams]["per_stream_fps"]
-                else:
-                    # Find closest match
-                    closest_match = min(
-                        avg_fps_dict.keys(),
-                        key=lambda x: abs(x - total_streams),
-                        default=None,
+            # ================================================================
+            # METRIC SELECTION with fallback chain.
+            #
+            # Priority 1: Last average for exact total_streams match.
+            #   Best steady-state metric — cumulative mean that excludes
+            #   shutdown artifacts. The last printed value covers the longest
+            #   measurement window.
+            #
+            # Priority 2: Overall for exact total_streams match.
+            #   Includes the shutdown/flush period so it tends to be lower
+            #   than average, but at least the stream count is correct.
+            #
+            # Priority 3: Last average for closest total_streams match.
+            #   Stream count mismatch (e.g. some streams started late), but
+            #   still a steady-state number rather than a shutdown-polluted one.
+            #
+            # Priority 4: Last "last" line (any stream count).
+            #   Volatile window-based metric. Last resort only.
+            # ================================================================
+
+            # --- Priority 1: last average for exact total_streams ---
+            if total_streams in avg_fps_dict:
+                source = avg_fps_dict[total_streams]
+                total_fps = source["total_fps"]
+                num_streams = source["number_streams"]
+                per_stream_fps = source["per_stream_fps"]
+                details = (
+                    f"used last average fps for {total_streams} stream(s) "
+                    f"(primary source, steady-state metric)"
+                )
+
+            # --- Priority 2: overall for exact total_streams ---
+            if total_fps is None and total_streams in overall_fps_dict:
+                source = overall_fps_dict[total_streams]
+                total_fps = source["total_fps"]
+                num_streams = source["number_streams"]
+                per_stream_fps = source["per_stream_fps"]
+                details = (
+                    f"used overall fps for {total_streams} stream(s) "
+                    f"(fallback 1, includes shutdown period)"
+                )
+
+            # --- Priority 3: last average for closest total_streams ---
+            if total_fps is None and avg_fps_dict:
+                closest_match = min(
+                    avg_fps_dict.keys(),
+                    key=lambda x: abs(x - total_streams),
+                    default=None,
+                )
+                if closest_match is not None:
+                    source = avg_fps_dict[closest_match]
+                    total_fps = source["total_fps"]
+                    num_streams = source["number_streams"]
+                    per_stream_fps = source["per_stream_fps"]
+                    details = (
+                        f"used last average fps for {closest_match} stream(s) "
+                        f"(fallback 2, closest match to requested {total_streams})"
                     )
-                    if closest_match is not None:
-                        total_fps = avg_fps_dict[closest_match]["total_fps"]
-                        num_streams = avg_fps_dict[closest_match]["number_streams"]
-                        per_stream_fps = avg_fps_dict[closest_match]["per_stream_fps"]
 
-            # Fallback to last FPS if average not found
+            # --- Priority 4: last "last" line ---
             if total_fps is None and last_fps:
                 total_fps = last_fps["total_fps"]
                 num_streams = last_fps["number_streams"]
                 per_stream_fps = last_fps["per_stream_fps"]
+                details = (
+                    f"used last instantaneous fps for {num_streams} stream(s) "
+                    f"(fallback 3, volatile window-based metric)"
+                )
+
+            # --- No FPS data found at all ---
+            if total_fps is None:
+                details = "no fps metrics found in pipeline output"
 
             # Convert None to appropriate defaults
             if total_fps is None:
@@ -481,11 +591,11 @@ class PipelineRunner:
                 for line in process_stderr
             ]
 
-            # Log errors if exit code is non-zero
-            if exit_code != 0:
-                stdout_str = "\n".join(stdout_lines)
-                stderr_str = "\n".join(stderr_lines)
+            stdout_str = "\n".join(stdout_lines)
+            stderr_str = "\n".join(stderr_lines)
 
+            # Log the final results and raise error if exit code is non-zero without cancellation
+            if exit_code != 0:
                 self.logger.error("Pipeline failed with exit_code=%s", exit_code)
                 self.logger.error("STDOUT:\n%s", stdout_str)
                 self.logger.error("STDERR:\n%s", stderr_str)
@@ -495,6 +605,14 @@ class PipelineRunner:
                         f"Pipeline execution failed: {stderr_str.strip()}"
                     )
 
+            # Log the output if the pipeline succeeded or was cancelled (non-zero exit code due to cancellation is not treated as an error)
+            if exit_code == 0 or self.is_cancelled():
+                self.logger.debug(
+                    "Output from pipeline execution (exit_code=%s):", exit_code
+                )
+                self.logger.debug("STDOUT:\n%s", stdout_str)
+                self.logger.debug("STDERR:\n%s", stderr_str)
+
             return PipelineResult(
                 total_fps=total_fps,
                 per_stream_fps=per_stream_fps,
@@ -503,6 +621,7 @@ class PipelineRunner:
                 cancelled=self.is_cancelled(),
                 stdout=stdout_lines,
                 stderr=stderr_lines,
+                details=details,
             )
 
         except Exception as e:
@@ -541,12 +660,68 @@ class PipelineRunner:
 
     @staticmethod
     def _get_log_level() -> str:
-        """Get the log level string from LOG_LEVEL env var, defaulting to INFO."""
-        level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        """Get the log level string from RUNNER_LOG_LEVEL env var, defaulting to INFO."""
+        level = os.environ.get("RUNNER_LOG_LEVEL", "INFO").upper()
         valid_levels = ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG")
         if level not in valid_levels:
             return "INFO"
         return level
+
+    @staticmethod
+    def _is_loggable_gst_runner_line(line: str) -> bool:
+        """
+        Check if a gst_runner log line should be forwarded to our logger.
+
+        Matches lines starting with "gst_runner - " at any log level above
+        DEBUG (i.e. INFO, WARNING, ERROR, CRITICAL). Lines at DEBUG level
+        are suppressed to avoid noise.
+
+        Args:
+            line: Stripped stdout line from the subprocess.
+
+        Returns:
+            True if the line should be logged, False otherwise.
+        """
+        if not line.startswith("gst_runner - "):
+            return False
+        # Reject DEBUG lines explicitly; accept everything else
+        return not line.startswith("gst_runner - DEBUG")
+
+    @staticmethod
+    def _parse_validation_stderr(raw_stderr: str) -> list[str]:
+        """
+        Parse raw stderr from gst_runner.py into a list of error messages.
+
+        This method:
+        - Splits stderr into lines
+        - Filters only lines starting with "gst_runner - ERROR - "
+        - Strips that prefix from each line
+        - Trims surrounding whitespace
+        - Discards empty lines
+
+        Args:
+            raw_stderr: Raw stderr output from gst_runner.py.
+
+        Returns:
+            List of error message strings.
+        """
+        if not raw_stderr:
+            return []
+
+        messages: list[str] = []
+        prefix = "gst_runner - ERROR - "
+
+        for line in raw_stderr.splitlines():
+            if not line.startswith(prefix):
+                continue
+
+            content = line[len(prefix) :].strip()
+            if not content:
+                continue
+
+            messages.append(content)
+
+        return messages
 
     @staticmethod
     def _graceful_terminate(proc: subprocess.Popen, timeout: float = 10.0) -> None:

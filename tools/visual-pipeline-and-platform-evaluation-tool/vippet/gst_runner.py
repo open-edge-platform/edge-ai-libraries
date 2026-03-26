@@ -958,7 +958,7 @@ def run_application(
 
     # Join the pipeline pieces into a single string.
     pipeline_description = " ".join(args.pipeline)
-    logger.info(
+    logger.debug(
         "Running pipeline in %s mode (max-runtime: %.1f s): %s",
         args.mode,
         args.max_runtime,
