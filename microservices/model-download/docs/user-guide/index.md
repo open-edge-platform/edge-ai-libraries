@@ -1,17 +1,17 @@
+# Model Download
+
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-download">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.0.0/microservices/model-download">
      GitHub project
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/model-download/README.md">
      Readme
   </a>
 </div>
 hide_directive-->
 
-# Model Download
-
-> **Note:** Model Download replaces Model Registry, which will be deprecated soon.
+**Note: Model Download replaces Model Registry, which will be deprecated soon.**
 
 The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, and handles optional format conversions.
 

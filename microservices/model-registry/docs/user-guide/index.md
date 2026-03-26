@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-> Note: Model Registry will be deprecated soon and replaced by Model Download.
+**Note: Model Registry will be deprecated soon and replaced by Model Download.**
 
 The Model Registry plays a crucial role in the machine learning life cycle, providing a
 structured storage environment for models and their metadata. It stores each model's
