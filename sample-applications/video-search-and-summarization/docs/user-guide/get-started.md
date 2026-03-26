@@ -27,6 +27,7 @@ sample-applications/video-search-and-summarization/
 ├── docker                     # Docker Compose files
 │   ├── compose.base.yaml      # Base services configuration
 │   ├── compose.summary.yaml   # Compose override file for video summarization services
+│   ├── compose.vllm.yaml      # vLLM inference service overlay
 │   ├── compose.search.yaml    # Compose override file for video search services
 │   ├── compose.telemetry.yaml # Optional telemetry collector (vss-collector)
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OpenVINO™ model server
@@ -212,7 +213,7 @@ The Video Summarization application offers multiple modes and deployment options
 | VLM-CPU-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs and microservices; when inference speed is not a priority. |
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 | VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
-
+| vLLM-CPU | vLLM serving on CPU | vLLM Service on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | Deploy on Intel® Xeon® Processors without GPU requirements. |
 > **Note:**
 >
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
@@ -304,9 +305,19 @@ Follow these steps to run the application:
 
    - **To run Video Summarization with OpenVINO model server microservice for a final summary:**
 
-     ```bash
-     ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
-     ```
+    ```bash
+    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
+    ```
+
+- **To run Video Summarization with vLLM as the only inference backend:**
+
+    ```bash
+    ENABLE_VLLM=true source setup.sh --summary
+    ```
+
+    > **Note:**
+    > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
+    > - Review [docker/compose.vllm.yaml](../../docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
@@ -325,6 +336,9 @@ Follow these steps to run the application:
 
    # To see resolved configurations for summarization services with OpenVINO model server setup on CPU without starting containers
    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
+
+    # To see resolved configurations for summarization services with vLLM enabled without starting containers
+    ENABLE_VLLM=true source setup.sh --summary config
    ```
 
 ### Use GPU Acceleration
