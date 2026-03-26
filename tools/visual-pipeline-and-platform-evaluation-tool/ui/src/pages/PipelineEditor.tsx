@@ -14,7 +14,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
-import PipelineEditor, {
+import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
@@ -80,7 +80,7 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   });
 };
 
-export const Pipelines = () => {
+export const PipelineEditor = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
@@ -431,7 +431,7 @@ export const Pipelines = () => {
           className="w-full h-full transition-opacity duration-100"
           style={{ opacity: isTransitioning ? 0 : 1 }}
         >
-          <PipelineEditor
+          <PipelineEditorCanvas
             ref={pipelineEditorRef}
             key={editorKey}
             pipelineData={data}

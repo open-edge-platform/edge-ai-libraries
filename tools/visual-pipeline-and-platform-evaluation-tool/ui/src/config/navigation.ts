@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
-import { Pipelines } from "@/pages/Pipelines.tsx";
+import { PipelineEditor } from "@/pages/PipelineEditor.tsx";
 import { Models } from "@/pages/Models.tsx";
 import { Videos } from "@/pages/Videos.tsx";
 import { PerformanceTests } from "@/pages/PerformanceTests.tsx";
@@ -20,7 +20,7 @@ import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
-import { Pipelines2 } from "@/pages/Pipelines2";
+import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 
 export type NavigationItem = {
@@ -52,8 +52,8 @@ export const menuItems: Array<NavigationItem> = [
 
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
-  { path: "pipelines", Component: Pipelines2 },
-  { path: "pipelines/:id/:variant", Component: Pipelines },
+  { path: "pipelines", Component: PipelineList },
+  { path: "pipelines/:id/:variant", Component: PipelineEditor },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "cameras", Component: Cameras },
