@@ -169,7 +169,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 | Model Location   | Stored in       | Stored in the local download path.      | Update model paths in             |
 |                  | registry        | Fast local access.                      | application configuration.        |
 |                  | storage         |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Operational      | High:\          | Low:\                                   | No additional action is           |
 | Overhead         | - Manage        | - Single service\                       | required.                         |
 |                  | registry        | - Local storage only                    |                                   |
@@ -185,7 +185,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  | monitoring,     |                                         |                                   |
 |                  | debugging,      |                                         |                                   |
 |                  | and scaling     |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Scalability      | Limited:\       | Flexible:\                              | No additional changes are         |
 |                  | - Central       | - Independent downloads\                | required. Model Download uses a   |
 |                  | bottleneck\     | - Local caching\                        | decentralized approach in which   |
@@ -194,7 +194,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  | an increased    |                                         | scale naturally.                  |
 |                  | number of       |                                         |                                   |
 |                  | models          |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 
 Conclusion:
 
