@@ -8,20 +8,20 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  | management      | preparation.                            | management to runtime fetching    |
 |                  | system          |                                         | and model preparation before      |
 |                  |                 |                                         | application startup.              |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Primary          | Storage,        | Fetches, converts to the OpenVINO™      | Replace registry-based storage    |
 | Purpose          | version         | Intermediate Representation (IR)        | with direct model pulling from    |
 |                  | control, and    | format, optimizes through precision     | external sources. No additional   |
 |                  | model           | reduction and hardware-specific         | action is required for            |
 |                  | management      | tuning, and stores the models.          | conversion or optimization.       |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Onboarding       | - Downloads     | No onboarding required.\                | Remove manual onboarding flow.    |
 | Process          | model\          | Directly pulls models from external     | Configure model source details    |
 |                  | - Compressed    | sources using API.                      | during setup and use the pull     |
 |                  | package\        |                                         | API.                              |
 |                  | - Uploads to    |                                         |                                   |
 |                  | registry        |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Model Sources    | Only models     | All supported models from multiple      | Update model references to        |
 |                  | that were       | model hubs:\                            | point to the source instead of    |
 |                  | uploaded to     | - Hugging Face\                         | the registry by enabling the      |
@@ -29,7 +29,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 | - Geti™ software\                       | setup and passing the             |
 |                  |                 | - Ultralytics                           | appropriate model hub to the      |
 |                  |                 |                                         | download API.                     |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Storage Type     | Centralized:\   | Local filesystem storage or             | Update applications to read       |
 |                  | - Metadata      | PersistentVolumeClaim (PVC)             | models from the local             |
 |                  | database\       |                                         | filesystem path managed by        |
@@ -52,7 +52,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | dependent applications to         |
 |                  |                 |                                         | enable direct access to           |
 |                  |                 |                                         | downloaded models                 |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Metadata         | Stored in       | Encoded in model path                   | No metadata management overhead   |
 | Storage          | separate        | (name/device/precision)                 | because most of the required      |
 |                  | databases       |                                         | metadata details are encoded in   |
@@ -60,7 +60,7 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | needed, manage externally. (can   |
 |                  |                 |                                         | use MLOps tools, config files,    |
 |                  |                 |                                         | and etc)                          |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Persistence      | Strong          | Persistent shared storage (host         | No change is needed.\             |
 |                  | centralized     | volume / PVC)                           | \                                 |
 |                  | persistence     |                                         | Models remain in local storage    |
@@ -71,19 +71,19 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | \                                 |
 |                  |                 |                                         | Lightweight and sufficient for    |
 |                  |                 |                                         | runtime use.                      |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Infrastructure   | High:\          | Low:\                                   | Replace all registry components   |
 | Overhead         | - Registry      | - Single service\                       | with a single Model Download      |
 |                  | service\        | - Local storage                         | service.\                         |
 |                  | - Database\     |                                         | \                                 |
 |                  | - Storage       |                                         | Simplify architecture and         |
 |                  |                 |                                         | reduce maintenance.               |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Metadata         | Supported       | Not supported                           | Avoid continuous metadata         |
 | Updates          | (score,         |                                         | maintenance. Use external         |
 |                  | format, and     |                                         | systems/tools if needed.          |
 |                  | etc.)           |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Versioning       | Mandatory and   | Not enforced                            | Reduce complexity for dynamic     |
 |                  | enforced        |                                         | workloads because models are      |
 |                  |                 |                                         | pulled directly from hubs;        |
@@ -92,37 +92,37 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | identifiers. Use external tools   |
 |                  |                 |                                         | if version management is          |
 |                  |                 |                                         | required.                         |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Conversion       | Not supported   | Converts models to the                  | Enable                            |
 | Support          |                 | OpenVINO™ format                        | OpenVINO™                         |
 |                  |                 | automatically.                          | plugin during the setup and       |
 |                  |                 |                                         | configure the required fields     |
 |                  |                 |                                         | based on the parameters           |
 |                  |                 |                                         | provided via the download API.    |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Precision        | Not             | Supports all OpenVINO™                  | Specify required precision in     |
 | Support          | applicable      | toolkit-supported formats:\             | the download API configuration    |
 |                  |                 | - INT4\                                 | if needed.                        |
 |                  |                 | - INT8\                                 |                                   |
 |                  |                 | - FP16\                                 |                                   |
 |                  |                 | - FP32                                  |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Device           | Not supported   | Supports all OpenVINO™                  | Configure the target device in    |
 | Targeting        |                 | toolkit-supported devices:\             | the download API configuration    |
 |                  |                 | - CPU\                                  | if needed.                        |
 |                  |                 | - GPU\                                  |                                   |
 |                  |                 | - NPU                                   |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Parallel         | Not supported   | Supports parallel downloads of          | Set the parallel download flag    |
 | Downloads        |                 | multiple models. Leads to a faster      | to true in the Model Download     |
 |                  |                 | startup when multiple models are        | API configuration.                |
 |                  |                 | required.                               |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Caching          | No runtime      | Configurable local caching:\            | Specify the path for model        |
 |                  | caching         | - Reuses existing models\               | download during setup. No         |
 |                  | mechanism       | - Skips re-download if already          | additional configuration is       |
 |                  |                 | exists.                                 | needed.                           |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | API Style        | CRUD-heavy:\    | Minimal pull-based API with Optimum     | Replace registry APIs with the    |
 |                  | - Upload        | CLI compliance                          | pull API to download models       |
 |                  | models\         |                                         | directly from thesource at        |
@@ -135,11 +135,11 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | openvino ...) can be used for     |
 |                  |                 |                                         | model export, compilation, and    |
 |                  |                 |                                         | quantization.                     |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Model Listing    | From the        | From the local filesystem               | Replace registry dependencies     |
 |                  | registry        |                                         | with the relevant GET API from    |
 |                  | database        |                                         | Model Download.                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Geti             | Import ,        | Direct pull from                        | Configure                         |
 | Integration      | store, and      | Geti™ software                          | Geti™                             |
 |                  | download        |                                         | software details during setup     |
@@ -147,25 +147,25 @@ Model Download replaces Model Registry, which will be deprecated soon. Intel sug
 |                  |                 |                                         | is handled by the                 |
 |                  |                 |                                         | Geti™                             |
 |                  |                 |                                         | plugin.                           |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Upload Models    | Supported       | Not supported                           | Not required. Remove registry     |
 |                  |                 |                                         | upload workflows. Ensure models   |
 |                  |                 |                                         | are accessible via the source.    |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Delete Models    | Supported       | Not supported                           | Delete downloaded models          |
 |                  |                 |                                         | manually or implement simple      |
 |                  |                 |                                         | cleanup scripts if required.      |
 |                  |                 |                                         | Deletion of model at the hub      |
 |                  |                 |                                         | source is not supported.          |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Runtime          | Not required    | Mandatory (must run before              | Ensure Model Download is          |
 | Dependency       |                 | application startup)                    | deployed and ready before         |
 |                  |                 |                                         | dependent services start.         |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Startup          | None            | Must be available before dependent      | Use API to check download job     |
 | Dependency       |                 | application services start              | status and ensure completion      |
 |                  |                 |                                         | before app startup.               |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+|                  |                 |                                         |                                   |
 | Model Location   | Stored in       | Stored in the local download path.      | Update model paths in             |
 |                  | registry        | Fast local access.                      | application configuration.        |
 |                  | storage         |                                         |                                   |
