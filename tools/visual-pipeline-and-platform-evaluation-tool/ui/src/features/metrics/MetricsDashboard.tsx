@@ -1,6 +1,7 @@
 import { Activity, Cpu, Gauge, Gpu, Wifi, WifiOff } from "lucide-react";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import { useConnectionStatus } from "@/features/metrics/useConnectionStatus.ts";
+import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
   title: string;
@@ -31,7 +32,7 @@ export const MetricsDashboard = ({ className = "" }: MetricsDashboardProps) => {
   const { isConnected, isConnecting, error } = useConnectionStatus();
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={cn("space-y-4", className)}>
       <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-50">
         {isConnected ? (
           <Wifi className="h-5 w-5 text-green-600" />

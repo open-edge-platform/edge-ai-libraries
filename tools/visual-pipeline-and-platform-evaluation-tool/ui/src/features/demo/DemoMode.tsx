@@ -1,4 +1,11 @@
-import { type WheelEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type WheelEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type PipelineStreamSpec,
   useGetVideosQuery,
@@ -54,6 +61,7 @@ import {
   resolvePipelineVariantLabel,
 } from "@/features/pipeline-tests/pipelineVariantReference";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { cn } from "@/lib/utils";
 
 const nodeTypeToTag: Record<string, string> = {
   // Sources
@@ -164,11 +172,12 @@ const CheckboxInfoHint = ({
   <Tooltip>
     <TooltipTrigger asChild>
       <span
-        className={`inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[0.625rem] font-bold leading-none ${
+        className={cn(
+          "inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[0.625rem] font-bold leading-none",
           muted
             ? "border-slate-600 text-slate-500"
-            : "border-slate-400/70 text-slate-300"
-        }`}
+            : "border-slate-400/70 text-slate-300",
+        )}
       >
         i
       </span>
@@ -292,16 +301,19 @@ const DemoMode = () => {
     variantId: string,
     nodeId: string,
   ) => `${pipelineId}::${variantId}::${nodeId}`;
-  const getSelectedVariantForPipeline = (pipelineId: string) => {
-    const pipeline = pipelines.find((p) => p.id === pipelineId);
-    if (!pipeline || pipeline.variants.length === 0) return null;
+  const getSelectedVariantForPipeline = useCallback(
+    (pipelineId: string) => {
+      const pipeline = pipelines.find((p) => p.id === pipelineId);
+      if (!pipeline || pipeline.variants.length === 0) return null;
 
-    const selectedVariantId = selectedVariantByPipelineId[pipelineId];
-    return (
-      pipeline.variants.find((variant) => variant.id === selectedVariantId) ??
-      pipeline.variants[0]
-    );
-  };
+      const selectedVariantId = selectedVariantByPipelineId[pipelineId];
+      return (
+        pipeline.variants.find((variant) => variant.id === selectedVariantId) ??
+        pipeline.variants[0]
+      );
+    },
+    [pipelines, selectedVariantByPipelineId],
+  );
 
   const selectedPipelineVariants = useMemo(() => {
     return pipelineSelections.map((selection) => ({
@@ -309,12 +321,7 @@ const DemoMode = () => {
       variantId:
         getSelectedVariantForPipeline(selection.pipelineId)?.id ?? null,
     }));
-  }, [
-    pipelineSelections,
-    pipelines,
-    selectedVariantByPipelineId,
-    getSelectedVariantForPipeline,
-  ]);
+  }, [pipelineSelections, getSelectedVariantForPipeline]);
   const inferenceNodeTypes = new Set([
     "gvadetect",
     "gvaclassify",
@@ -1186,20 +1193,26 @@ const DemoMode = () => {
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
           <div className="h-[4.375rem] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
-            <h1 className={`text-xl font-bold ${colors.headerTitle}`}>
+            <h1 className={cn("text-xl font-bold", colors.headerTitle)}>
               Intel® Visual Pipeline and Platform Evaluation Tool (ViPPET)
             </h1>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate("/")}
-                className={`group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
+                className={cn(
+                  "group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100",
+                  colors.exitButton,
+                )}
               >
                 <div className="flex items-center gap-2">
                   <Home
-                    className={`w-5 h-5 group-hover:scale-110 transition-transform ${colors.exitIcon}`}
+                    className={cn(
+                      "w-5 h-5 group-hover:scale-110 transition-transform",
+                      colors.exitIcon,
+                    )}
                   />
                   <span
-                    className={`text-base font-semibold ${colors.exitIcon}`}
+                    className={cn("text-base font-semibold", colors.exitIcon)}
                   >
                     Exit
                   </span>
@@ -1210,7 +1223,10 @@ const DemoMode = () => {
         )}
         {/* MAIN CONTENT */}
         <div
-          className={`relative z-10 p-3 ${demoStep === "selection" ? "h-[calc(100vh-4.375rem)]" : "flex-1"} min-h-0`}
+          className={cn(
+            "relative z-10 p-3 min-h-0",
+            demoStep === "selection" ? "h-[calc(100vh-4.375rem)]" : "flex-1",
+          )}
         >
           {demoStep === "selection" ? (
             /* PIPELINE SELECTION VIEW */
@@ -1250,11 +1266,12 @@ const DemoMode = () => {
                             }
                             setSelectedModels(newSelected);
                           }}
-                          className={`relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9] ${
+                          className={cn(
+                            "relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9]",
                             isSelected
                               ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[0.95]"
-                              : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]"
-                          }`}
+                              : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]",
+                          )}
                         >
                           <CardHeader className="flex-1">
                             <div className="absolute right-3 top-3">
@@ -1276,7 +1293,7 @@ const DemoMode = () => {
                                   setSelectedModels(newSelected);
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className={`w-5 h-5 ${colors.checkbox}`}
+                                className={cn("w-5 h-5", colors.checkbox)}
                               />
                             </div>
                             <CardTitle className="min-h-8 text-slate-200">
@@ -1370,11 +1387,13 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={cn(
+                            "relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer",
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
-                              : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
-                          } ${isReadOnly ? "opacity-70" : ""}`}
+                              : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale",
+                            isReadOnly && "opacity-70",
+                          )}
                         >
                           <CardHeader className="pl-2 pr-2 pt-0 pb-0 -mt-2">
                             <CardTitle className="text-[0.625rem] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[3rem]">
@@ -1412,7 +1431,10 @@ const DemoMode = () => {
                               disabled={
                                 isReadOnly || pipeline.variants.length < 1
                               }
-                              className={`block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[0.625rem] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                              className={cn(
+                                "block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[0.625rem] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                isReadOnly && "opacity-60 cursor-not-allowed",
+                              )}
                             >
                               {pipeline.variants.map((variant) => (
                                 <option key={variant.id} value={variant.id}>
@@ -1459,11 +1481,12 @@ const DemoMode = () => {
                           <button
                             key={idx}
                             onClick={() => setCarouselIndex(idx)}
-                            className={`w-2 h-2 rounded-full transition-all ${
+                            className={cn(
+                              "w-2 h-2 rounded-full transition-all",
                               idx === carouselIndex
                                 ? "bg-blue-500 w-6"
-                                : "bg-slate-600 hover:bg-slate-500"
-                            }`}
+                                : "bg-slate-600 hover:bg-slate-500",
+                            )}
                           />
                         ))}
                       </div>
@@ -1567,11 +1590,12 @@ const DemoMode = () => {
                                       onClick={() =>
                                         setPreviewCarouselIndex(idx)
                                       }
-                                      className={`w-2 h-2 rounded-full transition-all ${
+                                      className={cn(
+                                        "w-2 h-2 rounded-full transition-all",
                                         idx === previewCarouselIndex
                                           ? "bg-blue-500 w-6"
-                                          : "bg-slate-600 hover:bg-slate-500"
-                                      }`}
+                                          : "bg-slate-600 hover:bg-slate-500",
+                                      )}
                                     />
                                   ),
                                 )}
@@ -1585,7 +1609,11 @@ const DemoMode = () => {
 
               const pipelineConfigSection = (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full mt-2 ${pipelineConfigContainerMaxHeightClass} overflow-hidden ${colors.testBorder}`}
+                  className={cn(
+                    "rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full mt-2 overflow-hidden",
+                    pipelineConfigContainerMaxHeightClass,
+                    colors.testBorder,
+                  )}
                 >
                   <Accordion
                     type="single"
@@ -1607,13 +1635,19 @@ const DemoMode = () => {
                     >
                       <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
-                          className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
+                          className={cn(
+                            "text-sm uppercase font-bold tracking-wider",
+                            colors.testTitle,
+                          )}
                         >
                           Pipeline Configuration
                         </span>
                       </AccordionTrigger>
                       <AccordionContent
-                        className={`px-3 pb-3 ${pipelineConfigMaxHeightClass} overflow-y-auto scroll-smooth`}
+                        className={cn(
+                          "px-3 pb-3 overflow-y-auto scroll-smooth",
+                          pipelineConfigMaxHeightClass,
+                        )}
                         onWheel={handleFastScroll}
                       >
                         <div className="pr-1 min-h-[20vh]">
@@ -1833,7 +1867,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                               >
                                                                 <option value="">
                                                                   Select{" "}
@@ -1884,7 +1922,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                               >
                                                                 {videoFilenames.map(
                                                                   (
@@ -1921,7 +1963,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                               >
                                                                 {config.options?.map(
                                                                   (option) => (
@@ -1958,7 +2004,12 @@ const DemoMode = () => {
                                                                   isReadOnly ||
                                                                   !isRoiRegion
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly || !isRoiRegion ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  (isReadOnly ||
+                                                                    !isRoiRegion) &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                                 placeholder={
                                                                   !isRoiRegion
                                                                     ? "Disabled unless roi-list"
@@ -2018,7 +2069,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[3.75rem] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[3.75rem]",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                                 placeholder={
                                                                   config.description
                                                                 }
@@ -2044,7 +2099,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                                 placeholder={
                                                                   config.description
                                                                 }
@@ -2067,7 +2126,11 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={cn(
+                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  isReadOnly &&
+                                                                    "opacity-60 cursor-not-allowed",
+                                                                )}
                                                                 placeholder={
                                                                   config?.description ??
                                                                   "Enter value"
@@ -2106,13 +2169,19 @@ const DemoMode = () => {
                     >
                       <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
-                          className={`text-sm uppercase font-bold tracking-wider ${colors.testTitle}`}
+                          className={cn(
+                            "text-sm uppercase font-bold tracking-wider",
+                            colors.testTitle,
+                          )}
                         >
                           Run Configuration
                         </span>
                       </AccordionTrigger>
                       <AccordionContent
-                        className={`px-3 pb-3 ${runConfigMaxHeightClass} flex flex-col`}
+                        className={cn(
+                          "px-3 pb-3 flex flex-col",
+                          runConfigMaxHeightClass,
+                        )}
                       >
                         <div
                           className="flex-1 min-h-0 overflow-y-auto scroll-smooth"
@@ -2127,11 +2196,12 @@ const DemoMode = () => {
                                     setActiveTest("performance-test")
                                   }
                                   disabled={isReadOnly}
-                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                  className={cn(
+                                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed",
                                     activeTest === "performance-test"
                                       ? "bg-blue-600 text-white"
-                                      : "text-slate-300 hover:text-white"
-                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                      : "text-slate-300 hover:text-white",
+                                  )}
                                 >
                                   Throughput Test
                                 </button>
@@ -2139,11 +2209,12 @@ const DemoMode = () => {
                                   type="button"
                                   onClick={() => setActiveTest("density-test")}
                                   disabled={isReadOnly}
-                                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                  className={cn(
+                                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed",
                                     activeTest === "density-test"
                                       ? "bg-blue-600 text-white"
-                                      : "text-slate-300 hover:text-white"
-                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                      : "text-slate-300 hover:text-white",
+                                  )}
                                 >
                                   Density Test
                                 </button>
@@ -2283,7 +2354,11 @@ const DemoMode = () => {
                                             )
                                           }
                                           disabled={isReadOnly}
-                                          className={`w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                          className={cn(
+                                            "w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin",
+                                            isReadOnly &&
+                                              "opacity-60 cursor-not-allowed",
+                                          )}
                                           placeholder="Minimum FPS threshold"
                                           min={0}
                                         />
@@ -2370,7 +2445,11 @@ const DemoMode = () => {
                                                   String(normalizedValue),
                                                 );
                                               }}
-                                              className={`w-20 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                              className={cn(
+                                                "w-20 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                isReadOnly &&
+                                                  "opacity-60 cursor-not-allowed",
+                                              )}
                                             />
                                             <span className="text-xs text-slate-400">
                                               s
@@ -2396,20 +2475,29 @@ const DemoMode = () => {
                   <button
                     type="button"
                     onClick={() => setDemoStep("selection")}
-                    className={`group relative px-6 py-2.5 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100 ${colors.exitButton}`}
+                    className={cn(
+                      "group relative px-6 py-2.5 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100",
+                      colors.exitButton,
+                    )}
                   >
                     <span
-                      className={`text-base font-semibold ${colors.exitIcon}`}
+                      className={cn("text-base font-semibold", colors.exitIcon)}
                     >
                       Back
                     </span>
                   </button>
                   <button
                     onClick={isRunDisabled ? handleStopTest : handleRunTest}
-                    className={`flex-1 relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100 ${colors.runButton}`}
+                    className={cn(
+                      "flex-1 relative px-4 py-2.5 text-white rounded-lg font-bold tracking-wider text-sm shadow-lg transition-all duration-100",
+                      colors.runButton,
+                    )}
                   >
                     <div
-                      className={`absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-100 ${colors.runButtonOverlay}`}
+                      className={cn(
+                        "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-100",
+                        colors.runButtonOverlay,
+                      )}
                     ></div>
                     <span className="relative">
                       {isRunDisabled ? "Stop" : "Run Test"}
@@ -2420,11 +2508,19 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_1.25rem_rgba(59,130,246,0.15)]" : ""}`}
+                  className={cn(
+                    "rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 animate-[softSlideInRight_0.9s_ease-out]",
+                    colors.gridResultsBorder,
+                    isTestFinished &&
+                      "ring-1 ring-blue-400/30 shadow-[0_0_1.25rem_rgba(59,130,246,0.15)]",
+                  )}
                 >
                   <div className="mb-3 flex-shrink-0">
                     <p
-                      className={`text-sm uppercase font-bold tracking-wider ${colors.gridResultsTitle}`}
+                      className={cn(
+                        "text-sm uppercase font-bold tracking-wider",
+                        colors.gridResultsTitle,
+                      )}
                     >
                       {lastRunTest === "performance-test" &&
                       performanceJobStatus?.state === "RUNNING"
@@ -2439,14 +2535,23 @@ const DemoMode = () => {
                         <div className="mt-1 flex items-center gap-2">
                           <div className="flex gap-1">
                             <div
-                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                              className={cn(
+                                "h-2 w-2 rounded-full animate-bounce",
+                                colors.loadingDots,
+                              )}
                             ></div>
                             <div
-                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                              className={cn(
+                                "h-2 w-2 rounded-full animate-bounce",
+                                colors.loadingDots,
+                              )}
                               style={{ animationDelay: "0.1s" }}
                             ></div>
                             <div
-                              className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                              className={cn(
+                                "h-2 w-2 rounded-full animate-bounce",
+                                colors.loadingDots,
+                              )}
                               style={{ animationDelay: "0.2s" }}
                             ></div>
                           </div>
@@ -2518,19 +2623,31 @@ const DemoMode = () => {
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                               <div
-                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                                className={cn(
+                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  colors.summaryStreamsBorder,
+                                )}
                               >
                                 <div
-                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                                  className={cn(
+                                    "absolute inset-0 animate-[pulse_4s_ease-in-out_infinite]",
+                                    colors.summaryStreamsGradient,
+                                  )}
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={cn(
+                                      "text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5",
+                                      colors.summaryStreamsText,
+                                    )}
                                   >
                                     Total FPS
                                   </p>
                                   <p
-                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                    className={cn(
+                                      "text-2xl font-bold",
+                                      colors.summaryStreamsValueText,
+                                    )}
                                   >
                                     {performanceSummary?.total?.toFixed(2) ??
                                       "N/A"}
@@ -2538,19 +2655,31 @@ const DemoMode = () => {
                                 </div>
                               </div>
                               <div
-                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                                className={cn(
+                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  colors.summaryStreamsBorder,
+                                )}
                               >
                                 <div
-                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                                  className={cn(
+                                    "absolute inset-0 animate-[pulse_4s_ease-in-out_infinite]",
+                                    colors.summaryStreamsGradient,
+                                  )}
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={cn(
+                                      "text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5",
+                                      colors.summaryStreamsText,
+                                    )}
                                   >
                                     Per Stream FPS
                                   </p>
                                   <p
-                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                    className={cn(
+                                      "text-2xl font-bold",
+                                      colors.summaryStreamsValueText,
+                                    )}
                                   >
                                     {performanceSummary?.perStream?.toFixed(
                                       2,
@@ -2584,14 +2713,23 @@ const DemoMode = () => {
                                 <div className="mb-2 flex items-center gap-2">
                                   <div className="flex gap-1">
                                     <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      className={cn(
+                                        "h-2 w-2 rounded-full animate-bounce",
+                                        colors.loadingDots,
+                                      )}
                                     ></div>
                                     <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      className={cn(
+                                        "h-2 w-2 rounded-full animate-bounce",
+                                        colors.loadingDots,
+                                      )}
                                       style={{ animationDelay: "0.1s" }}
                                     ></div>
                                     <div
-                                      className={`h-2 w-2 rounded-full animate-bounce ${colors.loadingDots}`}
+                                      className={cn(
+                                        "h-2 w-2 rounded-full animate-bounce",
+                                        colors.loadingDots,
+                                      )}
                                       style={{ animationDelay: "0.2s" }}
                                     ></div>
                                   </div>
@@ -2651,19 +2789,31 @@ const DemoMode = () => {
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                               <div
-                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryFpsBorder}`}
+                                className={cn(
+                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  colors.summaryFpsBorder,
+                                )}
                               >
                                 <div
-                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryFpsGradient}`}
+                                  className={cn(
+                                    "absolute inset-0 animate-[pulse_4s_ease-in-out_infinite]",
+                                    colors.summaryFpsGradient,
+                                  )}
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                    className={cn(
+                                      "text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5",
+                                      colors.summaryFpsText,
+                                    )}
                                   >
                                     Per Stream FPS
                                   </p>
                                   <p
-                                    className={`text-xl font-bold ${colors.summaryFpsText}`}
+                                    className={cn(
+                                      "text-xl font-bold",
+                                      colors.summaryFpsText,
+                                    )}
                                   >
                                     {testResult.per_stream_fps?.toFixed(2) ??
                                       "N/A"}
@@ -2671,19 +2821,31 @@ const DemoMode = () => {
                                 </div>
                               </div>
                               <div
-                                className={`bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden ${colors.summaryStreamsBorder}`}
+                                className={cn(
+                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  colors.summaryStreamsBorder,
+                                )}
                               >
                                 <div
-                                  className={`absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] ${colors.summaryStreamsGradient}`}
+                                  className={cn(
+                                    "absolute inset-0 animate-[pulse_4s_ease-in-out_infinite]",
+                                    colors.summaryStreamsGradient,
+                                  )}
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={cn(
+                                      "text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5",
+                                      colors.summaryStreamsText,
+                                    )}
                                   >
                                     Total Streams
                                   </p>
                                   <p
-                                    className={`text-2xl font-bold ${colors.summaryStreamsValueText}`}
+                                    className={cn(
+                                      "text-2xl font-bold",
+                                      colors.summaryStreamsValueText,
+                                    )}
                                   >
                                     {testResult.total_streams ?? "N/A"}
                                   </p>

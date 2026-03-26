@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 interface GpuSelectorProps {
   availableGpus: number[];
   onGpuChange: (gpuId: number) => void;
@@ -19,11 +21,12 @@ export const GpuSelector = ({
         <button
           key={gpuId}
           onClick={() => onGpuChange(gpuId)}
-          className={`py-1 text-sm font-medium transition-all text-left whitespace-nowrap ${
+          className={cn(
+            "py-1 text-sm font-medium transition-all text-left whitespace-nowrap",
             selectedGpu === gpuId
               ? "text-gray-900 dark:text-gray-100"
-              : "text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400"
-          }`}
+              : "text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400",
+          )}
         >
           GPU {gpuId}
         </button>

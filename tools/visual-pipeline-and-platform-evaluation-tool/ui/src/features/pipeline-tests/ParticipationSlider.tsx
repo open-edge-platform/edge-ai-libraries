@@ -20,7 +20,10 @@ export const ParticipationSlider = ({
 }: ParticipationSliderProps) => {
   return (
     <div
-      className={`flex items-center gap-3 ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+      className={cn(
+        "flex items-center gap-3",
+        disabled && "opacity-60 cursor-not-allowed",
+      )}
     >
       <span className="text-sm text-neutral-500 min-w-[1rem] text-center font-semibold">
         {min}

@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useMetricHistory.ts";
 import { MetricChart } from "@/features/metrics/MetricChart";
 import { GpuSelector } from "@/features/metrics/GpuSelector";
+import { cn } from "@/lib/utils";
 
 const CHART_MAX_DATA_POINTS = 30;
 
@@ -129,53 +130,63 @@ const MetricCard = ({
   summaryUnitClassName = "text-energy-blue-tint-2",
 }: MetricCardProps) => (
   <div
-    className={`${
-      useDemoStyles
-        ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-        : "bg-background"
-    } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} flex items-center space-x-3 transition-all ${
-      isSummary
-        ? summaryCardClassName
-        : useDemoStyles
-          ? forceDark
-            ? "border border-neutral-800/50"
-            : "border border-border"
-          : ""
-    }`}
+    className={cn(
+      `${
+        useDemoStyles
+          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          : "bg-background"
+      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} flex items-center space-x-3 transition-all ${
+        isSummary
+          ? summaryCardClassName
+          : useDemoStyles
+            ? forceDark
+              ? "border border-neutral-800/50"
+              : "border border-border"
+            : ""
+      }`,
+    )}
   >
     <div
-      className={`shrink-0 p-3 rounded-lg backdrop-blur-sm ${
-        useDemoStyles
-          ? isSummary
-            ? summaryIconClassName
-            : "bg-gradient-to-br from-white/10 to-white/5"
-          : "bg-classic-blue/5 dark:bg-teal-chart p-2 rounded-none"
-      }`}
+      className={cn(
+        `shrink-0 p-3 rounded-lg backdrop-blur-sm ${
+          useDemoStyles
+            ? isSummary
+              ? summaryIconClassName
+              : "bg-gradient-to-br from-white/10 to-white/5"
+            : "bg-classic-blue/5 dark:bg-teal-chart p-2 rounded-none"
+        }`,
+      )}
     >
       {icon}
     </div>
-    <div className={useDemoStyles ? "flex-1" : undefined}>
+    <div className={cn(useDemoStyles && "flex-1")}>
       <h3
-        className={`${
-          useDemoStyles
-            ? `text-[0.6875rem] font-semibold uppercase tracking-widest mb-3 ${
-                isSummary ? summaryTitleClassName : "text-neutral-400"
-              }`
-            : "text-sm font-medium text-foreground mb-2"
-        }`}
+        className={cn(
+          `${
+            useDemoStyles
+              ? `text-[0.6875rem] font-semibold uppercase tracking-widest mb-3 ${
+                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                }`
+              : "text-sm font-medium text-foreground mb-2"
+          }`,
+        )}
       >
         {title}
       </h3>
       <p
-        className={`text-3xl font-bold ${
-          useDemoStyles && forceDark ? "text-white" : "text-foreground"
-        }`}
+        className={cn(
+          `text-3xl font-bold ${
+            useDemoStyles && forceDark ? "text-white" : "text-foreground"
+          }`,
+        )}
       >
         {value.toFixed(2)}
         <span
-          className={`text-sm ml-1.5 font-semibold ${
-            isSummary ? summaryUnitClassName : "text-muted-foreground"
-          }`}
+          className={cn(
+            `text-sm ml-1.5 font-semibold ${
+              isSummary ? summaryUnitClassName : "text-muted-foreground"
+            }`,
+          )}
         >
           {unit}
         </span>
@@ -426,28 +437,32 @@ export const TestProgressIndicator = ({
 
   const powerUsageSection = (
     <div
-      className={`${
-        useDemoStyles
-          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-          : "bg-background"
-      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
-        isSummary
-          ? summarySectionClassName
-          : useDemoStyles
-            ? forceDark
-              ? "border border-neutral-800/50"
-              : "border border-border"
-            : ""
-      }`}
+      className={cn(
+        `${
+          useDemoStyles
+            ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+            : "bg-background"
+        } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+          isSummary
+            ? summarySectionClassName
+            : useDemoStyles
+              ? forceDark
+                ? "border border-neutral-800/50"
+                : "border border-border"
+              : ""
+        }`,
+      )}
     >
       <h3
-        className={`${
-          useDemoStyles
-            ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                isSummary ? summaryTitleClassName : "text-neutral-400"
-              }`
-            : "text-sm font-medium text-foreground mb-5"
-        }`}
+        className={cn(
+          `${
+            useDemoStyles
+              ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
+                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                }`
+              : "text-sm font-medium text-foreground mb-5"
+          }`,
+        )}
       >
         Power Usage Over Time
         {availableGpus.length > 1 && (
@@ -474,7 +489,10 @@ export const TestProgressIndicator = ({
             unit=" W"
             yAxisDomain={[0, gpuPowerYAxisMax]}
             showLegend={true}
-            className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+            className={cn(
+              "!shadow-none !p-0",
+              useDemoStyles && "!bg-transparent !border-0",
+            )}
             labels={["GPU Power", "Package Power"]}
             maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
@@ -489,28 +507,32 @@ export const TestProgressIndicator = ({
 
   const gpuUsageSection = (
     <div
-      className={`${
-        useDemoStyles
-          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-          : "bg-background"
-      } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
-        isSummary
-          ? summarySectionClassName
-          : useDemoStyles
-            ? forceDark
-              ? "border border-neutral-800/50"
-              : "border border-border"
-            : ""
-      }`}
+      className={cn(
+        `${
+          useDemoStyles
+            ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+            : "bg-background"
+        } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+          isSummary
+            ? summarySectionClassName
+            : useDemoStyles
+              ? forceDark
+                ? "border border-neutral-800/50"
+                : "border border-border"
+              : ""
+        }`,
+      )}
     >
       <h3
-        className={`${
-          useDemoStyles
-            ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                isSummary ? summaryTitleClassName : "text-neutral-400"
-              }`
-            : "text-sm font-medium text-foreground mb-5"
-        }`}
+        className={cn(
+          `${
+            useDemoStyles
+              ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
+                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                }`
+              : "text-sm font-medium text-foreground mb-5"
+          }`,
+        )}
       >
         GPU
         {availableGpus.length > 1 && (
@@ -539,7 +561,10 @@ export const TestProgressIndicator = ({
             yAxisDomain={[0, 100]}
             labels={availableEngines.map((e) => engineLabels[e])}
             wrapLegend={true}
-            className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+            className={cn(
+              "!shadow-none !p-0",
+              useDemoStyles && "!bg-transparent !border-0",
+            )}
             maxDataPoints={CHART_MAX_DATA_POINTS}
             isSummary={isSummary}
             hideSummaryBorder={true}
@@ -553,9 +578,11 @@ export const TestProgressIndicator = ({
 
   return (
     <div
-      className={`space-y-4 ${className} text-foreground ${
-        isSummary ? summaryContainerClassName : ""
-      }`}
+      className={cn(
+        `space-y-4 ${className} text-foreground ${
+          isSummary ? summaryContainerClassName : ""
+        }`,
+      )}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <div className="space-y-4">
@@ -677,28 +704,32 @@ export const TestProgressIndicator = ({
           {!useDemoStyles && gpuUsageSection}
           {powerUsageSection}
           <div
-            className={`${
-              useDemoStyles
-                ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
-                : "bg-background"
-            } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
-              isSummary
-                ? summarySectionClassName
-                : useDemoStyles
-                  ? forceDark
-                    ? "border border-neutral-800/50"
-                    : "border border-border"
-                  : ""
-            }`}
+            className={cn(
+              `${
+                useDemoStyles
+                  ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                  : "bg-background"
+              } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
+                isSummary
+                  ? summarySectionClassName
+                  : useDemoStyles
+                    ? forceDark
+                      ? "border border-neutral-800/50"
+                      : "border border-border"
+                    : ""
+              }`,
+            )}
           >
             <h3
-              className={`${
-                useDemoStyles
-                  ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                      isSummary ? summaryTitleClassName : "text-neutral-400"
-                    }`
-                  : "text-sm font-medium text-foreground mb-5"
-              }`}
+              className={cn(
+                `${
+                  useDemoStyles
+                    ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
+                        isSummary ? summaryTitleClassName : "text-neutral-400"
+                      }`
+                    : "text-sm font-medium text-foreground mb-5"
+                }`,
+              )}
             >
               GPU
               {availableGpus.length > 1 && (
@@ -729,7 +760,10 @@ export const TestProgressIndicator = ({
                   yAxisDomain={[0, gpuFrequencyYAxisMax]}
                   showLegend={false}
                   labels={["Frequency"]}
-                  className={`${useDemoStyles ? "!bg-transparent !border-0" : ""} !shadow-none !p-0`}
+                  className={cn(
+                    "!shadow-none !p-0",
+                    useDemoStyles && "!bg-transparent !border-0",
+                  )}
                   maxDataPoints={CHART_MAX_DATA_POINTS}
                   isSummary={isSummary}
                   hideSummaryBorder={true}

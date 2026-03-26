@@ -41,7 +41,10 @@ const SourceNode = ({ data }: SourceNodeProps) => {
             {data.source && (
               <>
                 {data.kind && <span className="text-gray-400">•</span>}
-                <span className="truncate max-w-[11.5625rem]" title={data.source}>
+                <span
+                  className="truncate max-w-[11.5625rem]"
+                  title={data.source}
+                >
                   {data.source}
                 </span>
               </>

@@ -2,7 +2,6 @@ import { useGetVideosQuery } from "@/api/api.generated.ts";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,

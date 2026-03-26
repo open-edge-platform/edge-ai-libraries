@@ -34,7 +34,7 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
-import { formatErrorMessage } from "@/lib/utils.ts";
+import { cn, formatErrorMessage } from "@/lib/utils.ts";
 import {
   parsePipelineVariantReference,
   type PipelineVariantReference,
@@ -293,13 +293,14 @@ export const PerformanceTests = () => {
             return (
               <div
                 key={`${selection.pipelineId}-${index}`}
-                className={`flex items-center gap-3 p-2 border bg-card transition-all duration-300 ${
+                className={cn(
+                  "flex items-center gap-3 p-2 border bg-card transition-all duration-300",
                   selection.isRemoving
                     ? "opacity-0 -translate-y-2"
                     : selection.isNew
                       ? "animate-in fade-in slide-in-from-top-2"
-                      : ""
-                }`}
+                      : "",
+                )}
               >
                 <div className="flex-1 flex items-center gap-4">
                   <div className="flex-1">

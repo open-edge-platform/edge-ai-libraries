@@ -27,6 +27,7 @@ import { DuplicatePipelineDialog } from "./DuplicatePipelineDialog";
 import { CreatePipelineDialog } from "./CreatePipelineDialog.tsx";
 import { usePipelineTagColors } from "@/hooks/usePipelineTagColors";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
+import { cn } from "@/lib/utils";
 
 type PipelineCardsProps = {
   pipelines: Pipeline[];
@@ -80,11 +81,12 @@ export const PipelineCards = ({
         {displayedPipelines.map((pipeline) => (
           <Card
             key={pipeline.id}
-            className={`flex flex-col pt-0 transition-all duration-200 overflow-hidden ${
+            className={cn(
+              "flex flex-col pt-0 transition-all duration-200 overflow-hidden",
               openDropdownId === pipeline.id
                 ? "-translate-y-1 shadow-md"
-                : "hover:-translate-y-1 hover:shadow-md"
-            }`}
+                : "hover:-translate-y-1 hover:shadow-md",
+            )}
           >
             {pipeline.variants.length > 0 && (
               <Link

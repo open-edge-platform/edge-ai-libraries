@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils.ts";
 import { handleApiError } from "@/lib/apiUtils.ts";
+import { cn } from "@/lib/utils";
 
 export const Jobs = () => {
   const location = useLocation();
@@ -151,14 +152,12 @@ export const Jobs = () => {
               <Link
                 key={tab.id}
                 to={tab.path}
-                className={`
-                  py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                  ${
-                    currentTab === tab.id
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-foreground/50 hover:text-foreground hover:border-foreground dark:text-foreground/50 dark:hover:text-foreground"
-                  }
-                `}
+                className={cn(
+                  "py-4 px-1 border-b-2 font-medium text-sm transition-colors",
+                  currentTab === tab.id
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-foreground/50 hover:text-foreground hover:border-foreground dark:text-foreground/50 dark:hover:text-foreground",
+                )}
               >
                 {tab.label}
               </Link>
@@ -182,12 +181,16 @@ export const Jobs = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[8.75rem]">Job ID</TableHead>
-                      <TableHead className="w-[13.75rem]">Input Streams</TableHead>
+                      <TableHead className="w-[13.75rem]">
+                        Input Streams
+                      </TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead className="max-w-[4.375rem] whitespace-normal">Per Stream FPS</TableHead>
+                      <TableHead className="max-w-[4.375rem] whitespace-normal">
+                        Per Stream FPS
+                      </TableHead>
                       <TableHead>Total Streams</TableHead>
                       <TableHead className="w-[7.5rem] min-w-[7.5rem]">
                         Actions
@@ -222,15 +225,16 @@ export const Jobs = () => {
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`px-2 py-1 text-xs font-medium ${
+                            className={cn(
+                              "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                 : job.state === "RUNNING"
                                   ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                   : job.state === "FAILED"
                                     ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                            }`}
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                            )}
                           >
                             {job.state}
                           </span>
@@ -242,7 +246,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           {job.per_stream_fps !== null
@@ -256,7 +262,9 @@ export const Jobs = () => {
                               variant="destructive"
                               size="sm"
                               className="w-full"
-                              onClick={() => void handleStopPerformanceJob(job.id)}
+                              onClick={() =>
+                                void handleStopPerformanceJob(job.id)
+                              }
                               disabled={stoppingPerformanceJobIds.has(job.id)}
                             >
                               {stoppingPerformanceJobIds.has(job.id)
@@ -291,8 +299,12 @@ export const Jobs = () => {
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead className="max-w-[4.375rem] whitespace-normal">Per Stream FPS</TableHead>
-                      <TableHead className="w-[13.75rem]">Stream Distribution</TableHead>
+                      <TableHead className="max-w-[4.375rem] whitespace-normal">
+                        Per Stream FPS
+                      </TableHead>
+                      <TableHead className="w-[13.75rem]">
+                        Stream Distribution
+                      </TableHead>
                       <TableHead className="w-[7.5rem] min-w-[7.5rem]">
                         Actions
                       </TableHead>
@@ -311,15 +323,16 @@ export const Jobs = () => {
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`px-2 py-1 text-xs font-medium ${
+                            className={cn(
+                              "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                 : job.state === "RUNNING"
                                   ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                   : job.state === "FAILED"
                                     ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                            }`}
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                            )}
                           >
                             {job.state}
                           </span>
@@ -331,7 +344,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           {job.per_stream_fps !== null
@@ -341,10 +356,7 @@ export const Jobs = () => {
                         <TableCell className="max-w-[13.75rem] whitespace-normal">
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
-                              <div
-                                key={pipeline.id}
-                                className="text-sm"
-                              >
+                              <div key={pipeline.id} className="text-sm">
                                 <PipelineName pipelineId={pipeline.id} />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
@@ -420,15 +432,16 @@ export const Jobs = () => {
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`px-2 py-1 text-xs font-medium ${
+                            className={cn(
+                              "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
                                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                 : job.state === "RUNNING"
                                   ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                   : job.state === "FAILED"
                                     ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                            }`}
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                            )}
                           >
                             {job.state}
                           </span>
@@ -440,7 +453,9 @@ export const Jobs = () => {
                           {formatElapsedTimeMillis(job.elapsed_time)}
                         </TableCell>
                         <TableCell>
-                          {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
+                          {job.total_fps !== null
+                            ? job.total_fps.toFixed(2)
+                            : "-"}
                         </TableCell>
                         <TableCell className="w-[7.5rem] min-w-[7.5rem]">
                           <span className="text-muted-foreground">-</span>

@@ -72,6 +72,7 @@ import {
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
 import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
+import { cn } from "@/lib/utils";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -559,11 +560,11 @@ export const CreatePipelineDialog = ({
                                   className="cursor-pointer"
                                 >
                                   <Card
-                                    className={`p-4 transition-colors hover:border-primary ${
-                                      selectedTemplate?.id === template.id
-                                        ? "border-primary bg-accent"
-                                        : ""
-                                    }`}
+                                    className={cn(
+                                      "p-4 transition-colors hover:border-primary",
+                                      selectedTemplate?.id === template.id &&
+                                        "border-primary bg-accent",
+                                    )}
                                   >
                                     <div className="flex items-start gap-3">
                                       <RadioGroupItem

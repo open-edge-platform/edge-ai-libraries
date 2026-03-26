@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
+import { cn } from "@/lib/utils";
 
 export const GVAMetaConvertNodeWidth = 270;
 
@@ -41,9 +42,9 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
           </div>
 
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            <span className={!qos ? "line-through" : ""}>qos</span>
+            <span className={cn(!qos && "line-through")}>qos</span>
             <span className="text-gray-400">•</span>
-            <span className={!timestampUtc ? "line-through" : ""}>
+            <span className={cn(!timestampUtc && "line-through")}>
               timestamp-utc
             </span>
             <span className="text-gray-400">•</span>
