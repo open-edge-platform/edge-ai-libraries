@@ -126,7 +126,7 @@ indexing, and audio analysis.
   and forecasting on sensor time-series data.
 
 - [Multi-level Video Understanding Microservice](./microservices/multilevel-video-understanding/)
-  
+
   Microservices providing a multi-level, temporal-enhanced approach to generate high quality summaries for video files, especially for long videos.
 
 ### Data Preparation and Retrieval 
@@ -293,17 +293,17 @@ structured and time-series data.
   with rapid training and low-latency inference.
 
 ### Edge-device Enablement Framework (EEF)
-A comprehensive framework providing hardware abstraction, device management, 
-and deployment tools for edge AI applications. Simplifies cross-platform 
-development and enables consistent deployment across diverse edge hardware 
+A comprehensive framework providing hardware abstraction, device management,
+and deployment tools for edge AI applications. Simplifies cross-platform
+development and enables consistent deployment across diverse edge hardware
 architectures.
 
 - [Edge-device Enablement Framework](./frameworks/edgedevice-enablement-framework)
 
-  Framework for Intel® platform enablement and streamlining 
+  Framework for Intel® platform enablement and streamlining
   edge AI application deployment across heterogeneous device platforms.
 
-  
+
 ## Contribute
 
 To learn how to contribute to the project, see
@@ -329,4 +329,4 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
-| Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/LICENSE) |
+| Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |

@@ -2,6 +2,21 @@
 
 ## Current Release
 
+**Version**: 1.3.2 \
+**Release Date**: 20 March 2026
+
+**Features**:
+
+- Support for Intel® Core™ Ultra Processors (Series 3)
+- Provided support for data and time based search queries
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)
+- Vanilla Kubernetes Cluster
+
+## Previous Releases
+
 **Version**: 1.3.1 \
 **Release Date**: 20 Nov 2025  
 
@@ -13,8 +28,6 @@
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
-
-## Previous Releases
 
 **Version**: 1.3.0 \
 **Release Date**: 14 Nov 2025  

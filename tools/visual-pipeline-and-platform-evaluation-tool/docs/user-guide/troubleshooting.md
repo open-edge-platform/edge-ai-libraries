@@ -12,7 +12,7 @@ the ViPPET application is **restarted**.
 
 For more information about DLSOptimizer behavior and limitations, see the DLSOptimizer limitations section in the
 DL Streamer repository:
-[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/optimizer.md#limitations).
+[DLSOptimizer limitations](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/optimizer.md#limitations).
 
 **If ViPPET is restarted while DLSOptimizer is running:**
 
@@ -73,7 +73,7 @@ lost, and you need to recreate or reimport your custom pipelines and rerun the j
 ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
-[DL Streamer release notes](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/dl-streamer/RELEASE_NOTES.md)
+[DL Streamer release notes](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/release-notes.md)
 
 If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
@@ -123,13 +123,13 @@ Even if some elements are not shown as expected in the UI, the underlying **pipe
 
 ViPPET currently supports only models defined in:
 
-- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
+- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
 
 A user can try to extend this file with new models whose `source` is either `public` or `pipeline-zoo-models`, but
 there is **no guarantee** that such models will work out of the box.
 
 - Models with `source: public` must be supported by the following script:
-  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/download_public_models.md)
+  [download_public_models.sh](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/download_public_models.md)
 - Models with `source: pipeline-zoo-models` must already exist in this repository:
   [pipeline-zoo-models](https://github.com/dlstreamer/pipeline-zoo-models)
 
@@ -201,3 +201,25 @@ port, e.g. `http://localhost:8081`:
       ports:
         - "8081:80"
   ```
+
+---
+
+## 13. Network Camera Discovery does not find cameras
+
+If the ONVIF Discovery service does not find any cameras on the network, check the following:
+
+- Ensure that the cameras are ONVIF‑compliant and support discovery.
+- Verify that the cameras have ONVIF services enabled.
+- Confirm that the cameras are on the same network segment as the ViPPET application.
+- Check for any firewall rules or network configurations that may block discovery traffic.
+
+---
+
+## 14. Network Camera Authentication fails
+
+If you are able to discover network cameras but cannot authenticate to them, check the following:
+
+- Verify that the correct username and password are being used for each camera.
+- Ensure time synchronization between the ViPPET host and the cameras,
+  as some ONVIF implementations require closely synchronized clocks for authentication.
+- Check for any specific ONVIF profiles or settings required by the cameras for authentication.

@@ -155,6 +155,10 @@ spec:
               value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT
               value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.pipelinemanager.env.VLM_CONCURRENT }}{{ end }}"
+            - name: TICK_INTERVAL_MS
+              value: "{{ .Values.pipelinemanager.env.TICK_INTERVAL_MS }}"
+            - name: FAST_TICK_INTERVAL_MS
+              value: "{{ .Values.pipelinemanager.env.FAST_TICK_INTERVAL_MS }}"
             - name: SUMMARIZATION_MAX_COMPLETION_TOKENS
               value: "{{ .Values.pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
             - name: CAPTIONING_MAX_COMPLETION_TOKENS

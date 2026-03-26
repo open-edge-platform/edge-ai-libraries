@@ -55,8 +55,6 @@ CLIP models with sigmoid loss function.
 
 The BLIP-2 handler uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D) to generate compact embeddings.
 
-For detailed architecture and implementation details, see [BLIP-2 Transformers Guide](blip2-transformers-embeddings.md).
-
 ### Qwen Text Embeddings
 
 | Model ID | Hugging Face Repo | Embedding Dimension | Precision | Notes |

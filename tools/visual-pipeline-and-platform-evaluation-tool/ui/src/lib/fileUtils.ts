@@ -28,3 +28,11 @@ export const downloadFile = (
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
+
+export const getFilenameFromPath = (value: unknown): string => {
+  return (
+    String(value ?? "")
+      .split(/[\\/]/)
+      .pop() ?? ""
+  );
+};

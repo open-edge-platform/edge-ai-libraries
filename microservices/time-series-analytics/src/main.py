@@ -112,7 +112,7 @@ def stop_kapacitor_service():
     """Stop the Kapacitor service and all running tasks."""
     response = Response()
     result = health_check(response)
-    if result["status"] != "kapacitor daemon is running":
+    if result["status"] != "Kapacitor daemon is running":
         logger.info("Kapacitor daemon is not running.")
         return
     try:
@@ -136,19 +136,19 @@ def restart_kapacitor():
 
 @app.get("/health")
 def health_check(response: Response):
-    """Get the health status of the kapacitor daemon."""
+    """Get the health status of the Kapacitor daemon."""
     url = f"{KAPACITOR_URL}/kapacitor/v1/ping"
     try:
         # Make an HTTP GET request to the service
         request_response = requests.get(url, timeout=1)
         if request_response.status_code in (200, 204):
-            return {"status": "kapacitor daemon is running"}
+            return {"status": "Kapacitor daemon is running"}
 
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "kapacitor daemon is not running properly"}
+        return {"status": "Kapacitor daemon is not running"}
     except requests.exceptions.ConnectionError:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "Port not accessible and kapacitor daemon not running"}
+        return {"status": "Kapacitor daemon is not running"}
     except requests.exceptions.RequestException:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "An error occurred while checking the service"}
@@ -317,7 +317,7 @@ async def receive_data(data_point: DataPoint):
         logger.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
-        if result["status"] != "kapacitor daemon is running":
+        if result["status"] != "Kapacitor daemon is running":
             logger.warning("Kapacitor daemon is not running.")
             raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")  
         url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
@@ -399,7 +399,15 @@ async def get_config(
         logger.error("Error retrieving configuration: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
 
-@app.post("/config")
+@app.post("/config", responses={
+    413: {"description": "Request payload exceeds the maximum allowed size of 5 KB",
+          "content": {"application/json": {"example": {"error": "Request exceeds the maximum allowed payload size of 5 KB."}}}},
+    422: {"description": "Unprocessable request - invalid or missing fields, invalid device value, "
+                         "or UDF deployment package files are missing from the server",
+          "content": {"application/json": {"example": {"detail": "UDF deployment package validation failed for <udf_name>."}}}},
+    500: {"description": "Failed to write configuration to file",
+          "content": {"application/json": {"example": {"detail": "Failed to write configuration to file"}}}},
+})
 async def config_file_change(config_data: Config, background_tasks: BackgroundTasks):
     """
     Endpoint to handle configuration changes.
@@ -419,7 +427,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     "udfs": {
                         "name": "udf_name",
                         "model": "model_name",
-                        "device": "cpu or gpu"}
+                        "device": "cpu or gpu"},
                     "alerts": {
                     }
                     }
@@ -437,8 +445,20 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                             message:
                                 type: string
                                 example: "Configuration updated successfully"
-        400:
-            description: Invalid input or error processing request
+        413:
+            description: Request payload exceeds the maximum allowed size of 5 KB
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            error:
+                                type: string
+                                example: "Request exceeds the maximum allowed payload size of 5 KB."
+        422:
+            description: >
+                Unprocessable request - invalid or missing fields, invalid device value,
+                or UDF deployment package files are missing from the server
             content:
                 application/json:
                     schema:
@@ -446,7 +466,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                         properties:
                             detail:
                                 type: string
-                                example: "Error message"
+                                example: "UDF deployment package validation failed for <udf_name>."
         500:
             description: Failed to write configuration to file
             content:
@@ -480,7 +500,20 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                 error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
                 logger.error(error_msg)
                 raise HTTPException(status_code=422, detail=error_msg)
-                
+
+        if os.getenv("SAMPLE_APP") is not None:
+            dir_name = os.getenv("SAMPLE_APP")
+        else:
+            dir_name = config_data.udfs["name"]
+        if not classifier_startup.kapacitor_classifier.check_udf_package(config_data.model_dump(), dir_name):
+            error_msg = (
+                f"UDF deployment package validation failed for {config_data.udfs['name']}. "
+                "Please check and upload/copy the UDF deployment package with correct structure and files."
+            )
+            logger.error(error_msg)
+            raise HTTPException(status_code=422, detail=error_msg)
+        logger.info("UDF deployment package %s validated successfully.", config_data.udfs["name"])        
+
         config["udfs"] = {}
         config["alerts"] = {}
         config["udfs"] = config_data.udfs
