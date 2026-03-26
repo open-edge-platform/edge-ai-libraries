@@ -7,24 +7,22 @@ The microservice is optimized for performance and scalability, supporting batch 
 ## Documentation
 
 - **Overview**
-  - [Overview](docs/user-guide/Overview.md): A high-level introduction to the microservice architecture and capabilities.
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the microservice architecture and capabilities.
 
 - **Getting Started**
-  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.
-  - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the microservice.
+  - [Get Started](./docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
+  - [How to Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
 
 - **Usage**
-  - [SDK Usage](docs/user-guide/sdk-usage.md): Complete guide for using the service as a Python SDK.
-  - [Wheel Installation](docs/user-guide/wheel-installation.md): Comprehensive guide for building and installing as a Python wheel package.
-  - [Supported Models](docs/user-guide/supported-models.md): Complete list of supported models and their configurations.
-  
-- **Deployment**
-  - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
-  
+  - [SDK Usage](./docs/user-guide/sdk-usage.md): Complete guide for using the service as a Python SDK.
+  - [Wheel Installation](./docs/user-guide/wheel-installation.md): Comprehensive guide for building and installing as a Python wheel package.
+  - [Supported Models](./docs/user-guide/supported-models.md): Complete list of supported models and their configurations.
+
 - **API Reference**
-  - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
+  - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
 
 - **Release Notes**
-  - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
+  - [Release Notes](./docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
 
-See [Get Started](docs/user-guide/get-started.md) for detailed setup instructions.
+See [Get Started](./docs/user-guide/get-started.md) for detailed setup instructions.
