@@ -12,7 +12,7 @@ type SourceNodeProps = {
 
 const SourceNode = ({ data }: SourceNodeProps) => {
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[330px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[20.625rem]">
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-blue-100 dark:bg-blue-900 flex items-center justify-center self-center">
           <svg
@@ -41,7 +41,7 @@ const SourceNode = ({ data }: SourceNodeProps) => {
             {data.source && (
               <>
                 {data.kind && <span className="text-gray-400">•</span>}
-                <span className="truncate max-w-[185px]" title={data.source}>
+                <span className="truncate max-w-[11.5625rem]" title={data.source}>
                   {data.source}
                 </span>
               </>

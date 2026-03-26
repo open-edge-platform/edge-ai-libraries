@@ -10,7 +10,7 @@ type SplitMuxSinkNodeProps = {
 };
 
 const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[255px]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-sky-400 min-w-[15.9375rem]">
     <div className="flex gap-3">
       <div className="shrink-0 w-10 h-10 rounded bg-sky-100 dark:bg-sky-900 flex items-center justify-center self-center">
         <svg
@@ -35,7 +35,7 @@ const SplitMuxSinkNode = ({ data }: SplitMuxSinkNodeProps) => (
 
         <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
           {data.location && (
-            <span className="max-w-[165px] truncate" title={data.location}>
+            <span className="max-w-[10.3125rem] truncate" title={data.location}>
               {data.location}
             </span>
           )}

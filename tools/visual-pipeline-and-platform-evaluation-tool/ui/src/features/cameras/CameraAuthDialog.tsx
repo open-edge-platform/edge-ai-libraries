@@ -81,7 +81,7 @@ export const CameraAuthDialog = ({
       <DialogTrigger asChild>
         <Button size="sm">Authorize</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[31.25rem]">
         <DialogHeader>
           <DialogTitle>Authorize Camera</DialogTitle>
           <DialogDescription>

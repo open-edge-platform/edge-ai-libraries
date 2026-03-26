@@ -393,7 +393,7 @@ export const PerformanceTests = () => {
           <div className="flex items-center gap-6 flex-wrap">
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
                   <Checkbox
                     checked={videoOutputEnabled}
                     disabled={isRunning}
@@ -421,7 +421,7 @@ export const PerformanceTests = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
                   <Checkbox
                     checked={livePreviewEnabled}
                     disabled={isRunning}
@@ -446,7 +446,7 @@ export const PerformanceTests = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
                   <Checkbox
                     checked={loopingEnabled}
                     disabled={
@@ -538,7 +538,7 @@ export const PerformanceTests = () => {
           <button
             onClick={handleStopTest}
             disabled={isStopping}
-            className="w-[160px] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            className="w-[10rem] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
             title="Stop test"
           >
             <Square className="w-5 h-5" />

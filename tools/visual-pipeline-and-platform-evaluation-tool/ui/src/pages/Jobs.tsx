@@ -181,15 +181,15 @@ export const Jobs = () => {
                 <Table className="mb-10 border-separate border-spacing-4">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[140px]">Job ID</TableHead>
-                      <TableHead className="w-[220px]">Input Streams</TableHead>
+                      <TableHead className="w-[8.75rem]">Job ID</TableHead>
+                      <TableHead className="w-[13.75rem]">Input Streams</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead className="max-w-[70px] whitespace-normal">Per Stream FPS</TableHead>
+                      <TableHead className="max-w-[4.375rem] whitespace-normal">Per Stream FPS</TableHead>
                       <TableHead>Total Streams</TableHead>
-                      <TableHead className="w-[120px] min-w-[120px]">
+                      <TableHead className="w-[7.5rem] min-w-[7.5rem]">
                         Actions
                       </TableHead>
                     </TableRow>
@@ -197,7 +197,7 @@ export const Jobs = () => {
                   <TableBody>
                     {performanceJobs.map((job) => (
                       <TableRow key={job.id}>
-                        <TableCell className="font-mono text-xs max-w-[140px]">
+                        <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/performance/${job.id}`}
                             className="block truncate text-classic-blue hover:text-classic-blue-hover dark:text-energy-blue dark:hover:text-energy-blue-shade-1 hover:underline"
@@ -205,7 +205,7 @@ export const Jobs = () => {
                             {job.id}
                           </Link>
                         </TableCell>
-                        <TableCell className="max-w-[170px] whitespace-normal">
+                        <TableCell className="max-w-[10.625rem] whitespace-normal">
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div
@@ -250,7 +250,7 @@ export const Jobs = () => {
                             : "-"}
                         </TableCell>
                         <TableCell>{job.total_streams ?? "-"}</TableCell>
-                        <TableCell className="w-[120px] min-w-[120px]">
+                        <TableCell className="w-[7.5rem] min-w-[7.5rem]">
                           {job.state === "RUNNING" ? (
                             <Button
                               variant="destructive"
@@ -286,14 +286,14 @@ export const Jobs = () => {
                 <Table className="mb-10 border-spacing-4">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[140px]">Job ID</TableHead>
+                      <TableHead className="w-[8.75rem]">Job ID</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead className="max-w-[70px] whitespace-normal">Per Stream FPS</TableHead>
-                      <TableHead className="w-[220px]">Stream Distribution</TableHead>
-                      <TableHead className="w-[120px] min-w-[120px]">
+                      <TableHead className="max-w-[4.375rem] whitespace-normal">Per Stream FPS</TableHead>
+                      <TableHead className="w-[13.75rem]">Stream Distribution</TableHead>
+                      <TableHead className="w-[7.5rem] min-w-[7.5rem]">
                         Actions
                       </TableHead>
                     </TableRow>
@@ -301,7 +301,7 @@ export const Jobs = () => {
                   <TableBody>
                     {densityJobs.map((job) => (
                       <TableRow key={job.id}>
-                        <TableCell className="font-mono text-xs max-w-[140px]">
+                        <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/density/${job.id}`}
                             className="block truncate text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
@@ -338,7 +338,7 @@ export const Jobs = () => {
                             ? job.per_stream_fps.toFixed(2)
                             : "-"}
                         </TableCell>
-                        <TableCell className="max-w-[220px] whitespace-normal">
+                        <TableCell className="max-w-[13.75rem] whitespace-normal">
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div
@@ -353,7 +353,7 @@ export const Jobs = () => {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell className="w-[120px] min-w-[120px]">
+                        <TableCell className="w-[7.5rem] min-w-[7.5rem]">
                           {job.state === "RUNNING" ? (
                             <Button
                               variant="destructive"
@@ -391,13 +391,13 @@ export const Jobs = () => {
                 <Table className="mb-10 border-separate border-spacing-4">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[140px]">Job ID</TableHead>
+                      <TableHead className="w-[8.75rem]">Job ID</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Start Time</TableHead>
                       <TableHead>Elapsed Time</TableHead>
                       <TableHead>Total FPS</TableHead>
-                      <TableHead className="w-[120px] min-w-[120px]">
+                      <TableHead className="w-[7.5rem] min-w-[7.5rem]">
                         Actions
                       </TableHead>
                     </TableRow>
@@ -405,7 +405,7 @@ export const Jobs = () => {
                   <TableBody>
                     {optimizationJobs.map((job) => (
                       <TableRow key={job.id}>
-                        <TableCell className="font-mono text-xs max-w-[140px]">
+                        <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/optimize/${job.id}`}
                             className="block truncate text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
@@ -442,7 +442,7 @@ export const Jobs = () => {
                         <TableCell>
                           {job.total_fps !== null ? job.total_fps.toFixed(2) : "-"}
                         </TableCell>
-                        <TableCell className="w-[120px] min-w-[120px]">
+                        <TableCell className="w-[7.5rem] min-w-[7.5rem]">
                           <span className="text-muted-foreground">-</span>
                         </TableCell>
                       </TableRow>

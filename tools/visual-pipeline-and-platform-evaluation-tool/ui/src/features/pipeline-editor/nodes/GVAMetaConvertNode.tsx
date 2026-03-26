@@ -17,7 +17,7 @@ const GVAMetaConvertNode = ({ data }: GVAMetaConvertNodeProps) => {
   const format = data.format ?? "json";
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-cyan-400 min-w-[270px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-cyan-400 min-w-[16.875rem]">
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-cyan-100 dark:bg-cyan-900 flex items-center justify-center self-center">
           <svg

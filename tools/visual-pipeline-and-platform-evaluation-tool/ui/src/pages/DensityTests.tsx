@@ -385,7 +385,7 @@ export const DensityTests = () => {
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
-                <label className="flex items-center gap-2 cursor-pointer h-[42px]">
+                <label className="flex items-center gap-2 cursor-pointer h-[2.625rem]">
                   <Checkbox
                     checked={loopingEnabled}
                     disabled={isRunning}
@@ -406,7 +406,7 @@ export const DensityTests = () => {
           </div>
 
           {loopingEnabled && (
-            <div className="flex items-center gap-2 h-[42px]">
+            <div className="flex items-center gap-2 h-[2.625rem]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
                 type="text"
@@ -455,7 +455,7 @@ export const DensityTests = () => {
             onClick={handleStopTest}
             disabled={isStopping}
             variant="destructive"
-            className="w-[160px]"
+            className="w-[10rem]"
             title="Stop test"
           >
             <Square className="w-5 h-5" />

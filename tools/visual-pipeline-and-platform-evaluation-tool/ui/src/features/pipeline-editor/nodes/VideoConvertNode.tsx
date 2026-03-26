@@ -4,7 +4,7 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 export const VideoConvertNodeWidth = 235;
 
 const VideoConvertNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-amber-400 min-w-[235px]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-amber-400 min-w-[14.6875rem]">
     <div className="flex gap-3">
       <div className="shrink-0 w-10 h-10 rounded bg-amber-100 dark:bg-amber-900 flex items-center justify-center self-center">
         <svg

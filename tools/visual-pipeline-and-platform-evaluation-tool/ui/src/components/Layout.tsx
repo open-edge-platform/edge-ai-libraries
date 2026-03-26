@@ -26,7 +26,7 @@ const Layout = () => {
       <SidebarProvider>
         <Navigation />
         <SidebarInset>
-          <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
+          <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
               <Separator

@@ -4,7 +4,7 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 export const GVAWatermarkNodeWidth = 255;
 
 const GVAWatermarkNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-pink-400 min-w-[255px]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-pink-400 min-w-[15.9375rem]">
     <div className="flex gap-3">
       <div className="shrink-0 w-10 h-10 rounded bg-pink-100 dark:bg-pink-900 flex items-center justify-center self-center">
         <svg

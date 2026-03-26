@@ -2,7 +2,7 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VAH264DecNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-orange-400 min-w-[220px]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-orange-400 min-w-[13.75rem]">
     <div className="flex gap-3">
       <div className="shrink-0 w-10 h-10 rounded bg-orange-100 dark:bg-orange-900 flex items-center justify-center self-center">
         <svg

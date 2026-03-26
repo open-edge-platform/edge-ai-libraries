@@ -6,7 +6,7 @@ const FakeSinkNode = () => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[220px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-gray-400 min-w-[13.75rem]">
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center self-center">
           <svg

@@ -39,13 +39,13 @@ export const PipelineStreamsSummary = ({
             <div className="absolute inset-0 animate-[pulse_4s_ease-in-out_infinite] bg-gradient-to-r from-blue-500/10 via-blue-400/5 to-cyan-400/10" />
             <div className="relative min-w-0">
               <div className="min-w-0 flex items-center gap-2">
-                <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-blue-200">
+                <span className="truncate text-[0.625rem] font-semibold uppercase tracking-wider text-blue-200">
                   {pipelineName}
                 </span>
                 {variantName && (
                   <>
-                    <span className="text-[10px] text-blue-300/90">•</span>
-                    <span className="truncate text-[10px] font-medium uppercase tracking-wider text-blue-300/90">
+                    <span className="text-[0.625rem] text-blue-300/90">•</span>
+                    <span className="truncate text-[0.625rem] font-medium uppercase tracking-wider text-blue-300/90">
                       {variantName}
                     </span>
                   </>

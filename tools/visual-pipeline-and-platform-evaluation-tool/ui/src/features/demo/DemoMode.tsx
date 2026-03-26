@@ -164,7 +164,7 @@ const CheckboxInfoHint = ({
   <Tooltip>
     <TooltipTrigger asChild>
       <span
-        className={`inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[10px] font-bold leading-none ${
+        className={`inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[0.625rem] font-bold leading-none ${
           muted
             ? "border-slate-600 text-slate-500"
             : "border-slate-400/70 text-slate-300"
@@ -176,7 +176,7 @@ const CheckboxInfoHint = ({
     <TooltipContent
       side="right"
       sideOffset={8}
-      className="max-w-[260px] border border-slate-700 bg-slate-900 text-slate-100"
+      className="max-w-[16.25rem] border border-slate-700 bg-slate-900 text-slate-100"
     >
       {description}
     </TooltipContent>
@@ -1185,7 +1185,7 @@ const DemoMode = () => {
       <div className="relative z-10 h-full flex flex-col bg-transparent min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
-          <div className="h-[70px] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
+          <div className="h-[4.375rem] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
             <h1 className={`text-xl font-bold ${colors.headerTitle}`}>
               Intel® Visual Pipeline and Platform Evaluation Tool (ViPPET)
             </h1>
@@ -1210,7 +1210,7 @@ const DemoMode = () => {
         )}
         {/* MAIN CONTENT */}
         <div
-          className={`relative z-10 p-3 ${demoStep === "selection" ? "h-[calc(100vh-70px)]" : "flex-1"} min-h-0`}
+          className={`relative z-10 p-3 ${demoStep === "selection" ? "h-[calc(100vh-4.375rem)]" : "flex-1"} min-h-0`}
         >
           {demoStep === "selection" ? (
             /* PIPELINE SELECTION VIEW */
@@ -1354,7 +1354,7 @@ const DemoMode = () => {
               );
 
               const pipelineCardsSection = (
-                <div className="relative h-[215px]">
+                <div className="relative h-[13.4375rem]">
                   <div className="grid grid-cols-4 gap-2 h-full">
                     {visiblePipelines.map((selection) => {
                       const pipeline = pipelines.find(
@@ -1370,14 +1370,14 @@ const DemoMode = () => {
                           onClick={() =>
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
-                          className={`relative flex w-full max-h-[215px] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
+                          className={`relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer ${
                             isSelected
                               ? "border-blue-500 ring-2 ring-blue-500/50"
                               : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale"
                           } ${isReadOnly ? "opacity-70" : ""}`}
                         >
                           <CardHeader className="pl-2 pr-2 pt-0 pb-0 -mt-2">
-                            <CardTitle className="text-[10px] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[3rem]">
+                            <CardTitle className="text-[0.625rem] text-slate-200 leading-tight text-center font-semibold line-clamp-2 min-h-[3rem]">
                               {getBasePipelineName(pipeline.name)}
                             </CardTitle>
                           </CardHeader>
@@ -1385,11 +1385,11 @@ const DemoMode = () => {
                             <img
                               src={pipeline.thumbnail || thumbnailPlaceholder}
                               alt={pipeline.name}
-                              className="w-full max-w-[110px] aspect-[4/3] object-cover rounded-md mx-auto"
+                              className="w-full max-w-[6.875rem] aspect-[4/3] object-cover rounded-md mx-auto"
                             />
                           </div>
                           <div className="mt-auto px-1 pb-0">
-                            <p className="ml-3 -mt-2 mb-1 text-[8px] font-semibold uppercase tracking-wide text-slate-400">
+                            <p className="ml-3 -mt-2 mb-1 text-[0.5rem] font-semibold uppercase tracking-wide text-slate-400">
                               Best known configurations
                             </p>
                             <select
@@ -1412,7 +1412,7 @@ const DemoMode = () => {
                               disabled={
                                 isReadOnly || pipeline.variants.length < 1
                               }
-                              className={`block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                              className={`block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[0.625rem] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               {pipeline.variants.map((variant) => (
                                 <option key={variant.id} value={variant.id}>
@@ -1490,7 +1490,7 @@ const DemoMode = () => {
 
                       return (
                         <div className="relative rounded-lg border border-slate-400/30 p-3 bg-slate-950/30 mb-3">
-                          <div className="grid grid-cols-2 gap-3 min-h-[280px]">
+                          <div className="grid grid-cols-2 gap-3 min-h-[17.5rem]">
                             {visiblePreviews.map((selection, localIdx) => {
                               const pipeline = pipelines.find(
                                 (p) => p.id === selection.pipelineId,
@@ -1514,7 +1514,7 @@ const DemoMode = () => {
                                   <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
                                     {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
                                   </p>
-                                  <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[220px]">
+                                  <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[13.75rem]">
                                     <div className="w-full h-full">
                                       {streamUrl ? (
                                         <WebRTCVideoPlayer
@@ -2018,7 +2018,7 @@ const DemoMode = () => {
                                                                 disabled={
                                                                   isReadOnly
                                                                 }
-                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[60px] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+                                                                className={`w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[3.75rem] ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
                                                                 placeholder={
                                                                   config.description
                                                                 }
@@ -2172,7 +2172,7 @@ const DemoMode = () => {
                                                     )
                                                   : "Pipeline"}
                                               </span>
-                                              <span className="text-[10px] text-slate-500">
+                                              <span className="text-[0.625rem] text-slate-500">
                                                 Streams
                                               </span>
                                             </div>
@@ -2246,7 +2246,7 @@ const DemoMode = () => {
                                                     )
                                                   : "Pipeline"}
                                               </span>
-                                              <span className="text-[10px] text-slate-500">
+                                              <span className="text-[0.625rem] text-slate-500">
                                                 Participation rate
                                               </span>
                                             </div>
@@ -2420,7 +2420,7 @@ const DemoMode = () => {
 
               const resultsSection = showResultsPanel ? (
                 <div
-                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : ""}`}
+                  className={`rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 ${colors.gridResultsBorder} animate-[softSlideInRight_0.9s_ease-out] ${isTestFinished ? "ring-1 ring-blue-400/30 shadow-[0_0_1.25rem_rgba(59,130,246,0.15)]" : ""}`}
                 >
                   <div className="mb-3 flex-shrink-0">
                     <p
@@ -2525,7 +2525,7 @@ const DemoMode = () => {
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
                                   >
                                     Total FPS
                                   </p>
@@ -2545,7 +2545,7 @@ const DemoMode = () => {
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
                                   >
                                     Per Stream FPS
                                   </p>
@@ -2658,7 +2658,7 @@ const DemoMode = () => {
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
+                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryFpsText}`}
                                   >
                                     Per Stream FPS
                                   </p>
@@ -2678,7 +2678,7 @@ const DemoMode = () => {
                                 ></div>
                                 <div className="relative text-center">
                                   <p
-                                    className={`text-[9px] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
+                                    className={`text-[0.5625rem] font-semibold uppercase tracking-wider mb-0.5 ${colors.summaryStreamsText}`}
                                   >
                                     Total Streams
                                   </p>
@@ -2811,17 +2811,17 @@ const DemoMode = () => {
         .no-spin {
           -moz-appearance: textfield;
         }
-        @keyframes float {0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+        @keyframes float {0%,100%{transform:translateY(0);}50%{transform:translateY(-0.375rem);}}
         @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
         @keyframes spin_reverse {0%{transform:rotate(360deg);}100%{transform:rotate(0deg);}}
         @keyframes fadeIn {from{opacity:0;}to{opacity:1;}}
-        @keyframes slideInLeft {from{opacity:0;transform:translateX(-100px);}to{opacity:1;transform:translateX(0);}}
-        @keyframes slideInRight {from{opacity:0;transform:translateX(100px);}to{opacity:1;transform:translateX(0);}}
-        @keyframes softSlideInLeft {from{opacity:0;transform:translateX(-40px) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
-        @keyframes softSlideInRight {from{opacity:0;transform:translateX(40px) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
+        @keyframes slideInLeft {from{opacity:0;transform:translateX(-6.25rem);}to{opacity:1;transform:translateX(0);}}
+        @keyframes slideInRight {from{opacity:0;transform:translateX(6.25rem);}to{opacity:1;transform:translateX(0);}}
+        @keyframes softSlideInLeft {from{opacity:0;transform:translateX(-2.5rem) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
+        @keyframes softSlideInRight {from{opacity:0;transform:translateX(2.5rem) scale(0.98);}to{opacity:1;transform:translateX(0) scale(1);}}
         @keyframes gridAppear {from{opacity:0;}to{opacity:1;}}
         @keyframes slideToPosition {from{opacity:0;transform:scale(1.2);}to{opacity:1;transform:scale(1);}}
-        @keyframes slideUp {from{opacity:0;transform:translateY(50px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes slideUp {from{opacity:0;transform:translateY(3.125rem);}to{opacity:1;transform:translateY(0);}}
         @keyframes gradientShift {0%{background-position:0% 50%;}25%{background-position:100% 50%;}50%{background-position:100% 100%;}75%{background-position:0% 100%;}100%{background-position:0% 50%;}background-size:200% 200%;}
       `}</style>
     </div>

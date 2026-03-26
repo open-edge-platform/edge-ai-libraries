@@ -14,7 +14,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 /**
  * Calculates how many cards can fit in one row based on the container width.
- * Takes into account the grid's auto-fit behavior with minmax(300px, 1fr) and accounts
+ * Takes into account the grid's auto-fit behavior with minmax(18.75rem, 1fr) and accounts
  * for the "Create" card. Uses ResizeObserver to recalculate on container resize.
  */
 const useVisibleCardsCount = (

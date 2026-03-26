@@ -14,7 +14,7 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[260px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[16.25rem]">
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-blue-100 dark:bg-blue-900 flex items-center justify-center self-center">
           <svg
@@ -38,7 +38,7 @@ const FileSrcNode = ({ data }: FileSrcNodeProps) => {
           </div>
 
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
-            <span className="truncate max-w-[170px]" title={data.location}>
+            <span className="truncate max-w-[10.625rem]" title={data.location}>
               {data.location.split("/").pop() || data.location}
             </span>
           </div>

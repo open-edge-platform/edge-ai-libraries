@@ -454,7 +454,7 @@ export const PipelineEditor = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
-        <header className="flex h-[60px] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
+        <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
             <Link
               to={source === "dashboard" ? "/" : "/pipelines"}
@@ -552,7 +552,7 @@ export const PipelineEditor = () => {
 
                 <PopoverContent
                   align="start"
-                  className="w-[420px] p-4 rounded-none"
+                  className="w-[26.25rem] p-4 rounded-none"
                 >
                   <div className="space-y-4">
                     <div className="space-y-2">

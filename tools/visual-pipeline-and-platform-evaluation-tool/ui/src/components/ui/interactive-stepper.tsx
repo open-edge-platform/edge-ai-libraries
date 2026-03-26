@@ -497,8 +497,8 @@ export const InteractiveStepperSeparator = React.forwardRef<
 
   const separatorClasses = cn(
     className,
-    isCompleted ? "w-[2px] bg-primary" : "bg-muted",
-    orientation === "horizontal" ? "h-[0px] flex-1" : "w-[1px] h-10 ml-[17px]",
+    isCompleted ? "w-[0.125rem] bg-primary" : "bg-muted",
+    orientation === "horizontal" ? "h-[0rem] flex-1" : "w-[0.0625rem] h-10 ml-[1.0625rem]",
   );
 
   return <div ref={ref} className={separatorClasses} {...props} />;

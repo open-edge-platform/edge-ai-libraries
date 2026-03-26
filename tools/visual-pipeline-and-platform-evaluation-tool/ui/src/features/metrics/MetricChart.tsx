@@ -147,7 +147,7 @@ export const MetricChart = ({
         <h3
           className={`${
             useDemoStyles
-              ? `text-[10px] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
+              ? `text-[0.625rem] font-semibold uppercase tracking-widest ${isCompact ? "mb-6" : "mb-10"} ${
                   isSummary && !hideSummaryBorder
                     ? summaryTitleClassName
                     : "text-neutral-400"
@@ -163,10 +163,10 @@ export const MetricChart = ({
           config={chartConfig}
           className={
             isCompact
-              ? "h-[80px] w-full"
+              ? "h-[5rem] w-full"
               : useDemoStyles
-                ? "h-[250px] w-full"
-                : "h-[230px] w-full"
+                ? "h-[15.625rem] w-full"
+                : "h-[14.375rem] w-full"
           }
         >
           <AreaChart data={formattedData}>
@@ -223,7 +223,7 @@ export const MetricChart = ({
               <ChartLegend
                 content={
                   <ChartLegendContent
-                    className={`${useDemoStyles ? (forceDark ? "text-white" : "text-foreground") : "text-foreground"} text-[8px] ${wrapLegend ? "flex-wrap gap-x-3 gap-y-1" : ""}`}
+                    className={`${useDemoStyles ? (forceDark ? "text-white" : "text-foreground") : "text-foreground"} text-[0.5rem] ${wrapLegend ? "flex-wrap gap-x-3 gap-y-1" : ""}`}
                   />
                 }
               />
@@ -243,7 +243,7 @@ export const MetricChart = ({
           </AreaChart>
         </ChartContainer>
         <div
-          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[30px]" : isCompact ? "bottom-[-8px]" : "bottom-0"}`}
+          className={`absolute right-0 pb-2 ${showLegend ? "bottom-[1.875rem]" : isCompact ? "bottom-[-0.5rem]" : "bottom-0"}`}
         >
           <span className="text-xs text-neutral-500 font-semibold">
             {totalTime}

@@ -28,7 +28,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="h-[60px] group-data-[collapsible=icon]:h-[60px] hover:bg-transparent active:bg-transparent pl-[7px]">
+            <SidebarMenuButton className="h-[3.75rem] group-data-[collapsible=icon]:h-[3.75rem] hover:bg-transparent active:bg-transparent pl-[0.4375rem]">
               <img
                 src={theme === "dark" ? logoDark : logoLight}
                 alt="Intel"

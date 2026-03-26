@@ -12,7 +12,7 @@ type GVAMetaPublishNodeProps = {
 };
 
 const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-emerald-400 min-w-[265px]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-emerald-400 min-w-[16.5625rem]">
     <div className="flex gap-3">
       <div className="shrink-0 w-10 h-10 rounded bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center self-center">
         <svg

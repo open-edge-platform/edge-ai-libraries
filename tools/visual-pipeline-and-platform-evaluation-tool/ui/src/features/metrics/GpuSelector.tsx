@@ -14,7 +14,7 @@ export const GpuSelector = ({
   }
 
   return (
-    <div className="flex flex-col justify-evenly h-[240px]">
+    <div className="flex flex-col justify-evenly h-[15rem]">
       {availableGpus.map((gpuId) => (
         <button
           key={gpuId}

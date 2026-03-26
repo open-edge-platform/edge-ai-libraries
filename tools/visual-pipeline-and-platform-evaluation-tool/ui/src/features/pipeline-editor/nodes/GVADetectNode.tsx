@@ -16,7 +16,7 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-indigo-400 min-w-[280px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-indigo-400 min-w-[17.5rem]">
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center self-center">
           <svg
@@ -52,7 +52,7 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
               <>
                 {data.device && <span className="text-gray-400">•</span>}
                 <span
-                  className="truncate max-w-[165px]"
+                  className="truncate max-w-[10.3125rem]"
                   title={data.model.split("/").pop() || data.model}
                 >
                   {data.model.split("/").pop() || data.model}

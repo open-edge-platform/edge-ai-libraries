@@ -16,7 +16,7 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-purple-400 min-w-[300px]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-purple-400 min-w-[18.75rem]">
       <div className="flex gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded bg-purple-100 dark:bg-purple-900 flex items-center justify-center self-center">
           <svg
@@ -46,7 +46,7 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
               <>
                 {data.device && <span className="text-gray-400">•</span>}
                 <span
-                  className="truncate max-w-[185px]"
+                  className="truncate max-w-[11.5625rem]"
                   title={data.model.split("/").pop() ?? data.model}
                 >
                   {data.model.split("/").pop() ?? data.model}

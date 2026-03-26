@@ -158,7 +158,7 @@ const MetricCard = ({
       <h3
         className={`${
           useDemoStyles
-            ? `text-[11px] font-semibold uppercase tracking-widest mb-3 ${
+            ? `text-[0.6875rem] font-semibold uppercase tracking-widest mb-3 ${
                 isSummary ? summaryTitleClassName : "text-neutral-400"
               }`
             : "text-sm font-medium text-foreground mb-2"
@@ -443,7 +443,7 @@ export const TestProgressIndicator = ({
       <h3
         className={`${
           useDemoStyles
-            ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+            ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
                 isSummary ? summaryTitleClassName : "text-neutral-400"
               }`
             : "text-sm font-medium text-foreground mb-5"
@@ -506,7 +506,7 @@ export const TestProgressIndicator = ({
       <h3
         className={`${
           useDemoStyles
-            ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+            ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
                 isSummary ? summaryTitleClassName : "text-neutral-400"
               }`
             : "text-sm font-medium text-foreground mb-5"
@@ -694,7 +694,7 @@ export const TestProgressIndicator = ({
             <h3
               className={`${
                 useDemoStyles
-                  ? `text-[10px] font-semibold uppercase tracking-widest mb-6 ${
+                  ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
                       isSummary ? summaryTitleClassName : "text-neutral-400"
                     }`
                   : "text-sm font-medium text-foreground mb-5"
