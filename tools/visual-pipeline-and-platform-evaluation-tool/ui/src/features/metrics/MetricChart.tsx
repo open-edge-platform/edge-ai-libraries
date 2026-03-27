@@ -123,10 +123,10 @@ export const MetricChart = ({
   const hasTitle = title.trim().length > 0;
   const summaryBorderClassName = isDarkTheme
     ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-    : "border-2 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20";
+    : "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
   const summaryTitleClassName = isDarkTheme
     ? "text-energy-blue-tint-1"
-    : "text-classic-blue";
+    : "text-summary-title";
 
   return (
     <div

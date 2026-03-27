@@ -1,0 +1,119 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base color palette
+   Raw brand and neutral values — named after the color, not their role.
+   Do NOT use these directly in components; reference semantic tokens instead.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Classic Blue */
+  --classic-blue: oklch(0.377 0.152 258.338); /* #0054AE */
+  --classic-blue-tint-2: oklch(0.792 0.094 245.571); /* #6CC4F5 */
+  --classic-blue-tint-1: oklch(0.625 0.158 247.996); /* #0099EC */
+  --classic-blue-shade-1: oklch(0.266 0.118 261.226); /* #00377C */
+  --classic-blue-shade-2: oklch(0.157 0.084 264.366); /* #001E50 */
+  --classic-blue-hover: oklch(0.333 0.137 258.653); /* #004A9D */
+
+  /* Energy Blue */
+  --energy-blue: oklch(0.807 0.126 232.661); /* #00C7FD */
+  --energy-blue-tint-2: oklch(0.916 0.063 234.365); /* #A0EBFF */
+  --energy-blue-tint-1: oklch(0.867 0.096 233.398); /* #6DDCFF */
+  --energy-blue-shade-1: oklch(0.622 0.102 233.812); /* #0095CA */
+  --energy-blue-shade-2: oklch(0.413 0.073 235.449); /* #005B85 */
+
+  /* Blue Steel */
+  --blue-steel: oklch(0.597 0.072 241.5); /* #548FAD */
+  --blue-steel-tint-2: oklch(0.857 0.042 237.5); /* #B9D6E5 */
+  --blue-steel-shade-1: oklch(0.527 0.065 231); /* #41728A */
+  --blue-teal-shade-1: oklch(0.285 0.04 210); /* #183544 */
+
+  /* Carbon (neutral gray) */
+  --carbon: oklch(0.577 0 0); /* #808080 */
+  --carbon-tint-2: oklch(0.927 0 0); /* #E9E9E9 */
+  --carbon-tint-1: oklch(0.725 0 0); /* #AEAEAE */
+  --carbon-shade-1: oklch(0.381 0 0); /* #525252 */
+  --carbon-shade-2: oklch(0.204 0 0); /* #262626 */
+
+  /* Grays */
+  --light-gray-100: oklch(0.9694 0.0011 197.14); /* #F4F5F5 */
+  --light-gray-200: oklch(0.9366 0.0017 247.84); /* #E9EAEB */
+  --dark-gray-100: oklch(0.3177 0.0072 274.75); /* #313236 */
+  --dark-gray-200: oklch(0.3634 0.0074 264.48); /* #3C3E42 */
+
+  /* Electric accent palette */
+  --electric-geode: oklch(0.5794 0.2752 308.89); /* #A923F1 */
+  --electric-cobalt: oklch(0.4709 0.3001 266.75); /* #1E1EFF */
+  --electric-aqua: oklch(0.7653 0.1393 176.98); /* #16CFB1 */
+  --electric-moss: oklch(0.8078 0.1822 127.53); /* #9FD541 */
+  --electric-daisy: oklch(0.9147 0.1908 101.03); /* #FFE500 */
+  --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
+  --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
+
+  /* Chart palette (light) */
+  --green-chart: oklch(0.795 0.108 128.285); /* #B1D272 */
+  --moss-chart: oklch(0.545 0.08 135); /* #697D52 */
+  --purple-chart: oklch(0.865 0.098 307.174); /* #EEC3F7 */
+  --geode-chart: oklch(0.428 0.125 308); /* #653171 */
+  --red-chart: oklch(0.827 0.116 16.064); /* #FFB6B9 */
+  --coral-chart: oklch(0.62 0.18 20); /* #D55050 */
+  --magenta-chart: oklch(0.76 0.121 267.338); /* #B2B9FF */
+  --cobalt-chart: oklch(0.388 0.175 264.5); /* #0F1FA1 */
+  --blue-chart: oklch(0.377 0.152 258.338); /* #0054AE */
+  --yellow-chart: oklch(0.861 0.173 89.872); /* #FFD100 */
+  --orange-chart: oklch(0.743 0.165 49.357); /* #FF8F51 */
+  --brown-chart: oklch(0.545 0.163 46.032); /* #BF601A */
+}
+
+/* UI Neutrals — used by shadcn surface/sidebar tokens */
+:root {
+  --white: oklch(1 0 0); /* #FFFFFF */
+  --near-white: oklch(0.985 0 0); /* #FAFAFA */
+  --gray-97: oklch(0.97 0 0); /* #F5F5F5 - very light surface / muted bg */
+  --gray-92: oklch(0.922 0 0); /* #E5E5E5 - light border */
+  --gray-79: oklch(0.788 0 0); /* #BABABA - dark-mode muted text */
+  --gray-71: oklch(0.708 0 0); /* #A1A1A1 - focus ring */
+  --gray-56: oklch(0.556 0 0); /* #737373 - dark-mode focus ring */
+  --gray-50: oklch(0.5 0 0); /* #636363 - muted text */
+  --gray-27: oklch(0.269 0 0); /* #262626 - dark-mode muted bg */
+  --very-dark: oklch(0.205 0 0); /* #171717 - ≈ carbon-shade-2, secondary fg */
+  --near-black: oklch(0.145 0 0); /* #0A0A0A - default text */
+
+  /* Dark-mode page background (slight blue tint) */
+  --surface-dark: oklch(0.3053 0.0055 271.23); /* #2E2F32 */
+
+  /* White with alpha — dark-mode border / input */
+  --white-10: oklch(1 0 0 / 10%); /* #FFFFFF1A */
+  --white-15: oklch(1 0 0 / 15%); /* #FFFFFF26 */
+
+  /* Destructive / error */
+  --red: oklch(0.577 0.245 27.325); /* #E7000B - light mode */
+  --red-bright: oklch(0.704 0.191 22.216); /* #FF6467 - dark mode (more visible) */
+
+  /* shadcn chart defaults — light mode */
+  --shadcn-chart-orange: oklch(0.646 0.222 41.116); /* #F54900 */
+  --shadcn-chart-teal:   oklch(0.6 0.118 184.704); /* #009689 */
+  --shadcn-chart-steel:  oklch(0.398 0.07 227.392); /* #104E64 */
+  --shadcn-chart-yellow: oklch(0.828 0.189 84.429); /* #FFB900 */
+  --shadcn-chart-gold:   oklch(0.769 0.188 70.08); /* #FE9A00 */
+
+  /* shadcn chart defaults — dark mode */
+  --shadcn-chart-blue:   oklch(0.488 0.243 264.376); /* #1447E6 */
+  --shadcn-chart-green:  oklch(0.696 0.17 162.48); /* #00BC7D */
+  --shadcn-chart-purple: oklch(0.627 0.265 303.9); /* #AD46FF */
+  --shadcn-chart-coral:  oklch(0.645 0.246 16.439); /* #FF2056 */
+}
+
+.dark {
+  /* Chart palette overrides (brighter for dark backgrounds) */
+  --green-chart: oklch(0.75 0.15 140); /* #77C566 */
+  --red-chart: oklch(0.7 0.22 25); /* #FF5453 */
+  --yellow-chart: oklch(0.85 0.18 95); /* #F3CB00 */
+  --magenta-chart: oklch(0.75 0.2 290); /* #AF92FF */
+  --purple-chart: oklch(0.7 0.2 310); /* #C474F9 */
+  --orange-chart: oklch(0.75 0.2 50); /* #FF7F00 */
+  --blue-chart: oklch(0.65 0.22 240); /* #0098FF */
+  --moss-chart: oklch(0.65 0.12 140); /* #66A159 */
+  --geode-chart: oklch(0.6 0.18 320); /* #AE55C1 */
+  --cobalt-chart: oklch(0.6 0.25 265); /* #346CFF */
+  --coral-chart: oklch(0.7 0.22 30); /* #FF5642 */
+  --brown-chart: oklch(0.6 0.15 60); /* #BF6600 */
+}

@@ -1,0 +1,191 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Semantic design tokens
+   Maps roles / components to base palette values from colors-base.css.
+   These are the tokens that components should reference.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Tailwind v4 color aliases — makes every token available as a utility class
+   (e.g. bg-brand-accent, text-summary-title, border-brand-accent/40)        */
+@theme inline {
+  /* shadcn/ui surface tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* shadcn/ui chart tokens */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* shadcn/ui sidebar tokens */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Semantic brand tokens */
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-summary-title: var(--summary-title);
+  --color-summary-unit: var(--summary-unit);
+
+  /* Base palette forwarded to Tailwind (for occasional direct use / gradients) */
+  --color-classic-blue: var(--classic-blue);
+  --color-classic-blue-tint-2: var(--classic-blue-tint-2);
+  --color-classic-blue-tint-1: var(--classic-blue-tint-1);
+  --color-classic-blue-shade-1: var(--classic-blue-shade-1);
+  --color-classic-blue-shade-2: var(--classic-blue-shade-2);
+  --color-classic-blue-hover: var(--classic-blue-hover);
+  --color-energy-blue: var(--energy-blue);
+  --color-energy-blue-tint-2: var(--energy-blue-tint-2);
+  --color-energy-blue-tint-1: var(--energy-blue-tint-1);
+  --color-energy-blue-shade-1: var(--energy-blue-shade-1);
+  --color-energy-blue-shade-2: var(--energy-blue-shade-2);
+  --color-blue-steel: var(--blue-steel);
+  --color-blue-steel-tint-2: var(--blue-steel-tint-2);
+  --color-blue-steel-shade-1: var(--blue-steel-shade-1);
+  --color-blue-teal-shade-1: var(--blue-teal-shade-1);
+  --color-carbon: var(--carbon);
+  --color-carbon-tint-2: var(--carbon-tint-2);
+  --color-carbon-tint-1: var(--carbon-tint-1);
+  --color-carbon-shade-1: var(--carbon-shade-1);
+  --color-carbon-shade-2: var(--carbon-shade-2);
+  --color-light-gray-100: var(--light-gray-100);
+  --color-light-gray-200: var(--light-gray-200);
+  --color-dark-gray-100: var(--dark-gray-100);
+  --color-dark-gray-200: var(--dark-gray-200);
+  --color-electric-geode: var(--electric-geode);
+  --color-electric-cobalt: var(--electric-cobalt);
+  --color-electric-aqua: var(--electric-aqua);
+  --color-electric-moss: var(--electric-moss);
+  --color-electric-daisy: var(--electric-daisy);
+  --color-electric-rust: var(--electric-rust);
+  --color-electric-coral: var(--electric-coral);
+  --color-green-chart: var(--green-chart);
+  --color-moss-chart: var(--moss-chart);
+  --color-purple-chart: var(--purple-chart);
+  --color-geode-chart: var(--geode-chart);
+  --color-red-chart: var(--red-chart);
+  --color-coral-chart: var(--coral-chart);
+  --color-magenta-chart: var(--magenta-chart);
+  --color-cobalt-chart: var(--cobalt-chart);
+  --color-blue-chart: var(--blue-chart);
+  --color-yellow-chart: var(--yellow-chart);
+  --color-orange-chart: var(--orange-chart);
+  --color-brown-chart: var(--brown-chart);
+}
+
+/* ── Light mode ─────────────────────────────────────────────────────────────── */
+:root {
+  --radius: 0.625rem;
+
+  /* shadcn/ui surface */
+  --background: var(--white);
+  --foreground: var(--near-black);
+  --card: var(--light-gray-100);
+  --card-foreground: var(--near-black);
+  --popover: var(--light-gray-100);
+  --popover-foreground: var(--near-black);
+  --primary: var(--classic-blue);
+  --primary-foreground: var(--near-white);
+  --secondary: var(--carbon-tint-2);
+  --secondary-foreground: var(--very-dark);
+  --muted: var(--gray-97);
+  --muted-foreground: var(--gray-50);
+  --accent: var(--light-gray-200);
+  --accent-foreground: var(--very-dark);
+  --destructive: var(--red);
+  --border: var(--gray-92);
+  --input: var(--carbon-tint-1);
+  --ring: var(--gray-71);
+
+  /* shadcn/ui chart */
+  --chart-1: var(--shadcn-chart-orange);
+  --chart-2: var(--shadcn-chart-teal);
+  --chart-3: var(--shadcn-chart-steel);
+  --chart-4: var(--shadcn-chart-yellow);
+  --chart-5: var(--shadcn-chart-gold);
+
+  /* shadcn/ui sidebar */
+  --sidebar: var(--light-gray-100);
+  --sidebar-foreground: var(--near-black);
+  --sidebar-primary: var(--very-dark);
+  --sidebar-primary-foreground: var(--near-white);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--very-dark);
+  --sidebar-border: var(--gray-92);
+  --sidebar-ring: var(--gray-71);
+
+  /* Semantic brand tokens */
+  --brand-accent: var(--classic-blue);
+  --brand-accent-hover: var(--classic-blue-hover);
+  --summary-title: var(--classic-blue);
+  --summary-unit: var(--classic-blue);
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────────── */
+.dark {
+  /* shadcn/ui surface */
+  --background: var(--surface-dark);
+  --foreground: var(--near-white);
+  --card: var(--dark-gray-200);
+  --card-foreground: var(--near-white);
+  --popover: var(--dark-gray-200);
+  --popover-foreground: var(--near-white);
+  --primary: var(--energy-blue);
+  --primary-foreground: var(--very-dark);
+  --secondary: var(--carbon-shade-2);
+  --secondary-foreground: var(--near-white);
+  --muted: var(--gray-27);
+  --muted-foreground: var(--gray-79);
+  --accent: var(--background);
+  --accent-foreground: var(--near-white);
+  --destructive: var(--red-bright);
+  --border: var(--white-10);
+  --input: var(--white-15);
+  --ring: var(--gray-56);
+
+  /* shadcn/ui chart */
+  --chart-1: var(--shadcn-chart-blue);
+  --chart-2: var(--shadcn-chart-green);
+  --chart-3: var(--shadcn-chart-gold);
+  --chart-4: var(--shadcn-chart-purple);
+  --chart-5: var(--shadcn-chart-coral);
+
+  /* shadcn/ui sidebar */
+  --sidebar: var(--dark-gray-200);
+  --sidebar-foreground: var(--near-white);
+  --sidebar-primary: var(--shadcn-chart-blue);
+  --sidebar-primary-foreground: var(--near-white);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--near-white);
+  --sidebar-border: var(--white-10);
+  --sidebar-ring: var(--gray-56);
+
+  /* Semantic brand tokens */
+  --brand-accent: var(--energy-blue);
+  --brand-accent-hover: var(--energy-blue-shade-1);
+  --summary-title: var(--energy-blue-tint-1);
+  --summary-unit: var(--energy-blue-tint-2);
+}

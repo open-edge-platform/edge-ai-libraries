@@ -78,7 +78,7 @@ const ExportPipelineButton = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="bg-background hover:bg-classic-blue dark:text-energy-blue font-medium dark:hover:text-[#242528] dark:border-energy-blue dark:hover:bg-energy-blue border-2 border-classic-blue text-primary hover:text-white px-3 py-2 transition-colors flex items-center gap-2"
+          className="bg-background hover:bg-brand-accent font-medium text-brand-accent hover:text-white border-2 border-brand-accent px-3 py-2 transition-colors flex items-center gap-2"
           title="Export Pipeline"
         >
           <Download className="w-5 h-5" />

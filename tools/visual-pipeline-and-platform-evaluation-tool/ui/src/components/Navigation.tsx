@@ -54,7 +54,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
                           tooltip={item.title}
                           className={cn(
                             isActive &&
-                              "bg-sidebar-accent border-r-3 border-classic-blue dark:border-energy-blue",
+                              "bg-sidebar-accent border-r-3 border-brand-accent",
                           )}
                         >
                           {item.icon && <item.icon />}

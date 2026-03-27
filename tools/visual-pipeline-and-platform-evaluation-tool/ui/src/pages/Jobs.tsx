@@ -203,7 +203,7 @@ export const Jobs = () => {
                         <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/performance/${job.id}`}
-                            className="block truncate text-classic-blue hover:text-classic-blue-hover dark:text-energy-blue dark:hover:text-energy-blue-shade-1 hover:underline"
+                            className="block truncate text-brand-accent hover:text-brand-accent-hover hover:underline"
                           >
                             {job.id}
                           </Link>

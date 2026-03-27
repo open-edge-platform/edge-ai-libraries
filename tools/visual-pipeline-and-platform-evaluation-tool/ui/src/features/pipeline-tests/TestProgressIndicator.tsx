@@ -153,7 +153,7 @@ const MetricCard = ({
             ? isSummary
               ? summaryIconClassName
               : "bg-gradient-to-br from-white/10 to-white/5"
-            : "bg-classic-blue/5 dark:bg-teal-chart p-2 rounded-none"
+            : "bg-brand-accent/5 p-2 rounded-none"
         }`,
       )}
     >
@@ -233,22 +233,18 @@ export const TestProgressIndicator = ({
 
   const summaryContainerClassName = isDarkTheme
     ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
-    : "p-4 rounded-xl border-2 border-classic-blue/40 bg-gradient-to-br from-classic-blue/5 to-classic-blue/10 shadow-lg shadow-classic-blue/10";
+    : "p-4 rounded-xl border-2 border-brand-accent/40 bg-gradient-to-br from-brand-accent/5 to-brand-accent/10 shadow-lg shadow-brand-accent/10";
   const summaryCardClassName = isDarkTheme
     ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
-    : "border-2 border-classic-blue/60 shadow-classic-blue/20 shadow-lg ring-2 ring-classic-blue/20";
+    : "border-2 border-brand-accent/60 shadow-brand-accent/20 shadow-lg ring-2 ring-brand-accent/20";
   const summarySectionClassName = isDarkTheme
     ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-    : "border-2 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20";
+    : "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
   const summaryIconClassName = isDarkTheme
     ? "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20"
-    : "bg-gradient-to-br from-classic-blue/15 to-classic-blue/25";
-  const summaryTitleClassName = isDarkTheme
-    ? "text-energy-blue-tint-1"
-    : "text-classic-blue";
-  const summaryUnitClassName = isDarkTheme
-    ? "text-energy-blue-tint-2"
-    : "text-classic-blue";
+    : "bg-gradient-to-br from-brand-accent/15 to-brand-accent/25";
+  const summaryTitleClassName = isDarkTheme ? "text-energy-blue-tint-1" : "text-summary-title";
+  const summaryUnitClassName = isDarkTheme ? "text-energy-blue-tint-2" : "text-summary-unit";
 
   // get available GPU IDs from metrics
   const availableGpus = metrics.availableGpuIds.map((id) => parseInt(id));
