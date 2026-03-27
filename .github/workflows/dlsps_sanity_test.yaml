@@ -18,13 +18,13 @@ jobs:
           - ubuntu_version: ubuntu22
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: '3.10'
 
@@ -86,7 +86,7 @@ jobs:
        ./stream_rtsp.sh stop
 
     - name: Upload Scan artifact to Github
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: DLSPS_Sanity-tests-reports
         path: /tmp/test_results/*
