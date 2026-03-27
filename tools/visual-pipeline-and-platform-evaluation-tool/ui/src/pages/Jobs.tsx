@@ -156,7 +156,7 @@ export const Jobs = () => {
                   "py-4 px-1 border-b-2 font-medium text-sm transition-colors",
                   currentTab === tab.id
                     ? "border-foreground text-foreground"
-                    : "border-transparent text-foreground/50 hover:text-foreground hover:border-foreground dark:text-foreground/50 dark:hover:text-foreground",
+                    : "border-transparent text-foreground-50 hover:text-foreground hover:border-foreground",
                 )}
               >
                 {tab.label}

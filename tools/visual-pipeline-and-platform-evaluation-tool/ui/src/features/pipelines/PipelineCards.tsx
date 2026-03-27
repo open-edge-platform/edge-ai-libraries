@@ -72,7 +72,7 @@ export const PipelineCards = ({
     <>
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(18.75rem,1fr))]">
         <CreatePipelineDialog>
-          <button className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-brand-accent hover:bg-brand-accent/5 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-brand-accent">
+          <button className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-brand-accent hover:bg-brand-accent-05 transition-all flex flex-col items-center justify-center gap-3 text-carbon-tint-1 dark:text-gray-400 hover:text-brand-accent">
             <Plus className="w-12 h-12" />
             <span className="text-lg font-medium">Create Pipeline</span>
           </button>

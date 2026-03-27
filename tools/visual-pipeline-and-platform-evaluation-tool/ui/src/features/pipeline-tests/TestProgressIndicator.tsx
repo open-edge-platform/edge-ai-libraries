@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Cpu, Gauge, Gpu } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useMetrics } from "@/features/metrics/useMetrics.ts";
 import {
   useMetricHistory,
@@ -124,23 +123,23 @@ const MetricCard = ({
   isSummary = false,
   forceDark = false,
   useDemoStyles = false,
-  summaryCardClassName = "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30",
-  summaryIconClassName = "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20",
-  summaryTitleClassName = "text-energy-blue-tint-1",
-  summaryUnitClassName = "text-energy-blue-tint-2",
+  summaryCardClassName = "border-2 border-brand-accent-60 shadow-brand-accent-20 shadow-lg ring-2 ring-brand-accent-30",
+  summaryIconClassName = "bg-gradient-to-br from-brand-accent-20 to-brand-accent-soft-20",
+  summaryTitleClassName = "text-summary-title",
+  summaryUnitClassName = "text-summary-unit",
 }: MetricCardProps) => (
   <div
     className={cn(
       `${
         useDemoStyles
-          ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+          ? `${forceDark ? "bg-surface-overlay" : "bg-card-80"}`
           : "bg-background"
       } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} flex items-center space-x-3 transition-all ${
         isSummary
           ? summaryCardClassName
           : useDemoStyles
             ? forceDark
-              ? "border border-neutral-800/50"
+              ? "border border-surface-overlay-border"
               : "border border-border"
             : ""
       }`,
@@ -152,8 +151,8 @@ const MetricCard = ({
           useDemoStyles
             ? isSummary
               ? summaryIconClassName
-              : "bg-gradient-to-br from-white/10 to-white/5"
-            : "bg-brand-accent/5 p-2 rounded-none"
+              : "bg-gradient-to-br from-white-10 to-white-5"
+            : "bg-brand-accent-05 p-2 rounded-none"
         }`,
       )}
     >
@@ -217,8 +216,6 @@ export const TestProgressIndicator = ({
   metricsOverride,
 }: TestProgressIndicatorProps) => {
   const isSummary = !!metricsOverride;
-  const { resolvedTheme } = useTheme();
-  const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const liveMetrics = useMetrics();
   const liveHistory = useMetricHistory();
   const metrics = metricsOverride ?? {
@@ -231,20 +228,16 @@ export const TestProgressIndicator = ({
   const history = historyOverride ?? liveHistory;
   const [selectedGpu, setSelectedGpu] = useState<number>(0);
 
-  const summaryContainerClassName = isDarkTheme
-    ? "p-4 rounded-xl border-2 border-energy-blue/40 bg-gradient-to-br from-energy-blue/5 to-energy-blue-tint-1/5 shadow-lg shadow-energy-blue/10"
-    : "p-4 rounded-xl border-2 border-brand-accent/40 bg-gradient-to-br from-brand-accent/5 to-brand-accent/10 shadow-lg shadow-brand-accent/10";
-  const summaryCardClassName = isDarkTheme
-    ? "border-2 border-energy-blue/60 shadow-energy-blue/20 shadow-lg ring-2 ring-energy-blue/30"
-    : "border-2 border-brand-accent/60 shadow-brand-accent/20 shadow-lg ring-2 ring-brand-accent/20";
-  const summarySectionClassName = isDarkTheme
-    ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-    : "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
-  const summaryIconClassName = isDarkTheme
-    ? "bg-gradient-to-br from-energy-blue/20 to-energy-blue-tint-1/20"
-    : "bg-gradient-to-br from-brand-accent/15 to-brand-accent/25";
-  const summaryTitleClassName = isDarkTheme ? "text-energy-blue-tint-1" : "text-summary-title";
-  const summaryUnitClassName = isDarkTheme ? "text-energy-blue-tint-2" : "text-summary-unit";
+  const summaryContainerClassName =
+    "p-4 rounded-xl border-2 border-brand-accent-40 bg-gradient-to-br from-brand-accent-05 to-brand-accent-soft-05 shadow-lg shadow-brand-accent-10";
+  const summaryCardClassName =
+    "border-2 border-brand-accent-60 shadow-brand-accent-20 shadow-lg ring-2 ring-brand-accent-30";
+  const summarySectionClassName =
+    "border-2 border-brand-accent-40 shadow-brand-accent-20 ring-1 ring-brand-accent-20";
+  const summaryIconClassName =
+    "bg-gradient-to-br from-brand-accent-20 to-brand-accent-soft-20";
+  const summaryTitleClassName = "text-summary-title";
+  const summaryUnitClassName = "text-summary-unit";
 
   // get available GPU IDs from metrics
   const availableGpus = metrics.availableGpuIds.map((id) => parseInt(id));
@@ -436,14 +429,14 @@ export const TestProgressIndicator = ({
       className={cn(
         `${
           useDemoStyles
-            ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+            ? `${forceDark ? "bg-surface-overlay" : "bg-card-80"}`
             : "bg-background"
         } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
           isSummary
             ? summarySectionClassName
             : useDemoStyles
               ? forceDark
-                ? "border border-neutral-800/50"
+                ? "border border-surface-overlay-border"
                 : "border border-border"
               : ""
         }`,
@@ -506,14 +499,14 @@ export const TestProgressIndicator = ({
       className={cn(
         `${
           useDemoStyles
-            ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+            ? `${forceDark ? "bg-surface-overlay" : "bg-card-80"}`
             : "bg-background"
         } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
           isSummary
             ? summarySectionClassName
             : useDemoStyles
               ? forceDark
-                ? "border border-neutral-800/50"
+                ? "border border-surface-overlay-border"
                 : "border border-border"
               : ""
         }`,
@@ -703,14 +696,14 @@ export const TestProgressIndicator = ({
             className={cn(
               `${
                 useDemoStyles
-                  ? `${forceDark ? "bg-neutral-950/50" : "bg-card/80"}`
+                  ? `${forceDark ? "bg-surface-overlay" : "bg-card-80"}`
                   : "bg-background"
               } ${useDemoStyles ? "rounded-xl shadow-2xl p-6" : "shadow-md p-4"} ${
                 isSummary
                   ? summarySectionClassName
                   : useDemoStyles
                     ? forceDark
-                      ? "border border-neutral-800/50"
+                      ? "border border-surface-overlay-border"
                       : "border border-border"
                     : ""
               }`,

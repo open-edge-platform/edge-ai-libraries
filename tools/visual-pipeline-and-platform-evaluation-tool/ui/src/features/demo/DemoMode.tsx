@@ -176,7 +176,7 @@ const CheckboxInfoHint = ({
           "inline-flex h-4 w-4 shrink-0 cursor-help select-none items-center justify-center rounded-full border text-[0.625rem] font-bold leading-none",
           muted
             ? "border-slate-600 text-slate-500"
-            : "border-slate-400/70 text-slate-300",
+            : "border-slate-400-70 text-slate-300",
         )}
       >
         i
@@ -563,50 +563,50 @@ const DemoMode = () => {
     headerTitle: "text-blue-500",
     headerGradient: "from-slate-600 via-blue-600 to-blue-500",
     exitButton:
-      "border-slate-400/40 hover:bg-blue-600/10 hover:border-blue-500/50",
+      "border-slate-400-40 hover:bg-blue-600-10 hover:border-blue-500-50",
     exitIcon: "text-blue-500",
-    configBorder: "border-slate-400/30 shadow-xl",
+    configBorder: "border-slate-400-30 shadow-xl",
     configTitle: "text-blue-600",
     label: "text-slate-400",
     dropdown:
-      "border-slate-400/40 hover:border-blue-500/60 focus:ring-blue-500/30 focus:border-blue-500",
+      "border-slate-400-40 hover:border-blue-500-60 focus:ring-blue-500-30 focus:border-blue-500",
     dropdownIcon: "text-slate-400",
-    dropdownBg: "bg-slate-900/95 border-slate-400/40",
-    dropdownHover: "hover:bg-blue-600/20",
-    dropdownActive: "bg-blue-600/30",
-    participationBorder: "border-slate-400/30",
-    testBorder: "border-slate-400/30 shadow-xl",
+    dropdownBg: "bg-slate-900-95 border-slate-400-40",
+    dropdownHover: "hover:bg-blue-600-20",
+    dropdownActive: "bg-blue-600-30",
+    participationBorder: "border-slate-400-30",
+    testBorder: "border-slate-400-30 shadow-xl",
     testTitle: "text-slate-300",
     testLabel: "text-slate-400",
     testInput:
-      "border-slate-400/40 focus:ring-blue-500/30 focus:border-blue-500",
+      "border-slate-400-40 focus:ring-blue-500-30 focus:border-blue-500",
     testInputText: "text-slate-400",
     checkbox:
-      "border-slate-400/60 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600",
+      "border-slate-400-60 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600",
     checkboxLabel: "text-slate-400 group-hover:text-slate-300",
     runButton:
-      "bg-[#0F4C81] hover:bg-[#1565A6] rounded-xl shadow-lg shadow-blue-900/40 hover:shadow-blue-700/50",
-    runButtonOverlay: "bg-gradient-to-r from-blue-400/10 to-blue-300/10",
+      "bg-[#0F4C81] hover:bg-[#1565A6] rounded-xl shadow-lg shadow-blue-900-40 hover:shadow-blue-700-50",
+    runButtonOverlay: "bg-gradient-to-r from-blue-400-10 to-blue-300-10",
     runButtonText: "",
-    gridConfigBorder: "border-slate-400/30 shadow-lg",
+    gridConfigBorder: "border-slate-400-30 shadow-lg",
     gridConfigTitle: "text-slate-300",
-    gridTestBorder: "border-slate-400/30 shadow-lg",
+    gridTestBorder: "border-slate-400-30 shadow-lg",
     gridTestTitle: "text-slate-300",
-    gridResultsBorder: "border-slate-400/30 shadow-lg",
+    gridResultsBorder: "border-slate-400-30 shadow-lg",
     gridResultsTitle: "text-slate-300",
-    gridPreviewBorder: "border-slate-400/30 shadow-lg",
+    gridPreviewBorder: "border-slate-400-30 shadow-lg",
     gridPreviewTitle: "text-slate-300",
     loadingDots: "bg-blue-600",
     summaryFpsBorder:
-      "border-energy-blue/60 shadow-lg shadow-energy-blue/20 ring-2 ring-energy-blue/30",
+      "border-brand-accent-60 shadow-lg shadow-brand-accent-20 ring-2 ring-brand-accent-30",
     summaryFpsGradient:
-      "bg-gradient-to-r from-energy-blue/15 via-energy-blue-tint-1/15 to-energy-blue/15",
-    summaryFpsText: "text-energy-blue-tint-1",
+      "bg-gradient-to-r from-brand-accent-15 via-brand-accent-soft-15 to-brand-accent-15",
+    summaryFpsText: "text-summary-title",
     summaryStreamsBorder:
-      "border-energy-blue/60 shadow-lg shadow-energy-blue/20 ring-2 ring-energy-blue/30",
+      "border-brand-accent-60 shadow-lg shadow-brand-accent-20 ring-2 ring-brand-accent-30",
     summaryStreamsGradient:
-      "bg-gradient-to-r from-energy-blue/15 via-energy-blue-tint-1/15 to-energy-blue/15",
-    summaryStreamsText: "text-energy-blue-tint-1",
+      "bg-gradient-to-r from-brand-accent-15 via-brand-accent-soft-15 to-brand-accent-15",
+    summaryStreamsText: "text-summary-title",
     summaryStreamsValueText: "text-white",
   };
 
@@ -1192,7 +1192,7 @@ const DemoMode = () => {
       <div className="relative z-10 h-full flex flex-col bg-transparent min-h-0">
         {demoStep === "selection" && (
           /* HEADER - Only for selection step */
-          <div className="h-[4.375rem] px-4 flex items-center justify-between border-b border-slate-300/20 backdrop-blur-md shadow-lg">
+          <div className="h-[4.375rem] px-4 flex items-center justify-between border-b border-slate-300-20 backdrop-blur-md shadow-lg">
             <h1 className={cn("text-xl font-bold", colors.headerTitle)}>
               Intel® Visual Pipeline and Platform Evaluation Tool (ViPPET)
             </h1>
@@ -1200,7 +1200,7 @@ const DemoMode = () => {
               <button
                 onClick={() => navigate("/")}
                 className={cn(
-                  "group relative px-6 py-3 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100",
+                  "group relative px-6 py-3 rounded-xl border bg-slate-800-50 backdrop-blur-xl transition-all duration-100",
                   colors.exitButton,
                 )}
               >
@@ -1267,10 +1267,10 @@ const DemoMode = () => {
                             setSelectedModels(newSelected);
                           }}
                           className={cn(
-                            "relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 backdrop-blur-md cursor-pointer scale-[0.9]",
+                            "relative flex flex-col transition-all duration-100 overflow-hidden border-2 bg-gradient-to-br from-slate-900-90 via-slate-800-70 to-slate-900-90 backdrop-blur-md cursor-pointer scale-[0.9]",
                             isSelected
-                              ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-[0.95]"
-                              : "border-slate-400/30 hover:border-blue-500/50 hover:shadow-lg hover:scale-[0.95]",
+                              ? "border-blue-500 shadow-lg shadow-blue-500-50 scale-[0.95]"
+                              : "border-slate-400-30 hover:border-blue-500-50 hover:shadow-lg hover:scale-[0.95]",
                           )}
                         >
                           <CardHeader className="flex-1">
@@ -1388,10 +1388,10 @@ const DemoMode = () => {
                             setSelectedConfigPipelineId(selection.pipelineId)
                           }
                           className={cn(
-                            "relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-slate-800/90 via-slate-750/80 to-slate-800/90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer",
+                            "relative flex w-full max-h-[13.4375rem] flex-col border bg-gradient-to-br from-slate-800-90 via-slate-750-80 to-slate-800-90 backdrop-blur-md overflow-hidden shadow-lg hover:shadow-xl transition-all cursor-pointer",
                             isSelected
-                              ? "border-blue-500 ring-2 ring-blue-500/50"
-                              : "border-slate-400/40 hover:border-blue-500/60 opacity-50 grayscale",
+                              ? "border-blue-500 ring-2 ring-blue-500-50"
+                              : "border-slate-400-40 hover:border-blue-500-60 opacity-50 grayscale",
                             isReadOnly && "opacity-70",
                           )}
                         >
@@ -1432,7 +1432,7 @@ const DemoMode = () => {
                                 isReadOnly || pipeline.variants.length < 1
                               }
                               className={cn(
-                                "block w-[92%] mx-auto px-2 py-1 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-[0.625rem] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                "block w-[92%] mx-auto px-2 py-1 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-[0.625rem] focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                 isReadOnly && "opacity-60 cursor-not-allowed",
                               )}
                             >
@@ -1459,7 +1459,7 @@ const DemoMode = () => {
                           setCarouselIndex((prev) => Math.max(0, prev - 1))
                         }
                         disabled={carouselIndex === 0}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800-90 hover:bg-slate-700-90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600-50 transition-all"
                       >
                         <ChevronLeft className="w-5 h-5 text-slate-200" />
                       </button>
@@ -1470,7 +1470,7 @@ const DemoMode = () => {
                           )
                         }
                         disabled={carouselIndex >= totalPages - 1}
-                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800-90 hover:bg-slate-700-90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600-50 transition-all"
                       >
                         <ChevronRight className="w-5 h-5 text-slate-200" />
                       </button>
@@ -1512,7 +1512,7 @@ const DemoMode = () => {
                       );
 
                       return (
-                        <div className="relative rounded-lg border border-slate-400/30 p-3 bg-slate-950/30 mb-3">
+                        <div className="relative rounded-lg border border-slate-400-30 p-3 bg-slate-950-30 mb-3">
                           <div className="grid grid-cols-2 gap-3 min-h-[17.5rem]">
                             {visiblePreviews.map((selection, localIdx) => {
                               const pipeline = pipelines.find(
@@ -1532,12 +1532,12 @@ const DemoMode = () => {
                               return (
                                 <div
                                   key={selection.pipelineId}
-                                  className="border border-slate-400/30 rounded-lg p-2 bg-slate-950/40 flex flex-col"
+                                  className="border border-slate-400-30 rounded-lg p-2 bg-slate-950-40 flex flex-col"
                                 >
                                   <p className="text-xs font-semibold text-slate-300 mb-2 truncate">
                                     {`${pipeline?.name || "Unknown Pipeline"} • LIVE PREVIEW`}
                                   </p>
-                                  <div className="flex-1 flex items-center justify-center bg-black/20 rounded overflow-hidden min-h-[13.75rem]">
+                                  <div className="flex-1 flex items-center justify-center bg-black-20 rounded overflow-hidden min-h-[13.75rem]">
                                     <div className="w-full h-full">
                                       {streamUrl ? (
                                         <WebRTCVideoPlayer
@@ -1564,7 +1564,7 @@ const DemoMode = () => {
                                   )
                                 }
                                 disabled={previewCarouselIndex === 0}
-                                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-slate-800-90 hover:bg-slate-700-90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600-50 transition-all z-10"
                               >
                                 <ChevronLeft className="w-5 h-5 text-slate-200" />
                               </button>
@@ -1577,7 +1577,7 @@ const DemoMode = () => {
                                 disabled={
                                   previewCarouselIndex >= totalPreviewPages - 1
                                 }
-                                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800/90 hover:bg-slate-700/90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600/50 transition-all z-10"
+                                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-slate-800-90 hover:bg-slate-700-90 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-slate-600-50 transition-all z-10"
                               >
                                 <ChevronRight className="w-5 h-5 text-slate-200" />
                               </button>
@@ -1610,7 +1610,7 @@ const DemoMode = () => {
               const pipelineConfigSection = (
                 <div
                   className={cn(
-                    "rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full mt-2 overflow-hidden",
+                    "rounded-xl bg-gradient-to-br from-slate-900-90 via-slate-800-70 to-slate-900-90 border p-4 backdrop-blur-md flex flex-col min-h-0 h-full mt-2 overflow-hidden",
                     pipelineConfigContainerMaxHeightClass,
                     colors.testBorder,
                   )}
@@ -1631,7 +1631,7 @@ const DemoMode = () => {
                   >
                     <AccordionItem
                       value="pipeline-config"
-                      className="border border-slate-400/30 rounded-lg bg-slate-950/60"
+                      className="border border-slate-400-30 rounded-lg bg-slate-950-60"
                     >
                       <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
@@ -1783,7 +1783,7 @@ const DemoMode = () => {
                                               <AccordionItem
                                                 key={node.id}
                                                 value={node.id}
-                                                className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 overflow-hidden"
+                                                className="bg-slate-950-90 border border-slate-400-40 rounded-lg px-3 overflow-hidden"
                                               >
                                                 <AccordionTrigger className="hover:no-underline py-2">
                                                   <div className="flex flex-col items-start">
@@ -1868,7 +1868,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -1923,7 +1923,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -1964,7 +1964,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -2005,7 +2005,7 @@ const DemoMode = () => {
                                                                   !isRoiRegion
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   (isReadOnly ||
                                                                     !isRoiRegion) &&
                                                                     "opacity-60 cursor-not-allowed",
@@ -2070,7 +2070,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y min-h-[3.75rem]",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500 resize-y min-h-[3.75rem]",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -2100,7 +2100,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -2127,7 +2127,7 @@ const DemoMode = () => {
                                                                   isReadOnly
                                                                 }
                                                                 className={cn(
-                                                                  "w-full px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                                  "w-full px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                                   isReadOnly &&
                                                                     "opacity-60 cursor-not-allowed",
                                                                 )}
@@ -2165,7 +2165,7 @@ const DemoMode = () => {
 
                     <AccordionItem
                       value="run-config"
-                      className="border border-slate-400/30 rounded-lg bg-slate-950/60"
+                      className="border border-slate-400-30 rounded-lg bg-slate-950-60"
                     >
                       <AccordionTrigger className="px-4 py-6 hover:no-underline">
                         <span
@@ -2189,7 +2189,7 @@ const DemoMode = () => {
                         >
                           <div className="pr-1 pb-3">
                             <div className="w-full">
-                              <div className="inline-flex rounded-lg border border-slate-400/40 bg-slate-950/70 p-1 mb-3">
+                              <div className="inline-flex rounded-lg border border-slate-400-40 bg-slate-950-70 p-1 mb-3">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -2221,7 +2221,7 @@ const DemoMode = () => {
                               </div>
 
                               {activeTest === "performance-test" ? (
-                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                <div className="bg-slate-950-90 border border-slate-400-40 rounded-lg px-3 py-3">
                                   <div className="space-y-3">
                                     {/* Streams per pipeline */}
                                     <div className="space-y-2">
@@ -2233,7 +2233,7 @@ const DemoMode = () => {
                                         return (
                                           <div
                                             key={selection.pipelineId}
-                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                            className="rounded-md border border-slate-400-30 bg-slate-900-60 px-3 py-2"
                                           >
                                             <div className="flex items-center justify-between gap-2 mb-2">
                                               <span className="text-xs text-slate-300 font-semibold">
@@ -2262,7 +2262,7 @@ const DemoMode = () => {
                                               min={1}
                                               max={64}
                                               disabled={isReadOnly}
-                                              valueInputClassName="rounded-lg border-slate-500/50 bg-slate-950/90 text-slate-100 focus-visible:ring-blue-500/50 focus-visible:ring-2"
+                                              valueInputClassName="rounded-lg border-slate-500-50 bg-slate-950-90 text-slate-100 focus-visible:ring-blue-500-50 focus-visible:ring-2"
                                             />
                                           </div>
                                         );
@@ -2295,7 +2295,7 @@ const DemoMode = () => {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="bg-slate-950/90 border border-slate-400/40 rounded-lg px-3 py-3">
+                                <div className="bg-slate-950-90 border border-slate-400-40 rounded-lg px-3 py-3">
                                   <div className="space-y-3">
                                     {/* Participation rate per pipeline */}
                                     <div className="space-y-2">
@@ -2307,7 +2307,7 @@ const DemoMode = () => {
                                         return (
                                           <div
                                             key={selection.pipelineId}
-                                            className="rounded-md border border-slate-400/30 bg-slate-900/60 px-3 py-2"
+                                            className="rounded-md border border-slate-400-30 bg-slate-900-60 px-3 py-2"
                                           >
                                             <div className="flex items-center justify-between gap-2 mb-2">
                                               <span className="text-xs text-slate-300 font-semibold">
@@ -2332,7 +2332,7 @@ const DemoMode = () => {
                                               min={0}
                                               max={100}
                                               disabled={isReadOnly}
-                                              valueInputClassName="rounded-lg border-slate-500/50 bg-slate-950/90 text-slate-100 focus-visible:ring-blue-500/50 focus-visible:ring-2"
+                                              valueInputClassName="rounded-lg border-slate-500-50 bg-slate-950-90 text-slate-100 focus-visible:ring-blue-500-50 focus-visible:ring-2"
                                             />
                                           </div>
                                         );
@@ -2355,7 +2355,7 @@ const DemoMode = () => {
                                           }
                                           disabled={isReadOnly}
                                           className={cn(
-                                            "w-28 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 no-spin",
+                                            "w-28 px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500 no-spin",
                                             isReadOnly &&
                                               "opacity-60 cursor-not-allowed",
                                           )}
@@ -2446,7 +2446,7 @@ const DemoMode = () => {
                                                 );
                                               }}
                                               className={cn(
-                                                "w-20 px-2 py-1.5 bg-slate-900/90 border border-slate-400/40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500",
+                                                "w-20 px-2 py-1.5 bg-slate-900-90 border border-slate-400-40 rounded text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500-50 focus:border-blue-500",
                                                 isReadOnly &&
                                                   "opacity-60 cursor-not-allowed",
                                               )}
@@ -2476,7 +2476,7 @@ const DemoMode = () => {
                     type="button"
                     onClick={() => setDemoStep("selection")}
                     className={cn(
-                      "group relative px-6 py-2.5 rounded-xl border bg-slate-800/50 backdrop-blur-xl transition-all duration-100",
+                      "group relative px-6 py-2.5 rounded-xl border bg-slate-800-50 backdrop-blur-xl transition-all duration-100",
                       colors.exitButton,
                     )}
                   >
@@ -2509,10 +2509,10 @@ const DemoMode = () => {
               const resultsSection = showResultsPanel ? (
                 <div
                   className={cn(
-                    "rounded-xl bg-gradient-to-br from-slate-900/90 via-slate-800/70 to-slate-900/90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 animate-[softSlideInRight_0.9s_ease-out]",
+                    "rounded-xl bg-gradient-to-br from-slate-900-90 via-slate-800-70 to-slate-900-90 border p-4 backdrop-blur-md flex flex-col flex-1 min-h-0 animate-[softSlideInRight_0.9s_ease-out]",
                     colors.gridResultsBorder,
                     isTestFinished &&
-                      "ring-1 ring-blue-400/30 shadow-[0_0_1.25rem_rgba(59,130,246,0.15)]",
+                      "ring-1 ring-blue-400-30 shadow-[0_0_1.25rem_rgba(59,130,246,0.15)]",
                   )}
                 >
                   <div className="mb-3 flex-shrink-0">
@@ -2582,7 +2582,7 @@ const DemoMode = () => {
                         )}
 
                         {performanceErrorMessage && (
-                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <div className="rounded-lg border border-neutral-800 bg-surface-overlay-strong p-3">
                             <p className="text-sm font-bold text-white mb-1">
                               Test Failed
                             </p>
@@ -2624,7 +2624,7 @@ const DemoMode = () => {
                             <div className="grid grid-cols-2 gap-2">
                               <div
                                 className={cn(
-                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  "bg-surface-overlay rounded-lg p-2.5 border relative overflow-hidden",
                                   colors.summaryStreamsBorder,
                                 )}
                               >
@@ -2656,7 +2656,7 @@ const DemoMode = () => {
                               </div>
                               <div
                                 className={cn(
-                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  "bg-surface-overlay rounded-lg p-2.5 border relative overflow-hidden",
                                   colors.summaryStreamsBorder,
                                 )}
                               >
@@ -2748,7 +2748,7 @@ const DemoMode = () => {
                         )}
 
                         {errorMessage && (
-                          <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+                          <div className="rounded-lg border border-neutral-800 bg-surface-overlay-strong p-3">
                             <p className="text-sm font-bold text-white mb-1">
                               Test Failed
                             </p>
@@ -2790,7 +2790,7 @@ const DemoMode = () => {
                             <div className="grid grid-cols-2 gap-2">
                               <div
                                 className={cn(
-                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  "bg-surface-overlay rounded-lg p-2.5 border relative overflow-hidden",
                                   colors.summaryFpsBorder,
                                 )}
                               >
@@ -2822,7 +2822,7 @@ const DemoMode = () => {
                               </div>
                               <div
                                 className={cn(
-                                  "bg-neutral-950/50 rounded-lg p-2.5 border relative overflow-hidden",
+                                  "bg-surface-overlay rounded-lg p-2.5 border relative overflow-hidden",
                                   colors.summaryStreamsBorder,
                                 )}
                               >
@@ -2854,7 +2854,7 @@ const DemoMode = () => {
                             </div>
 
                             {testResult.streams_per_pipeline && (
-                              <div className="rounded-lg border border-slate-400/30 bg-slate-900/60 p-2">
+                              <div className="rounded-lg border border-slate-400-30 bg-slate-900-60 p-2">
                                 <p className="text-xs text-slate-300 font-semibold mb-2">
                                   Streams per Pipeline
                                 </p>

@@ -630,7 +630,7 @@ export const PipelineEditor = () => {
                           setStreams(normalizedValue);
                           setStreamsInput(String(normalizedValue));
                         }}
-                        className="h-8 w-24 px-2 text-sm bg-background dark:bg-input/60"
+                        className="h-8 w-24 px-2 text-sm bg-background dark:bg-input-60"
                       />
                     </div>
 
@@ -694,7 +694,7 @@ export const PipelineEditor = () => {
                                 setLoopingRuntimeSeconds(normalizedValue);
                                 setLoopingRuntimeInput(String(normalizedValue));
                               }}
-                              className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
+                              className="h-8 w-24 px-2 text-xs bg-background dark:bg-input-60"
                             />
                             <span className="text-xs text-muted-foreground">
                               s

@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useTheme } from "next-themes";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -53,8 +52,6 @@ export const MetricChart = ({
   useDemoStyles = false,
   wrapLegend = false,
 }: MetricChartProps) => {
-  const { resolvedTheme } = useTheme();
-  const isDarkTheme = resolvedTheme === "dark" || forceDark;
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {};
     dataKeys.forEach((key, index) => {
@@ -121,20 +118,17 @@ export const MetricChart = ({
 
   const isCompact = className?.includes("!h-");
   const hasTitle = title.trim().length > 0;
-  const summaryBorderClassName = isDarkTheme
-    ? "border-2 border-energy-blue/40 shadow-energy-blue/20 ring-1 ring-energy-blue/20"
-    : "border-2 border-brand-accent/40 shadow-brand-accent/20 ring-1 ring-brand-accent/20";
-  const summaryTitleClassName = isDarkTheme
-    ? "text-energy-blue-tint-1"
-    : "text-summary-title";
+  const summaryBorderClassName =
+    "border-2 border-brand-accent-40 shadow-brand-accent-20 ring-1 ring-brand-accent-20";
+  const summaryTitleClassName = "text-summary-title";
 
   return (
     <div
       className={cn(
         useDemoStyles
           ? forceDark
-            ? "bg-neutral-950/50"
-            : "bg-card/80"
+            ? "bg-surface-overlay"
+            : "bg-card-80"
           : "bg-background",
         useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md",
         isCompact ? "p-4 pb-6" : "p-4",
@@ -144,7 +138,7 @@ export const MetricChart = ({
           ? summaryBorderClassName
           : useDemoStyles
             ? forceDark
-              ? "border border-neutral-800/50"
+              ? "border border-surface-overlay-border"
               : "border border-border"
             : "",
         className,

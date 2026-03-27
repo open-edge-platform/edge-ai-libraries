@@ -634,7 +634,7 @@ export const PerformanceTests = () => {
         )}
 
         {jobStatus && (
-          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
+          <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Test Status: {jobStatus.state}
             </p>
@@ -642,7 +642,7 @@ export const PerformanceTests = () => {
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
                   <div className="h-2 w-2 bg-magenta-chart"></div>
-                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
+                  <span className="text-xs text-magenta-chart">
                     Running performance test...
                   </span>
                 </div>
@@ -702,7 +702,7 @@ export const PerformanceTests = () => {
         )}
 
         {!isRunning && frozenSummary && (
-          <div className="my-4 p-3 bg-brand-accent/5 border border-brand-accent/20">
+          <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
               Frozen Metrics Snapshot
             </p>
