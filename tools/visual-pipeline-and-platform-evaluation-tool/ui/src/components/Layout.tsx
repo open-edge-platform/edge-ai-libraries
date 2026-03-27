@@ -43,6 +43,7 @@ const Layout = () => {
                 aria-label="Toggle theme"
                 variant="ghost"
                 size="icon"
+                className="hover:bg-transparent dark:hover:bg-transparent active:bg-transparent dark:active:bg-transparent"
               >
                 {theme === "dark" ? (
                   <Sun className="w-5 h-5" />

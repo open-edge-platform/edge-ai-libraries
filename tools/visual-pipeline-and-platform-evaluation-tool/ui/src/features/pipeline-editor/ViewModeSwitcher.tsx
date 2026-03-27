@@ -48,6 +48,8 @@ const ViewModeSwitcher = ({
 }: ViewModeSwitcherProps) => {
   const [updateVariant] = useUpdateVariantMutation();
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [isAdvancedModeTooltipOpen, setIsAdvancedModeTooltipOpen] =
+    useState(false);
   const [pendingModeChange, setPendingModeChange] = useState<boolean | null>(
     null,
   );
@@ -120,9 +122,13 @@ const ViewModeSwitcher = ({
 
   return (
     <>
-      <Tooltip>
+      <Tooltip open={isAdvancedModeTooltipOpen}>
         <TooltipTrigger asChild>
-          <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <label
+            className="flex items-center justify-between gap-3 cursor-pointer"
+            onPointerEnter={() => setIsAdvancedModeTooltipOpen(true)}
+            onPointerLeave={() => setIsAdvancedModeTooltipOpen(false)}
+          >
             <span className="text-sm">Enable advanced mode</span>
             <Switch
               checked={!isSimpleMode}
