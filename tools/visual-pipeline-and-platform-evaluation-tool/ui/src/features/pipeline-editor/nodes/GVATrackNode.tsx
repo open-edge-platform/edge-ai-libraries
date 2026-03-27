@@ -15,11 +15,11 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-yellow-400 min-w-[13.75rem]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-ai-track-border min-w-[13.75rem]">
       <div className="flex gap-3">
-        <div className="shrink-0 w-10 h-10 rounded bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center self-center">
+        <div className="shrink-0 w-10 h-10 rounded bg-node-role-ai-track-surface flex items-center justify-center self-center">
           <svg
-            className="w-6 h-6 text-yellow-600 dark:text-yellow-400"
+            className="w-6 h-6 text-node-role-ai-track-icon"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -40,11 +40,11 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div className="text-xl font-bold text-yellow-700 dark:text-yellow-300">
+          <div className="text-xl font-bold text-node-role-ai-track-title">
             {simpleGraph ? "Tracking" : "GVATrack"}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2 flex-wrap text-xs text-node-body-text">
             {data["tracking-type"] && <span>{data["tracking-type"]}</span>}
           </div>
         </div>
@@ -53,14 +53,14 @@ const GVATrackNode = ({ data }: GVATrackNodeProps) => {
       <Handle
         type="target"
         position={Position.Top}
-        className="w-3 h-3 bg-yellow-500!"
+        className="w-3 h-3 bg-node-role-ai-track-handle!"
         style={{ left: getHandleLeftPosition("gvatrack") }}
       />
 
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-3 h-3 bg-yellow-500!"
+        className="w-3 h-3 bg-node-role-ai-track-handle!"
         style={{ left: getHandleLeftPosition("gvatrack") }}
       />
     </div>

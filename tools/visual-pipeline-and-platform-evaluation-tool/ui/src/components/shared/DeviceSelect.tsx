@@ -25,7 +25,7 @@ const DeviceSelect = ({ value, onChange, className }: DeviceSelectProps) => {
       value={formatDeviceName(value)}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "w-full text-xs border border-gray-300 px-2 py-1",
+        "w-full text-xs border border-input bg-background px-2 py-1",
         className,
       )}
     >

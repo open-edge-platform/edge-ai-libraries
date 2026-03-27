@@ -4,11 +4,11 @@ import { getHandleLeftPosition } from "../utils/graphLayout";
 export const GVAWatermarkNodeWidth = 255;
 
 const GVAWatermarkNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-pink-400 min-w-[15.9375rem]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-watermark-border min-w-[15.9375rem]">
     <div className="flex gap-3">
-      <div className="shrink-0 w-10 h-10 rounded bg-pink-100 dark:bg-pink-900 flex items-center justify-center self-center">
+      <div className="shrink-0 w-10 h-10 rounded bg-node-role-watermark-surface flex items-center justify-center self-center">
         <svg
-          className="w-6 h-6 text-pink-600 dark:text-pink-400"
+          className="w-6 h-6 text-node-role-watermark-icon"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -23,7 +23,7 @@ const GVAWatermarkNode = () => (
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="text-xl font-bold text-pink-700 dark:text-pink-300">
+        <div className="text-xl font-bold text-node-role-watermark-title">
           GVAWatermark
         </div>
       </div>
@@ -32,14 +32,14 @@ const GVAWatermarkNode = () => (
     <Handle
       type="target"
       position={Position.Top}
-      className="w-3 h-3 bg-pink-500!"
+      className="w-3 h-3 bg-node-role-watermark-handle!"
       style={{ left: getHandleLeftPosition("gvawatermark") }}
     />
 
     <Handle
       type="source"
       position={Position.Bottom}
-      className="w-3 h-3 bg-pink-500!"
+      className="w-3 h-3 bg-node-role-watermark-handle!"
       style={{ left: getHandleLeftPosition("gvawatermark") }}
     />
   </div>

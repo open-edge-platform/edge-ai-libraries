@@ -539,7 +539,7 @@ export const PerformanceTests = () => {
           <button
             onClick={handleStopTest}
             disabled={isStopping}
-            className="w-[10rem] bg-red-600 dark:bg-[#f88f8f] dark:text-[#242528] dark:hover:bg-red-400 font-medium hover:bg-red-700 disabled:bg-gray-400 text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
+            className="w-[10rem] bg-destructive dark:bg-destructive-60 dark:text-primary-foreground font-medium hover:bg-destructive-90 dark:hover:bg-destructive-40 disabled:bg-status-neutral-bg text-white px-3 py-2 shadow-lg transition-colors flex items-center justify-center gap-2"
             title="Stop test"
           >
             <Square className="w-5 h-5" />
@@ -556,27 +556,27 @@ export const PerformanceTests = () => {
         )}
 
         {errorMessage && (
-          <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-            <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
+          <div className="my-4 p-3 bg-status-error-bg border border-status-error-border">
+            <p className="text-sm font-medium text-status-error-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-red-700 dark:text-red-300">
+            <p className="text-xs text-status-error-fg">
               {errorMessage}
             </p>
           </div>
         )}
 
         {testResult && (
-          <div className="my-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-            <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+          <div className="my-4 p-3 bg-status-success-bg border border-status-success-border">
+            <p className="text-sm font-medium text-status-success-fg mb-2">
               Test Completed Successfully
             </p>
             <div className="space-y-1 text-sm">
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-success-fg">
                 <span className="font-medium">Total FPS:</span>{" "}
                 {testResult.total_fps?.toFixed(2) ?? "N/A"}
               </p>
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-success-fg">
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
@@ -586,7 +586,7 @@ export const PerformanceTests = () => {
               testResult.video_output_paths &&
               Object.keys(testResult.video_output_paths).length > 0 && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-3">
+                  <p className="text-sm font-medium text-status-success-fg mb-3">
                     Output Videos:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -600,10 +600,10 @@ export const PerformanceTests = () => {
                         return (
                           <div
                             key={pipelineRefKey}
-                            className="border border-green-300 dark:border-green-700 overflow-hidden"
+                            className="border border-status-success-border overflow-hidden"
                           >
-                            <div className="bg-green-100 dark:bg-green-900 px-3 py-2">
-                              <p className="text-xs font-medium text-green-900 dark:text-green-100">
+                            <div className="bg-status-success-bg px-3 py-2">
+                              <p className="text-xs font-medium text-status-success-fg">
                                 <PipelineName
                                   pipelineId={reference.pipelineId}
                                   variantId={reference.variantId}
@@ -619,7 +619,7 @@ export const PerformanceTests = () => {
                                 Your browser does not support the video tag.
                               </video>
                             ) : (
-                              <div className="p-4 text-center text-sm text-green-700 dark:text-green-300">
+                              <div className="p-4 text-center text-sm text-status-success-fg">
                                 no streams
                               </div>
                             )}
@@ -635,7 +635,7 @@ export const PerformanceTests = () => {
 
         {jobStatus && (
           <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+            <p className="text-sm font-medium text-status-info-fg">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
@@ -651,7 +651,7 @@ export const PerformanceTests = () => {
                   "live_stream_urls" in jobStatus &&
                   jobStatus.live_stream_urls && (
                     <div className="mt-4">
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                      <p className="text-sm font-medium text-status-info-fg mb-3">
                         Live Preview:
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -664,10 +664,10 @@ export const PerformanceTests = () => {
                             return (
                               <div
                                 key={reference.rawKey}
-                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                                className="border border-status-info-border overflow-hidden"
                               >
-                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
-                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                <div className="bg-status-info-bg px-3 py-2">
+                                  <p className="text-xs font-medium text-status-info-fg">
                                     <PipelineName
                                       pipelineId={reference.pipelineId}
                                       variantId={reference.variantId}
@@ -683,7 +683,7 @@ export const PerformanceTests = () => {
                                     />
                                   </div>
                                 ) : (
-                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                  <div className="p-4 text-center text-sm text-status-info-fg">
                                     Waiting for live stream to be published...
                                   </div>
                                 )}
@@ -703,7 +703,7 @@ export const PerformanceTests = () => {
 
         {!isRunning && frozenSummary && (
           <div className="my-4 p-3 bg-brand-accent-05 border border-brand-accent-20">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+            <p className="text-sm font-medium text-status-info-fg mb-2">
               Frozen Metrics Snapshot
             </p>
             <TestProgressIndicator

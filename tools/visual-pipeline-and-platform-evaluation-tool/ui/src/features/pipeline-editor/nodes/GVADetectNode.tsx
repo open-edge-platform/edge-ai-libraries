@@ -16,11 +16,11 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-indigo-400 min-w-[17.5rem]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-ai-detect-border min-w-[17.5rem]">
       <div className="flex gap-3">
-        <div className="shrink-0 w-10 h-10 rounded bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center self-center">
+        <div className="shrink-0 w-10 h-10 rounded bg-node-role-ai-detect-surface flex items-center justify-center self-center">
           <svg
-            className="w-6 h-6 text-indigo-600 dark:text-indigo-400"
+            className="w-6 h-6 text-node-role-ai-detect-icon"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -41,16 +41,16 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div className="text-xl font-bold text-indigo-700 dark:text-indigo-300">
+          <div className="text-xl font-bold text-node-role-ai-detect-title">
             {simpleGraph ? "Object Detection" : "GVADetect"}
           </div>
 
-          <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
             {data.device && <span>{data.device}</span>}
 
             {data.model && (
               <>
-                {data.device && <span className="text-gray-400">•</span>}
+                {data.device && <span className="text-node-separator">•</span>}
                 <span
                   className="truncate max-w-[10.3125rem]"
                   title={data.model.split("/").pop() || data.model}
@@ -63,7 +63,7 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
             {data["object-class"] && (
               <>
                 {(data.model || data.device) && (
-                  <span className="text-gray-400">•</span>
+                  <span className="text-node-separator">•</span>
                 )}
                 <span>{data["object-class"]}</span>
               </>
@@ -75,14 +75,14 @@ const GVADetectNode = ({ data }: GVADetectNodeProps) => {
       <Handle
         type="target"
         position={Position.Top}
-        className="w-3 h-3 bg-indigo-500!"
+        className="w-3 h-3 bg-node-role-ai-detect-handle!"
         style={{ left: getHandleLeftPosition("gvadetect") }}
       />
 
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-3 h-3 bg-indigo-500!"
+        className="w-3 h-3 bg-node-role-ai-detect-handle!"
         style={{ left: getHandleLeftPosition("gvadetect") }}
       />
     </div>

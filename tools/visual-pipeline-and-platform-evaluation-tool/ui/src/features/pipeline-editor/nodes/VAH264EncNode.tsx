@@ -2,11 +2,11 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VAH264EncNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-rose-400 min-w-[13.75rem]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-encode-border min-w-[13.75rem]">
     <div className="flex gap-3">
-      <div className="shrink-0 w-10 h-10 rounded bg-rose-100 dark:bg-rose-900 flex items-center justify-center self-center">
+      <div className="shrink-0 w-10 h-10 rounded bg-node-role-encode-surface flex items-center justify-center self-center">
         <svg
-          className="w-6 h-6 text-rose-600 dark:text-rose-400"
+          className="w-6 h-6 text-node-role-encode-icon"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -21,7 +21,7 @@ const VAH264EncNode = () => (
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="text-xl font-bold text-rose-700 dark:text-rose-300">
+        <div className="text-xl font-bold text-node-role-encode-title">
           VAH264Enc
         </div>
       </div>
@@ -30,14 +30,14 @@ const VAH264EncNode = () => (
     <Handle
       type="target"
       position={Position.Top}
-      className="w-3 h-3 bg-rose-500!"
+      className="w-3 h-3 bg-node-role-encode-handle!"
       style={{ left: getHandleLeftPosition("vah264enc") }}
     />
 
     <Handle
       type="source"
       position={Position.Bottom}
-      className="w-3 h-3 bg-rose-500!"
+      className="w-3 h-3 bg-node-role-encode-handle!"
       style={{ left: getHandleLeftPosition("vah264enc") }}
     />
   </div>

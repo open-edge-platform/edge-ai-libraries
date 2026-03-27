@@ -23,7 +23,7 @@ const StatePreviewButton = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg shadow-lg transition-colors">
+        <button className="bg-primary hover:bg-primary-90 text-primary-foreground p-2 rounded-lg shadow-lg transition-colors">
           <Braces className="w-5 h-5" />
         </button>
       </DialogTrigger>
@@ -40,7 +40,7 @@ const StatePreviewButton = ({
               <h3 className="text-lg font-semibold mb-2">
                 Nodes ({nodes.length})
               </h3>
-              <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto">
+              <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto">
                 {JSON.stringify(nodes, null, 2)}
               </pre>
             </div>
@@ -48,13 +48,13 @@ const StatePreviewButton = ({
               <h3 className="text-lg font-semibold mb-2">
                 Edges ({edges.length})
               </h3>
-              <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto">
+              <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto">
                 {JSON.stringify(edges, null, 2)}
               </pre>
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2">Viewport</h3>
-              <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto">
+              <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto">
                 {JSON.stringify(viewport, null, 2)}
               </pre>
             </div>

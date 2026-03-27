@@ -37,7 +37,7 @@ const PerformanceTestPanel = ({
     <div className="w-full h-full bg-background p-4 space-y-4">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
-      <div className="space-y-4">
+      <div className="space-y-4 pb-8">
         {livePreviewEnabled && (isRunning || !!liveStreamUrl) && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">
@@ -63,7 +63,7 @@ const PerformanceTestPanel = ({
             </h3>
             <video
               controls
-              className="w-full h-auto border border-gray-300 rounded"
+              className="w-full h-auto border border-input rounded"
               src={`/assets${completedVideoPath}`}
             >
               Your browser does not support the video tag.

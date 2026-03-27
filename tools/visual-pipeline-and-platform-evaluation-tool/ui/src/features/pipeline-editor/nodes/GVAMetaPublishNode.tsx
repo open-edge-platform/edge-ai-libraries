@@ -12,11 +12,11 @@ type GVAMetaPublishNodeProps = {
 };
 
 const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-emerald-400 min-w-[16.5625rem]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-metadata-publish-border min-w-[16.5625rem]">
     <div className="flex gap-3">
-      <div className="shrink-0 w-10 h-10 rounded bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center self-center">
+      <div className="shrink-0 w-10 h-10 rounded bg-node-role-metadata-publish-surface flex items-center justify-center self-center">
         <svg
-          className="w-6 h-6 text-emerald-600 dark:text-emerald-400"
+          className="w-6 h-6 text-node-role-metadata-publish-icon"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -31,21 +31,21 @@ const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+        <div className="text-xl font-bold text-node-role-metadata-publish-title">
           GVAMetaPublish
         </div>
 
-        <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
           {data.method && <span>{data.method}</span>}
 
           {data.method && (data["file-format"] || data["file-path"]) && (
-            <span className="text-gray-400">•</span>
+            <span className="text-node-separator">•</span>
           )}
 
           {data["file-format"] && <span>{data["file-format"]}</span>}
 
           {data["file-format"] && data["file-path"] && (
-            <span className="text-gray-400">•</span>
+            <span className="text-node-separator">•</span>
           )}
 
           {data["file-path"] && <span>{data["file-path"]}</span>}
@@ -56,14 +56,14 @@ const GVAMetaPublishNode = ({ data }: GVAMetaPublishNodeProps) => (
     <Handle
       type="target"
       position={Position.Top}
-      className="w-3 h-3 bg-emerald-500!"
+      className="w-3 h-3 bg-node-role-metadata-publish-handle!"
       style={{ left: getHandleLeftPosition("gvametapublish") }}
     />
 
     <Handle
       type="source"
       position={Position.Bottom}
-      className="w-3 h-3 bg-emerald-500!"
+      className="w-3 h-3 bg-node-role-metadata-publish-handle!"
       style={{ left: getHandleLeftPosition("gvametapublish") }}
     />
   </div>

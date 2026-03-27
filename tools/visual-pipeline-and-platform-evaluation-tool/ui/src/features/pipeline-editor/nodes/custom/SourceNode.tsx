@@ -12,11 +12,11 @@ type SourceNodeProps = {
 
 const SourceNode = ({ data }: SourceNodeProps) => {
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-blue-400 min-w-[20.625rem]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-source-border min-w-[20.625rem]">
       <div className="flex gap-3">
-        <div className="shrink-0 w-10 h-10 rounded bg-blue-100 dark:bg-blue-900 flex items-center justify-center self-center">
+        <div className="shrink-0 w-10 h-10 rounded bg-node-role-source-surface flex items-center justify-center self-center">
           <svg
-            className="w-6 h-6 text-blue-600 dark:text-blue-400"
+            className="w-6 h-6 text-node-role-source-icon"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -31,16 +31,16 @@ const SourceNode = ({ data }: SourceNodeProps) => {
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div className="text-xl font-bold text-blue-700 dark:text-blue-300">
+          <div className="text-xl font-bold text-node-role-source-title">
             Input
           </div>
 
-          <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
             {data.kind && <span>{data.kind}</span>}
 
             {data.source && (
               <>
-                {data.kind && <span className="text-gray-400">•</span>}
+                {data.kind && <span className="text-node-separator">•</span>}
                 <span
                   className="truncate max-w-[11.5625rem]"
                   title={data.source}
@@ -56,7 +56,7 @@ const SourceNode = ({ data }: SourceNodeProps) => {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-3 h-3 bg-blue-500!"
+        className="w-3 h-3 bg-node-role-source-handle!"
         style={{ left: getHandleLeftPosition("source") }}
       />
     </div>

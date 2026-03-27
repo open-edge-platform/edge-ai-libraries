@@ -2,11 +2,11 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const VideoXRawNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-slate-400 min-w-[13.75rem]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-media-border min-w-[13.75rem]">
     <div className="flex gap-3">
-      <div className="shrink-0 w-10 h-10 rounded bg-slate-100 dark:bg-slate-900 flex items-center justify-center self-center">
+      <div className="shrink-0 w-10 h-10 rounded bg-node-role-media-surface flex items-center justify-center self-center">
         <svg
-          className="w-6 h-6 text-slate-600 dark:text-slate-400"
+          className="w-6 h-6 text-node-role-media-icon"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -21,11 +21,11 @@ const VideoXRawNode = () => (
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="text-xl font-bold text-slate-700 dark:text-slate-300">
+        <div className="text-xl font-bold text-node-role-media-title">
           Video/x-raw
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 flex-wrap text-xs text-node-body-text">
           <span>VAMemory</span>
         </div>
       </div>
@@ -34,14 +34,14 @@ const VideoXRawNode = () => (
     <Handle
       type="target"
       position={Position.Top}
-      className="w-3 h-3 bg-slate-500!"
+      className="w-3 h-3 bg-node-role-media-handle!"
       style={{ left: getHandleLeftPosition("video/x-raw(memory:VAMemory)") }}
     />
 
     <Handle
       type="source"
       position={Position.Bottom}
-      className="w-3 h-3 bg-slate-500!"
+      className="w-3 h-3 bg-node-role-media-handle!"
       style={{ left: getHandleLeftPosition("video/x-raw(memory:VAMemory)") }}
     />
   </div>

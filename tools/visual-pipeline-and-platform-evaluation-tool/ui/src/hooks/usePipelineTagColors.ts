@@ -3,14 +3,13 @@ import { type Pipeline } from "@/api/api.generated";
 
 const TAG_COLORS = [
   "electric-cobalt",
+  "electric-teal",
   "electric-coral",
   "electric-geode",
   "electric-rust",
   "electric-slate",
-  "electric-amethyst",
-  "electric-fuchsia",
-  "electric-teal",
   "electric-emerald",
+  "electric-fuchsia",
 ] as const;
 
 export type TagColor = (typeof TAG_COLORS)[number];

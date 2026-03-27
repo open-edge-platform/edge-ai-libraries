@@ -2,11 +2,11 @@ import { Handle, Position } from "@xyflow/react";
 import { getHandleLeftPosition } from "../utils/graphLayout";
 
 const Mp4MuxNode = () => (
-  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-violet-400 min-w-[13.75rem]">
+  <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-mux-border min-w-[13.75rem]">
     <div className="flex gap-3">
-      <div className="shrink-0 w-10 h-10 rounded bg-violet-100 dark:bg-violet-900 flex items-center justify-center self-center">
+      <div className="shrink-0 w-10 h-10 rounded bg-node-role-mux-surface flex items-center justify-center self-center">
         <svg
-          className="w-6 h-6 text-violet-600 dark:text-violet-400"
+          className="w-6 h-6 text-node-role-mux-icon"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -21,7 +21,7 @@ const Mp4MuxNode = () => (
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="text-xl font-bold text-violet-700 dark:text-violet-300">
+        <div className="text-xl font-bold text-node-role-mux-title">
           Mp4Mux
         </div>
       </div>
@@ -30,14 +30,14 @@ const Mp4MuxNode = () => (
     <Handle
       type="target"
       position={Position.Top}
-      className="w-3 h-3 bg-violet-500!"
+      className="w-3 h-3 bg-node-role-mux-handle!"
       style={{ left: getHandleLeftPosition("mp4mux") }}
     />
 
     <Handle
       type="source"
       position={Position.Bottom}
-      className="w-3 h-3 bg-violet-500!"
+      className="w-3 h-3 bg-node-role-mux-handle!"
       style={{ left: getHandleLeftPosition("mp4mux") }}
     />
   </div>

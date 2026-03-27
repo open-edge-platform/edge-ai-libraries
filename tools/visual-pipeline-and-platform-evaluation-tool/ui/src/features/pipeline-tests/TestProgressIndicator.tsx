@@ -164,7 +164,7 @@ const MetricCard = ({
           `${
             useDemoStyles
               ? `text-[0.6875rem] font-semibold uppercase tracking-widest mb-3 ${
-                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                  isSummary ? summaryTitleClassName : "text-muted-foreground"
                 }`
               : "text-sm font-medium text-foreground mb-2"
           }`,
@@ -447,7 +447,7 @@ export const TestProgressIndicator = ({
           `${
             useDemoStyles
               ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                  isSummary ? summaryTitleClassName : "text-muted-foreground"
                 }`
               : "text-sm font-medium text-foreground mb-5"
           }`,
@@ -517,7 +517,7 @@ export const TestProgressIndicator = ({
           `${
             useDemoStyles
               ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                  isSummary ? summaryTitleClassName : "text-neutral-400"
+                  isSummary ? summaryTitleClassName : "text-muted-foreground"
                 }`
               : "text-sm font-medium text-foreground mb-5"
           }`,
@@ -714,7 +714,7 @@ export const TestProgressIndicator = ({
                 `${
                   useDemoStyles
                     ? `text-[0.625rem] font-semibold uppercase tracking-widest mb-6 ${
-                        isSummary ? summaryTitleClassName : "text-neutral-400"
+                        isSummary ? summaryTitleClassName : "text-muted-foreground"
                       }`
                     : "text-sm font-medium text-foreground mb-5"
                 }`,

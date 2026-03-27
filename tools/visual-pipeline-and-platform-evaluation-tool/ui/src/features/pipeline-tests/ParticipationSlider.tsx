@@ -25,7 +25,7 @@ export const ParticipationSlider = ({
         disabled && "opacity-60 cursor-not-allowed",
       )}
     >
-      <span className="text-sm text-neutral-500 min-w-[1rem] text-center font-semibold">
+      <span className="text-sm text-muted-foreground min-w-[1rem] text-center font-semibold">
         {min}
       </span>
       <Slider
@@ -41,7 +41,7 @@ export const ParticipationSlider = ({
         className="flex-1"
         disabled={disabled}
       />
-      <span className="text-sm text-neutral-500 min-w-[1.5rem] text-center font-semibold">
+      <span className="text-sm text-muted-foreground min-w-[1.5rem] text-center font-semibold">
         {max}
       </span>
       <input
@@ -63,7 +63,7 @@ export const ParticipationSlider = ({
         style={{ textAlign: "center" }}
         disabled={disabled}
       />
-      <span className="text-sm text-neutral-500 font-semibold">%</span>
+      <span className="text-sm text-muted-foreground font-semibold">%</span>
     </div>
   );
 };

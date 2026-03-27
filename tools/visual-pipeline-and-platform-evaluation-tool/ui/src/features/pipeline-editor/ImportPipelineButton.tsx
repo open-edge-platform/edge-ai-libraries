@@ -160,24 +160,24 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
             <h3 className="font-semibold text-sm mb-2">Import Pipeline</h3>
             <button
               onClick={handleJsonImport}
-              className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm flex items-start gap-2"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors text-sm flex items-start gap-2"
             >
               <FileJson className="w-4 h-4 mt-0.5 shrink-0" />
               <div>
                 <div className="font-medium">Import JSON File</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   Import Pipeline Editor state
                 </div>
               </div>
             </button>
             <button
               onClick={handleDescriptionImport}
-              className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 transition-colors text-sm flex items-start gap-2"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors text-sm flex items-start gap-2"
             >
               <Terminal className="w-4 h-4 mt-0.5 shrink-0" />
               <div>
                 <div className="font-medium">Import GST Description</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   Import pipeline description
                 </div>
               </div>
@@ -205,7 +205,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
                 type="file"
                 accept=".txt"
                 onChange={handleTxtFileUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary-90"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary-90"
               />
             </div>
 
@@ -221,13 +221,13 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
                 value={pipelineDescription}
                 onChange={(e) => setPipelineDescription(e.target.value)}
                 placeholder="Paste or upload your pipeline description here..."
-                className="w-full h-64 p-3 border rounded-md resize-none font-mono text-sm"
+                className="w-full h-64 p-3 border border-input bg-background rounded-md resize-none font-mono text-sm"
               />
             </div>
 
             <div className="flex justify-end gap-2">
               <button
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-input rounded-md hover:bg-muted transition-colors"
                 onClick={() => {
                   setDialogOpen(false);
                   setPipelineDescription("");
@@ -236,7 +236,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
                 Cancel
               </button>
               <button
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleConvertAndImport}
                 disabled={isLoading || !pipelineDescription.trim()}
               >

@@ -154,7 +154,7 @@ export const MetricChart = ({
             useDemoStyles &&
               (isSummary && !hideSummaryBorder
                 ? summaryTitleClassName
-                : "text-neutral-400"),
+                : "text-muted-foreground"),
           )}
         >
           {title}
@@ -202,13 +202,7 @@ export const MetricChart = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className={cn(
-                    useDemoStyles
-                      ? forceDark
-                        ? "bg-neutral-900 border-neutral-700 text-white"
-                        : "bg-popover border-border text-popover-foreground"
-                      : "bg-neutral-900 border-neutral-700 text-white",
-                  )}
+                  className="bg-popover border-border text-popover-foreground"
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
@@ -262,7 +256,7 @@ export const MetricChart = ({
                 : "bottom-0",
           )}
         >
-          <span className="text-xs text-neutral-500 font-semibold">
+          <span className="text-xs text-muted-foreground font-semibold">
             {totalTime}
           </span>
         </div>

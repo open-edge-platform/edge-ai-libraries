@@ -472,15 +472,15 @@ export const DensityTests = () => {
         )}
 
         {jobStatus && (
-          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+          <div className="m-4 p-3 bg-status-info-bg border border-status-info-border">
+            <p className="text-sm font-medium text-status-info-fg">
               Test Status: {jobStatus.state}
             </p>
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-blue-500"></div>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                  <div className="h-2 w-2 bg-status-info-accent"></div>
+                  <span className="text-xs text-status-info-fg">
                     Running density test...
                   </span>
                 </div>
@@ -491,8 +491,8 @@ export const DensityTests = () => {
         )}
 
         {!isRunning && frozenSummary && (
-          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+          <div className="m-4 p-3 bg-status-info-bg border border-status-info-border">
+            <p className="text-sm font-medium text-status-info-fg mb-2">
               Frozen Metrics Snapshot
             </p>
             <TestProgressIndicator
@@ -503,33 +503,33 @@ export const DensityTests = () => {
         )}
 
         {errorMessage && (
-          <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-            <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
+          <div className="my-4 p-3 bg-status-error-bg border border-status-error-border">
+            <p className="text-sm font-medium text-status-error-fg mb-2">
               Test Failed
             </p>
-            <p className="text-xs text-red-700 dark:text-red-300">
+            <p className="text-xs text-status-error-fg">
               {errorMessage}
             </p>
           </div>
         )}
 
         {testResult && (
-          <div className="my-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-            <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+          <div className="my-4 p-3 bg-status-success-bg border border-status-success-border">
+            <p className="text-sm font-medium text-status-success-fg mb-2">
               Test Completed Successfully
             </p>
             <div className="space-y-1 text-sm">
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-success-fg">
                 <span className="font-medium">Per Stream FPS:</span>{" "}
                 {testResult.per_stream_fps?.toFixed(2) ?? "N/A"}
               </p>
-              <p className="text-green-800 dark:text-green-200">
+              <p className="text-status-success-fg">
                 <span className="font-medium">Total Streams:</span>{" "}
                 {testResult.total_streams ?? "N/A"}
               </p>
               {testResult.streams_per_pipeline && (
                 <div className="mt-2">
-                  <p className="text-green-800 dark:text-green-200 font-medium mb-1">
+                  <p className="text-status-success-fg font-medium mb-1">
                     Streams per Pipeline:
                   </p>
                   <PipelineStreamsSummary

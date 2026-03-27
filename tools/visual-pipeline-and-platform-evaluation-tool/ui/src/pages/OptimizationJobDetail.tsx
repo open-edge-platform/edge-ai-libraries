@@ -32,8 +32,8 @@ export const OptimizationJobDetail = () => {
         {isLoading ? (
           <p className="text-muted-foreground">Loading job details...</p>
         ) : error ? (
-          <div className="p-4 border border-red-500 bg-red-50 dark:bg-red-950">
-            <p className="text-red-800 dark:text-red-200">
+          <div className="p-4 border border-status-error-border bg-status-error-bg">
+            <p className="text-status-error-fg">
               Error loading job details
             </p>
           </div>

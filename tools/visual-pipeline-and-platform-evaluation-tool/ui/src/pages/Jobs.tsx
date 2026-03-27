@@ -146,7 +146,7 @@ export const Jobs = () => {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <div className="border-b border-border mb-6">
           <nav className="flex space-x-8" aria-label="Tabs">
             {tabs.map((tab) => (
               <Link
@@ -228,12 +228,12 @@ export const Jobs = () => {
                             className={cn(
                               "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                ? "bg-status-success-bg text-status-success-fg"
                                 : job.state === "RUNNING"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                  ? "bg-status-info-bg text-status-info-fg"
                                   : job.state === "FAILED"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                                    ? "bg-status-error-bg text-status-error-fg"
+                                    : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >
                             {job.state}
@@ -316,7 +316,7 @@ export const Jobs = () => {
                         <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/density/${job.id}`}
-                            className="block truncate text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                            className="block truncate text-status-link hover:text-status-link-hover hover:underline"
                           >
                             {job.id}
                           </Link>
@@ -326,12 +326,12 @@ export const Jobs = () => {
                             className={cn(
                               "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                ? "bg-status-success-bg text-status-success-fg"
                                 : job.state === "RUNNING"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                  ? "bg-status-info-bg text-status-info-fg"
                                   : job.state === "FAILED"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                                    ? "bg-status-error-bg text-status-error-fg"
+                                    : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >
                             {job.state}
@@ -420,13 +420,13 @@ export const Jobs = () => {
                         <TableCell className="font-mono text-xs max-w-[8.75rem]">
                           <Link
                             to={`/jobs/optimize/${job.id}`}
-                            className="block truncate text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                            className="block truncate text-status-link hover:text-status-link-hover hover:underline"
                           >
                             {job.id}
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs font-medium">
+                          <span className="px-2 py-1 bg-status-accent-bg text-status-accent-fg text-xs font-medium">
                             {job.type ?? "-"}
                           </span>
                         </TableCell>
@@ -435,12 +435,12 @@ export const Jobs = () => {
                             className={cn(
                               "px-2 py-1 text-xs font-medium",
                               job.state === "COMPLETED"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                ? "bg-status-success-bg text-status-success-fg"
                                 : job.state === "RUNNING"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                  ? "bg-status-info-bg text-status-info-fg"
                                   : job.state === "FAILED"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+                                    ? "bg-status-error-bg text-status-error-fg"
+                                    : "bg-status-neutral-bg text-status-neutral-fg",
                             )}
                           >
                             {job.state}

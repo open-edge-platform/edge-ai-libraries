@@ -16,11 +16,11 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
   const { simpleGraph } = usePipelineEditorContext();
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-purple-400 min-w-[18.75rem]">
+    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-ai-classify-border min-w-[18.75rem]">
       <div className="flex gap-3">
-        <div className="flex-shrink-0 w-10 h-10 rounded bg-purple-100 dark:bg-purple-900 flex items-center justify-center self-center">
+        <div className="flex-shrink-0 w-10 h-10 rounded bg-node-role-ai-classify-surface flex items-center justify-center self-center">
           <svg
-            className="w-6 h-6 text-purple-600 dark:text-purple-400"
+            className="w-6 h-6 text-node-role-ai-classify-icon"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -35,16 +35,16 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
+          <div className="text-xl font-bold text-node-role-ai-classify-title">
             {simpleGraph ? "Image Classification" : "GVAClassify"}
           </div>
 
-          <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
             {data.device && <span>{data.device}</span>}
 
             {data.model && (
               <>
-                {data.device && <span className="text-gray-400">•</span>}
+                {data.device && <span className="text-node-separator">•</span>}
                 <span
                   className="truncate max-w-[11.5625rem]"
                   title={data.model.split("/").pop() ?? data.model}
@@ -60,14 +60,14 @@ const GVAClassifyNode = ({ data }: GVAClassifyNodeProps) => {
       <Handle
         type="target"
         position={Position.Top}
-        className="w-3 h-3 bg-purple-500!"
+        className="w-3 h-3 bg-node-role-ai-classify-handle!"
         style={{ left: getHandleLeftPosition("gvaclassify") }}
       />
 
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-3 h-3 bg-purple-500!"
+        className="w-3 h-3 bg-node-role-ai-classify-handle!"
         style={{ left: getHandleLeftPosition("gvaclassify") }}
       />
     </div>

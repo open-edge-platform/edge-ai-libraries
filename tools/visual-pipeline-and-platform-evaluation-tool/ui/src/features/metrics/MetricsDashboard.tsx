@@ -11,13 +11,13 @@ interface MetricCardProps {
 }
 
 const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => (
-  <div className="bg-white rounded-lg shadow-md p-4 flex items-center space-x-3">
-    <div className="shrink-0 p-2 bg-blue-100 rounded-lg">{icon}</div>
+  <div className="bg-metric-card-bg rounded-lg shadow-md p-4 flex items-center space-x-3">
+    <div className="shrink-0 p-2 bg-metric-card-icon-bg rounded-lg">{icon}</div>
     <div>
-      <h3 className="text-sm font-medium text-gray-900">{title}</h3>
-      <p className="text-2xl font-bold text-gray-900">
+      <h3 className="text-sm font-medium text-metric-card-title">{title}</h3>
+      <p className="text-2xl font-bold text-metric-card-value">
         {value.toFixed(2)}
-        <span className="text-sm text-gray-500 ml-1">{unit}</span>
+        <span className="text-sm text-metric-card-unit ml-1">{unit}</span>
       </p>
     </div>
   </div>
@@ -33,11 +33,11 @@ export const MetricsDashboard = ({ className = "" }: MetricsDashboardProps) => {
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-50">
+      <div className="flex items-center space-x-2 p-3 rounded-lg bg-metric-connection-bg">
         {isConnected ? (
-          <Wifi className="h-5 w-5 text-green-600" />
+          <Wifi className="h-5 w-5 text-metric-connection-ok" />
         ) : (
-          <WifiOff className="h-5 w-5 text-red-600" />
+          <WifiOff className="h-5 w-5 text-metric-connection-error" />
         )}
         <span className="text-sm font-medium">
           {isConnected
@@ -46,7 +46,9 @@ export const MetricsDashboard = ({ className = "" }: MetricsDashboardProps) => {
               ? "Connecting..."
               : "Disconnected"}
         </span>
-        {error && <span className="text-sm text-red-600">({error})</span>}
+        {error && (
+          <span className="text-sm text-metric-connection-error">({error})</span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -54,23 +56,23 @@ export const MetricsDashboard = ({ className = "" }: MetricsDashboardProps) => {
           title="Frame Rate"
           value={fps}
           unit="fps"
-          icon={<Gauge className="h-6 w-6 text-blue-600" />}
+          icon={<Gauge className="h-6 w-6 text-status-link" />}
         />
         <MetricCard
           title="CPU Usage"
           value={cpu}
           unit="%"
-          icon={<Cpu className="h-6 w-6 text-green-600" />}
+          icon={<Cpu className="h-6 w-6 text-status-success-fg" />}
         />
         <MetricCard
           title="GPU Usage"
           value={gpu}
           unit="%"
-          icon={<Gpu className="h-6 w-6 text-purple-600" />}
+          icon={<Gpu className="h-6 w-6 text-status-accent-fg" />}
         />
       </div>
 
-      <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+      <div className="flex items-center justify-center space-x-2 text-sm text-metric-activity">
         <Activity className="h-4 w-4" />
         <span>Real-time metrics</span>
       </div>

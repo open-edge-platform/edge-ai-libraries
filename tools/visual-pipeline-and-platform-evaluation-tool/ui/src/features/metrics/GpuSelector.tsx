@@ -24,8 +24,8 @@ export const GpuSelector = ({
           className={cn(
             "py-1 text-sm font-medium transition-all text-left whitespace-nowrap",
             selectedGpu === gpuId
-              ? "text-gray-900 dark:text-gray-100"
-              : "text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400",
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground-70",
           )}
         >
           GPU {gpuId}
