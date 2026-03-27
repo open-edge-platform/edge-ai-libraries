@@ -47,6 +47,11 @@
   --electric-daisy: oklch(0.9147 0.1908 101.03); /* #FFE500 */
   --electric-rust: oklch(0.7315 0.1802 50.72); /* #FE8022 */
   --electric-coral: oklch(0.5859 0.2057 13.88); /* #DA2E56 */
+  --electric-slate: oklch(0.6588 0.0351 256.79); /* #94A3B8 */
+  --electric-amethyst: oklch(0.48 0.26 300); /* ~#7A1CF0 */
+  --electric-fuchsia: oklch(0.52 0.27 330); /* ~#C81E8F */
+  --electric-teal: oklch(0.55 0.16 190); /* ~#0FA3A3 */
+  --electric-emerald: oklch(0.58 0.18 150); /* ~#00A86B */
 
   /* Chart palette (light) */
   --green-chart: oklch(0.795 0.108 128.285); /* #B1D272 */
