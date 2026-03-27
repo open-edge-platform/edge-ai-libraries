@@ -24,7 +24,7 @@ This microservice supports features based on the requirements of Video Search an
 :::{toctree}
 :hidden:
 
-Release Notes 2025 <./release-notes-2025.md>
+Release Notes 2025 <./release-notes/release-notes-2025.md>
 
 :::
 hide_directive-->
