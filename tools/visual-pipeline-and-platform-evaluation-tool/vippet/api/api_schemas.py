@@ -1354,15 +1354,17 @@ class PerformanceJobStatus(TestsJobStatus):
     """
     **Status of a performance test job.**
 
-    Inherits all fields from TestsJobStatus and adds live_stream_urls
-    for live-streaming output mode support.
+    Inherits all fields from TestsJobStatus and adds live_stream_urls and
+    metadata_stream_urls for live-streaming output mode support.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
+    - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     """
 
     live_stream_urls: Optional[Dict[str, str]]
+    metadata_stream_urls: Optional[Dict[str, list[str]]] = None
 
 
 class DensityJobStatus(TestsJobStatus):

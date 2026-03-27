@@ -31,8 +31,9 @@ x-vippet: &vippet
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     INPUT_VIDEO_DIR: /videos/input
     OUTPUT_VIDEO_DIR: /videos/output
-    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
-    SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
+    METADATA_DIR: /metadata
+    SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,metadata"
+    SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametaconvert,gvawatermark"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
@@ -50,6 +51,7 @@ x-vippet: &vippet
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
+    - ./shared/metadata/:/metadata
 
 services:
   vippet-ui:

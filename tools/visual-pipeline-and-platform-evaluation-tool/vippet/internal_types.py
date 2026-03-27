@@ -426,6 +426,7 @@ class InternalPerformanceJobStatus:
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
+    metadata_stream_urls: dict[str, list[str]] | None = None
 
 
 @dataclass

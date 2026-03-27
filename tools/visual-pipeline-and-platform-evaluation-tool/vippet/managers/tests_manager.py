@@ -22,6 +22,7 @@ from internal_types import (
 from pipeline_runner import PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
+from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
 
 logger = logging.getLogger("tests_manager")
@@ -350,13 +351,28 @@ class TestsManager:
 
             # Build pipeline command from specs
             # video_output_dirs maps pipeline IDs to their output directory paths
-            pipeline_command, video_output_dirs, live_stream_urls = (
-                self.pipeline_manager.build_pipeline_command(
-                    internal_spec.pipeline_performance_specs,
-                    internal_spec.execution_config,
-                    job_id,
-                )
+            (
+                pipeline_command,
+                video_output_dirs,
+                live_stream_urls,
+                metadata_file_paths,
+            ) = self.pipeline_manager.build_pipeline_command(
+                internal_spec.pipeline_performance_specs,
+                internal_spec.execution_config,
+                job_id,
             )
+
+            # Set up metadata streaming if the pipeline produces metadata output files.
+            metadata_stream_urls = None
+            if metadata_file_paths:
+                MetadataManager().register_job(job_id, metadata_file_paths)
+                metadata_stream_urls = {
+                    pipeline_id: [
+                        f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{i}/stream"
+                        for i in range(len(paths))
+                    ]
+                    for pipeline_id, paths in metadata_file_paths.items()
+                }
 
             # Build streams_per_pipeline using InternalPipelineStreamSpec
             streams_per_pipeline = [
@@ -364,7 +380,7 @@ class TestsManager:
                 for spec in internal_spec.pipeline_performance_specs
             ]
 
-            # Update job with live_stream_urls and streams_per_pipeline immediately
+            # Update job with live_stream_urls, metadata_stream_urls and streams_per_pipeline immediately
             with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
@@ -377,8 +393,10 @@ class TestsManager:
                         )
                     else:
                         job.live_stream_urls = live_stream_urls
+                        job.metadata_stream_urls = metadata_stream_urls
                         self.logger.debug(
-                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}"
+                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}, "
+                            f"metadata_stream_urls: {metadata_stream_urls}"
                         )
 
             # Initialize PipelineRunner in normal mode with max_runtime from execution_config
@@ -463,10 +481,14 @@ class TestsManager:
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
 
+            # Stop tailing metadata files now that the pipeline has finished
+            MetadataManager().stop_tailing(job_id)
+
         except Exception as e:
             # Clean up runner on error
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
+            MetadataManager().stop_tailing(job_id)
             self._update_job_failed(job_id, str(e))
 
     def _execute_density_test(
