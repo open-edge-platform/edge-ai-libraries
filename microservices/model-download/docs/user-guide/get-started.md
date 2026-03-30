@@ -232,7 +232,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     }
   ],
   "parallel_downloads": false
-}
+}'
 ```
 
 **NOTES**
