@@ -47,6 +47,9 @@ const mockState = {
     selectedQuery: null,
     triggerLoad: false,
   },
+  video: {
+    videos: [],
+  },
 };
 
 const mockSystemConfig = {
@@ -263,6 +266,7 @@ vi.mock('../redux/ui/ui.model', () => ({
 
 vi.mock('../redux/video/videoSlice', () => ({
   videosLoad: videosLoadMock,
+  videosSelector: (state: any) => state.video,
 }));
 
 vi.mock('../components/Prompts/PromptInput', () => ({
@@ -285,10 +289,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 const loadComponent = async () => (await import('../components/VideoActions/VideoSummarizeFlow')).default;
+const streamableMp4Buffer = new TextEncoder().encode('ftypmoovmdatfree').buffer;
 
 beforeAll(() => {
   global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
   global.URL.revokeObjectURL = vi.fn();
+  File.prototype.arrayBuffer = vi.fn(async function () {
+    return streamableMp4Buffer;
+  });
 });
 
 beforeEach(() => {
