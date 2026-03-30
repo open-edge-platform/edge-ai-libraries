@@ -32,9 +32,9 @@ class MetadataManager:
 
     Responsibilities:
 
-    * start a background thread that tails the given file(s)
-    * buffer the last BUFFER_SIZE records per job in a ring buffer
-    * notify SSE subscribers via asyncio.Queue bridged from the tailing thread
+    * tail each metadata file in a background thread
+    * forward new records to active SSE subscribers as they arrive
+    * serve snapshots by reading the file from disk on demand
     """
 
     _instance: Optional["MetadataManager"] = None
@@ -121,8 +121,16 @@ class MetadataManager:
         with self._jobs_lock:
             job = self._jobs.get(job_id)
         if not job or not (0 <= file_index < len(job.files)):
+            self.logger.debug(
+                "job '%s' or file_index %d not found", job_id, file_index
+            )
             return []
-        return job.get_records(file_index, limit)
+        records = job.get_records(file_index, limit)
+        self.logger.debug(
+            "returning %d record(s) for job '%s' file_index %d",
+            len(records), job_id, file_index,
+        )
+        return records
 
     def resolve_file_index(
         self, job_id: str, pipeline_id: str, local_index: int
@@ -142,11 +150,21 @@ class MetadataManager:
         with self._jobs_lock:
             job = self._jobs.get(job_id)
         if not job:
+            self.logger.debug("job '%s' not found", job_id)
             return None
         indices = job.pipeline_map.get(pipeline_id)
         if not indices or not (0 <= local_index < len(indices)):
+            self.logger.debug(
+                "pipeline '%s' or local_index %d not found for job '%s'",
+                pipeline_id, local_index, job_id,
+            )
             return None
-        return indices[local_index]
+        global_index = indices[local_index]
+        self.logger.debug(
+            "job '%s' pipeline '%s' local_index %d -> global_index %d",
+            job_id, pipeline_id, local_index, global_index,
+        )
+        return global_index
 
     async def stream_events(self, job_id: str, file_index: int) -> AsyncIterator[str]:
         """
@@ -166,11 +184,21 @@ class MetadataManager:
         with self._jobs_lock:
             job = self._jobs.get(job_id)
         if not job:
+            self.logger.debug("job '%s' not found", job_id)
             return
         if not (0 <= file_index < len(job.files)):
+            self.logger.debug(
+                "file_index %d out of range for job '%s'", file_index, job_id
+            )
             return
+        self.logger.debug(
+            "starting SSE stream for job '%s' file_index %d", job_id, file_index
+        )
         async for line in job.stream(file_index):
             yield line
+        self.logger.debug(
+            "SSE stream ended for job '%s' file_index %d", job_id, file_index
+        )
 
 
 def _tail_lines(path: str, n: int) -> list[str]:
@@ -199,6 +227,7 @@ class _MetadataFile:
         # List of (asyncio.Queue, event_loop) tuples for active SSE connections
         self._subscribers: list[tuple[asyncio.Queue, asyncio.AbstractEventLoop]] = []
         self._subscribers_lock = threading.Lock()
+        self.logger = logging.getLogger(f"MetadataManager.file[{path}]")
 
     def get_records(self, limit: int) -> list[dict]:
         """Read the last ``limit`` records directly from the file on disk."""
@@ -213,10 +242,14 @@ class _MetadataFile:
     async def stream(self) -> AsyncIterator[str]:
         """Async generator bridging the tailing thread to SSE subscribers."""
         q: asyncio.Queue = asyncio.Queue(maxsize=2000)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         subscriber = (q, loop)
         with self._subscribers_lock:
             self._subscribers.append(subscriber)
+            count = len(self._subscribers)
+        self.logger.debug(
+            "SSE subscriber connected for %s (active: %d)", self.path, count
+        )
         try:
             while True:
                 try:
@@ -233,33 +266,58 @@ class _MetadataFile:
                     self._subscribers.remove(subscriber)
                 except ValueError:
                     pass
+                count = len(self._subscribers)
+            self.logger.debug(
+                "SSE subscriber disconnected for %s (remaining: %d)", self.path, count
+            )
 
     def process_line(self, line: str) -> None:
-        """Validate a JSON line and notify all SSE subscribers."""
+        """Validate a JSON line and notify all SSE subscribers.
+
+        Delivery to SSE clients is best-effort: if a subscriber's queue is
+        full (i.e. the client is too slow to consume events), the record is
+        silently dropped for that subscriber.  Snapshots read via
+        ``get_records()`` are always complete because they read from disk.
+        """
         if not line:
             return
         try:
             json.loads(line)
         except json.JSONDecodeError:
+            self.logger.debug("Skipping malformed JSON line in %s: %.120r", self.path, line)
             return  # skip malformed lines
         with self._subscribers_lock:
             for q, loop in self._subscribers:
                 # put_nowait runs *inside* the event loop via call_soon_threadsafe,
                 # so QueueFull must be caught inside the scheduled callback, not here.
-                def _put(q: asyncio.Queue = q, item: str = line) -> None:
+                def _put(
+                    q: asyncio.Queue = q,
+                    item: str = line,
+                    log=self.logger,
+                ) -> None:
                     if not q.full():
                         q.put_nowait(item)
+                    else:
+                        # Subscriber is too slow; record dropped (best-effort delivery)
+                        log.debug(
+                            "SSE subscriber queue full for %s; record dropped",
+                            self.path,
+                        )
 
                 loop.call_soon_threadsafe(_put)
 
     def stop(self) -> None:
         """Send sentinel to all subscribers to terminate their SSE streams."""
         with self._subscribers_lock:
+            count = len(self._subscribers)
             for q, loop in self._subscribers:
                 try:
                     loop.call_soon_threadsafe(q.put_nowait, None)
                 except Exception:
                     pass
+        self.logger.debug(
+            "Sent stop sentinel to %d subscriber(s) for %s", count, self.path
+        )
 
 
 class _MetadataJob:
@@ -277,6 +335,9 @@ class _MetadataJob:
 
     def start(self) -> None:
         """Start one background tailer thread per file."""
+        self.logger.debug(
+            "Starting %d tailer thread(s) for job '%s'", len(self.files), self.job_id
+        )
         for i, meta_file in enumerate(self.files):
             t = threading.Thread(
                 target=self._tail_file,
@@ -289,6 +350,7 @@ class _MetadataJob:
 
     def stop(self) -> None:
         """Signal tailer threads to stop and send sentinel to all SSE subscribers."""
+        self.logger.debug("Stopping tailer threads for job '%s'", self.job_id)
         self._stop_event.set()
         for meta_file in self.files:
             meta_file.stop()
@@ -323,6 +385,7 @@ class _MetadataJob:
         if self._stop_event.is_set():
             return
 
+        self.logger.debug("Started tailing %s", path)
         try:
             with open(path, "r") as f:
                 while not self._stop_event.is_set():
@@ -333,3 +396,4 @@ class _MetadataJob:
                         time.sleep(0.1)
         except Exception as e:
             self.logger.error("Error tailing metadata file %s: %s", path, e)
+        self.logger.debug("Stopped tailing %s", path)

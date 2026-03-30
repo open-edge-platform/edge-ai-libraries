@@ -820,7 +820,6 @@ class Graph:
         metadata_file_paths: list[str] = []
         for node in self.nodes:
             if node.type == "gvametapublish":
-                os.makedirs(metadata_dir, exist_ok=True)
                 meta_path = os.path.join(
                     metadata_dir,
                     f"metadata_{node.id}.jsonl",

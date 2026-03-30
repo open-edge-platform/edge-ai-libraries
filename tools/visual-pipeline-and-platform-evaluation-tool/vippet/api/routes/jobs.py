@@ -395,11 +395,13 @@ def stop_performance_test_job(job_id: str):
 
 @router.get(
     "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}",
-    operation_id="get_performance_job_metadata_stream",
+    operation_id="get_performance_job_metadata_snapshot",
     summary="Get metadata snapshot for a specific pipeline stream",
+    response_class=JSONResponse,
     responses={
         200: {
             "description": "List of metadata records for the specified pipeline stream",
+            "content": {"application/json": {"schema": {"type": "array", "items": {"type": "object"}}}},
         },
         404: {
             "description": "Job, pipeline, or file index not found",
@@ -465,7 +467,8 @@ def get_performance_job_metadata_for_stream(
             ).model_dump(),
             status_code=404,
         )
-    return MetadataManager().get_snapshot(job_id, file_index=global_index, limit=limit)
+    records = MetadataManager().get_snapshot(job_id, file_index=global_index, limit=limit)
+    return JSONResponse(content=records)
 
 
 @router.get(
