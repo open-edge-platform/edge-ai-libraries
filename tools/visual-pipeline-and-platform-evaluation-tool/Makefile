@@ -7,8 +7,9 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean clean-output-videos help \
-	build-videogenerator build-models docker-build env-setup \
-	install-models-once install-models-force install-models-all
+	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
+	install-models-once install-models-force install-models-all \
+	test-smoke test-full
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -85,6 +86,9 @@ build-videogenerator: env-setup ## Build videogenerator image
 build-models: env-setup ## Build model image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
 
+build-onvif-discovery: env-setup ## Build onvif discovery image
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+
 docker-build: build build-videogenerator build-models ## Build all images
 
 run: env-setup install-models-once ## Run the docker compose services
@@ -96,7 +100,7 @@ run-videogenerator: env-setup build-videogenerator ## Run only the videogenerato
 run-dev: env-setup install-models-once ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
-test: env-setup ## Run tests and generate coverage report
+test: env-setup ## Run unit tests and generate coverage report
     # Run tests using the cpu profile (tests are device agnostic)
     # Override DOCKER_TAG with '-test' suffix only for this docker compose run
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run \
@@ -104,8 +108,16 @@ test: env-setup ## Run tests and generate coverage report
 		cd $(PROJECT_NAME) && \
 		INPUT_VIDEO_DIR=/tmp \
 		OUTPUT_VIDEO_DIR=/tmp \
-		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
+		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests/unit -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
+
+test-smoke: $(VENV_DIR) ## Run smoke functional tests
+	set +u; . ./$</bin/activate; set -u ;\
+	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+
+test-full: $(VENV_DIR) ## Run full functional tests
+	set +u; . ./$</bin/activate; set -u ;\
+	python -m pytest --log-cli-level=INFO vippet/tests/functional/
 
 install-models-once: env-setup ## Handle models download and installation (once)
 	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models

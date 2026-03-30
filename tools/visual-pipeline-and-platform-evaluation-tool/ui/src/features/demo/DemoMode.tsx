@@ -33,7 +33,7 @@ import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { ParticipationSlider } from "@/features/pipeline-tests/ParticipationSlider.tsx";
 import { StreamsSlider } from "@/features/pipeline-tests/StreamsSlider.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
@@ -54,6 +54,7 @@ import {
   resolvePipelineVariantLabel,
 } from "@/features/pipeline-tests/pipelineVariantReference";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { getFilenameFromPath } from "@/lib/fileUtils.ts";
 
 const nodeTypeToTag: Record<string, string> = {
   // Sources
@@ -280,13 +281,6 @@ const DemoMode = () => {
     () => filterOutTransportStreams(videos).map((video) => video.filename),
     [videos],
   );
-  const getFilenameFromPath = (value: unknown): string => {
-    const stringValue = String(value ?? "");
-    if (!stringValue) return "";
-    const normalized = stringValue.replace(/\\/g, "/");
-    const segments = normalized.split("/");
-    return segments.at(-1) ?? stringValue;
-  };
   const getNodeEditKey = (
     pipelineId: string,
     variantId: string,
@@ -536,14 +530,10 @@ const DemoMode = () => {
 
   const performanceSummary = useMemo(() => {
     if (!performanceResult) return null;
-    let total = performanceResult.total_fps;
-    let perStream = performanceResult.per_stream_fps;
-    if (total != null && perStream != null && total < perStream) {
-      const tmp = total;
-      total = perStream;
-      perStream = tmp;
-    }
-    return { total, perStream };
+    return {
+      total: performanceResult.total_fps,
+      perStream: performanceResult.per_stream_fps,
+    };
   }, [performanceResult]);
 
   const colorModes = {
@@ -1113,10 +1103,8 @@ const DemoMode = () => {
     try {
       if (activeTest === "performance-test" && performanceJobId) {
         await stopPerformanceTestJob({ jobId: performanceJobId }).unwrap();
-        // Don't set jobId to null - let polling continue to get ABORTED status
       } else if (activeTest === "density-test" && densityJobId) {
         await stopDensityTestJob({ jobId: densityJobId }).unwrap();
-        // Don't set jobId to null - let polling continue to get ABORTED status
       }
     } catch (err) {
       console.error("Failed to stop test:", err);
@@ -2472,7 +2460,7 @@ const DemoMode = () => {
                           <div className="space-y-2">
                             {performanceJobStatus.state === "RUNNING" && (
                               <div>
-                                <TestProgressIndicator
+                                <MetricsDashboard
                                   key={performanceJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
@@ -2508,7 +2496,7 @@ const DemoMode = () => {
                           hasFrozenMetrics &&
                           frozenMetricsSummary && (
                             <div className="space-y-3">
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2567,7 +2555,7 @@ const DemoMode = () => {
                             </div>
 
                             {hasFrozenMetrics && frozenMetricsSummary && (
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2605,7 +2593,7 @@ const DemoMode = () => {
                                     Running density test...
                                   </span>
                                 </div>
-                                <TestProgressIndicator
+                                <MetricsDashboard
                                   key={densityJobId || testStartTimestamp}
                                   forceDark={true}
                                   useDemoStyles={true}
@@ -2641,7 +2629,7 @@ const DemoMode = () => {
                           hasFrozenMetrics &&
                           frozenMetricsSummary && (
                             <div className="space-y-3">
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }
@@ -2712,7 +2700,7 @@ const DemoMode = () => {
                               </div>
                             )}
                             {hasFrozenMetrics && frozenMetricsSummary && (
-                              <TestProgressIndicator
+                              <MetricsDashboard
                                 key={
                                   metricsFrozenForJobId || testStartTimestamp
                                 }

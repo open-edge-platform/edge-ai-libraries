@@ -1,4 +1,8 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
+import asyncio
 import pytest
 import tempfile
 from unittest.mock import patch, MagicMock
@@ -225,11 +229,11 @@ class TestHuggingFacePlugin:
 
     def test_post_process(self, hf_plugin):
         """Test post_process method"""
-        result = hf_plugin.post_process(
+        result = asyncio.run(hf_plugin.post_process(
             model_name="bert-base-uncased",
             output_dir="/test/output",
             downloaded_paths=["/test/output/model.bin"]
-        )
+        ))
 
         assert result["model_name"] == "bert-base-uncased"
         assert result["source"] == "huggingface"
@@ -326,11 +330,11 @@ class TestHuggingFacePluginIntegration:
             assert "huggingface" in result["download_path"]
             
             # Test post-processing
-            post_result = hf_plugin.post_process(
+            post_result = asyncio.run(hf_plugin.post_process(
                 model_name="bert-base-uncased",
                 output_dir=result["download_path"],
                 downloaded_paths=[os.path.join(result["download_path"], "pytorch_model.bin")]
-            )
+            ))
             
             assert post_result["success"] == True
             assert post_result["model_name"] == "bert-base-uncased"

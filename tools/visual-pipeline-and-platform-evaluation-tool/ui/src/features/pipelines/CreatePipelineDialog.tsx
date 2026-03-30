@@ -85,6 +85,7 @@ export const CreatePipelineDialog = ({
   const [selectedTemplate, setSelectedTemplate] = useState<Pipeline | null>(
     null,
   );
+  const dialogContentRef = useRef<HTMLElement | null>(null);
   const stepperRef = useRef<HTMLDivElement & IStepperMethods>(null);
 
   const { data: templates, isLoading: isLoadingTemplates } =
@@ -304,7 +305,19 @@ export const CreatePipelineDialog = ({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         className="max-w-6xl!"
-        onInteractOutside={(e) => e.preventDefault()}
+        ref={(node) => {
+          dialogContentRef.current = node;
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+
+          if (target.closest('[data-slot="combobox-content"]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Create Pipeline</DialogTitle>
@@ -347,6 +360,7 @@ export const CreatePipelineDialog = ({
             <Field>
               <FieldLabel htmlFor="tags">Tags</FieldLabel>
               <PipelineTagsCombobox
+                portalContainer={dialogContentRef}
                 value={tags}
                 onChange={(newTags) => {
                   setValue("tags", newTags);
@@ -468,6 +482,7 @@ export const CreatePipelineDialog = ({
                 <Field>
                   <FieldLabel htmlFor="template-tags">Tags</FieldLabel>
                   <PipelineTagsCombobox
+                    portalContainer={dialogContentRef}
                     value={tags}
                     onChange={(newTags) => {
                       setValue("tags", newTags);

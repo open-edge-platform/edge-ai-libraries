@@ -12,6 +12,7 @@ services:
     depends_on:
       vlm-openvino-serving:
         condition: service_healthy
+        required: false  # ignored when vlm profile is inactive (e.g. ENABLE_VLLM=true)
       video-ingestion:
         condition: service_healthy
       rabbitmq-service:
@@ -50,6 +51,8 @@ services:
       WORKERS: ${WORKERS:-1}
 
   vlm-openvino-serving:
+    profiles:
+      - vlm-ov
     image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
     ipc: host
     ports:

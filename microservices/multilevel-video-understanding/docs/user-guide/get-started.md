@@ -175,7 +175,7 @@ Before launching the service as documented below, users need to prepare the dock
 - **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
   ```bash
-  docker pull intel/multilevel-video-understanding:latest
+  docker pull intel/multilevel-video-understanding:2025.2.0
   ```
 
 Then, use the following commands to set up the `multilevel-video-understanding` microservice.
@@ -187,7 +187,7 @@ The following environment variables can be configured:
 **Basic configuration**
 
 - `REGISTRY_URL`: Docker image registry url
-- `TAG`: Docker image tag (default: latest)
+- `TAG`: Docker image tag (default: 2025.2.0, the stable release version)
 - `SERVICE_PORT`: Multi-level Video Understanding Microservice port (default: 8192)
 - `MAX_CONCURRENT_REQUESTS`: Max concurrent requests for this microservice (default: 6)
 - `DEBUG`: Enable debug mode (default: False)
@@ -203,7 +203,7 @@ The following environment variables can be configured:
 
 ```bash
 export REGISTRY_URL=intel/
-export TAG=latest
+export TAG=2025.2.0
 export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
 export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
@@ -236,7 +236,7 @@ docker ps
 
 ```text
 CONTAINER ID   IMAGE                                         PORTS                                         NAMES
-6f00712bf4b6   intel/multilevel-video-understanding:latest   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
+6f00712bf4b6   intel/multilevel-video-understanding:2025.2.0   0.0.0.0:8192->8000/tcp, [::]:8192->8000/tcp   docker-multilevel-video-understanding-1
 ```
 
 ```bash

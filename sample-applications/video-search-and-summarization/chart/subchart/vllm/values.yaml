@@ -6,7 +6,7 @@ deployment:
 
 image:
   repository: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo
-  tag: v0.13.0
+  tag: v0.17.1
   pullPolicy: IfNotPresent
 
 serviceAccountName: default
@@ -52,6 +52,7 @@ model:
   enableChunkedPrefill: true
   maxNumBatchedTokens: 2048
   maxNumSeqs: 256
+  maxModelLen: 32000
   enableLogRequests: true
   tensorParallelSize: 1
 

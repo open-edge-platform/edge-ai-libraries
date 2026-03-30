@@ -13,7 +13,7 @@ This guide is intended for developers working directly with the source code.
 
 Before starting, ensure the following:
 
-- **System requirements**: The system meets the [minimum requirements](./get-started/system-requirements.md).
+- **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
 - **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
@@ -21,7 +21,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
-[Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/get_started/install/install_guide_ubuntu.md#prerequisites)
+[Install Guide Ubuntu – Prerequisites](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_ubuntu.md#prerequisites)
 
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
 [Git Documentation](https://git-scm.com/doc).
@@ -50,5 +50,5 @@ This guide assumes basic familiarity with Git commands and terminal usage. For m
 
 ## Supporting Resources
 
-- [Troubleshooting](./troubleshooting.md)
-- [System requirements](./get-started/system-requirements.md)
+- [Troubleshooting](../troubleshooting.md)
+- [System requirements](./system-requirements.md)

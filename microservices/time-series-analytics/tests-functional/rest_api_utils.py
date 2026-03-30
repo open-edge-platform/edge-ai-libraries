@@ -36,7 +36,7 @@ def health_check(port):
     try:
         response = requests.get(url, timeout=10)
         assert response.status_code == 200
-        assert response.json() == {"status": "kapacitor daemon is running"}
+        assert response.json() == {"status": "Kapacitor daemon is running"}
     except Exception as e:
         pytest.fail(f"Health check failed: {e}")
 
@@ -214,7 +214,7 @@ def concurrent_api_requests(port):
             print(f"POST /config: {future_post_config.result()}")
 
             health_status_code = [200, 500, 503, 400]
-            health_status_json = [{"status": "kapacitor daemon is running"}, {"detail": "503: Kapacitor daemon is not running"}, {"status":"Port not accessible and kapacitor daemon not running"}]
+            health_status_json = [{"status": "Kapacitor daemon is running"}, {"status": "Kapacitor daemon is not running"}]
             assert get_health_result[0] in health_status_code
             assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200
@@ -223,7 +223,7 @@ def concurrent_api_requests(port):
             assert post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'}
             assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503
             assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
-                future_post_input.result()[1] == {'detail': '503: Kapacitor daemon is not running'}
+                future_post_input.result()[1] == {'status': 'Kapacitor daemon is not running'}
             assert future_post_config.result()[0] == 200
             assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
         except Exception as e:
@@ -239,8 +239,9 @@ def post_invalid_config_endpoint(port, command):
     invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
         response = requests.post(url, json=invalid_config_data, timeout=10)
-        assert response.status_code == 200
-        assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
+        assert response.status_code == 422
+        response_json = response.json()
+        assert "UDF deployment package validation failed" in response_json.get("detail", "")
         time.sleep(15)  # Wait for the configuration to be applied
         output = run_command(command)
         output = output.stdout + output.stderr

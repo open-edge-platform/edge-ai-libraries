@@ -229,7 +229,7 @@ declare -a MODEL_TYPES
 declare -a MODEL_DEFAULTS
 
 # Use process substitution to avoid subshell issues with arrays
-while IFS=$'\t' read -r name display_name source type model_path default_flag; do
+while IFS=$'\t' read -r name display_name source type precisions default_flag; do
     # Helper function: Checks if a YAML field is invalid
     # Returns true if:
     # - The field is missing or null in YAML (represented as "__MISSING__")
@@ -261,9 +261,9 @@ while IFS=$'\t' read -r name display_name source type model_path default_flag; d
         echo "Error: Missing or invalid required field 'type' for model $name"
         cleanup_and_exit 10
     fi
-    # Validate 'model_path' field
-    if is_invalid "$model_path"; then
-        echo "Error: Missing or invalid required field 'model_path' for model $name"
+    # Validate 'precisions' field (must contain at least one entry)
+    if is_invalid "$precisions"; then
+        echo "Error: Missing or empty required field 'precisions' for model $name"
         cleanup_and_exit 10
     fi
 
@@ -287,7 +287,7 @@ done < <(yq -r '
     (if .display_name // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .display_name end),
     (if .source // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .source end),
     (if .type // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .type end),
-    (if .model_path // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .model_path end),
+    (if (.precisions // null | length) > 0 then "valid" else "__MISSING__" end),
     (if .default // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .default end)
   ] | @tsv
 ' "$SUPPORTED_MODELS_FILE")
