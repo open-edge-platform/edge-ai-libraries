@@ -121,6 +121,8 @@ spec:
           value: "/run/secrets/ca_certificate.pem"
         - name: MODEL_REGISTRY_URL
           value: "http://model-registry:8111"
+        - name: UDF_MAX_FILE_SIZE_MB
+          value: "100"
       volumes:
       - name: vol-temp-time-series-analytics-microservice
         emptyDir: {}
