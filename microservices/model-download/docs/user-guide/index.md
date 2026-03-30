@@ -1,6 +1,17 @@
 # Model Download
 
-> Note: Model Download replaces Model Registry that will be deprecated soon.
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-download">
+     GitHub project
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
+**Note: Model Download replaces Model Registry, which will be deprecated soon.**
 
 The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, and handles optional format conversions.
 
@@ -8,7 +19,7 @@ The Model Download microservice is a centralized model management system that do
 
 The following figure shows the high-level architecture of Model Download, which includes its core components and their interactions with external systems:
 
-![architecture](./images/architecture.png)
+![architecture](./_assets/architecture.png "Architecture overview")
 
 ## Components
 
@@ -47,6 +58,7 @@ The Plugin System extends the service's functionality by handling interactions w
 - **Ollama Hub Plugin**: Interfaces with Ollama tool to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
 - **Geti™ Plugin**: Downloads models optimized through the Geti™ platform.
+- **HLS Plugin**: Download pre-configured Health AI suite models from Github.
 
 **Conversion Plugins:**
 
@@ -105,7 +117,7 @@ This service does not replace full model registry solutions and has the followin
 
 get-started
 running-tests
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

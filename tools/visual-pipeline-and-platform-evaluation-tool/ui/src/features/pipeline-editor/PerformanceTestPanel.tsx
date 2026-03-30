@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 
@@ -71,9 +71,9 @@ const PerformanceTestPanel = ({
           </div>
         )}
 
-        {isRunning && <TestProgressIndicator />}
+        {isRunning && <MetricsDashboard />}
         {!isRunning && frozenSummary && (
-          <TestProgressIndicator
+          <MetricsDashboard
             historyOverride={frozenHistory}
             metricsOverride={frozenSummary}
           />

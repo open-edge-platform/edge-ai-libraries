@@ -29,7 +29,7 @@ scikit-learn-intelex==2025.11.0
 sortedcontainers==2.4.0
 aiofiles==25.1.0
 msgpack==1.1.2
-requests==2.32.5
+requests==2.33.0
 tbb==2022.3.1
 daal==2025.11.0
 ----------------------------------------------------------------------

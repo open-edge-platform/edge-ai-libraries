@@ -2,19 +2,28 @@
 
 ## Current Release
 
+**Version**: 1.0.5
+**Release Date**: 25 Mar 2026
+
+- Updated few package version to fix vulnerabilities
+
+## Known Issues/Behaviour (Consolidated):
+
+- EMF Deployment package is not supported. - Open
+- Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
+
+## Previous Releases
+
 **Version**: 1.0.4
 **Release Date**: 17 Feb 2026
 
 - Updated default CHUNK_SIZE to 4096 to support larger files and updated supporting documents
-
 
 ## Known Issues/Behaviour (Consolidated):
 
 - Application running into Model Type issue on EMT 3.1 - Closed
 - EMF Deployment package is not supported. - Open
 - Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
-
-## Previous Releases
 
 **Version**: 1.0.3
 **Release Date**: 07 Nov 2025
