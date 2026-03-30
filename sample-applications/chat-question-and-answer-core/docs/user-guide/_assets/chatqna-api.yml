@@ -254,7 +254,7 @@ paths:
             detail:
             type: string
           example:
-            detail: Device device_name not found. Available devices':' [device1, device2]
+            detail: 'Device device_name not found. Available devices: [device1, device2]'
       '500':
         description: Internal server error
         content:
@@ -305,7 +305,7 @@ paths:
             text/event-stream:
               schema:
                 type: string
-                example: data: chunk\n\n
+                example: 'data: chunk\n\n'
         '500':
           description: Error message
           content:
