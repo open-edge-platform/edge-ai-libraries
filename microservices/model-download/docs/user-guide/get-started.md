@@ -373,7 +373,7 @@ To validate changes locally before deploying:
   uv run pytest tests/unit -v
   ```
 
-Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See [docs/user-guide/running-tests.md](docs/user-guide/running-tests.md) for advanced filtering options and troubleshooting tips.
+Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See [docs/user-guide/running-tests.md](./running-tests.md) for advanced filtering options and troubleshooting tips.
 
 ## Best Practices
 
