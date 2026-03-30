@@ -1364,7 +1364,7 @@ class PerformanceJobStatus(TestsJobStatus):
     """
 
     live_stream_urls: Optional[Dict[str, str]]
-    metadata_stream_urls: Optional[Dict[str, list[str]]] = None
+    metadata_stream_urls: Optional[Dict[str, list[str]]]
 
 
 class DensityJobStatus(TestsJobStatus):

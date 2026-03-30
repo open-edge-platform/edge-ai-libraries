@@ -108,7 +108,7 @@ class MetadataManager:
         self, job_id: str, file_index: int, limit: int = 100
     ) -> list[dict]:
         """
-        Return buffered records for a specific file in the job.
+        Return the most recent records for a specific file in the job, read directly from disk.
 
         Args:
             job_id: Unique job identifier.

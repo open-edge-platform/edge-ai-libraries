@@ -418,7 +418,7 @@ def get_performance_job_metadata_for_stream(
 
     ## Operation
 
-    Returns a snapshot of up to ``limit`` buffered JSON records that were
+    Returns a snapshot of up to ``limit`` JSON records read directly from disk,
     written by the ``gvametapublish`` element identified by *pipeline_id* and
     the per-pipeline *file_index*.  Records remain available after the job
     completes.

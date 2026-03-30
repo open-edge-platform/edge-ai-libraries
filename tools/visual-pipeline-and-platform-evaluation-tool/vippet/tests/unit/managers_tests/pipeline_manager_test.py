@@ -293,7 +293,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -320,7 +320,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -368,7 +368,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -427,7 +427,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -569,7 +569,7 @@ class TestPipelineManager(unittest.TestCase):
             max_runtime=0,
         )
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
+        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -604,7 +604,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        _, output_paths, _ = manager.build_pipeline_command(
+        _, output_paths, _, _ = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -1078,8 +1078,10 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             max_runtime=0,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, _ = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1093,8 +1095,10 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             max_runtime=60,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1108,8 +1112,10 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             max_runtime=60,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        (command, output_paths, live_stream_urls, metadata_file_paths) = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1125,8 +1131,10 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             max_runtime=0,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         pipeline_id = "/pipelines/test-execution-config/variants/cpu"
@@ -1153,8 +1161,8 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             max_runtime=60,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
         )
 
         # Should have exactly 2 live stream URLs (one per pipeline)
@@ -1202,7 +1210,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             max_runtime=0,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1216,7 +1224,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             max_runtime=60,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1230,7 +1238,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             max_runtime=60,
         )
 
-        command, _, live_stream_urls = self.manager.build_pipeline_command(
+        command, _, live_stream_urls, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1245,7 +1253,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
             max_runtime=0,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 

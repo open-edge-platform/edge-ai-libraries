@@ -527,6 +527,7 @@ class TestTestsManager(unittest.TestCase):
             "fakesrc ! fakesink",
             {},
             {},
+            {},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -579,6 +580,7 @@ class TestTestsManager(unittest.TestCase):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
             "fakesrc ! fakesink",
+            {},
             {},
             {},
         )
@@ -652,6 +654,7 @@ class TestTestsManager(unittest.TestCase):
             "fakesrc ! fakesink",
             {"/pipelines/p/variants/v": "/tmp/output/pipeline_dir"},
             {},
+            {},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
 
@@ -714,6 +717,7 @@ class TestTestsManager(unittest.TestCase):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
             "fakesrc ! fakesink",
+            {},
             {},
             {},
         )
@@ -1284,6 +1288,7 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
             "fakesrc ! fakesink",
             {},
             expected_urls,
+            {},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         manager = TestsManager()
@@ -1338,6 +1343,7 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
             "fakesrc ! fakesink",
+            {},
             {},
             {},
         )
@@ -1449,6 +1455,7 @@ class TestInlineGraphSupport(unittest.TestCase):
             "fakesrc ! fakesink",
             {},
             {},
+            {},
         )
         mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
         manager = TestsManager()
@@ -1501,6 +1508,7 @@ class TestInlineGraphSupport(unittest.TestCase):
         mock_pipeline_manager_instance = MagicMock()
         mock_pipeline_manager_instance.build_pipeline_command.return_value = (
             "fakesrc ! fakesink",
+            {},
             {},
             {},
         )
