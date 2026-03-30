@@ -8,7 +8,7 @@ This module provides functionality to profile the ChatQnA core application
 by executing Locust-based load tests against enabled APIs (Stream Log and Document APIs).
 """
 
-from common.config import get_enabled_apis
+from src.chat_question_and_answer_core.utilities.config import get_enabled_chatqna_apis
 from src.base import BasePerformanceProfiler
 from src.chat_question_and_answer_core.utilities.utils import run_stream_log_hw_sizing, run_document_hw_sizing
 
@@ -26,7 +26,7 @@ class ChatQnACoreProfiler(BasePerformanceProfiler):
         return "chatqna_core"
     
     def get_enabled_apis(self):
-        return get_enabled_apis(self.config)
+        return get_enabled_chatqna_apis(self.config)
     
     def run_profiling(self, report_dir):
         stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()

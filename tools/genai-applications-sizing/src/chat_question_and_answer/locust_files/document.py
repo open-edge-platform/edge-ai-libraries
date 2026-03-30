@@ -13,7 +13,8 @@ import time
 
 from locust import task, constant, events, HttpUser
 
-from common.utils import setup_document_upload, rest_api_metrics, safe_parse_string_to_dict
+from common.utils import setup_document_upload, safe_parse_string_to_dict
+from common.metrics import rest_api_metrics
 
 
 

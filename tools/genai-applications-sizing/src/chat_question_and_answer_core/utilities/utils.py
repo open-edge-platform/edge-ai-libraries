@@ -10,7 +10,11 @@ sizing tests against the ChatQnA Core application APIs.
 
 import subprocess
 from transformers import LlamaTokenizerFast
-from common.utils import get_document_api_profile_details, get_stream_api_profile_details, upload_document_before_conversation
+from common.utils import upload_document_before_conversation
+from src.chat_question_and_answer_core.utilities.config import (
+    get_document_profile_details,
+    get_chatqna_profile_details,
+)
 
 # Module-level cached tokenizer instance
 _tokenizer = None
@@ -70,9 +74,9 @@ def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path
     # Import stream_log here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import stream_log
     
-    # Note: get_stream_api_profile_details returns tuple in order:
+    # Note: get_chatqna_profile_details returns tuple in order:
     # (profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens)
-    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
+    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_chatqna_profile_details(
         profile_path, config
     )
     print(f"Hardware sizing started for the '{profile}' profile...")
@@ -115,7 +119,7 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
     # Import document here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import document
     
-    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, config)
+    doc_profile, document_endpoint, file_details = get_document_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{doc_profile}' profile...")
 
     # Construct and execute the Locust command

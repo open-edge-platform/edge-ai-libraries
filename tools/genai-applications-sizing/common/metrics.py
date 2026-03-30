@@ -11,10 +11,8 @@ writing metrics to CSV and JSON files, and generating reports.
 import csv
 import json
 import os
-
 import numpy as np
 
-from common.constants import NORMALIZED_FPS_BASELINE
 
 
 def calculate_metrics(latencies):
@@ -539,7 +537,7 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
             video_details["embedding_per_sec"] = item.get("throughput", {}).get("embeddings_per_second", 0)
             relative_rtf = (
                 (video_details.get("wall_time_seconds", 0) / video_details.get("duration_seconds", 1))
-                * (NORMALIZED_FPS_BASELINE / video_details.get("fps", 1))
+                * (30 / video_details.get("fps", 1))
             )
             video_details["Normalized_Embedding_RTF"] = round(relative_rtf, 4)
             input_videos.append(video_details)

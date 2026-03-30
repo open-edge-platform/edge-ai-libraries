@@ -8,7 +8,7 @@ This module provides functionality to profile video search and summarization API
 by executing Locust-based load tests with optional warmup periods.
 """
 
-from common.config import get_enabled_video_apis
+from src.video_search_and_summarization.utilities.config import get_enabled_vss_apis
 from src.base import BasePerformanceProfiler
 from src.video_search_and_summarization.utilities.utils import (
     run_video_summary_hw_sizing,
@@ -31,7 +31,7 @@ class VSSProfiler(BasePerformanceProfiler):
         return "video_summary_search"
     
     def get_enabled_apis(self):
-        return get_enabled_video_apis(self.config)
+        return get_enabled_vss_apis(self.config)
     
     def run_warmup(self, profile_path, input_file):
         """Execute warmup requests for enabled video APIs."""

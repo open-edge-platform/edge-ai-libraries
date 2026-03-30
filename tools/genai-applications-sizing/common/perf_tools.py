@@ -12,12 +12,8 @@ and memory metrics during profiling runs.
 import os
 import shutil
 import subprocess
+from pathlib import Path
 import time
-
-from common.constants import (
-    PERF_TOOL_STOP_DELAY_SECONDS,
-    DOCKER_REMOVAL_TIMEOUT_SECONDS
-)
 
 
 def start_perf_tool(repo_url, report_dir):
@@ -36,22 +32,21 @@ def start_perf_tool(repo_url, report_dir):
         str: Absolute path to the log directory where performance metrics are stored.
     """
     repo_name = "performance-tools"
-    compose_file = os.path.join(repo_name, 'docker', 'docker-compose-reg.yaml')
+    compose_file = Path(repo_name) / 'docker' / 'docker-compose-reg.yaml'
     
     # Create log directory
-    log_dir = os.path.join(report_dir, "perf_tool_logs")
-    abs_log_dir = os.path.abspath(log_dir)
-    os.makedirs(abs_log_dir, exist_ok=True)
+    abs_log_dir = (Path(report_dir) / "perf_tool_logs").resolve()
+    abs_log_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         # Clean up existing repository
-        if os.path.exists(repo_name):
-            if os.path.isdir(repo_name):
+        if Path(repo_name).exists():
+            if Path(repo_name).is_dir():
                 shutil.rmtree(repo_name)
             else:
-                os.remove(repo_name)
+                Path(repo_name).unlink()
         
-        # Clone the specific branch
+        # Clone the repo from main branch
         print(f"Cloning performance-tools repository from {repo_url}...")
         subprocess.run(
             ['git', 'clone', repo_url, repo_name],
@@ -62,7 +57,7 @@ def start_perf_tool(repo_url, report_dir):
         
         # Prepare environment with log directory
         env = os.environ.copy()
-        env['log_dir'] = abs_log_dir
+        env['log_dir'] = str(abs_log_dir)
         
         # Start docker compose with wait flag
         print("Starting performance monitoring containers, it takes some time to initialize...")
@@ -85,28 +80,28 @@ def start_perf_tool(repo_url, report_dir):
     except Exception as e:
         print(f"Unexpected error during performance tool setup: {e}")
     
-    return abs_log_dir
+    return str(abs_log_dir), compose_file
 
 
-def stop_perf_tool():
+def stop_perf_tool(compose_file):
     """
-    Stop and remove the performance monitoring Docker container.
+    Stop and remove the performance monitoring Docker services.
     
-    This function gracefully shuts down the metrics-collector Docker container
-    that was started by the start_perf_tool function. It waits briefly to ensure
-    any pending metrics are flushed before forcefully removing the container.
+    This function gracefully shuts down all services defined in the compose file
+    that were started by the start_perf_tool function. It waits briefly to ensure
+    any pending metrics are flushed before stopping and removing the services.
     """
     try:
         # Brief delay to ensure metrics are flushed
-        time.sleep(PERF_TOOL_STOP_DELAY_SECONDS)
+        time.sleep(2)
         
-        # Force remove the metrics collector container
+        # Stop and remove all services defined in the compose file
         subprocess.run(
-            ["docker", "rm", "-f", "metrics-collector"],
+            ["docker", "compose", "-f", compose_file, "down"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=DOCKER_REMOVAL_TIMEOUT_SECONDS
+            timeout=5
         )
         
         print("Performance tool stopped.")
@@ -132,10 +127,10 @@ def plot_graphs(log_dir):
     Args:
         log_dir: Path to the directory containing raw performance metrics logs.
     """
-    scripts_base = "performance-tools/benchmark-scripts"
+    scripts_base = Path("performance-tools/benchmark-scripts")
     
-    qmasa_parser = os.path.abspath(os.path.join(scripts_base, "parse_qmassa_metrics_to_json.py"))
-    graph_plotter = os.path.abspath(os.path.join(scripts_base, "usage_graph_plot.py"))
+    qmasa_parser = (scripts_base / "parse_qmassa_metrics_to_json.py").resolve()
+    graph_plotter = (scripts_base / "usage_graph_plot.py").resolve()
     
     try:
         subprocess.run(
@@ -177,21 +172,20 @@ def copy_perf_tools_logs(logs_dir, report_dir):
     Returns:
         str: Path to the copied logs directory, or None on error.
     """
-    if not os.path.exists(logs_dir):
+    if not Path(logs_dir).exists():
         print(f"Logs directory {logs_dir} does not exist.")
         return None
     
     try:
-        report_logs_dir = os.path.join(report_dir, "perf_tools_logs")
-        os.makedirs(report_logs_dir, exist_ok=True)
+        report_logs_dir = Path(report_dir) / "perf_tools_logs"
+        report_logs_dir.mkdir(parents=True, exist_ok=True)
         
-        for file in os.listdir(logs_dir):
-            src_file = os.path.join(logs_dir, file)
-            dest_file = os.path.join(report_logs_dir, file)
-            if os.path.isfile(src_file):
-                with open(src_file, 'rb') as fsrc, open(dest_file, 'wb') as fdest:
+        for src_file in Path(logs_dir).iterdir():
+            dest_file = report_logs_dir / src_file.name
+            if src_file.is_file():
+                with src_file.open('rb') as fsrc, dest_file.open('wb') as fdest:
                     fdest.write(fsrc.read())
-        return report_logs_dir
+        return str(report_logs_dir)
     except Exception as e:
         print(f"Failed to copy logs: {e}")
         return None

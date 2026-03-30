@@ -13,16 +13,18 @@ import time
 
 from locust import task, events, HttpUser
 
-from common.utils import (
+from common.metrics import (
     convert_summary_metrics_to_wsf_format,
-    get_video_summary,
     get_video_summary_telemetry_kpis,
     save_video_summary_search_telemetry_kpis,
+)
+from common.video import (
+    get_video_summary,
     upload_video_file,
     wait_for_video_summary_complete,
     get_video_details,
-    safe_parse_string_to_dict
 )
+from common.utils import safe_parse_string_to_dict
 
 
 

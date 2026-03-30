@@ -4,107 +4,17 @@
 """
 Utility functions for GenAI application performance profiling.
 
-This module provides core utility functions and re-exports from submodules
-for backward compatibility. Use specific submodule imports for new code:
-
-- common.constants: Constants and magic numbers
-- common.config: Configuration reading functions
-- common.metrics: Metrics calculation and reporting
-- common.video: Video file processing
-- common.perf_tools: Performance tool management
-
-Note: Gevent monkey-patching should be done at the entry point (profile-runner.py)
-BEFORE any other imports to avoid ssl-related RecursionError.
 """
 
-from gevent import monkey
-if not monkey.is_module_patched('ssl'):
-    monkey.patch_all()
+# from gevent import monkey
+# if not monkey.is_module_patched('ssl'):
+#     monkey.patch_all()
 
 import ast
 import json
 import os
-import subprocess
 from datetime import datetime
-
 import requests
-
-# Re-export everything from submodules for backward compatibility
-from common.constants import (
-    VIDEO_SUMMARY_TIMEOUT_SECONDS,
-    POLLING_INTERVAL_SECONDS,
-    PERF_TOOL_STOP_DELAY_SECONDS,
-    DOCKER_REMOVAL_TIMEOUT_SECONDS,
-    FRAME_EXTRACTION_RATIO,
-    NORMALIZED_FPS_BASELINE,
-    DIRECTORY_PERMISSION,
-    UMASK_VALUE,
-    DEFAULT_BUCKET_NAME,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_CAPTION_DURATION,
-)
-
-from common.config import (
-    read_yaml_config,
-    get_global_config,
-    get_stream_log_config,
-    get_document_config,
-    get_profile_details,
-    get_enabled_apis,
-    get_stream_api_profile_details,
-    get_document_api_profile_details,
-    get_video_summary_config,
-    get_video_search_config,
-    get_enabled_video_apis,
-    get_video_summary_profile_details,
-    get_video_search_profile_details,
-    get_live_caption_config,
-    get_enabled_live_caption_apis,
-    get_live_caption_profile_details,
-    get_global_details,
-)
-
-from common.metrics import (
-    calculate_metrics,
-    write_metrics,
-    write_chatqna_metrics_to_csv,
-    write_rest_metrics,
-    write_rest_metrics_summary_to_csv,
-    rest_api_metrics,
-    write_vss_metrics,
-    write_video_summary_metrics,
-    write_video_search_metrics,
-    write_video_search_metrics_summary_to_csv,
-    write_video_summary_metrics_summary_to_csv,
-    get_video_summary_telemetry_kpis,
-    get_video_search_telemetry_kpis,
-    save_video_summary_search_telemetry_kpis,
-    convert_summary_metrics_to_wsf_format,
-    convert_search_metrics_to_wsf_format,
-    get_live_caption_metrics,
-    save_live_video_caption_telemetry_kpis,
-    save_metrics_to_wsf_format,
-)
-
-from common.video import (
-    get_video_details,
-    upload_video_file,
-    embedding_video_file,
-    wait_for_video_summary_complete,
-    get_video_summary,
-    embedding_creation_per_sec,
-    summarization_fps,
-    convert_timestamp_to_float,
-    get_live_caption_metadata,
-    stop_all_run_request,
-)
-
-from common.perf_tools import (
-    start_perf_tool,
-    stop_perf_tool,
-    plot_graphs,
-    copy_perf_tools_logs,
-)
 
 
 # =============================================================================
@@ -122,6 +32,9 @@ def setup_report_permissions(report_dir):
     Args:
         report_dir: Path to the root report directory.
     """
+    DIRECTORY_PERMISSION = 0o770
+    UMASK_VALUE = 0o007
+
     os.umask(UMASK_VALUE)
     
     try:
@@ -161,20 +74,20 @@ def safe_parse_string_to_dict(data_string):
         raise ValueError(f"Cannot parse string: {data_string}. Must be valid JSON or Python literal.")
 
 
-def get_ip_address():
-    """
-    Retrieve the IP address of the current machine.
+# def get_ip_address():
+#     """
+#     Retrieve the IP address of the current machine.
     
-    Returns:
-        str: First IP address found, or empty string on error.
-    """
-    try:
-        result = subprocess.run(["hostname", "-I"], capture_output=True, text=True, check=True)
-        ip_addresses = result.stdout.strip().split()
-        return ip_addresses[0] if ip_addresses else ""
-    except Exception as e:
-        print(f"Failed to retrieve IP address: {e}")
-        return ""
+#     Returns:
+#         str: First IP address found, or empty string on error.
+#     """
+#     try:
+#         result = subprocess.run(["hostname", "-I"], capture_output=True, text=True, check=True)
+#         ip_addresses = result.stdout.strip().split()
+#         return ip_addresses[0] if ip_addresses else ""
+#     except Exception as e:
+#         print(f"Failed to retrieve IP address: {e}")
+#         return ""
 
 
 def delete_existing_docs(url):
@@ -185,7 +98,7 @@ def delete_existing_docs(url):
         url: The API endpoint URL for document deletion.
     """
     print("Deleting existing documents...")
-    params = {"bucket_name": DEFAULT_BUCKET_NAME, "delete_all": True}
+    params = {"bucket_name": "appuser.gai.ragfiles", "delete_all": True}
     
     try:
         response = requests.delete(url, params=params, timeout=30)
@@ -294,80 +207,3 @@ def get_response(response, report_dir, answer=None):
         print(f"Error writing response to {filename}: {e}")
 
 
-# All exported symbols
-__all__ = [
-    # Constants
-    'VIDEO_SUMMARY_TIMEOUT_SECONDS',
-    'POLLING_INTERVAL_SECONDS',
-    'PERF_TOOL_STOP_DELAY_SECONDS',
-    'DOCKER_REMOVAL_TIMEOUT_SECONDS',
-    'FRAME_EXTRACTION_RATIO',
-    'NORMALIZED_FPS_BASELINE',
-    'DIRECTORY_PERMISSION',
-    'UMASK_VALUE',
-    'DEFAULT_BUCKET_NAME',
-    'DEFAULT_MAX_TOKENS',
-    'DEFAULT_CAPTION_DURATION',
-    # Config
-    'read_yaml_config',
-    'get_global_config',
-    'get_stream_log_config',
-    'get_document_config',
-    'get_profile_details',
-    'get_enabled_apis',
-    'get_stream_api_profile_details',
-    'get_document_api_profile_details',
-    'get_video_summary_config',
-    'get_video_search_config',
-    'get_enabled_video_apis',
-    'get_video_summary_profile_details',
-    'get_video_search_profile_details',
-    'get_live_caption_config',
-    'get_enabled_live_caption_apis',
-    'get_live_caption_profile_details',
-    'get_global_details',
-    # Core functions (defined in this module)
-    'setup_report_permissions',
-    'safe_parse_string_to_dict',
-    'get_ip_address',
-    'delete_existing_docs',
-    'upload_document_before_conversation',
-    'setup_document_upload',
-    'get_response',
-    # Metrics
-    'calculate_metrics',
-    'write_metrics',
-    'write_chatqna_metrics_to_csv',
-    'write_rest_metrics',
-    'write_rest_metrics_summary_to_csv',
-    'rest_api_metrics',
-    'write_vss_metrics',
-    'write_video_summary_metrics',
-    'write_video_search_metrics',
-    'write_video_search_metrics_summary_to_csv',
-    'write_video_summary_metrics_summary_to_csv',
-    'get_video_summary_telemetry_kpis',
-    'get_video_search_telemetry_kpis',
-    'save_video_summary_search_telemetry_kpis',
-    'convert_summary_metrics_to_wsf_format',
-    'convert_search_metrics_to_wsf_format',
-    'get_live_caption_metrics',
-    'save_live_video_caption_telemetry_kpis',
-    'save_metrics_to_wsf_format',
-    # Video
-    'get_video_details',
-    'upload_video_file',
-    'embedding_video_file',
-    'wait_for_video_summary_complete',
-    'get_video_summary',
-    'embedding_creation_per_sec',
-    'summarization_fps',
-    'convert_timestamp_to_float',
-    'get_live_caption_metadata',
-    'stop_all_run_request',
-    # Perf Tools
-    'start_perf_tool',
-    'stop_perf_tool',
-    'plot_graphs',
-    'copy_perf_tools_logs',
-]

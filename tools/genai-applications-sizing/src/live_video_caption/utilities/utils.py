@@ -13,7 +13,8 @@ import time
 
 import requests
 
-from common.utils import get_live_caption_profile_details, stop_all_run_request
+from common.video import stop_all_run_request
+from src.live_video_caption.utilities.config import get_lvc_profile_details
 
 
 def run_live_caption_warmup(url, payload, warmup_time):
@@ -51,7 +52,7 @@ def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, report_d
         config: Pre-loaded configuration dict.
     """
     from src.live_video_caption.locust_files import live_caption
-    lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_live_caption_profile_details(profile_path, config)
+    lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_lvc_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{lvc_profile}' profile...")
 
     # Construct and execute the Locust command

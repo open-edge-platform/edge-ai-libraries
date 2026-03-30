@@ -131,11 +131,11 @@ class BasePerformanceProfiler(ABC):
             return start_perf_tool(repo_url=self.perf_tool_repo, report_dir=report_dir)
         return None
     
-    def stop_metrics_collection(self):
+    def stop_metrics_collection(self, compose_file):
         """Stop performance metrics collection and generate graphs."""
         if self.collect_resource_metrics and self.log_dir:
             try:
-                stop_perf_tool()
+                stop_perf_tool(compose_file)
                 plot_graphs(self.log_dir)
             except Exception as e:
                 print(f"Error occurred while parsing and plotting perf_tool logs: {e}")
@@ -163,7 +163,7 @@ class BasePerformanceProfiler(ABC):
                 self.run_warmup(self.profile_path, self.input_file)
             
             # Start metrics collection
-            self.log_dir = self.start_metrics_collection(report_dir)
+            self.log_dir, compose_file = self.start_metrics_collection(report_dir)
             
             # Run the actual profiling
             self.run_profiling(report_dir)
@@ -171,7 +171,7 @@ class BasePerformanceProfiler(ABC):
         finally:
             # Cleanup and report
             try:
-                self.stop_metrics_collection()
+                self.stop_metrics_collection(compose_file)
                 print(f"Hardware sizing completed for all enabled profiles. "
                       f"Check the '{report_dir}' directory for results.")
             except Exception as e:

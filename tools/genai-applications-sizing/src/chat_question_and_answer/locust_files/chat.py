@@ -15,7 +15,8 @@ import time
 
 from locust import task, constant, events, HttpUser
 
-from common.utils import get_response, write_metrics, write_chatqna_metrics_to_csv
+from common.utils import get_response
+from common.metrics import write_metrics, write_chatqna_metrics_to_csv
 from src.chat_question_and_answer_core.utilities.utils import get_token_length
 
 

@@ -15,13 +15,6 @@ from datetime import datetime, timezone
 import requests
 from moviepy import VideoFileClip
 
-from common.constants import (
-    VIDEO_SUMMARY_TIMEOUT_SECONDS,
-    POLLING_INTERVAL_SECONDS,
-    FRAME_EXTRACTION_RATIO,
-    DEFAULT_CAPTION_DURATION
-)
-
 
 def get_video_details(video_file_path):
     """
@@ -137,7 +130,7 @@ def wait_for_video_summary_complete(url):
     """
     video_summary_complete = False
     response = ""
-    must_end = time.time() + VIDEO_SUMMARY_TIMEOUT_SECONDS
+    must_end = time.time() + 3600 # Set a maximum wait time of 1 hour for video summary completion
     print("Waiting for video summary to complete...")
     
     while time.time() < must_end:
@@ -155,7 +148,7 @@ def wait_for_video_summary_complete(url):
                 video_summary_complete = True
                 break
             
-            time.sleep(POLLING_INTERVAL_SECONDS)
+            time.sleep(10)
 
         except KeyboardInterrupt:
             print("Keyboard interrupt received. Exiting...")
@@ -232,7 +225,7 @@ def embedding_creation_per_sec(video_details, embedding_time):
             return 0.0
         
         total_frames = duration * fps
-        extracted_frames = total_frames / FRAME_EXTRACTION_RATIO
+        extracted_frames = total_frames / 15
         embedding_rate = extracted_frames / embedding_time
         
         return round(embedding_rate, 2)
@@ -326,7 +319,7 @@ def wait_for_search_to_complete(search_url, query_id):
     search_time = round(each_search_time, 4)
     return search_time, each_response
 
-def get_live_caption_metadata(url, duration_seconds=DEFAULT_CAPTION_DURATION):
+def get_live_caption_metadata(url, duration_seconds=120):
     """
     Collect metadata from live caption stream for the specified duration.
     

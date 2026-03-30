@@ -13,14 +13,16 @@ import os
 import time
 from locust import task, events, HttpUser
 from common.video import wait_for_search_to_complete
-from common.utils import (
+from common.metrics import (
     convert_search_metrics_to_wsf_format,
     get_video_search_telemetry_kpis,
     save_video_summary_search_telemetry_kpis,
+)
+from common.video import (
     upload_video_file,
     embedding_video_file,
-    safe_parse_string_to_dict
 )
+from common.utils import safe_parse_string_to_dict
 
 @events.init_command_line_parser.add_listener
 def add_custom_arguments(parser):

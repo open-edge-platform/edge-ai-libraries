@@ -15,10 +15,12 @@ from time import time
 import requests
 
 from common.utils import (
-    get_document_api_profile_details,
-    get_stream_api_profile_details,
     upload_document_before_conversation,
     delete_existing_docs
+)
+from src.chat_question_and_answer.utilities.config import (
+    get_document_profile_details,
+    get_chatqna_profile_details,
 )
 
 def run_chat_warmup(warmup_time, ip, profile_path, config):
@@ -34,7 +36,7 @@ def run_chat_warmup(warmup_time, ip, profile_path, config):
         profile_path: Path to the profile YAML file.
         config: Pre-loaded configuration dict.
     """
-    chat_profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
+    chat_profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_chatqna_profile_details(
         profile_path, config, warmup=True
     )
     
@@ -75,7 +77,7 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
     """
     from src.chat_question_and_answer.locust_files import document
 
-    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, config)
+    doc_profile, document_endpoint, file_details = get_document_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{doc_profile}' profile...")
     doc_url = f"http://{ip}:{document_endpoint}"
     delete_existing_docs(doc_url)
@@ -113,7 +115,7 @@ def run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, repo
     """
     from src.chat_question_and_answer.locust_files import chat
     
-    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
+    profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_chatqna_profile_details(
         profile_path, config
     )
     print(f"Hardware sizing started for the '{profile}' profile...")

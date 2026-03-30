@@ -8,7 +8,7 @@ This module provides functionality to profile live video captioning APIs
 by executing Locust-based load tests with optional warmup periods.
 """
 
-from common.config import get_enabled_live_caption_apis
+from src.live_video_caption.utilities.config import is_live_caption_enabled
 from src.base import BasePerformanceProfiler
 from src.live_video_caption.utilities.utils import run_live_caption_hw_sizing
 
@@ -26,7 +26,7 @@ class LVCProfiler(BasePerformanceProfiler):
         return "live_caption"
     
     def get_enabled_apis(self):
-        return get_enabled_live_caption_apis(self.config)
+        return is_live_caption_enabled(self.config)
     
     def run_profiling(self, report_dir):
         live_caption_enabled = self.get_enabled_apis()

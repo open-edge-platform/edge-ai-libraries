@@ -8,9 +8,7 @@ This module provides functionality to profile the ChatQnA modular application
 by executing Locust-based load tests against enabled APIs (Chat and Document APIs).
 """
 
-import os
-
-from common.config import get_enabled_apis
+from src.chat_question_and_answer.utilities.config import get_enabled_chatqna_apis
 from src.base import BasePerformanceProfiler
 from src.chat_question_and_answer.utilities.utils import run_document_hw_sizing, run_chat_hw_sizing, run_chat_warmup
 
@@ -28,7 +26,7 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
         return "chatqna_modular"
     
     def get_enabled_apis(self):
-        return get_enabled_apis(self.config)
+        return get_enabled_chatqna_apis(self.config)
 
     def run_warmup(self, profile_path, input_file):
         """Execute warmup requests for enabled APIs."""

@@ -16,13 +16,10 @@ import time
 
 import requests
 
-from common.utils import (
+from common.utils import safe_parse_string_to_dict
+from src.video_search_and_summarization.utilities.config import (
     get_video_summary_profile_details,
     get_video_search_profile_details,
-    upload_video_file,
-    wait_for_video_summary_complete,
-    embedding_video_file,
-    safe_parse_string_to_dict
 )
 
 
@@ -205,6 +202,6 @@ def run_video_search_hw_sizing(users, total_requests, ip, profile_path, report_d
         f"--queries={queries}",
         f"--report_dir={report_dir}",
         "--only-summary",
-        "--loglevel", "INFO",
+        "--loglevel", "CRITICAL",
     ]
     subprocess.run(cmd, check=True)

@@ -13,13 +13,15 @@ import os
 
 from locust import task, events, HttpUser
 
-from common.utils import (
+from common.utils import safe_parse_string_to_dict
+from common.video import (
     get_live_caption_metadata,
     stop_all_run_request,
-    safe_parse_string_to_dict,
+)
+from common.metrics import (
     get_live_caption_metrics,
     save_live_video_caption_telemetry_kpis,
-    save_metrics_to_wsf_format
+    save_metrics_to_wsf_format,
 )
 from src.live_video_caption.utilities.utils import run_live_caption_warmup
 
