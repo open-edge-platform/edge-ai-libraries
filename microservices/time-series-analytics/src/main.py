@@ -49,7 +49,7 @@ app = FastAPI(root_path=REST_API_ROOT_PATH)
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
-MAX_UPLOAD_SIZE = 500 * 1024 * 1024  # 500 MB — max allowed zip upload
+MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed zip upload
 
 config = {}
 OPCUA_SEND_ALERT = None
