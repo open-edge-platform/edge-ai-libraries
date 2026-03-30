@@ -9,6 +9,7 @@ from graph import Graph, OUTPUT_PLACEHOLDER
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
+    InternalMetadataMode,
     InternalPipeline,
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
@@ -486,6 +487,16 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate pipeline has gvametapublish when metadata publishing is enabled
+            if (
+                execution_config.metadata_mode != InternalMetadataMode.DISABLED
+                and not base_graph.has_gvametapublish()
+            ):
+                raise ValueError(
+                    f"Metadata generation is enabled, but pipeline '{pipeline_name}' (id: {pipeline_id}) does not contain any gvametapublish element. "
+                    f"Please add a gvametapublish element to the pipeline definition to enable metadata output."
+                )
+
             # Apply RTSP credentials and settings to rtspsrc nodes
             base_graph = base_graph.apply_rtsp_connection_settings()
 
@@ -541,8 +552,11 @@ class PipelineManager:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
-                # Collect metadata file paths for gvametapublish elements writing to files
-                if stream_index == 0:
+                # Inject metadata file paths into gvametapublish elements for metadata streaming
+                if (
+                    execution_config.metadata_mode == InternalMetadataMode.FILE
+                    and stream_index == 0
+                ):
                     paths = graph_instance.inject_metadata_file_paths(
                         metadata_pipeline_dir
                     )

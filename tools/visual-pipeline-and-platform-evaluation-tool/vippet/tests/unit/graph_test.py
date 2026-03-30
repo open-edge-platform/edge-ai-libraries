@@ -252,8 +252,8 @@ parse_test_cases = [
                 ),
                 Node(
                     id="13",
-                    type="metadata",
-                    data={"publisher": "disabled"},
+                    type="gvametapublish",
+                    data={"method": "file", "file-path": "/dev/null"},
                 ),
                 Node(
                     id="17",
@@ -464,7 +464,7 @@ parse_test_cases = [
                 Node(id="13", type="gvawatermark", data={}),
                 Node(id="14", type="gvafpscounter", data={}),
                 Node(id="15", type="gvametaconvert", data={}),
-                Node(id="16", type="metadata", data={"publisher": "disabled"}),
+                Node(id="16", type="gvametapublish", data={}),
                 Node(id="20", type="filesink", data={"location": "/tmp/YYY"}),
             ],
             edges=[
@@ -660,8 +660,8 @@ parse_test_cases = [
                 ),
                 Node(
                     id="18",
-                    type="metadata",
-                    data={"publisher": "disabled"},
+                    type="gvametapublish",
+                    data={"method": "file", "file-path": "/dev/null"},
                 ),
                 Node(id="21", type="fakesink", data={}),
             ],
@@ -1444,8 +1444,8 @@ parse_test_cases = [
                 ),
                 Node(
                     id="15",
-                    type="metadata",
-                    data={"publisher": "disabled"},
+                    type="gvametapublish",
+                    data={"method": "file", "file-path": "/dev/null"},
                 ),
                 Node(id="16", type="fakesink", data={}),
             ],
@@ -1564,8 +1564,8 @@ parse_test_cases = [
                 ),
                 Node(
                     id="11",
-                    type="metadata",
-                    data={"publisher": "disabled"},
+                    type="gvametapublish",
+                    data={"method": "file", "file-path": "/dev/null"},
                 ),
                 Node(id="12", type="fakesink", data={}),
             ],

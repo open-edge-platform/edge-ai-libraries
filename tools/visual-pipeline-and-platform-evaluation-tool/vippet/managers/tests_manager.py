@@ -9,6 +9,7 @@ from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalDensityTestSpec,
     InternalPerformanceJobStatus,
@@ -200,6 +201,15 @@ class TestsManager:
             raise ValueError(
                 "Density tests do not support output_mode='live_stream'. "
                 "Use output_mode='disabled' or output_mode='file' instead."
+            )
+
+        if (
+            is_density_test
+            and execution_config.metadata_mode != InternalMetadataMode.DISABLED
+        ):
+            raise ValueError(
+                "Density tests do not support metadata output. "
+                "Set metadata_mode to 'disabled' for density tests."
             )
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:

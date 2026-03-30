@@ -8,6 +8,7 @@ from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPerformanceJobStatus,
     InternalPerformanceJobSummary,
@@ -52,11 +53,13 @@ def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
+    metadata_mode: InternalMetadataMode = InternalMetadataMode.DISABLED,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
         output_mode=output_mode,
         max_runtime=max_runtime,
+        metadata_mode=metadata_mode,
     )
 
 
@@ -964,6 +967,7 @@ class TestExecutionConfigValidation(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         with self.assertRaises(ValueError) as context:
@@ -984,6 +988,7 @@ class TestExecutionConfigValidation(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         manager._validate_execution_config(execution_config, is_density_test=False)
@@ -998,6 +1003,7 @@ class TestExecutionConfigValidation(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         with self.assertRaises(ValueError) as context:
@@ -1018,6 +1024,7 @@ class TestExecutionConfigValidation(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         manager._validate_execution_config(execution_config, is_density_test=False)
@@ -1032,6 +1039,7 @@ class TestExecutionConfigValidation(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         manager._validate_execution_config(execution_config, is_density_test=False)
@@ -1294,7 +1302,9 @@ class TestLiveStreamUrlsInPerformanceJob(unittest.TestCase):
         manager = TestsManager()
         internal_spec = create_internal_performance_test_spec(
             execution_config=create_internal_execution_config(
-                output_mode=InternalOutputMode.LIVE_STREAM, max_runtime=60
+                output_mode=InternalOutputMode.LIVE_STREAM,
+                max_runtime=60,
+                metadata_mode=InternalMetadataMode.DISABLED,
             ),
         )
         job_id = "test-job-live-urls"
@@ -1356,7 +1366,9 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
         manager = TestsManager()
         internal_spec = create_internal_performance_test_spec(
             execution_config=create_internal_execution_config(
-                output_mode=InternalOutputMode.DISABLED, max_runtime=120
+                output_mode=InternalOutputMode.DISABLED,
+                max_runtime=120,
+                metadata_mode=InternalMetadataMode.DISABLED,
             ),
         )
         job_id = "test-job-max-runtime"

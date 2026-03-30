@@ -5,6 +5,7 @@ from unittest.mock import patch
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
@@ -45,11 +46,13 @@ def create_variant_create(name: str = "CPU") -> InternalVariantCreate:
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
+    metadata_mode: InternalMetadataMode = InternalMetadataMode.DISABLED,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
         output_mode=output_mode,
         max_runtime=max_runtime,
+        metadata_mode=metadata_mode,
     )
 
 
@@ -293,8 +296,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify command is not empty and contains pipeline elements
@@ -320,8 +325,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -368,8 +375,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify command contains multiple instances
@@ -427,8 +436,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify both pipeline types are present
@@ -567,10 +578,13 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls, metadata_file_paths = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify video output is configured
@@ -1059,6 +1073,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         with self.assertRaises(ValueError) as context:
@@ -1076,6 +1091,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, output_paths, live_stream_urls, _ = (
@@ -1093,6 +1109,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, output_paths, live_stream_urls, metadata_file_paths = (
@@ -1110,6 +1127,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         (command, output_paths, live_stream_urls, metadata_file_paths) = (
@@ -1129,6 +1147,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, output_paths, live_stream_urls, metadata_file_paths = (
@@ -1159,6 +1178,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, output_paths, live_stream_urls, metadata_file_paths = (
@@ -1208,6 +1228,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, _, _, _ = self.manager.build_pipeline_command(
@@ -1222,6 +1243,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, _, _, _ = self.manager.build_pipeline_command(
@@ -1236,6 +1258,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, _, live_stream_urls, _ = self.manager.build_pipeline_command(
@@ -1251,6 +1274,7 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         command, _, _, _ = self.manager.build_pipeline_command(

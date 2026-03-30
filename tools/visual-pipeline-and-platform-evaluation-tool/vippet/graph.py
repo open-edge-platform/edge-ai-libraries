@@ -33,7 +33,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All elements matching these patterns will be shown in Simple View.
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
-    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink,source,metadata"
+    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink,source"
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.
@@ -42,7 +42,7 @@ SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
 # elements are shown. Evaluation order: VISIBLE first, then INVISIBLE exclusions.
 SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_INVISIBLE_ELEMENTS",
-    "gvafpscounter,gvametaconvert,gvawatermark",
+    "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
 )
 
 # Default latency (in ms) applied to rtspsrc elements that do not specify it explicitly.
@@ -806,33 +806,28 @@ class Graph:
 
     def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
         """
-        Assign output file paths to gvametapublish nodes that are ready for injection.
+        Assign output file paths to all gvametapublish nodes and configure them for file output.
 
-        A node is eligible when:
-          - type is gvametapublish
-          - method=file (or absent, defaulting to file)
-          - file-path is absent (empty string)
+        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
+        node found in the graph, overwriting any existing values.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
 
         Returns:
-            list[str]: Paths of the metadata files that were injected (one per eligible node).
+            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
         """
         metadata_file_paths: list[str] = []
         for node in self.nodes:
-            if (
-                node.type == "gvametapublish"
-                and node.data.get("method", "file") == "file"
-                and node.data.get("file-path", "") == ""
-            ):
+            if node.type == "gvametapublish":
                 os.makedirs(metadata_dir, exist_ok=True)
                 meta_path = os.path.join(
                     metadata_dir,
                     f"metadata_{node.id}.jsonl",
                 )
-                node.data["file-path"] = meta_path
+                node.data["method"] = "file"
                 node.data["file-format"] = "json-lines"
+                node.data["file-path"] = meta_path
                 metadata_file_paths.append(meta_path)
         return metadata_file_paths
 
@@ -958,8 +953,6 @@ class Graph:
         # Convert specific source elements (*src) to generic "source" type
         # This simplifies the UI by showing a unified source node
         _prepare_generic_input(simple_nodes)
-        # Convert gvametapublish nodes to logical "metadata" blocks
-        _prepare_metadata_output(simple_nodes)
 
         # Generate new edges by traversing through hidden nodes
         # Process visible nodes in sorted order by their numeric IDs to ensure consistent edge ordering
@@ -1019,9 +1012,6 @@ class Graph:
           3. Detect changes in edges between original_simple and modified_simple
           4. If any edge changes detected, raise ValueError (edge changes not supported)
           5. For modified node properties, update corresponding nodes in original_advanced
-          6. Map generic "source" nodes to specific GStreamer elements (filesrc/rtspsrc/v4l2src)
-          7. Map "metadata" nodes back to gvametapublish properties
-          8. Return new advanced graph with updated properties
 
         Note: Property modifications of existing visible nodes are supported.
 
@@ -1169,10 +1159,6 @@ class Graph:
             # Get the modified properties from simple view
             modified_node = modified_nodes_by_id[node_id]
 
-            # abstract nodes are mapped to GStreamer elements in steps 5/6 below
-            if modified_node.type in ("source", "metadata"):
-                continue
-
             # Update the properties in the advanced view node
             advanced_node = advanced_nodes_by_id[node_id]
             advanced_node.data.clear()
@@ -1239,28 +1225,6 @@ class Graph:
                         f"Transformed source node {node_id} to {target_type} with properties {target_properties}"
                     )
 
-        # Step 6: Map metadata "publisher" back to gvametapublish properties.
-        for node_id in modified_node_ids:
-            modified_node = modified_nodes_by_id[node_id]
-
-            if modified_node.type == "metadata":
-                publisher = modified_node.data.get("publisher", "disabled")
-
-                if node_id in advanced_nodes_by_id:
-                    advanced_node = advanced_nodes_by_id[node_id]
-                    # Step 4 was skipped for this node, so advanced_node.data still
-                    # holds the original deep-copied gvametapublish properties.
-                    if publisher == "disabled":
-                        advanced_node.data["method"] = "file"
-                        advanced_node.data["file-path"] = "/dev/null"
-                    elif publisher == "file":
-                        advanced_node.data["method"] = "file"
-                        advanced_node.data["file-format"] = "json-lines"
-                        advanced_node.data.pop("file-path", None)
-                    logger.debug(
-                        f"Propagated metadata publisher={publisher} to advanced node {node_id}"
-                    )
-
         logger.debug(
             f"Successfully applied changes from simple view to advanced view. "
             f"Modified {len(modified_node_ids_with_changes)} nodes."
@@ -1322,6 +1286,14 @@ class Graph:
                 return node.data["device"].upper()
 
         return "CPU"
+
+    def has_gvametapublish(self) -> bool:
+        """Check whether the graph contains any gvametapublish element.
+
+        Returns:
+            True if at least one gvametapublish node is present, False otherwise.
+        """
+        return any(node.type == "gvametapublish" for node in self.nodes)
 
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
@@ -2725,34 +2697,6 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted rtspsrc to generic source (camera): {source_name}")
-
-
-def _prepare_metadata_output(nodes: list[Node]) -> None:
-    """
-    Replace gvametapublish elements with a generic 'metadata' element.
-
-    Converts any gvametapublish node to a logical 'metadata' type with a 'publisher'
-    property derived from native GStreamer properties:
-      - method=file + file-path that is not empty or /dev/null  → publisher = "file"
-      - anything else                                           → publisher = "disabled"
-
-    Args:
-        nodes: List of simple-view nodes to process (modified in place)
-    """
-    for node in nodes:
-        if node.type == "gvametapublish":
-            method = node.data.get("method", "file")
-            file_path = node.data.get("file-path", "/dev/null")
-            if method == "file" and file_path not in ("", "/dev/null"):
-                publisher = "file"
-            else:
-                publisher = "disabled"
-            node.data.clear()
-            node.type = "metadata"
-            node.data["publisher"] = publisher
-            logger.debug(
-                f"Converted gvametapublish to metadata (publisher={publisher})"
-            )
 
 
 def _labels_path_to_display_name(nodes: list[Node]) -> None:

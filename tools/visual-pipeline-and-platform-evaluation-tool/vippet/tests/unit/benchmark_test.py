@@ -8,6 +8,7 @@ from benchmark import (
 from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPipelineDensitySpec,
     InternalPipelineStreamSpec,
@@ -43,11 +44,13 @@ def create_internal_density_spec(
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
+    metadata_mode: InternalMetadataMode = InternalMetadataMode.DISABLED,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
         output_mode=output_mode,
         max_runtime=max_runtime,
+        metadata_mode=metadata_mode,
     )
 
 
@@ -266,7 +269,9 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(
-                    output_mode=InternalOutputMode.FILE, max_runtime=0
+                    output_mode=InternalOutputMode.FILE,
+                    max_runtime=0,
+                    metadata_mode=InternalMetadataMode.DISABLED,
                 ),
                 job_id=self.job_id,
             )
@@ -304,7 +309,9 @@ class TestBenchmark(unittest.TestCase):
                 self.pipeline_benchmark_specs,
                 fps_floor=self.fps_floor,
                 execution_config=create_internal_execution_config(
-                    output_mode=InternalOutputMode.DISABLED, max_runtime=60
+                    output_mode=InternalOutputMode.DISABLED,
+                    max_runtime=60,
+                    metadata_mode=InternalMetadataMode.DISABLED,
                 ),
                 job_id=self.job_id,
             )
