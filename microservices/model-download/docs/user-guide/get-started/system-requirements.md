@@ -20,8 +20,8 @@ Model Download currently supports CPU-, GPU-, and NPU-based runs, and is a prere
 
 ## Validation
 
-- Ensure all required software is installed and configured before proceeding to [Get Started](./get-started.md).
+- Ensure all required software is installed and configured before proceeding to [Get Started](../get-started.md).
 
 ## Learn More
 
-- [README](../../README.md)
+- [Overview](../index.md)

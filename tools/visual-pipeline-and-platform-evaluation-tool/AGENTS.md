@@ -51,15 +51,15 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 
 ## Tech Stack
 
-| Layer | Technology |
-| ----- | ---------- |
-| Backend | Python 3.12, FastAPI, uvicorn, Pydantic v2 |
-| AI Inference | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0 |
-| Frontend | React 19, shadcn components, react-hook-form, zod, recharts, react-router |
-| Containerization | Docker Compose with hardware profiles: `cpu`, `gpu`, `npu` |
-| Metrics | Telegraf, qmassa (GPU), InfluxDB line protocol |
-| Type Checking | Pyright (Python), TypeScript strict mode |
-| Linting | ruff (Python), ESLint (TypeScript) |
+| Layer            | Technology                                                                |
+|------------------|---------------------------------------------------------------------------|
+| Backend          | Python 3.12, FastAPI, uvicorn, Pydantic v2                                |
+| AI Inference     | OpenVINO™ 2025.x, DLStreamer 2026.x, GStreamer 1.0                        |
+| Frontend         | React 19, shadcn components, react-hook-form, zod, recharts, react-router |
+| Containerization | Docker Compose with hardware profiles: `cpu`, `gpu`, `npu`                |
+| Metrics          | Telegraf, qmassa (GPU), InfluxDB line protocol                            |
+| Type Checking    | Pyright (Python), TypeScript strict mode                                  |
+| Linting          | ruff (Python), ESLint (TypeScript)                                        |
 
 ## Build, Run & Test
 
@@ -109,15 +109,15 @@ make format      # Auto-format with ruff
 
 ### Individual Make Targets
 
-| Target | Description |
-| ------ | ----------- |
-| `make build` | Build all Docker images |
-| `make run` | Start all services via Docker Compose |
-| `make stop` | Stop all services |
-| `make clean` | Stop and remove containers/volumes |
-| `make shell` | Open shell in vippet container |
-| `make shell-ui` | Open shell in UI container |
-| `make test` | Run tests in Docker |
+| Target          | Description                           |
+|-----------------|---------------------------------------|
+| `make build`    | Build all Docker images               |
+| `make run`      | Start all services via Docker Compose |
+| `make stop`     | Stop all services                     |
+| `make clean`    | Stop and remove containers/volumes    |
+| `make shell`    | Open shell in vippet container        |
+| `make shell-ui` | Open shell in UI container            |
+| `make test`     | Run tests in Docker                   |
 
 ## API
 
@@ -134,13 +134,13 @@ make generate_openapi
 
 ## Docker Compose Services
 
-| Service | Description | Port |
-| ------- | ----------- | ---- |
-| `vippet` | Backend (FastAPI) | 7860 |
-| `vippet-ui` | Frontend (Nginx) | 80 |
-| `mediamtx` | RTSP server | 8554 |
-| `models` | Model installer (profile: `do-not-start`) | - |
-| `collector` | Metrics collector (profile: `gpu`/`npu`) | - |
+| Service     | Description                               | Port |
+|-------------|-------------------------------------------|------|
+| `vippet`    | Backend (FastAPI)                         | 7860 |
+| `vippet-ui` | Frontend (Nginx)                          | 80   |
+| `mediamtx`  | RTSP server                               | 8554 |
+| `models`    | Model installer (profile: `do-not-start`) | -    |
+| `collector` | Metrics collector (profile: `gpu`/`npu`)  | -    |
 
 Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automatically by `setup_env.sh`.
 
@@ -171,17 +171,24 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 
 ## Key Environment Variables (vippet service)
 
-| Variable | Description | Default |
-| -------- | ----------- | ------- |
-| `LOG_LEVEL` | Python logging level | `INFO` |
-| `MODELS_PATH` | Path to downloaded models | `/models/output` |
-| `SUPPORTED_MODELS_FILE` | Path to supported_models.yaml | `/models/supported_models.yaml` |
-| `INPUT_VIDEO_DIR` | Path to input videos | `/videos/input` |
-| `OUTPUT_VIDEO_DIR` | Path to output videos | `/videos/output` |
-| `LIVE_STREAM_SERVER_HOST` | RTSP server hostname | `mediamtx` |
-| `LIVE_STREAM_SERVER_PORT` | RTSP server port | `8554` |
-| `COMPOSE_PROFILES` | Hardware profile (cpu/gpu/npu) | Auto-detected |
-| `PYTHONPATH` | Python module search path | `/app` |
+| Variable                         | Description                                                  | Default                                                    |
+|----------------------------------|--------------------------------------------------------------|------------------------------------------------------------|
+| `APP_LOG_LEVEL`                  | Python logging level for the application                     | `INFO`                                                     |
+| `RUNNER_LOG_LEVEL`               | Logging level for gst_runner.py subprocess                   | `INFO`                                                     |
+| `WEB_SERVER_LOG_LEVEL`           | Logging level for uvicorn web server                         | `WARNING`                                                  |
+| `METRICS_LOG_LEVEL`              | Logging level for metrics WebSocket routes                   | `INFO`                                                     |
+| `GST_DEBUG`                      | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
+| `MODELS_PATH`                    | Path to downloaded models                                    | `/models/output`                                           |
+| `SUPPORTED_MODELS_FILE`          | Path to supported_models.yaml                                | `/models/supported_models.yaml`                            |
+| `INPUT_VIDEO_DIR`                | Path to input videos                                         | `/videos/input`                                            |
+| `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
+| `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
+| `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
+| `LIVE_STREAM_SERVER_PORT`        | RTSP server port                                             | `8554`                                                     |
+| `RTSPSRC_DEFAULT_LATENCY_MS`     | Default latency in ms for rtspsrc elements                   | `100`                                                      |
+| `COMPOSE_PROFILES`               | Hardware profile (cpu/gpu/npu)                               | Auto-detected                                              |
+| `PYTHONPATH`                     | Python module search path                                    | `/app`                                                     |
 
 ## Important Notes for AI Agents
 
