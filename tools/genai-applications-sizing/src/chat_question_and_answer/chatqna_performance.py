@@ -28,14 +28,14 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
         return "chatqna_modular"
     
     def get_enabled_apis(self):
-        return get_enabled_apis(self.input_file)
+        return get_enabled_apis(self.config)
 
     def run_warmup(self, profile_path, input_file):
         """Execute warmup requests for enabled APIs."""
         stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
         
         if stream_log_api_enabled:
-            run_chat_warmup(self.warmup_time, self.ip, profile_path, input_file)
+            run_chat_warmup(self.warmup_time, self.ip, profile_path, self.config)
 
     
     def run_profiling(self, report_dir):
@@ -44,13 +44,13 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
         if stream_log_api_enabled:
             run_chat_hw_sizing(
                 self.users, self.total_requests, self.spawn_rate,
-                self.ip, self.profile_path, self.input_file, report_dir
+                self.ip, self.profile_path, report_dir, self.config
             )
         
         if document_api_enabled:
             run_document_hw_sizing(
                 self.users, self.total_requests, self.spawn_rate,
-                self.ip, self.profile_path, self.input_file, report_dir
+                self.ip, self.profile_path, report_dir, self.config
             )
 
 
@@ -69,15 +69,7 @@ def chatqna_modular_performance(users, request_count, spawn_rate, ip, input_file
         input_file: Path to the input YAML configuration file.
         collect_resource_metrics: Whether to collect CPU/GPU/memory metrics.
         warmup_time: Duration of the warmup phase in seconds.
-    Raises:
-        FileNotFoundError: If the input configuration file doesn't exist.
-        ValueError: If users or request_count are not positive integers.
     """
-    # Validate inputs
-    if not os.path.exists(input_file):
-        raise FileNotFoundError(f"Input file not found: {input_file}")
-    if users <= 0 or request_count <= 0:
-        raise ValueError("Users and request count must be positive integers")
     
     profiler = ChatQnAModularProfiler(
         users=users,

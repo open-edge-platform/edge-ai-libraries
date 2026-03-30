@@ -26,7 +26,7 @@ class LVCProfiler(BasePerformanceProfiler):
         return "live_caption"
     
     def get_enabled_apis(self):
-        return get_enabled_live_caption_apis(self.input_file)
+        return get_enabled_live_caption_apis(self.config)
     
     def run_profiling(self, report_dir):
         live_caption_enabled = self.get_enabled_apis()
@@ -36,8 +36,8 @@ class LVCProfiler(BasePerformanceProfiler):
             # as it handles warmup internally
             run_live_caption_hw_sizing(
                 self.users, self.total_requests, self.ip,
-                self.profile_path, self.input_file, report_dir,
-                self.warmup_time
+                self.profile_path, report_dir,
+                self.warmup_time, self.config
             )
 
 

@@ -26,7 +26,7 @@ class ChatQnACoreProfiler(BasePerformanceProfiler):
         return "chatqna_core"
     
     def get_enabled_apis(self):
-        return get_enabled_apis(self.input_file)
+        return get_enabled_apis(self.config)
     
     def run_profiling(self, report_dir):
         stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
@@ -34,13 +34,13 @@ class ChatQnACoreProfiler(BasePerformanceProfiler):
         if stream_log_api_enabled:
             run_stream_log_hw_sizing(
                 self.users, self.total_requests, self.spawn_rate,
-                self.ip, self.profile_path, self.input_file, report_dir
+                self.ip, self.profile_path, report_dir, self.config
             )
         
         if document_api_enabled:
             run_document_hw_sizing(
                 self.users, self.total_requests, self.spawn_rate,
-                self.ip, self.profile_path, self.input_file, report_dir
+                self.ip, self.profile_path, report_dir, self.config
             )
 
 

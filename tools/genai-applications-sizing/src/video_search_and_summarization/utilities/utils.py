@@ -26,7 +26,7 @@ from common.utils import (
 )
 
 
-def run_video_summary_warmup(warmup_time, ip, profile_path, input_file):
+def run_video_summary_warmup(warmup_time, ip, profile_path, config):
     """
     Run warmup requests for video summary API to prime the system.
     
@@ -37,10 +37,10 @@ def run_video_summary_warmup(warmup_time, ip, profile_path, input_file):
         warmup_time: Duration in seconds for warmup requests.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
+        config: Pre-loaded configuration dict.
     """
     video_profile, upload_endpoint, summary_endpoint, states_endpoint, telemetry_endpoint, filename, filepath, payload = get_video_summary_profile_details(
-        profile_path, input_file, warmup=True
+        profile_path, config, warmup=True
     )
        
     host = f"http://{ip}"
@@ -80,7 +80,7 @@ def run_video_summary_warmup(warmup_time, ip, profile_path, input_file):
             continue
     
 
-def run_video_search_warmup(warmup_time, ip, profile_path, input_file):
+def run_video_search_warmup(warmup_time, ip, profile_path, config):
     """
     Runs warmup requests for video search API to ensure the system is ready.
     
@@ -88,10 +88,10 @@ def run_video_search_warmup(warmup_time, ip, profile_path, input_file):
         warmup_time (int): Duration in seconds for which warmup requests should run.
         ip (str): Host IP address where the application is deployed.
         profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
+        config: Pre-loaded configuration dict.
     """
     video_profile, upload_endpoint, search_endpoint, embed_endpoint, telemetry_endpoint, file_details, queries = get_video_search_profile_details(
-        profile_path, input_file, warmup=True
+        profile_path, config, warmup=True
     )
     
     
@@ -130,7 +130,7 @@ def run_video_search_warmup(warmup_time, ip, profile_path, input_file):
 
 
 
-def run_video_summary_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir):
+def run_video_summary_hw_sizing(users, total_requests, ip, profile_path, report_dir, config):
     """
     Runs Locust tests for the Video Summary API hardware sizing.
 
@@ -139,12 +139,12 @@ def run_video_summary_hw_sizing(users, total_requests, ip, profile_path, input_f
         total_requests (int): Total number of requests.
         ip (str): Host IP address where the application is deployed.
         profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
         report_dir (str): Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     from src.video_search_and_summarization.locust_files import video_summary
     video_profile, upload_endpoint, summary_endpoint, states_endpoint, telemetry_endpoint, filename, filepath, payload = get_video_summary_profile_details(
-        profile_path, input_file
+        profile_path, config
     )
     print(f"Hardware sizing started for the '{video_profile}' profile...")
 
@@ -171,7 +171,7 @@ def run_video_summary_hw_sizing(users, total_requests, ip, profile_path, input_f
     subprocess.run(cmd, check=True)
 
 
-def run_video_search_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir):
+def run_video_search_hw_sizing(users, total_requests, ip, profile_path, report_dir, config):
     """
     Runs Locust tests for the Video Search API hardware sizing.
 
@@ -180,12 +180,12 @@ def run_video_search_hw_sizing(users, total_requests, ip, profile_path, input_fi
         total_requests (int): Total number of requests.
         ip (str): Host IP address where the application is deployed.
         profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
         report_dir (str): Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     from src.video_search_and_summarization.locust_files import video_search
     video_profile, upload_endpoint, search_endpoint, embed_endpoint, telemetry_endpoint, file_details, queries = get_video_search_profile_details(
-    profile_path, input_file )
+    profile_path, config )
     print(f"Hardware sizing started for the '{video_profile}' profile...")
 
     # Construct and execute the Locust command
@@ -205,6 +205,6 @@ def run_video_search_hw_sizing(users, total_requests, ip, profile_path, input_fi
         f"--queries={queries}",
         f"--report_dir={report_dir}",
         "--only-summary",
-        "--loglevel", "CRITICAL",
+        "--loglevel", "INFO",
     ]
     subprocess.run(cmd, check=True)

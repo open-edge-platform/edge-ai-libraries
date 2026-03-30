@@ -54,7 +54,7 @@ def get_token_length(text):
         return 0
 
 
-def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
+def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, report_dir, config):
     """
     Run Locust tests for the Stream Log API hardware sizing.
 
@@ -64,8 +64,8 @@ def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path
         spawn_rate: Rate at which users are spawned per second.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
         report_dir: Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     # Import stream_log here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import stream_log
@@ -73,7 +73,7 @@ def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path
     # Note: get_stream_api_profile_details returns tuple in order:
     # (profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens)
     profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
-        profile_path, input_file
+        profile_path, config
     )
     print(f"Hardware sizing started for the '{profile}' profile...")
 
@@ -100,7 +100,7 @@ def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path
     subprocess.run(cmd, check=True)
 
 
-def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
+def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, report_dir, config):
     """
     Runs Locust tests for the Document API hardware sizing.
 
@@ -109,13 +109,13 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
         total_requests (int): Total number of requests.
         ip (str): Host IP address where the application is deployed.
         profile_path (str): Path to the profile YAML file.
-        input_file (str): Path to the input YAML configuration file.
         report_dir (str): Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     # Import document here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import document
     
-    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, input_file)
+    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{doc_profile}' profile...")
 
     # Construct and execute the Locust command

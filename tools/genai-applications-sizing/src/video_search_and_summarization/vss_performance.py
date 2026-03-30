@@ -31,17 +31,17 @@ class VSSProfiler(BasePerformanceProfiler):
         return "video_summary_search"
     
     def get_enabled_apis(self):
-        return get_enabled_video_apis(self.input_file)
+        return get_enabled_video_apis(self.config)
     
     def run_warmup(self, profile_path, input_file):
         """Execute warmup requests for enabled video APIs."""
         video_summary_enabled, video_search_enabled = self.get_enabled_apis()
         
         if video_summary_enabled:
-            run_video_summary_warmup(self.warmup_time, self.ip, profile_path, input_file)
+            run_video_summary_warmup(self.warmup_time, self.ip, profile_path, self.config)
         
         if video_search_enabled:
-            run_video_search_warmup(self.warmup_time, self.ip, profile_path, input_file)
+            run_video_search_warmup(self.warmup_time, self.ip, profile_path, self.config)
     
     def run_profiling(self, report_dir):
         video_summary_enabled, video_search_enabled = self.get_enabled_apis()
@@ -49,13 +49,13 @@ class VSSProfiler(BasePerformanceProfiler):
         if video_summary_enabled:
             run_video_summary_hw_sizing(
                 self.users, self.total_requests, self.ip,
-                self.profile_path, self.input_file, report_dir
+                self.profile_path, report_dir, self.config
             )
         
         if video_search_enabled:
             run_video_search_hw_sizing(
                 self.users, self.total_requests, self.ip,
-                self.profile_path, self.input_file, report_dir
+                self.profile_path, report_dir, self.config
             )
 
 

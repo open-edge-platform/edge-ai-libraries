@@ -13,7 +13,7 @@ import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from common.config import get_global_details
+from common.config import read_yaml_config, get_global_details
 from common.perf_tools import start_perf_tool, stop_perf_tool, plot_graphs
 
 
@@ -57,8 +57,11 @@ class BasePerformanceProfiler(ABC):
         self.warmup_time = warmup_time
         self.spawn_rate = spawn_rate
         
+        # Load configuration once and reuse throughout the profiler lifecycle
+        self.config = read_yaml_config(input_file)
+        
         # Get global configuration
-        self.report_dir, self.perf_tool_repo, self.profile_path = get_global_details(input_file)
+        self.report_dir, self.perf_tool_repo, self.profile_path = get_global_details(self.config)
         
         # Will be set during execution
         self.log_dir = None

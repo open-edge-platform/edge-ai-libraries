@@ -520,7 +520,7 @@ def get_video_search_telemetry_kpis(start_time, end_time, telemetry_json_respons
             video_details = {
                 "id": video_file_details.get("video_id"),
                 "file_name": video_file_details.get("filename", "N/A"),
-                "duration_seconds": round(video_file_details.get("video_duration_seconds", 0), 2),
+                "duration_seconds": round(video_file_details.get("video_duration_seconds", 1), 2),
                 "fps": round(video_file_details.get("fps", 0), 2),
                 "total_frames": video_file_details.get("total_frames", 0),
                 "frames_extracted": item.get("counts", {}).get("frames_extracted", 0)

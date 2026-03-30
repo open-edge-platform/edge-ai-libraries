@@ -21,7 +21,7 @@ from common.utils import (
     delete_existing_docs
 )
 
-def run_chat_warmup(warmup_time, ip, profile_path, input_file):
+def run_chat_warmup(warmup_time, ip, profile_path, config):
     """
     Run warmup requests for Chat API to prime the system.
     
@@ -32,10 +32,10 @@ def run_chat_warmup(warmup_time, ip, profile_path, input_file):
         warmup_time: Duration in seconds for warmup requests.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
+        config: Pre-loaded configuration dict.
     """
     chat_profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
-        profile_path, input_file, warmup=True
+        profile_path, config, warmup=True
     )
     
     host = f"http://{ip}"
@@ -60,7 +60,7 @@ def run_chat_warmup(warmup_time, ip, profile_path, input_file):
             continue
     
 
-def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
+def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, report_dir, config):
     """
     Run Locust tests for the Document API hardware sizing.
 
@@ -70,12 +70,12 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
         spawn_rate: Rate at which users are spawned per second.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
         report_dir: Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     from src.chat_question_and_answer.locust_files import document
 
-    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, input_file)
+    doc_profile, document_endpoint, file_details = get_document_api_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{doc_profile}' profile...")
     doc_url = f"http://{ip}:{document_endpoint}"
     delete_existing_docs(doc_url)
@@ -98,7 +98,7 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
     subprocess.run(cmd, check=True)
 
 
-def run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, input_file, report_dir):
+def run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, report_dir, config):
     """
     Run Locust tests for the Chat API hardware sizing.
 
@@ -108,13 +108,13 @@ def run_chat_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, inpu
         spawn_rate: Rate at which users are spawned per second.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
         report_dir: Directory to save the test reports.
+        config: Pre-loaded configuration dict.
     """
     from src.chat_question_and_answer.locust_files import chat
     
     profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens = get_stream_api_profile_details(
-        profile_path, input_file
+        profile_path, config
     )
     print(f"Hardware sizing started for the '{profile}' profile...")
 

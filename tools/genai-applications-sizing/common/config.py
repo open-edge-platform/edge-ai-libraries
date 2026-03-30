@@ -12,7 +12,7 @@ import os
 import yaml
 
 
-def read_yaml_config(config_path='config.yaml'):
+def read_yaml_config(config_path):
     """
     Read configuration from a YAML file.
     
@@ -31,55 +31,46 @@ def read_yaml_config(config_path='config.yaml'):
         return yaml.safe_load(file)
 
 
-def get_global_config(config=None, config_path='config.yaml'):
+def get_global_config(config):
     """
     Retrieve global configuration section.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Global configuration settings.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('global', {})
 
 
-def get_stream_log_config(config=None, config_path='config.yaml'):
+def get_stream_log_config(config):
     """
     Retrieve stream log API configuration.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Stream log API configuration.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('apis', {}).get('stream_log', {})
 
 
-def get_document_config(config=None, config_path='config.yaml'):
+def get_document_config(config):
     """
     Retrieve document API configuration.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Document API configuration.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('apis', {}).get('document', {})
 
 
-def get_profile_details(profile_path='input_profiles.yaml', profile_name='stream_log_small_text'):
+def get_profile_details(profile_path='profiles/profiles.yaml', profile_name='stream_log_small_text'):
     """
     Retrieve profile details from a YAML file.
     
@@ -100,37 +91,35 @@ def get_profile_details(profile_path='input_profiles.yaml', profile_name='stream
         return profiles.get('profiles', {}).get(profile_name, {})
 
 
-def get_enabled_apis(input_file):
+def get_enabled_apis(config):
     """
-    Determine which APIs are enabled based on the configuration file.
+    Determine which APIs are enabled based on the configuration.
     
     Args:
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         
     Returns:
         tuple: (stream_log_api_enabled, document_api_enabled)
     """
-    config = read_yaml_config(input_file)
     stream_log_api_enabled = config.get('apis', {}).get('stream_log', {}).get("enabled", False)
     document_api_enabled = config.get('apis', {}).get('document', {}).get("enabled", False)
     return stream_log_api_enabled, document_api_enabled
 
 
-def get_stream_api_profile_details(profile_path, input_file, warmup=False):
+def get_stream_api_profile_details(profile_path, config, warmup=False):
     """
     Retrieve stream API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         warmup: Boolean flag indicating if warmup mode is enabled.
         
     Returns:
         tuple: (profile, chat_endpoint, doc_endpoint, prompt, filename, 
                 filepath, service_name, max_tokens)
     """
-    # Load configuration and extract stream log API details
-    config = read_yaml_config(input_file)
+    # Extract stream log API details
     stream_log_api_details = get_stream_log_config(config=config)
     
     # Extract endpoints safely
@@ -162,19 +151,18 @@ def get_stream_api_profile_details(profile_path, input_file, warmup=False):
     return profile, chat_endpoint, doc_endpoint, prompt, filename, filepath, service_name, max_tokens
 
 
-def get_document_api_profile_details(profile_path, input_file):
+def get_document_api_profile_details(profile_path, config):
     """
     Retrieve document API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         
     Returns:
         tuple: (document_profile, document_endpoint, file_details)
     """
-    # Load configuration and extract document API details
-    config = read_yaml_config(input_file)
+    # Extract document API details
     document_api_details = get_document_config(config=config)
     
     # Extract profile name and load profile-specific details
@@ -197,70 +185,62 @@ def get_document_api_profile_details(profile_path, input_file):
 # Video API Configuration
 # ==============================================================================
 
-def get_video_summary_config(config=None, config_path='config.yaml'):
+def get_video_summary_config(config):
     """
     Retrieve video summary API configuration from the YAML config file.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Video summary API configuration.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('apis', {}).get('video_summary', {})
 
 
-def get_video_search_config(config=None, config_path='config.yaml'):
+def get_video_search_config(config):
     """
     Retrieve video search API configuration from the YAML config file.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Video search API configuration.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('apis', {}).get('video_search', {})
 
 
-def get_enabled_video_apis(input_file):
+def get_enabled_video_apis(config):
     """
-    Determine which video-related APIs are enabled based on the configuration file.
+    Determine which video-related APIs are enabled based on the configuration.
     
     Args:
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         
     Returns:
         tuple: (video_summary_enabled, video_search_enabled)
     """
-    config = read_yaml_config(input_file)
     video_summary_enabled = get_video_summary_config(config=config).get("enabled", False)
     video_search_enabled = get_video_search_config(config=config).get("enabled", False)
     return video_summary_enabled, video_search_enabled
 
 
 
-def get_video_summary_profile_details(profile_path, input_file, warmup=False):
+def get_video_summary_profile_details(profile_path, config, warmup=False):
     """
     Retrieve video summary API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         warmup: Whether to use warmup profile.
         
     Returns:
         tuple: (video_profile, upload_endpoint, summary_endpoint, states_endpoint,
                 telemetry_endpoint, filename, filepath, payload)
     """
-    # Load configuration and extract video summary API details
-    config = read_yaml_config(input_file)
+    # Extract video summary API details
     video_summary_details = get_video_summary_config(config=config)
     
     # Extract endpoints safely
@@ -292,21 +272,20 @@ def get_video_summary_profile_details(profile_path, input_file, warmup=False):
     return video_profile, upload_endpoint, summary_endpoint, states_endpoint, telemetry_endpoint, filename, filepath, payload
 
 
-def get_video_search_profile_details(profile_path, input_file, warmup=False):
+def get_video_search_profile_details(profile_path, config, warmup=False):
     """
     Retrieve video search API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         warmup: Whether to use warmup profile.
         
     Returns:
         tuple: (video_profile, upload_endpoint, search_endpoint, embed_endpoint,
                 telemetry_endpoint, file_details, queries)
     """
-    # Load configuration and extract video search API details
-    config = read_yaml_config(input_file)
+    # Extract video search API details
     video_search_details = get_video_search_config(config=config)
     
     # Extract endpoints safely
@@ -335,50 +314,45 @@ def get_video_search_profile_details(profile_path, input_file, warmup=False):
 # Live Caption API Configuration
 # ==============================================================================
 
-def get_live_caption_config(config=None, config_path='config.yaml'):
+def get_live_caption_config(config):
     """
     Retrieve live caption API configuration from the YAML config file.
     
     Args:
-        config: Pre-loaded configuration dict (optional).
-        config_path: Path to config file if config not provided.
+        config: Pre-loaded configuration dict.
         
     Returns:
         dict: Live caption API configuration.
     """
-    if config is None:
-        config = read_yaml_config(config_path)
     return config.get('apis', {}).get('live_caption', {})
 
 
-def get_enabled_live_caption_apis(input_file):
+def get_enabled_live_caption_apis(config):
     """
-    Determine if live caption API is enabled based on the configuration file.
+    Determine if live caption API is enabled based on the configuration.
     
     Args:
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         
     Returns:
         bool: True if live caption API is enabled.
     """
-    config = read_yaml_config(input_file)
     return get_live_caption_config(config=config).get("enabled", False)
 
 
-def get_live_caption_profile_details(profile_path, input_file, warmup=False):
+def get_live_caption_profile_details(profile_path, config, warmup=False):
     """
     Retrieve live caption API profile details from configuration and profile files.
     
     Args:
         profile_path: Path to the profiles YAML file.
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         warmup: Whether to use warmup profile.
         
     Returns:
         tuple: (lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload)
     """
-    # Load configuration and extract live caption API details
-    config = read_yaml_config(input_file)
+    # Extract live caption API details
     live_caption_details = get_live_caption_config(config=config)
     
     # Extract endpoints safely
@@ -399,27 +373,26 @@ def get_live_caption_profile_details(profile_path, input_file, warmup=False):
     return lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload
 
 
-def get_global_details(input_file):
+def get_global_details(config):
     """
-    Retrieve global configuration details from the input configuration file.
+    Retrieve global configuration details.
     
     This function sets up the report directory with proper permissions.
     
     Args:
-        input_file: Path to the input configuration file.
+        config: Pre-loaded configuration dict.
         
     Returns:
         tuple: (report_dir, perf_tool_repo, profile_path)
     """
     from common.utils import setup_report_permissions
     
-    config = read_yaml_config(input_file)
     global_details = get_global_config(config=config)
     
     # Extract configuration values with defaults
     report_dir = global_details.get('report_dir', 'reports')
     perf_tool_repo = global_details.get('perf_tool_repo', '')
-    profile_path = global_details.get('input_profiles_path', 'input_profiles.yaml')
+    profile_path = global_details.get('input_profiles_path', 'profiles/profiles.yaml')
     
     # Ensure report directory exists and set up permissions
     import os

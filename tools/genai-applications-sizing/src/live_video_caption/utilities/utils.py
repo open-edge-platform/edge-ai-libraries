@@ -37,7 +37,7 @@ def run_live_caption_warmup(url, payload, warmup_time):
         print(f"Warmup request failed: status={response.status_code}")
 
 
-def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, input_file, report_dir, warmup_time):
+def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, report_dir, warmup_time, config):
     """
     Run Locust tests for the Live Caption API hardware sizing.
 
@@ -46,12 +46,12 @@ def run_live_caption_hw_sizing(users, total_requests, ip, profile_path, input_fi
         total_requests: Total number of requests.
         ip: Host IP address where the application is deployed.
         profile_path: Path to the profile YAML file.
-        input_file: Path to the input YAML configuration file.
         report_dir: Directory to save the test reports.
         warmup_time: Duration in seconds for warmup requests.
+        config: Pre-loaded configuration dict.
     """
     from src.live_video_caption.locust_files import live_caption
-    lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_live_caption_profile_details(profile_path, input_file)
+    lvc_profile, runs_endpoint, metadata_endpoint, caption_duration, payload = get_live_caption_profile_details(profile_path, config)
     print(f"Hardware sizing started for the '{lvc_profile}' profile...")
 
     # Construct and execute the Locust command
