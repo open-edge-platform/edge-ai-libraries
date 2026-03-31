@@ -122,6 +122,7 @@ describe('VideoService', () => {
 
     const videoValidatorServiceMock = {
       isStreamable: jest.fn(),
+      resolveSafeUploadPath: jest.fn((value: string) => value),
     };
 
     const tagsServiceMock = {

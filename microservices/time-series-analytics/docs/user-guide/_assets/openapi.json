@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Time Series Analytics Microservice API",
-    "version": "1.1.0"
+    "version": "2026.0.0"
   },
   "servers": [
     {
@@ -158,7 +158,7 @@
       },
       "post": {
         "summary": "Config File Change",
-        "description": "Endpoint to handle configuration changes.\nThis endpoint can be used to update the configuration of the input service.\nUpdates the configuration of the input service with the provided key-value pairs.\n\n---\nrequestBody:\n    required: true\n    content:\n        application/json:\n            schema:\n                type: object\n                additionalProperties: true\n            example:\n                {\n                \"udfs\": {\n                    \"name\": \"udf_name\",\n                    \"model\": \"model_name\",\n                    \"device\": \"cpu or gpu\"}\n                \"alerts\": {\n                }\nresponses:\n    200:\n        description: Configuration updated successfully\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        status:\n                            type: string\n                            example: \"success\"\n                        message:\n                            type: string\n                            example: \"Configuration updated successfully\"\n    400:\n        description: Invalid input or error processing request\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Error message\"\n    500:\n        description: Failed to write configuration to file\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Failed to write configuration to file\"",
+        "description": "Endpoint to handle configuration changes.\nThis endpoint can be used to update the configuration of the input service.\nUpdates the configuration of the input service with the provided key-value pairs.\n\n---\nrequestBody:\n    required: true\n    content:\n        application/json:\n            schema:\n                type: object\n                additionalProperties: true\n            example:\n                {\n                \"udfs\": {\n                    \"name\": \"udf_name\",\n                    \"model\": \"model_name\",\n                    \"device\": \"cpu or gpu\"},\n                \"alerts\": {\n                }\n                }\nresponses:\n    200:\n        description: Configuration updated successfully\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        status:\n                            type: string\n                            example: \"success\"\n                        message:\n                            type: string\n                            example: \"Configuration updated successfully\"\n    413:\n        description: Request payload exceeds the maximum allowed size of 5 KB\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        error:\n                            type: string\n                            example: \"Request exceeds the maximum allowed payload size of 5 KB.\"\n    422:\n        description: \u003E\n            Unprocessable request - invalid or missing fields, invalid device value,\n            or UDF deployment package files are missing from the server\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"UDF deployment package validation failed for \u003Cudf_name\u003E.\"\n    500:\n        description: Failed to write configuration to file\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Failed to write configuration to file\"",
         "operationId": "config_file_change_config_post",
         "requestBody": {
           "required": true,
@@ -181,12 +181,32 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "413": {
+            "description": "Request payload exceeds the maximum allowed size of 5 KB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                "example": {
+                  "error": "Request exceeds the maximum allowed payload size of 5 KB."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable request - invalid or missing fields, invalid device value, or UDF deployment package files are missing from the server",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "UDF deployment package validation failed for \u003Cudf_name\u003E."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to write configuration to file",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Failed to write configuration to file"
                 }
               }
             }
@@ -205,7 +225,7 @@
             "title": "Udfs",
             "default": {
               "name": "udf_name",
-              "device": "cpu/gpu"
+              "device": "cpu"
             }
           },
           "alerts": {
@@ -316,6 +336,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

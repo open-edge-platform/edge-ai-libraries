@@ -36,6 +36,7 @@ import { SummaryPipelineDTO } from '../../redux/summary/summaryPipeline';
 import { APP_URL, ASSETS_ENDPOINT } from '../../config';
 import { PromptInput } from '../Prompts/PromptInput';
 import { NotificationSeverity, notify } from '../Notification/notify';
+import { getSafePreviewVideoUrl } from '../../utils/util';
 import axios from 'axios';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -438,6 +439,32 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     return axios.get(`${stateApi}/${stateId}`);
   };
 
+  const buildSafeAssetVideoUrl = useCallback((video: Video): string | null => {
+    const bucket = video.dataStore?.bucket?.trim();
+    const objectPath = video.url?.trim();
+
+    if (!bucket || !objectPath) {
+      return null;
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(bucket)) {
+      return null;
+    }
+
+    const encodedPath = objectPath
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+
+    if (!encodedPath) {
+      return null;
+    }
+
+    const base = ASSETS_ENDPOINT.replace(/\/$/, '');
+    return `${base}/${bucket}/${encodedPath}`;
+  }, []);
+
   const validateAndPrepareSummaryName = () => {
     let effectiveSummaryName = summaryName;
     if ((!effectiveSummaryName || effectiveSummaryName.trim() === '') && selectedFile) {
@@ -667,6 +694,10 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const selectorRef = useRef<HTMLSelectElement>(null);
   const audioModelRef = useRef<HTMLSelectElement>(null);
   const videoPreviewUrlRef = useRef<string | null>(null);
+  const safeVideoPreviewUrl = useMemo(
+    () => getSafePreviewVideoUrl(videoPreviewUrl, ASSETS_ENDPOINT),
+    [videoPreviewUrl]
+  );
   const shouldKeepTagsMenuOpenRef = useRef(false);
 
   const calculatedMultiFrame = useMemo(
@@ -797,8 +828,8 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setFormatError(null);
     setSelectedExistingVideo(video);
     // Set video preview URL from MinIO for existing videos
-    if (video.dataStore) {
-      const existingVideoUrl = `${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`;
+    const existingVideoUrl = buildSafeAssetVideoUrl(video);
+    if (existingVideoUrl) {
       setVideoPreviewUrl(existingVideoUrl);
     } else {
       setVideoPreviewUrl(null);
@@ -1033,35 +1064,38 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                 <VideoSelectorContainer>
                   <VideoSelectorDivider>{t('orSelectExisting')}</VideoSelectorDivider>
                   <RecentVideosList>
-                    {recentVideos.map((video) => (
-                      <RecentVideoItem
-                        key={video.videoId}
-                        selected={selectedExistingVideo?.videoId === video.videoId}
-                        onClick={() => handleSelectExistingVideo(video)}
-                      >
-                        {video.dataStore && (
-                          <VideoThumbnail
-                            src={`${ASSETS_ENDPOINT}/${video.dataStore.bucket}/${video.url}`}
-                            muted
-                            preload="metadata"
-                            onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
-                            onMouseLeave={(e) => {
-                              const el = e.currentTarget as HTMLVideoElement;
-                              el.pause();
-                              el.currentTime = 0;
-                            }}
-                          />
-                        )}
-                        <VideoItemInfo>
-                          <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
-                            {video.dataStore?.fileName || video.name || video.videoId}
-                          </VideoItemName>
-                          <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
-                            {new Date(video.createdAt).toLocaleDateString()}
-                          </VideoItemDate>
-                        </VideoItemInfo>
-                      </RecentVideoItem>
-                    ))}
+                    {recentVideos.map((video) => {
+                      const thumbnailUrl = buildSafeAssetVideoUrl(video);
+                      return (
+                        <RecentVideoItem
+                          key={video.videoId}
+                          selected={selectedExistingVideo?.videoId === video.videoId}
+                          onClick={() => handleSelectExistingVideo(video)}
+                        >
+                          {thumbnailUrl && (
+                            <VideoThumbnail
+                              src={thumbnailUrl}
+                              muted
+                              preload="metadata"
+                              onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                              onMouseLeave={(e) => {
+                                const el = e.currentTarget as HTMLVideoElement;
+                                el.pause();
+                                el.currentTime = 0;
+                              }}
+                            />
+                          )}
+                          <VideoItemInfo>
+                            <VideoItemName title={video.dataStore?.fileName || video.name || video.videoId}>
+                              {video.dataStore?.fileName || video.name || video.videoId}
+                            </VideoItemName>
+                            <VideoItemDate title={new Date(video.createdAt).toLocaleString()}>
+                              {new Date(video.createdAt).toLocaleDateString()}
+                            </VideoItemDate>
+                          </VideoItemInfo>
+                        </RecentVideoItem>
+                      );
+                    })}
                   </RecentVideosList>
                 </VideoSelectorContainer>
               )}
@@ -1290,16 +1324,16 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   width: '100%'
                 }}>
                   {/* Video Preview inside the details box */}
-                  {videoPreviewUrl && (
+                  {safeVideoPreviewUrl && (
                     <VideoPreviewContainer>
                       <StyledVideoPlayer controls>
-                        <source src={videoPreviewUrl} type="video/mp4" />
+                        <source src={safeVideoPreviewUrl} type="video/mp4" />
                         Your browser does not support the video tag.
                       </StyledVideoPlayer>
                     </VideoPreviewContainer>
                   )}
                   
-                  <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
+                  <div style={{ marginTop: safeVideoPreviewUrl ? '1rem' : '0' }}>
                     <div><strong>{t('summaryTitle')}:</strong> {summaryName}</div>
                     {videoTags && videoTags.trim().length > 0 && (
                       <div><strong>{t('customVideoTags')}:</strong> {videoTags}</div>
