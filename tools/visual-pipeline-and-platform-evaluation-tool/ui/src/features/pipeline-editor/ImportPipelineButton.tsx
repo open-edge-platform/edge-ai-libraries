@@ -12,7 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { useToGraphMutation } from "@/api/api.generated";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,

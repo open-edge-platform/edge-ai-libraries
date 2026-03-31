@@ -44,10 +44,14 @@ const PerformanceTestPanel = ({
               Live Preview
             </h3>
             {liveStreamUrl ? (
-              <WebRTCVideoPlayer
-                pipelineId={pipelineId}
-                streamUrl={liveStreamUrl}
-              />
+              <div className="mx-auto w-full max-w-[36rem] overflow-hidden rounded border border-input bg-black">
+                <div className="aspect-video">
+                  <WebRTCVideoPlayer
+                    pipelineId={pipelineId}
+                    streamUrl={liveStreamUrl}
+                  />
+                </div>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
                 Waiting for live stream to be published...
@@ -61,13 +65,17 @@ const PerformanceTestPanel = ({
             <h3 className="text-sm font-medium text-muted-foreground mb-2">
               Output Video
             </h3>
-            <video
-              controls
-              className="w-full h-auto border border-input rounded"
-              src={`/assets${completedVideoPath}`}
-            >
-              Your browser does not support the video tag.
-            </video>
+            <div className="mx-auto w-full max-w-[36rem] overflow-hidden rounded border border-input bg-black">
+              <div className="aspect-video">
+                <video
+                  controls
+                  className="block h-full w-full object-contain"
+                  src={`/assets${completedVideoPath}`}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            </div>
           </div>
         )}
 

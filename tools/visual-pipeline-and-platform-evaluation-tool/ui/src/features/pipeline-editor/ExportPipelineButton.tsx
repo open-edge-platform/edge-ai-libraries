@@ -9,7 +9,7 @@ import { downloadFile, MimeType } from "@/lib/fileUtils";
 import type { Edge, Node, Viewport } from "@xyflow/react";
 import { Download, FileJson, Terminal } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 type DownloadPipelineButtonProps = {
   nodes: Node[];

@@ -1,7 +1,7 @@
 import type { Edge, Node, Viewport } from "@xyflow/react";
 import { FolderOpen } from "lucide-react";
 import React, { useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 type OpenPipelineButtonProps = {
   onImport: (

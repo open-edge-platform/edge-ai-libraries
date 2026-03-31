@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 import { useDeletePipelineMutation } from "@/api/api.generated";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useNavigate } from "react-router";
 import { handleApiError } from "@/lib/apiUtils";
 

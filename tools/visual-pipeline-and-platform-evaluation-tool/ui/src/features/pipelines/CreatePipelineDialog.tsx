@@ -27,7 +27,7 @@ import {
   type Pipeline,
   type PipelineGraph,
 } from "@/api/api.generated.ts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   handleApiError,
   handleAsyncJobError,

@@ -23,7 +23,7 @@ import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
 import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsMenu";
 import {
