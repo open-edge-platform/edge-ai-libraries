@@ -30,7 +30,7 @@ class ChatQnAModularProfiler(BasePerformanceProfiler):
 
     def run_warmup(self, profile_path, input_file):
         """Execute warmup requests for enabled APIs."""
-        stream_log_api_enabled, document_api_enabled = self.get_enabled_apis()
+        stream_log_api_enabled, _ = self.get_enabled_apis()
         
         if stream_log_api_enabled:
             run_chat_warmup(self.warmup_time, self.ip, profile_path, self.config)

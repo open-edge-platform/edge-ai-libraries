@@ -67,8 +67,7 @@ def start_perf_tool(repo_url, report_dir):
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
-        )
-        
+        )        
         print(f"Performance tool started. Logs directory: {abs_log_dir}")
         
     except subprocess.CalledProcessError as e:

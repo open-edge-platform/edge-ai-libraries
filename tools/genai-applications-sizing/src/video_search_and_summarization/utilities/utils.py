@@ -8,14 +8,11 @@ This module provides helper functions for running warmup requests and
 Locust-based hardware sizing tests against the Video Summary and Search APIs.
 """
 
-from gevent import monkey
-monkey.patch_all()
-
 import subprocess
 import time
 
 import requests
-
+from common.video import wait_for_video_summary_complete, wait_for_search_to_complete,upload_video_file, embedding_video_file
 from common.utils import safe_parse_string_to_dict
 from src.video_search_and_summarization.utilities.config import (
     get_video_summary_profile_details,

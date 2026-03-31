@@ -69,7 +69,6 @@ class ChatHwSize(HttpUser):
         If the request is successful, the response is saved to the report directory.
         """
         try:
-            #body = {"input": self.prompt, "max_tokens":self.max_tokens}
             body = {"conversation_messages":[{"role":"user","content":self.prompt}],"max_tokens":self.max_tokens}
             headers = {'Content-Type': 'application/json'}
 
