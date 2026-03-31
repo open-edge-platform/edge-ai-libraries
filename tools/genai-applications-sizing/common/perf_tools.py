@@ -82,21 +82,30 @@ def start_perf_tool(repo_url, report_dir):
     return str(abs_log_dir), compose_file
 
 
-def stop_perf_tool(compose_file):
+def stop_perf_tool(compose_file, log_dir):
     """
     Stop and remove the performance monitoring Docker services.
     
     This function gracefully shuts down all services defined in the compose file
     that were started by the start_perf_tool function. It waits briefly to ensure
     any pending metrics are flushed before stopping and removing the services.
+    
+    Args:
+        compose_file: Path to the docker-compose file used to start the services.
+        log_dir: Path to the log directory, passed as the log_dir environment variable.
     """
     try:
         # Brief delay to ensure metrics are flushed
         time.sleep(2)
         
+        # Prepare environment with log directory
+        env = os.environ.copy()
+        env['log_dir'] = str(log_dir)
+        
         # Stop and remove all services defined in the compose file
         subprocess.run(
             ["docker", "compose", "-f", compose_file, "down"],
+            env=env,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

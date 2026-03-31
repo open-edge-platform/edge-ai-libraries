@@ -23,8 +23,6 @@ from common.metrics import (
     save_live_video_caption_telemetry_kpis,
     save_metrics_to_wsf_format,
 )
-from src.live_video_caption.utilities.utils import run_live_caption_warmup
-
 
 
 @events.init_command_line_parser.add_listener
@@ -77,7 +75,7 @@ class LiveCaptionHwSize(HttpUser):
         
         payload = self.payload[0].get("run")
         if self.warmup_time > 0:
-            run_live_caption_warmup(LiveCaptionHwSize.run_url, payload, self.warmup_time)
+            print("For Live Video Caption App warmup is not required as the test runs for a set duration and collects metrics for the entire duration...")
 
                  
     @task

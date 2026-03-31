@@ -11,126 +11,196 @@ embedding creation, and search requests for performance analysis.
 import itertools
 import os
 import time
-from locust import task, events, HttpUser
-from common.video import wait_for_search_to_complete
+
+from locust import HttpUser, events, task
+
 from common.metrics import (
     convert_search_metrics_to_wsf_format,
     get_video_search_telemetry_kpis,
     save_video_summary_search_telemetry_kpis,
 )
-from common.video import (
-    upload_video_file,
-    embedding_video_file,
-)
 from common.utils import safe_parse_string_to_dict
+from common.video import (
+    embedding_video_file,
+    upload_video_file,
+    wait_for_search_to_complete,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_JSON_HEADERS = {"Content-Type": "application/json"}
+
+# ---------------------------------------------------------------------------
+# CLI argument registration
+# ---------------------------------------------------------------------------
+
 
 @events.init_command_line_parser.add_listener
 def add_custom_arguments(parser):
     """
-    Adds custom command-line arguments for the Locust test.
+    Register custom command-line arguments for the Locust test.
 
     Args:
         parser (argparse.ArgumentParser): The argument parser to add arguments to.
     """
-    # parser.add_argument("--request_count", type=int, default=1, help="Number of requests per user.")
-    parser.add_argument("--search_endpoint", type=str, default="", help="Video search API endpoint.")
-    parser.add_argument("--embedding_endpoint", type=str, default="", help="Video embedding API endpoint.")
-    parser.add_argument("--upload_endpoint", type=str, default="", help="Video upload API endpoint.")
-    parser.add_argument("--telemetry_endpoint", type=str, default="6016/telemetry", help="Video telemetry API endpoint.")
-    parser.add_argument("--file_details", type=str, default="", help="Details of the video file to be uploaded.")
-    parser.add_argument("--queries", type=str, default="", help="Queries for video search.")
-    parser.add_argument("--report_dir", type=str, default="reports", help="Directory to save reports.")
+    parser.add_argument(
+        "--search_endpoint", type=str, default="",
+        help="Video search API endpoint.",
+    )
+    parser.add_argument(
+        "--embedding_endpoint", type=str, default="",
+        help="Video embedding API endpoint.",
+    )
+    parser.add_argument(
+        "--upload_endpoint", type=str, default="",
+        help="Video upload API endpoint.",
+    )
+    parser.add_argument(
+        "--telemetry_endpoint", type=str, default="6016/telemetry",
+        help="Video telemetry API endpoint.",
+    )
+    parser.add_argument(
+        "--file_details", type=str, default="",
+        help="Details of the video file to be uploaded.",
+    )
+    parser.add_argument(
+        "--queries", type=str, default="",
+        help="Queries for video search.",
+    )
+    parser.add_argument(
+        "--report_dir", type=str, default="reports",
+        help="Directory to save reports.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Locust user
+# ---------------------------------------------------------------------------
 
 
 class VideoSearchHwSize(HttpUser):
     """
-    Locust user class for testing the video search API hardware sizing.
+    Locust user for video search API hardware sizing.
+
+    Lifecycle:
+      on_start         — upload + embed all videos once, then start query cycle.
+      search_video     — fire one search request and record KPIs.
+      collect_metrics  — aggregate and persist results on exit.
     """
-    # Class variables for shared data across all instances
-    metrics = []
-    search_metrics = []
-    query_details = []
-    queries = []
 
-    def on_start(self):
-        # Instance variables for per-user data
-        parsed_opts = self.environment.parsed_options
-        
-        self.search_endpoint = parsed_opts.search_endpoint
-        self.upload_endpoint = parsed_opts.upload_endpoint
-        self.embedding_endpoint = parsed_opts.embedding_endpoint
-        self.telemetry_endpoint = parsed_opts.telemetry_endpoint
-        
-        # Pre-compute URLs once
-        self.upload_url = f"{self.host}:{self.upload_endpoint}"    
-        self.embedding_url = f"{self.host}:{self.embedding_endpoint}"
-        
-        # Parse file details and queries once
-        self.file_details = safe_parse_string_to_dict(parsed_opts.file_details)
-        VideoSearchHwSize.queries = safe_parse_string_to_dict(parsed_opts.queries)
-        
-        # Setup report directory once
-        report_dir = parsed_opts.report_dir
-        VideoSearchHwSize.report_dir = os.path.join(report_dir, "video_search")
+    # Shared result stores (single-user; initialised in on_start)
+    search_metrics: list = []
+    query_details: list = []
+    report_dir: str = ""
+    process_start_time: float = 0.0
+    process_end_time: float = 0.0
+    telemetry_response = None
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def on_start(self) -> None:
+        """Set up endpoints, ingest videos, and prepare the query cycle."""
+        opts = self.environment.parsed_options
+
+        # Endpoint paths (instance-level; read once)
+        self.search_endpoint = opts.search_endpoint
+        self.telemetry_endpoint = opts.telemetry_endpoint
+
+        # Full URLs built once
+        self.search_url = f"{self.host}:{self.search_endpoint}"
+        upload_url = f"{self.host}:{opts.upload_endpoint}"
+        embedding_url = f"{self.host}:{opts.embedding_endpoint}"
+
+        # Report directory
+        VideoSearchHwSize.report_dir = os.path.join(opts.report_dir, "video_search")
         os.makedirs(VideoSearchHwSize.report_dir, exist_ok=True)
-        
-        VideoSearchHwSize.process_start_time = time.time()
 
-        # Process files with optimized timing
-        for file_detail in self.file_details:
-            filename = file_detail.get("name", None)
-            filepath = file_detail.get("path", None)            
-            video_id = upload_video_file(self.upload_url, filename, filepath)            
+        # Parse inputs
+        file_details = safe_parse_string_to_dict(opts.file_details)
+        queries = safe_parse_string_to_dict(opts.queries)
+
+        # --- Video ingestion: upload then create embeddings ---
+        VideoSearchHwSize.process_start_time = time.time()
+        for file_detail in file_details:
+            filename = file_detail.get("name")
+            filepath = file_detail.get("path")
+            video_id = upload_video_file(upload_url, filename, filepath)
             if video_id is not None:
-                embedding_status = embedding_video_file(self.embedding_url, video_id)      
-        
+                embedding_video_file(embedding_url, video_id)
         VideoSearchHwSize.process_end_time = time.time()
-        VideoSearchHwSize.telemetry_response = self.client.get(f":{self.telemetry_endpoint}")
-        # Create the query cycle after queries are populated
-        self.query_cycle = itertools.cycle(VideoSearchHwSize.queries)
+
+        # Snapshot telemetry right after ingestion
+        VideoSearchHwSize.telemetry_response = self.client.get(
+            f":{self.telemetry_endpoint}"
+        )
+
+        # Infinite cycle so every task call gets the next query
+        self.query_cycle = itertools.cycle(queries)
+
+    # ------------------------------------------------------------------
+    # Task
+    # ------------------------------------------------------------------
 
     @task
-    def search_video(self):
-        """
-            Search video using queries
-        """
+    def search_video(self) -> None:
+        """Submit one search request and record timing and query KPIs."""
         qry = next(self.query_cycle)
-        headers = {'Content-Type': 'application/json'}
-        search_url = f"{self.host}:{self.search_endpoint}" 
-        
-        try:          
-            
+        search_time: float = 0.0
+        query_metrics: dict = {}
+
+        try:
             print("Sending search request...")
             response = self.client.post(
-                f":{self.search_endpoint}", 
-                headers=headers, 
-                json=qry
+                f":{self.search_endpoint}",
+                headers=_JSON_HEADERS,
+                json=qry,
             )
-            
+
             if response.status_code == 201:
-                queryId = response.json().get("queryId", None)                      
-                search_time, query_metrics = wait_for_search_to_complete(search_url, queryId)
+                query_id = response.json().get("queryId")
+                search_time, query_metrics = wait_for_search_to_complete(
+                    self.search_url, query_id
+                )
                 print("Video search completed.")
             else:
-                print(f"Search failed with status {response.status_code}: {response.text}")
-            
-            # Append metrics efficiently
-            VideoSearchHwSize.query_details.append(query_metrics)
-            VideoSearchHwSize.search_metrics.append({
-                **qry,
-                "query_search_seconds": search_time
-            })           
-            
-        except Exception as e:
-            print(f"Video search failed: {e}")
+                print(
+                    f"Search failed with status {response.status_code}: "
+                    f"{response.text}"
+                )
+
+        except Exception as exc:
+            print(f"Video search failed: {exc}")
+
+        # Always record metrics so every iteration is represented
+        VideoSearchHwSize.query_details.append(query_metrics)
+        VideoSearchHwSize.search_metrics.append(
+            {**qry, "query_search_seconds": search_time}
+        )
+
+
+# ---------------------------------------------------------------------------
+# Quitting event handler
+# ---------------------------------------------------------------------------
 
 
 @events.quitting.add_listener
-def collect_metrics(environment, **kwargs):
-    """
-        Collect and write metrics
-    """
+def collect_metrics(environment, **kwargs) -> None:
+    """Aggregate KPIs and write reports when Locust exits."""
     print("Collecting metrics...")
-    metrics, telemetry_details = get_video_search_telemetry_kpis(VideoSearchHwSize.process_start_time, VideoSearchHwSize.process_end_time, VideoSearchHwSize.telemetry_response.json(), VideoSearchHwSize.search_metrics)
-    json_file = save_video_summary_search_telemetry_kpis(VideoSearchHwSize.report_dir, metrics, telemetry_details, VideoSearchHwSize.query_details)
+    metrics, telemetry_details = get_video_search_telemetry_kpis(
+        VideoSearchHwSize.process_start_time,
+        VideoSearchHwSize.process_end_time,
+        VideoSearchHwSize.telemetry_response.json(),
+        VideoSearchHwSize.search_metrics,
+    )
+    json_file = save_video_summary_search_telemetry_kpis(
+        VideoSearchHwSize.report_dir,
+        metrics,
+        telemetry_details,
+        VideoSearchHwSize.query_details,
+    )
     convert_search_metrics_to_wsf_format(VideoSearchHwSize.report_dir, json_file)

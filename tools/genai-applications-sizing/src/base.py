@@ -135,7 +135,7 @@ class BasePerformanceProfiler(ABC):
         """Stop performance metrics collection and generate graphs."""
         if self.collect_resource_metrics and self.log_dir:
             try:
-                stop_perf_tool(compose_file)
+                stop_perf_tool(compose_file, self.log_dir)
                 plot_graphs(self.log_dir)
             except Exception as e:
                 print(f"Error occurred while parsing and plotting perf_tool logs: {e}")
