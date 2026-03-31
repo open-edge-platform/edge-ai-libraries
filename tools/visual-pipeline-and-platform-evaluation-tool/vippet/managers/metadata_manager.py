@@ -121,14 +121,14 @@ class MetadataManager:
         with self._jobs_lock:
             job = self._jobs.get(job_id)
         if not job or not (0 <= file_index < len(job.files)):
-            self.logger.debug(
-                "job '%s' or file_index %d not found", job_id, file_index
-            )
+            self.logger.debug("job '%s' or file_index %d not found", job_id, file_index)
             return []
         records = job.get_records(file_index, limit)
         self.logger.debug(
             "returning %d record(s) for job '%s' file_index %d",
-            len(records), job_id, file_index,
+            len(records),
+            job_id,
+            file_index,
         )
         return records
 
@@ -156,13 +156,18 @@ class MetadataManager:
         if not indices or not (0 <= local_index < len(indices)):
             self.logger.debug(
                 "pipeline '%s' or local_index %d not found for job '%s'",
-                pipeline_id, local_index, job_id,
+                pipeline_id,
+                local_index,
+                job_id,
             )
             return None
         global_index = indices[local_index]
         self.logger.debug(
             "job '%s' pipeline '%s' local_index %d -> global_index %d",
-            job_id, pipeline_id, local_index, global_index,
+            job_id,
+            pipeline_id,
+            local_index,
+            global_index,
         )
         return global_index
 
@@ -284,7 +289,9 @@ class _MetadataFile:
         try:
             json.loads(line)
         except json.JSONDecodeError:
-            self.logger.debug("Skipping malformed JSON line in %s: %.120r", self.path, line)
+            self.logger.debug(
+                "Skipping malformed JSON line in %s: %.120r", self.path, line
+            )
             return  # skip malformed lines
         with self._subscribers_lock:
             for q, loop in self._subscribers:

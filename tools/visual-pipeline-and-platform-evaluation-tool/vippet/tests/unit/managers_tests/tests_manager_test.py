@@ -1045,6 +1045,27 @@ class TestExecutionConfigValidation(unittest.TestCase):
         manager._validate_execution_config(execution_config, is_density_test=False)
         manager._validate_execution_config(execution_config, is_density_test=True)
 
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_metadata_file_for_density_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_execution_config(execution_config, is_density_test=True)
+
+        self.assertIn(
+            "Density tests do not support metadata output",
+            str(context.exception),
+        )
+
 
 class TestUSBCameraValidation(unittest.TestCase):
     """Test cases for USB camera validation in TestsManager."""
@@ -1673,6 +1694,225 @@ class TestPipelineStreamSpecInResults(unittest.TestCase):
         self.assertTrue(spec.id.startswith("__graph-"))
         self.assertEqual(len(spec.id), len("__graph-") + 16)
         self.assertEqual(spec.streams, 3)
+
+
+class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
+    """Test cases for metadata_stream_urls handling in performance tests."""
+
+    def setUp(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    @patch("managers.tests_manager.MetadataManager")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_registers_metadata_job_when_metadata_file_paths_present(
+        self, mock_pipeline_manager_cls, mock_metadata_manager_cls
+    ):
+        pipeline_id = "pipeline-meta"
+        metadata_files = {pipeline_id: ["/metadata/job/pipeline/metadata_0.jsonl"]}
+
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! gvametaconvert add-empty-results=true"
+            " ! gvametapublish method=file file-format=json-lines"
+            " file-path=/metadata/job/pipeline/metadata_0.jsonl ! fakesink",
+            {},
+            {},
+            metadata_files,
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
+        mock_metadata_manager_instance = MagicMock()
+        mock_metadata_manager_cls.return_value = mock_metadata_manager_instance
+
+        manager = TestsManager()
+        internal_spec = create_internal_performance_test_spec(
+            pipeline_specs=[
+                create_internal_performance_spec(pipeline_id=pipeline_id),
+            ],
+            execution_config=create_internal_execution_config(
+                metadata_mode=InternalMetadataMode.FILE,
+            ),
+        )
+        job_id = "test-job-meta-register"
+        job = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        mock_metadata_manager_instance.register_job.assert_called_once_with(
+            job_id, metadata_files
+        )
+
+    @patch("managers.tests_manager.MetadataManager")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_updates_metadata_stream_urls(
+        self, mock_pipeline_manager_cls, mock_metadata_manager_cls
+    ):
+        pipeline_id = "pipeline-meta"
+        metadata_files = {
+            pipeline_id: [
+                "/metadata/job/pipeline/metadata_0.jsonl",
+                "/metadata/job/pipeline/metadata_1.jsonl",
+            ]
+        }
+
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! gvametaconvert add-empty-results=true"
+            " ! tee name=t ! gvametapublish name=publish0 method=file file-format=json-lines"
+            " file-path=/metadata/job/pipeline/metadata_0.jsonl t. ! "
+            " gvametapublish name=publish1 method=file file-format=json-lines"
+            " file-path=/metadata/job/pipeline/metadata_1.jsonl ! fakesink",
+            {},
+            {},
+            metadata_files,
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
+        mock_metadata_manager_instance = MagicMock()
+        mock_metadata_manager_cls.return_value = mock_metadata_manager_instance
+
+        manager = TestsManager()
+        internal_spec = create_internal_performance_test_spec(
+            pipeline_specs=[
+                create_internal_performance_spec(pipeline_id=pipeline_id),
+            ],
+            execution_config=create_internal_execution_config(
+                metadata_mode=InternalMetadataMode.FILE,
+            ),
+        )
+        job_id = "test-job-meta-urls"
+        job = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        updated = manager.jobs[job_id]
+        assert isinstance(updated, InternalPerformanceJobStatus)
+        self.assertIsNotNone(updated.metadata_stream_urls)
+        self.assertIn(pipeline_id, updated.metadata_stream_urls or {})
+        expected_urls = [
+            f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/0/stream",
+            f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/1/stream",
+        ]
+        self.assertEqual(updated.metadata_stream_urls[pipeline_id], expected_urls)
+
+    @patch("managers.tests_manager.MetadataManager")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_stops_tailing_on_completion(
+        self, mock_pipeline_manager_cls, mock_metadata_manager_cls
+    ):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.return_value = (
+            "fakesrc ! gvametaconvert add-empty-results=true ! gvametapublish ! fakesink",
+            {},
+            {},
+            {},
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
+        mock_metadata_manager_instance = MagicMock()
+        mock_metadata_manager_cls.return_value = mock_metadata_manager_instance
+
+        manager = TestsManager()
+        internal_spec = create_internal_performance_test_spec()
+        job_id = "test-job-meta-stop"
+        job = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        with (
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=100.0, per_stream_fps=100.0, num_streams=1, exit_code=0
+                ),
+            ),
+            patch(
+                "managers.tests_manager.collect_video_outputs_from_dirs",
+                return_value={},
+            ),
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        mock_metadata_manager_instance.stop_tailing.assert_called_once_with(job_id)
+
+    @patch("managers.tests_manager.MetadataManager")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_execute_performance_test_stops_tailing_on_exception(
+        self, mock_pipeline_manager_cls, mock_metadata_manager_cls
+    ):
+        mock_pipeline_manager_instance = MagicMock()
+        mock_pipeline_manager_instance.build_pipeline_command.side_effect = (
+            RuntimeError("pipeline build failed")
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager_instance
+
+        mock_metadata_manager_instance = MagicMock()
+        mock_metadata_manager_cls.return_value = mock_metadata_manager_instance
+
+        manager = TestsManager()
+        internal_spec = create_internal_performance_test_spec()
+        job_id = "test-job-meta-exception"
+        job = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs[job_id] = job
+
+        manager._execute_performance_test(job_id, internal_spec)
+
+        mock_metadata_manager_instance.stop_tailing.assert_called_once_with(job_id)
+        updated = manager.jobs[job_id]
+        self.assertEqual(updated.state, InternalTestJobState.FAILED)
 
 
 if __name__ == "__main__":

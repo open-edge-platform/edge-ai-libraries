@@ -401,7 +401,11 @@ def stop_performance_test_job(job_id: str):
     responses={
         200: {
             "description": "List of metadata records for the specified pipeline stream",
-            "content": {"application/json": {"schema": {"type": "array", "items": {"type": "object"}}}},
+            "content": {
+                "application/json": {
+                    "schema": {"type": "array", "items": {"type": "object"}}
+                }
+            },
         },
         404: {
             "description": "Job, pipeline, or file index not found",
@@ -467,7 +471,9 @@ def get_performance_job_metadata_for_stream(
             ).model_dump(),
             status_code=404,
         )
-    records = MetadataManager().get_snapshot(job_id, file_index=global_index, limit=limit)
+    records = MetadataManager().get_snapshot(
+        job_id, file_index=global_index, limit=limit
+    )
     return JSONResponse(content=records)
 
 
