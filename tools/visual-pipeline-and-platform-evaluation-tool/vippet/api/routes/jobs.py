@@ -428,7 +428,7 @@ def get_performance_job_metadata_for_stream(
     ## Path Parameters
 
     - `job_id`: Identifier of the performance job
-    - `pipeline_id`: Pipeline identifier (as returned in ``metadata_stream_urls``)
+    - `pipeline_id`: Pipeline identifier
     - `file_index`: Zero-based index of the metadata file within that pipeline
 
     ## Query Parameters
@@ -513,13 +513,6 @@ async def stream_performance_job_metadata(
     |------|-------------|
     | 200  | SSE stream opened |
     | 404  | Job id is unknown or no metadata is available for this job |
-
-    ## Client Example
-
-    ```javascript
-    const es = new EventSource('/jobs/tests/performance/abc123/metadata/stream');
-    es.onmessage = (e) => console.log(JSON.parse(e.data));
-    ```
     """
     if not MetadataManager().job_exists(job_id):
         internal_status = TestsManager().get_job_status(job_id)

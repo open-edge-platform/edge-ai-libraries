@@ -1011,6 +1011,8 @@ class Graph:
           3. Detect changes in edges between original_simple and modified_simple
           4. If any edge changes detected, raise ValueError (edge changes not supported)
           5. For modified node properties, update corresponding nodes in original_advanced
+          6. Handle generic "source" nodes by converting them to specific GStreamer elements
+          7. Return new advanced graph with updated properties
 
         Note: Property modifications of existing visible nodes are supported.
 
