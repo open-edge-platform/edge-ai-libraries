@@ -1,4 +1,5 @@
 import logging
+import os
 from asyncio import Lock
 from typing import Optional, Set
 
@@ -6,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.metrics")
+logger.setLevel(os.environ.get("METRICS_LOG_LEVEL", "INFO").upper())
 
 # Single collector websocket (None if not connected)
 collector_ws: Optional[WebSocket] = None

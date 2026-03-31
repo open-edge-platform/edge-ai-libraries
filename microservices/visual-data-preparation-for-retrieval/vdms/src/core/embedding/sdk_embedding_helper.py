@@ -44,6 +44,8 @@ from PIL import Image
 
 from src.common import logger
 from src.common import settings
+from src.common import sanitize_for_log
+
 from src.core.embedding.decoder import SharedMemoryPool
 from src.core.embedding.decoder import VideoFrameConfig
 from src.core.embedding.decoder import VideoFrameExtractor
@@ -252,9 +254,10 @@ def get_global_detector(enable_object_detection: bool = True, detection_confiden
                 logger.warning("Global object detector initialization failed")
             else:
                 logger.info(
-                    f"Global object detector initialized with confidence threshold: {detection_confidence}"
+                    "Global object detector initialized with confidence threshold: %s",
+                    sanitize_for_log(detection_confidence, max_length=32),
                 )
-
+                
         except Exception as e:
             logger.error(f"Failed to initialize global object detector: {e}")
             _global_detector = None
@@ -474,12 +477,12 @@ class SimplePipelineManager:
             self.enable_object_detection = False
         else:
             logger.info(
-                f"Using global object detector with confidence threshold: {self.detection_confidence}"
+                "Using global object detector with confidence threshold: %s",
+                sanitize_for_log(self.detection_confidence, max_length=32),
             )
-
-    def _process_frame_with_detection(
-        self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]
-    ) -> List[Tuple[Image.Image, Dict[str, Any]]]:
+        
+    
+    def _process_frame_with_detection(self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]) -> List[Tuple[Image.Image, Dict[str, Any]]]:
         """
         Process a single frame and optionally detect objects to create crops.
 
@@ -656,14 +659,17 @@ class SimplePipelineManager:
     ) -> Dict[str, Any]:
         """Process frames in parallel for embedding generation with optional object detection and per-batch storage."""
         logger.info(
-            f"Processing {len(all_frames)} frames with {self.config['pipeline_count']} maximum parallel workers"
+            "Processing %s frames with %s maximum parallel workers",
+            sanitize_for_log(len(all_frames), max_length=32),
+            sanitize_for_log(self.config['pipeline_count'], max_length=32),
         )
-
+        
         if self.enable_object_detection:
             logger.info(
-                f"Object detection enabled with confidence threshold: {self.detection_confidence}"
+                "Object detection enabled with confidence threshold: %s",
+                sanitize_for_log(self.detection_confidence, max_length=32),
             )
-
+        
         try:
             # Create batches of frames for parallel processing
             logger.info(
@@ -1089,8 +1095,11 @@ def generate_video_embedding_sdk(
         Dictionary containing processing results and timing information
     """
     total_start_time = time.perf_counter()
-    logger.info(f"Starting SDK video processing with frame_interval={frame_interval}")
-
+    logger.info(
+        "Starting SDK video processing with frame_interval=%s",
+        sanitize_for_log(frame_interval, max_length=32),
+    )
+    
     try:
         # Get SDK client
         sdk_client = get_sdk_client()

@@ -7,11 +7,13 @@ import logging
 import tarfile
 import urllib.request
 import urllib.error
+import shutil
 from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 from PIL import Image
+from src.common.logger import sanitize_for_log
 
 # Import VDMS local modules
 from ..utils.config_utils import get_config
@@ -96,7 +98,11 @@ class YOLOXDetector:
         # Initialize OpenVINO
         self._init_openvino()
         
-        logger.info(f"YOLOX detector initialized: device={self.device}, confidence={self.confidence_threshold}")
+        logger.info(
+            "YOLOX detector initialized: device=%s, confidence=%s",
+            sanitize_for_log(self.device, max_length=64),
+            sanitize_for_log(self.confidence_threshold, max_length=32),
+        )
     
     def _init_openvino(self):
         """Initialize OpenVINO core and load model."""
@@ -165,12 +171,12 @@ class YOLOXDetector:
                 # Try as gzipped tar first, then fallback to regular tar
                 try:
                     with tarfile.open(tar_file, 'r:gz') as tar:
-                        tar.extractall(path=self.model_dir)
+                        self._extract_tar_safely(tar, self.model_dir)
                 except tarfile.TarError:
                     # If gzip fails, try as regular tar
                     logger.info("Gzip extraction failed, trying as regular tar")
                     with tarfile.open(tar_file, 'r') as tar:
-                        tar.extractall(path=self.model_dir)
+                        self._extract_tar_safely(tar, self.model_dir)
                     
             except tarfile.TarError as e:
                 raise RuntimeError(f"Extraction failed: {e}")
@@ -191,6 +197,54 @@ class YOLOXDetector:
         except Exception as e:
             logger.error(f"Failed to download model: {e}")
             raise
+
+    @staticmethod
+    def _extract_tar_safely(tar: tarfile.TarFile, destination: str) -> None:
+        """Safely extract a tar archive into destination.
+
+        This extraction routine blocks path traversal and disallows symlinks,
+        hard links, and special device files.
+        """
+        destination_real = os.path.realpath(destination)
+        os.makedirs(destination_real, exist_ok=True)
+
+        for member in tar.getmembers():
+            member_name = member.name
+
+            if not member_name:
+                continue
+
+            normalized_name = os.path.normpath(member_name)
+
+            if normalized_name.startswith('/') or normalized_name.startswith('..'):
+                raise RuntimeError(f"Unsafe tar member path detected: {member_name}")
+
+            target_path = os.path.realpath(os.path.join(destination_real, normalized_name))
+            if not (target_path == destination_real or target_path.startswith(destination_real + os.sep)):
+                raise RuntimeError(f"Tar member escapes destination: {member_name}")
+
+            if member.issym() or member.islnk():
+                raise RuntimeError(f"Unsupported tar member type (link): {member_name}")
+
+            if member.ischr() or member.isblk() or member.isfifo():
+                raise RuntimeError(f"Unsupported tar member type (special file): {member_name}")
+
+            if member.isdir():
+                os.makedirs(target_path, exist_ok=True)
+                continue
+
+            if not member.isfile():
+                logger.debug("Skipping unsupported tar member: %s", member_name)
+                continue
+
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+            extracted_file = tar.extractfile(member)
+            if extracted_file is None:
+                raise RuntimeError(f"Failed to read tar member: {member_name}")
+
+            with extracted_file, open(target_path, 'wb') as output_file:
+                shutil.copyfileobj(extracted_file, output_file)
     
     def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -564,8 +618,14 @@ def create_detector(config: Optional[dict] = None) -> Optional[YOLOXDetector]:
         detection_config = config.get('object_detection', {})
         is_enabled = detection_config.get('enabled', False)
         
-        logger.info(f"Creating detector with config: enabled={is_enabled}")
-        logger.debug(f"Full detection config: {detection_config}")
+        logger.info(
+            "Creating detector with config: enabled=%s",
+            sanitize_for_log(is_enabled, max_length=32),
+        )
+        logger.debug(
+            "Full detection config: %s",
+            sanitize_for_log(detection_config, max_length=512),
+        )
         
         if not is_enabled:
             logger.info("Object detection disabled in configuration - returning None")

@@ -25,8 +25,8 @@ source .venv/bin/activate  # Linux/macOS
 
 # Install core testing dependencies
 uv pip install -e ".[dev]"
-
 ```
+
 ## Test Structure
 
 The test suite is organized as follows:

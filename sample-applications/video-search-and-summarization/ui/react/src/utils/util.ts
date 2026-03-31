@@ -152,6 +152,34 @@ export const isValidUrl = (url: string): boolean => {
   }
 };
 
+/**
+ * Restricts video preview URLs to trusted local blob URLs or asset URLs served
+ * from the configured assets endpoint before they are rendered into media tags.
+ */
+export const getSafePreviewVideoUrl = (
+  url: string | null | undefined,
+  assetsEndpoint: string | null | undefined
+): string | null => {
+  if (!url) {
+    return null;
+  }
+
+  if (url.startsWith('blob:')) {
+    return url;
+  }
+
+  if (!assetsEndpoint) {
+    return null;
+  }
+
+  const normalizedAssetsEndpoint = assetsEndpoint.replace(/\/$/, '');
+  if (!normalizedAssetsEndpoint) {
+    return null;
+  }
+
+  return url.startsWith(`${normalizedAssetsEndpoint}/`) ? url : null;
+};
+
 export const capitalize = (input: string): string => {
   return input[0].toUpperCase() + input.slice(1);
 };

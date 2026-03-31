@@ -23,8 +23,10 @@ x-vippet: &vippet
       condition: service_started
   environment:
     GST_DEBUG: "1"
-    LOG_LEVEL: INFO
+    APP_LOG_LEVEL: INFO
+    RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
+    METRICS_LOG_LEVEL: INFO
     MODELS_PATH: /models/output
     SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     INPUT_VIDEO_DIR: /videos/input

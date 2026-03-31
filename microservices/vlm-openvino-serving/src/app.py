@@ -60,6 +60,7 @@ from src.utils.utils import (
     load_images,
     load_model_config,
     model_supports_video,
+    sanitize_for_log,
     setup_seed,
     validate_video_inputs,
 )
@@ -110,6 +111,93 @@ def extract_response_text(result) -> str:
     if hasattr(result, "texts") and getattr(result, "texts"):
         return result.texts[0]
     return str(result)
+
+
+def summarize_message_for_log(message: Any) -> dict:
+    """Create a compact and sanitized preview of a chat message for debugging."""
+
+    role = getattr(message, "role", None)
+    content = getattr(message, "content", None)
+
+    if isinstance(content, str):
+        return {
+            "role": role,
+            "content_type": "text",
+            "preview": sanitize_for_log(content, max_len=256),
+        }
+
+    if isinstance(content, list):
+        items = []
+        for item in content:
+            if isinstance(item, MessageContentText):
+                items.append(
+                    {
+                        "type": "text",
+                        "preview": sanitize_for_log(item.text, max_len=200),
+                    }
+                )
+            elif isinstance(item, MessageContentImageUrl):
+                image_url = item.image_url.get("url", "")
+                items.append(
+                    {
+                        "type": "image_url",
+                        "value": (
+                            "data:image/*;base64,<redacted>"
+                            if is_base64_image_data(image_url)
+                            else sanitize_for_log(image_url, max_len=200)
+                        ),
+                    }
+                )
+            elif isinstance(item, MessageContentVideoUrl):
+                video_url = item.video_url.get("url", "")
+                items.append(
+                    {
+                        "type": "video_url",
+                        "value": (
+                            "data:video/*;base64,<redacted>"
+                            if isinstance(video_url, str)
+                            and video_url.startswith("data:video/")
+                            and ";base64," in video_url
+                            else sanitize_for_log(video_url, max_len=200)
+                        ),
+                    }
+                )
+            elif isinstance(item, MessageContentVideo):
+                items.append(
+                    {
+                        "type": "video_frames",
+                        "count": len(item.video or []),
+                    }
+                )
+            elif isinstance(item, str):
+                items.append(
+                    {
+                        "type": "text",
+                        "preview": sanitize_for_log(item, max_len=200),
+                    }
+                )
+            else:
+                items.append({"type": type(item).__name__})
+
+        return {
+            "role": role,
+            "content_type": "list",
+            "items": items,
+        }
+
+    return {
+        "role": role,
+        "content_type": type(content).__name__,
+        "preview": sanitize_for_log(content, max_len=200),
+    }
+
+
+def build_request_debug_view(request: ChatRequest) -> dict:
+    """Build a sanitized request snapshot that keeps user-input visibility for debugging."""
+
+    base = request.model_dump(exclude={"messages"})
+    base["messages"] = [summarize_message_for_log(message) for message in request.messages]
+    return base
 
 
 def run_generation(pipe, generation_kwargs, streamer):
@@ -359,6 +447,15 @@ def safe_generate(pipe, generation_kwargs, streamer):
             restart_server()
 
 
+def collect_streamer_output(streamer) -> str:
+    """Collect text from a blocking streamer iterator."""
+    buffer = []
+    for new_text in streamer:
+        buffer.append(new_text)
+        logger.debug(new_text)
+    return "".join(buffer)
+
+
 # Initialize the model
 def initialize_model():
     """
@@ -599,17 +696,17 @@ async def chat_completions(request: ChatRequest):
 
         global pipe, processor, model_dir, model_config
         logger.info("Received a chat completion request.")
-        redacted_request = re.sub(
-            r"data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+",
-            "data:image/*;base64,<redacted>",
-            str(request),
+        logger.debug(
+            "chat request: %s",
+            sanitize_for_log(build_request_debug_view(request), max_len=8192),
         )
-        logger.debug(f"chat request: {redacted_request}")
 
         # Process the request and generate a response
         if request.model != settings.VLM_MODEL_NAME:
             logger.info(
-                f"Requested model {request.model} does not match the configured model {settings.VLM_MODEL_NAME}."
+                "Requested model %s does not match the configured model %s.",
+                sanitize_for_log(request.model, max_len=128),
+                sanitize_for_log(settings.VLM_MODEL_NAME, max_len=128),
             )
             error_message = f"Model {request.model} does not exist"
             persist_telemetry("client_error", None, None, error_message)
@@ -714,10 +811,14 @@ async def chat_completions(request: ChatRequest):
             if isinstance(eos_token, str) and eos_token and not config.stop_strings:
                 config.stop_strings = {eos_token}
         logger.debug(
-            f"config: { {k: v for k, v in config_kwargs.items() if v is not None} }"
+            "config: %s",
+            sanitize_for_log(
+                {k: v for k, v in config_kwargs.items() if v is not None},
+                max_len=1024,
+            ),
         )
 
-        def respond_with_generation(generation_kwargs):
+        async def respond_with_generation(generation_kwargs):
             """Invoke the pipeline, handling streaming vs. non-stream flows consistently."""
             nonlocal cleanup_deferred
             logger.debug(
@@ -735,7 +836,7 @@ async def chat_completions(request: ChatRequest):
                     telemetry_callback=persist_telemetry,
                 )
 
-            output = pipe.generate(**generation_kwargs)
+            output = await asyncio.to_thread(pipe.generate, **generation_kwargs)
             response_text = extract_response_text(output)
             usage, telemetry = build_usage_and_telemetry(
                 getattr(output, "perf_metrics", None)
@@ -788,7 +889,12 @@ async def chat_completions(request: ChatRequest):
                 logger.info("processing as text prompt")
                 formatted_messages = []
                 for message in request.messages:
-                    logger.debug(f"message: {message}")
+                    logger.debug(
+                        "message: %s",
+                        sanitize_for_log(
+                            summarize_message_for_log(message), max_len=2048
+                        ),
+                    )
                     if isinstance(message.content, str):
                         formatted_messages.append(
                             {"role": message.role, "content": message.content}
@@ -809,7 +915,7 @@ async def chat_completions(request: ChatRequest):
                     "generation_config": config,
                 }
 
-            return respond_with_generation(generation_kwargs)
+            return await respond_with_generation(generation_kwargs)
 
         elif is_qwen_model:
             # Qwen2/2.5 VL models still rely on processor-supplied chat templates and
@@ -1076,7 +1182,7 @@ async def chat_completions(request: ChatRequest):
             if qwen_videos:
                 generation_kwargs["videos"] = qwen_videos
 
-            return respond_with_generation(generation_kwargs)
+            return await respond_with_generation(generation_kwargs)
 
         elif ModelNames.SMOLVLM in model_name_lower:
             logger.info("Using SmolVLM2 model for processing.")
@@ -1217,12 +1323,8 @@ async def chat_completions(request: ChatRequest):
                     telemetry_callback=persist_telemetry,
                 )
 
-            buffer = []
-            for new_text in streamer:
-                buffer.append(new_text)
-                logger.debug(new_text)
+            response_text = await asyncio.to_thread(collect_streamer_output, streamer)
             wait_for_generation_thread(thread)
-            response_text = "".join(buffer)
             persist_telemetry("success", None, None, None)
             return ChatCompletionResponse(
                 id=str(uuid.uuid4()),
@@ -1281,7 +1383,7 @@ async def chat_completions(request: ChatRequest):
                 if video_tensors:
                     generation_kwargs["videos"] = video_tensors
 
-        response = respond_with_generation(generation_kwargs)
+        response = await respond_with_generation(generation_kwargs)
         logger.info("Chat completion request processed successfully.")
         return response
     except ValueError as e:
@@ -1393,11 +1495,14 @@ async def get_device_info(device: str):
         HTTPException: If the device is not found or if there is an error retrieving the device properties.
     """
     try:
-        logger.info(f"Fetching properties for device: {device}")
+        logger.info(
+            "Fetching properties for device: %s",
+            sanitize_for_log(device, max_len=128),
+        )
         available_devices = get_devices()
 
         if device not in available_devices:
-            logger.info(f"Device {device} not found.")
+            logger.info("Device %s not found.", sanitize_for_log(device, max_len=128))
             return JSONResponse(
                 status_code=404,
                 content={
@@ -1406,14 +1511,22 @@ async def get_device_info(device: str):
             )
 
         device_props = get_device_property(device)
-        logger.info(f"Properties for device {device}: {device_props}")
+        logger.info(
+            "Properties for device %s: %s",
+            sanitize_for_log(device, max_len=128),
+            sanitize_for_log(device_props, max_len=2048),
+        )
         return JSONResponse(content=device_props)
 
     except Exception as e:
         logger.info(
-            f"Exception encountered while fetching properties for device: {device}"
+            "Exception encountered while fetching properties for device: %s",
+            sanitize_for_log(device, max_len=128),
         )
-        logger.exception(f"Error getting properties for device: {e}")
+        logger.exception(
+            "Error getting properties for device: %s",
+            sanitize_for_log(e, max_len=512),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 

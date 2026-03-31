@@ -6,7 +6,7 @@ This guide provides step-by-step instructions to quickly deploy and test the **M
 
 Before you begin, confirm the following:
 
-- **System Requirements**: Your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker if needed. See [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage.
@@ -32,7 +32,7 @@ export TAG=latest
 
 ### Optional Environment Variables
 
-The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](../../examples/README.md#environment-variables).
+The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/examples/README.md#environment-variables).
 
 **Quick Configuration Examples**:
 
@@ -66,7 +66,7 @@ source setup.sh
 
 ## Quick Start with Docker
 
-You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag. For prebuilt image, the `setup` script will configure the necessary variables to pull the right version of the image. 
+You can [build the Docker image](./get-started/build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag. For prebuilt image, the `setup` script will configure the necessary variables to pull the right version of the image.
 
 ## Running the Server with CPU
 
@@ -267,10 +267,12 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 ## Troubleshooting
 
 1. **Docker container fails to start**
+
   - Run `docker logs multimodal-embedding-serving` to inspect failures.
   - Ensure required ports (default `9777`) are available.
 
 2. **Cannot access the microservice**
+
   - Confirm the containers are running:
 
     ```bash
@@ -280,6 +282,7 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
   - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
 
 3. **GPU runtime errors**
+
   - Check Intel GPU device nodes:
 
     ```bash
@@ -290,10 +293,20 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [Supported Models](supported-models.md)
-- [API Reference](api-reference.md)
-- [SDK Usage](sdk-usage.md)
-- [How to Build from Source](how-to-build-from-source.md)
-- [System Requirements](system-requirements.md)
-- [Wheel Installation](wheel-installation.md)
+- [Overview](./index.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [How to Build from Source](./get-started/build-from-source.md)
+- [Supported Models](./supported-models.md)
+- [API Reference](./api-reference.md)
+- [SDK Usage](./sdk-usage.md)
+- [Wheel Installation](./wheel-installation.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+
+:::
+hide_directive-->

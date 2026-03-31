@@ -94,6 +94,19 @@ const formatNumber = (value: number | null | undefined): string => {
   return `${value.toFixed(1)}%`;
 };
 
+const sanitizeMetricKey = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === '__PROTO__' || normalized === 'CONSTRUCTOR' || normalized === 'PROTOTYPE') {
+    return null;
+  }
+  if (!/^[A-Z0-9_-]{1,32}$/.test(normalized)) {
+    return null;
+  }
+  return normalized;
+};
+
 const normalizeApiBase = (): string | null => {
   const configured = APP_URL?.trim();
   if (!configured) return null;
@@ -243,7 +256,7 @@ const TelemetryAccordion = (): JSX.Element | null => {
       if (!Array.isArray(metricsArray)) return;
 
       const next: Partial<MetricState> = {};
-      const engineUsage: Record<string, number> = {};
+      const engineUsage: Record<string, number> = Object.create(null) as Record<string, number>;
       let gpuPower: number | null = null;
       let pkgPower: number | null = null;
 
@@ -263,8 +276,11 @@ const TelemetryAccordion = (): JSX.Element | null => {
             }
             break;
           case 'gpu_engine_usage':
-            if (typeof fields.usage === 'number' && typeof tags.engine === 'string') {
-              engineUsage[tags.engine.toUpperCase()] = fields.usage;
+            if (typeof fields.usage === 'number') {
+              const safeEngineKey = sanitizeMetricKey(tags.engine);
+              if (safeEngineKey) {
+                engineUsage[safeEngineKey] = fields.usage;
+              }
             }
             break;
           case 'gpu_frequency':

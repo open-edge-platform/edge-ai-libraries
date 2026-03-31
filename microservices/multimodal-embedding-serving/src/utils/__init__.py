@@ -21,6 +21,7 @@ and local files, enabling flexible data input for embedding generation.
 
 from .common import Settings, ErrorMessages, logger, settings
 from .utils import (
+    build_safe_temp_path,
     should_bypass_proxy,
     download_image,
     decode_base64_image,
@@ -29,6 +30,9 @@ from .utils import (
     decode_base64_video,
     extract_video_frames,
     ParallelImagePreprocessor,
+    sanitize_for_log,
+    resolve_safe_local_path,
+    validate_remote_media_url,
 )
 
 from .decoder import extract_batched_frames
@@ -38,6 +42,7 @@ __all__ = [
     "ErrorMessages", 
     "logger",
     "settings",
+    "build_safe_temp_path",
     "should_bypass_proxy",
     "download_image",
     "decode_base64_image",
@@ -47,4 +52,7 @@ __all__ = [
     "extract_video_frames",
     "ParallelImagePreprocessor",
     "extract_batched_frames",
+    "sanitize_for_log",
+    "resolve_safe_local_path",
+    "validate_remote_media_url",
 ]

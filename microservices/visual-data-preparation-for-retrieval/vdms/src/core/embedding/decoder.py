@@ -351,7 +351,7 @@ def decode_and_batch_generator(
                 continue
 
             batch.append((frame_id, frame))
-            logger.debug(f"[DECODER] Stream {stream_id} decoded frame {frame_id}, batch size {len(batch)}")
+            # logger.debug(f"[DECODER] Stream {stream_id} decoded frame {frame_id}, batch size {len(batch)}")
             if len(batch) >= batch_size:
                 frames_meta = list(
                     _thread_pool.map(
