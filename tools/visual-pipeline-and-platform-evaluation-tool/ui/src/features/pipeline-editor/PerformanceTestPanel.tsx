@@ -1,5 +1,7 @@
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { useEffect, useRef } from "react";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 
 type PerformanceTestPanelProps = {
   isRunning: boolean;
@@ -16,6 +18,21 @@ const PerformanceTestPanel = ({
   livePreviewEnabled = false,
   liveStreamUrl,
 }: PerformanceTestPanelProps) => {
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
+  const prevIsRunningRef = useRef(false);
+
+  useEffect(() => {
+    const wasRunning = prevIsRunningRef.current;
+    prevIsRunningRef.current = isRunning;
+
+    if (!wasRunning && isRunning) {
+      startRecording();
+    } else if (wasRunning && !isRunning) {
+      freezeSnapshot(null);
+    }
+  }, [isRunning, startRecording, freezeSnapshot]);
+
   return (
     <div className="w-full h-full bg-background p-4 space-y-4">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
@@ -54,7 +71,13 @@ const PerformanceTestPanel = ({
           </div>
         )}
 
-        {(isRunning || completedVideoPath) && <TestProgressIndicator />}
+        {isRunning && <MetricsDashboard />}
+        {!isRunning && frozenSummary && (
+          <MetricsDashboard
+            historyOverride={frozenHistory}
+            metricsOverride={frozenSummary}
+          />
+        )}
       </div>
     </div>
   );

@@ -2,10 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import re
 import sys
 from typing import Optional
 
 from audio_analyzer.core.settings import settings
+
+_SAFE_LOG_PATTERN = re.compile(r"[\r\n\t\x00-\x1f\x7f]+")
+
+
+def sanitize_for_log(value, max_len: int = 1024) -> str:
+    """Return a compact, single-line representation for safe logging."""
+    text = "" if value is None else str(value)
+    text = _SAFE_LOG_PATTERN.sub(" ", text)
+    text = " ".join(text.split())
+    if len(text) > max_len:
+        return text[: max_len - 3] + "..."
+    return text
 
 
 def setup_logger(name: Optional[str] = None) -> logging.Logger:

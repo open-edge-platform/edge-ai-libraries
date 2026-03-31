@@ -1649,7 +1649,7 @@ class Video(BaseModel):
     **Metadata for a single input video file.**
 
     ## Attributes
-    - `filename` - Base name of the video file located under RECORDINGS_PATH
+    - `filename` - Base name of the video file located under INPUT_VIDEO_DIR
     - `width` - Frame width in pixels
     - `height` - Frame height in pixels
     - `fps` - Frames per second for the stream
@@ -1659,15 +1659,17 @@ class Video(BaseModel):
 
     ### Example
     ```json
-    {
-      "filename": "traffic_1080p_h264.mp4",
-      "width": 1920,
-      "height": 1080,
-      "fps": 30.0,
-      "frame_count": 900,
-      "codec": "h264",
-      "duration": 30.0
-    }
+    [
+      {
+        "filename": "traffic_1080p_h264.mp4",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0,
+        "frame_count": 900,
+        "codec": "h264",
+        "duration": 30.0
+      }
+    ]
     ```
     """
 

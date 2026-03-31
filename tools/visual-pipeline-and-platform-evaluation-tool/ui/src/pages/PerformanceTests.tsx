@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import {
   useGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -38,6 +39,7 @@ import {
   parsePipelineVariantReference,
   type PipelineVariantReference,
 } from "@/features/pipeline-tests/pipelineVariantReference";
+import type { Pipeline } from "@/api/api.generated";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -47,9 +49,28 @@ interface PipelineSelection {
   isNew?: boolean;
 }
 
+// Helper function to detect if a pipeline variant contains camera input
+const containsCameraInputInPipeline = (
+  pipeline: Pipeline,
+  variantId: string,
+): boolean => {
+  const variant = pipeline.variants.find((v) => v.id === variantId);
+  if (!variant) return false;
+
+  const nodes =
+    variant.pipeline_graph?.nodes || variant.pipeline_graph_simple?.nodes || [];
+  return nodes.some((node) => {
+    if (node.type === "source") {
+      const sourceType = node.data?.source || "";
+      // Check if it's a camera: /dev/video* or rtsp://
+      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+    }
+    return false;
+  });
+};
+
 export const PerformanceTests = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const pipelines = useAppSelector(selectPipelines);
   const [pipelineSelections, setPipelineSelections] = useState<
     PipelineSelection[]
@@ -71,6 +92,8 @@ export const PerformanceTests = () => {
     String(DEFAULT_LOOPING_RUNTIME_SECONDS),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -175,7 +198,15 @@ export const PerformanceTests = () => {
   const handleRunTest = async () => {
     setTestResult(null);
     setErrorMessage(null);
+    startRecording();
     try {
+      const hasCameraInput = pipelineSelections.some((selection) => {
+        const pipeline = pipelines.find((p) => p.id === selection.pipelineId);
+        return pipeline
+          ? containsCameraInputInPipeline(pipeline, selection.variantId)
+          : false;
+      });
+      const adjustedLivePreviewMaxRuntime = hasCameraInput ? 0 : 30 * 60;
       const status = await runTest({
         performanceTestSpec: {
           execution_config: {
@@ -185,7 +216,7 @@ export const PerformanceTests = () => {
                 ? "file"
                 : "disabled",
             max_runtime: livePreviewEnabled
-              ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+              ? adjustedLivePreviewMaxRuntime
               : loopingEnabled
                 ? loopingRuntimeSeconds
                 : 0,
@@ -207,6 +238,7 @@ export const PerformanceTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
+      freezeSnapshot(status.total_fps ?? status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -217,6 +249,7 @@ export const PerformanceTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+      freezeSnapshot(null);
     }
   };
 
@@ -243,7 +276,7 @@ export const PerformanceTests = () => {
 
   return (
     <>
-      <div className="container mx-auto py-10">
+      <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
           <p className="text-muted-foreground mt-2">
@@ -416,7 +449,20 @@ export const PerformanceTests = () => {
                 <label className="flex items-center gap-2 cursor-pointer h-[42px]">
                   <Checkbox
                     checked={loopingEnabled}
-                    disabled={isRunning}
+                    disabled={
+                      isRunning ||
+                      pipelineSelections.some((selection) => {
+                        const pipeline = pipelines.find(
+                          (p) => p.id === selection.pipelineId,
+                        );
+                        return pipeline
+                          ? containsCameraInputInPipeline(
+                              pipeline,
+                              selection.variantId,
+                            )
+                          : false;
+                      })
+                    }
                     onCheckedChange={(checked) => {
                       const isChecked = checked === true;
                       setLoopingEnabled(isChecked);
@@ -508,74 +554,6 @@ export const PerformanceTests = () => {
           </Button>
         )}
 
-        {jobStatus && (
-          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              Test Status: {jobStatus.state}
-            </p>
-            {jobStatus.state === "RUNNING" && (
-              <div className="mt-2">
-                <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-magenta-chart"></div>
-                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
-                    Running performance test...
-                  </span>
-                </div>
-                {livePreviewEnabled &&
-                  jobStatus &&
-                  "live_stream_urls" in jobStatus &&
-                  jobStatus.live_stream_urls && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
-                        Live Preview:
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(jobStatus.live_stream_urls).map(
-                          ([pipelineRefKey]) => {
-                            const reference =
-                              parsePipelineVariantReference(pipelineRefKey);
-                            const streamUrl = getLiveStreamUrl(reference);
-
-                            return (
-                              <div
-                                key={reference.rawKey}
-                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
-                              >
-                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
-                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
-                                    <PipelineName
-                                      pipelineId={reference.pipelineId}
-                                      variantId={reference.variantId}
-                                    />
-                                  </p>
-                                </div>
-
-                                {streamUrl ? (
-                                  <div className="w-full aspect-video bg-black">
-                                    <WebRTCVideoPlayer
-                                      pipelineId={reference.pipelineId}
-                                      streamUrl={streamUrl}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
-                                    Waiting for live stream to be published...
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          },
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                <TestProgressIndicator />
-              </div>
-            )}
-          </div>
-        )}
-
         {errorMessage && (
           <div className="my-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
@@ -651,6 +629,86 @@ export const PerformanceTests = () => {
                   </div>
                 </div>
               )}
+          </div>
+        )}
+
+        {jobStatus && (
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Test Status: {jobStatus.state}
+            </p>
+            {jobStatus.state === "RUNNING" && (
+              <div className="mt-2">
+                <div className="animate-pulse flex items-center gap-2">
+                  <div className="h-2 w-2 bg-magenta-chart"></div>
+                  <span className="text-xs text-magenta-chart dark:text-magenta-chart">
+                    Running performance test...
+                  </span>
+                </div>
+                {livePreviewEnabled &&
+                  jobStatus &&
+                  "live_stream_urls" in jobStatus &&
+                  jobStatus.live_stream_urls && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+                        Live Preview:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(jobStatus.live_stream_urls).map(
+                          ([pipelineRefKey]) => {
+                            const reference =
+                              parsePipelineVariantReference(pipelineRefKey);
+                            const streamUrl = getLiveStreamUrl(reference);
+
+                            return (
+                              <div
+                                key={reference.rawKey}
+                                className="border border-blue-300 dark:border-blue-700 overflow-hidden"
+                              >
+                                <div className="bg-blue-100 dark:bg-blue-900 px-3 py-2">
+                                  <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                                    <PipelineName
+                                      pipelineId={reference.pipelineId}
+                                      variantId={reference.variantId}
+                                    />
+                                  </p>
+                                </div>
+
+                                {streamUrl ? (
+                                  <div className="w-full aspect-video bg-black">
+                                    <WebRTCVideoPlayer
+                                      pipelineId={reference.pipelineId}
+                                      streamUrl={streamUrl}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="p-4 text-center text-sm text-blue-700 dark:text-blue-300">
+                                    Waiting for live stream to be published...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                <MetricsDashboard />
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isRunning && frozenSummary && (
+          <div className="my-4 p-3 bg-classic-blue/5 dark:bg-teal-chart border border-blue-200 dark:border-classic-blue">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
           </div>
         )}
       </div>

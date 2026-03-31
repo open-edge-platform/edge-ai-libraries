@@ -30,3 +30,10 @@
 0001-fix-compilation-issue-with-different-options.patch
 0001-add-missing-DPDK_CFLAGS-to-master-Makefile.patch
 0002-add-new-api-to-get-master-count-by-node-id.patch
+0001-Switched-from-hrtimer_init-to-hrtimer_setup-with-Lin.patch
+0002-Implemented-new-timer-interface-for-mini-example-sin.patch
+0003-update-igb-driver-for-6.18.patch
+0004-update-igc-ethercat-driver-for-6.18-kernel.patch
+0005-update-igb-EtherCAT-driver-for-kernel-v6.17.patch
+0006-update-igc-EtherCAT-feature-for-kernel-v6.17.patch
+0007-Fix-unpaired-rtnl_lock-rtnl_unlock-calls-to-ensure-a.patch

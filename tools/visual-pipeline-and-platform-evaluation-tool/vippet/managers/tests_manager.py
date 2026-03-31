@@ -22,6 +22,7 @@ from internal_types import (
 from pipeline_runner import PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
+from videos import collect_video_outputs_from_dirs
 
 logger = logging.getLogger("tests_manager")
 
@@ -317,6 +318,9 @@ class TestsManager:
         The details list is cleared when transitioning to a new state, then
         new entries for that state are appended.
 
+        After pipeline completes, output directory paths are scanned to collect
+        the actual video file lists using collect_video_outputs_from_dirs().
+
         Args:
             job_id: Job identifier.
             internal_spec: Internal test specification with resolved pipeline information.
@@ -345,7 +349,8 @@ class TestsManager:
                 return
 
             # Build pipeline command from specs
-            pipeline_command, video_output_paths, live_stream_urls = (
+            # video_output_dirs maps pipeline IDs to their output directory paths
+            pipeline_command, video_output_dirs, live_stream_urls = (
                 self.pipeline_manager.build_pipeline_command(
                     internal_spec.pipeline_performance_specs,
                     internal_spec.execution_config,
@@ -394,6 +399,9 @@ class TestsManager:
                 total_streams=total_streams,
             )
 
+            # Collect actual video file lists from output directories after pipeline completes
+            video_output_paths = collect_video_outputs_from_dirs(video_output_dirs)
+
             # Update job with results
             with self._jobs_lock:
                 if job_id in self.jobs:
@@ -403,7 +411,8 @@ class TestsManager:
                         if result.exit_code != 0:
                             # Cancelled with non-zero exit code: mark as FAILED
                             self.logger.info(
-                                f"Performance test {job_id} was cancelled with non-zero exit code ({result.exit_code}), marking as FAILED"
+                                f"Performance test {job_id} was cancelled with non-zero exit code ({result.exit_code}), "
+                                f"marking as FAILED, details={result.details}"
                             )
                             job.state = InternalTestJobState.FAILED
                             job.end_time = int(time.time() * 1000)
@@ -417,7 +426,8 @@ class TestsManager:
                                 f"Performance test {job_id} was cancelled with exit_code=0: "
                                 f"total_fps={result.total_fps}, "
                                 f"per_stream_fps={result.per_stream_fps}, "
-                                f"num_streams={result.num_streams}, marking as COMPLETED"
+                                f"num_streams={result.num_streams}, "
+                                f"marking as COMPLETED, details={result.details}"
                             )
                             job.state = InternalTestJobState.COMPLETED
                             job.end_time = int(time.time() * 1000)
@@ -437,7 +447,8 @@ class TestsManager:
                             f"exit_code={result.exit_code}, "
                             f"total_fps={result.total_fps}, "
                             f"per_stream_fps={result.per_stream_fps}, "
-                            f"total_streams={result.num_streams}"
+                            f"total_streams={result.num_streams}, "
+                            f"details={result.details}"
                         )
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
@@ -472,6 +483,10 @@ class TestsManager:
         When a density job is cancelled, it is always marked as FAILED
         regardless of exit code, because partial benchmark results are
         not meaningful.
+
+        After benchmark completes, output directory paths from the best result
+        are scanned to collect the actual video file lists using
+        collect_video_outputs_from_dirs().
 
         The details list is cleared when transitioning to a new state, then
         new entries for that state are appended.
@@ -510,6 +525,11 @@ class TestsManager:
                 job_id=job_id,
             )
 
+            # Collect actual video file lists from output directories after benchmark completes
+            video_output_paths = collect_video_outputs_from_dirs(
+                results.video_output_paths
+            )
+
             # Update job with results
             with self._jobs_lock:
                 if job_id in self.jobs:
@@ -539,7 +559,7 @@ class TestsManager:
                         job.per_stream_fps = results.per_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
-                        job.video_output_paths = results.video_output_paths
+                        job.video_output_paths = video_output_paths
 
                 # Clean up benchmark after completion regardless of outcome
                 self.runners.pop(job_id, None)
@@ -647,11 +667,6 @@ class TestsManager:
                 self.logger.warning(msg)
                 return False, msg
 
-            if job_id not in self.runners:
-                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
-                self.logger.warning(msg)
-                return False, msg
-
             job = self.jobs[job_id]
 
             if job.state != InternalTestJobState.RUNNING:
@@ -661,7 +676,7 @@ class TestsManager:
 
             runner = self.runners.get(job_id)
             if runner is None:
-                msg = f"No active runner found for job {job_id}"
+                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
                 self.logger.warning(msg)
                 return False, msg
 

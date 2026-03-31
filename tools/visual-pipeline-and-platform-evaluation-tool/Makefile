@@ -6,9 +6,10 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help \
-	build-videogenerator build-models docker-build env-setup \
-	install-models-once install-models-force install-models-all
+	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean clean-output-videos help \
+	build-videogenerator build-models build-onvif-discovery docker-build env-setup \
+	install-models-once install-models-force install-models-all \
+	test-smoke test-full
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -63,7 +64,7 @@ pyright: $(VENV_DIR) ## Run pyright type checker
 generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
 	set +u; . ./$</bin/activate; set -u ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml RECORDINGS_PATH=../shared/videos/input python ../generate_openapi.py
+	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml INPUT_VIDEO_DIR=../shared/videos/input python ../generate_openapi.py
 
 env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
 	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
@@ -85,6 +86,9 @@ build-videogenerator: env-setup ## Build videogenerator image
 build-models: env-setup ## Build model image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
 
+build-onvif-discovery: env-setup ## Build onvif discovery image
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+
 docker-build: build build-videogenerator build-models ## Build all images
 
 run: env-setup install-models-once ## Run the docker compose services
@@ -96,14 +100,24 @@ run-videogenerator: env-setup build-videogenerator ## Run only the videogenerato
 run-dev: env-setup install-models-once ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
-test: env-setup ## Run tests and generate coverage report
+test: env-setup ## Run unit tests and generate coverage report
     # Run tests using the cpu profile (tests are device agnostic)
     # Override DOCKER_TAG with '-test' suffix only for this docker compose run
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run \
 	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet bash -c "\
 		cd $(PROJECT_NAME) && \
-		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
+		INPUT_VIDEO_DIR=/tmp \
+		OUTPUT_VIDEO_DIR=/tmp \
+		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests/unit -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
+
+test-smoke: $(VENV_DIR) ## Run smoke functional tests
+	set +u; . ./$</bin/activate; set -u ;\
+	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+
+test-full: $(VENV_DIR) ## Run full functional tests
+	set +u; . ./$</bin/activate; set -u ;\
+	python -m pytest --log-cli-level=INFO vippet/tests/functional/
 
 install-models-once: env-setup ## Handle models download and installation (once)
 	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
@@ -133,7 +147,10 @@ stop: ## Stop the docker compose services
 	docker compose down models collector videogenerator mediamtx vippet-ui vippet onvif-discovery
 
 clean: ## Clean all build artifacts
-	rm -rf shared/collector-signals shared/models/output/ shared/videos/input shared/videos/video-generator
+	rm -rf shared/collector-signals shared/models/output/ shared/onvif/onvif_cameras.json shared/videos/input shared/videos/output shared/videos/video-generator
+
+clean-output-videos: ## Clean only output videos
+	rm -rf shared/videos/output/*
 
 help: ## Print help for each target
 	@echo ViPPET make targets

@@ -14,12 +14,19 @@ BOLD='\033[1m'        # Bold
 
 # Default values
 DEFAULT_MODEL_PATH="$HOME/models/"
+DEFAULT_OVMS_RELEASE_TAG="v2025.4.1"
 BUILD=false
 BUILD_ONLY=false
 REBUILD=false
 PLUGINS=""
 MODEL_PATH=""
+OVMS_RELEASE_TAG=""
 ACTION="up"
+
+# Default URLs for HLS assets
+HLS_3D_POSE_CHECKPOINT_URL_DEFAULT="https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
+HLS_ECG_BASE_URL_DEFAULT="https://raw.githubusercontent.com/Einse57/OpenVINO_sample/master/ai-ecg-master"
+HLS_RPPG_MODEL_URL_DEFAULT="https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5"
 
 # Function to log messages with color
 log_info() {
@@ -40,16 +47,17 @@ log_error() {
 
 # Function to display script usage
 show_usage() {
-    echo -e "${BOLD}Usage:${NC}source scripts/run_service.sh [options] [action]"
+    echo -e "${BOLD}Usage:${NC} source scripts/run_service.sh [options] [action]"
     echo -e "${BOLD}Actions:${NC}"
-    echo -e "  ${CYAN}up${NC}                     Start the services (default)"
-    echo -e "  ${CYAN}down${NC}                   Stop the services"
+    echo -e "  ${CYAN}up${NC}                          Start the services (default)"
+    echo -e "  ${CYAN}down${NC}                        Stop the services"
     echo -e "${BOLD}Options:${NC}"
-    echo -e "  ${CYAN}--build${NC}                Build the Docker image only (without starting services)"
-    echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache (without starting services)"
-    echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
-    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti) or 'all' to enable all"
-    echo -e "  ${CYAN}--help${NC}                 Show this help message"
+    echo -e "  ${CYAN}--build${NC}                     Build the Docker image only (without starting services)"
+    echo -e "  ${CYAN}--rebuild${NC}                   Force rebuild the Docker image without cache (without starting services)"
+    echo -e "  ${CYAN}--model-path${NC} <path>         Set custom model path (default: $DEFAULT_MODEL_PATH)"
+    echo -e "  ${CYAN}--plugins${NC} <list>            Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti,hls) or 'all' to enable all"
+    echo -e "  ${CYAN}--ovms-release-tag${NC} <tag>    Set OVMS release tag (e.g., v2025.4.1) (default: $DEFAULT_OVMS_RELEASE_TAG)"
+    echo -e "  ${CYAN}--help${NC}                      Show this help message"
 }
 
 # Parse command line arguments
@@ -92,6 +100,15 @@ while [[ $# -gt 0 ]]; do
                 return 1
             fi
             ;;
+        --ovms-release-tag)
+            if [[ -n "$2" && "$2" != --* ]]; then
+                OVMS_RELEASE_TAG="$2"
+                shift 2
+            else
+                log_error "--ovms-release-tag requires a tag value"
+                return 1
+            fi
+            ;;
         --help)
             show_usage
             return 0
@@ -111,6 +128,22 @@ if [[ "$ACTION" != "down" ]]; then
         MODEL_PATH="$DEFAULT_MODEL_PATH"
     fi
     
+
+    # If OVMS release tag is not provided, use default
+    if [[ -z "$OVMS_RELEASE_TAG" ]]; then
+        OVMS_RELEASE_TAG="$DEFAULT_OVMS_RELEASE_TAG"
+    fi
+
+    if [[ "$OVMS_RELEASE_TAG" =~ ^[vV]([0-9]{4})\.([0-9]+)([.]([0-9]+))?$ ]]; then
+        if (( 10#${BASH_REMATCH[1]} < 2025 )) || (( 10#${BASH_REMATCH[1]} == 2025 && 10#${BASH_REMATCH[2]} < 4 )); then
+            log_error "OVMS_RELEASE_TAG '$OVMS_RELEASE_TAG' is not supported. Minimum required version is 2025.4."
+            return 1
+        fi
+    else
+        log_error "Invalid OVMS_RELEASE_TAG format '$OVMS_RELEASE_TAG'. Expected format: vYYYY.M or vYYYY.M.P (e.g. v2025.4 or v2025.4.1)"
+        return 1
+    fi
+
     log_info "Setting up model path: ${BOLD}$MODEL_PATH${NC}"
 
     if [[ "$MODEL_PATH" != /* ]]; then
@@ -150,16 +183,37 @@ if [[ "$ACTION" != "down" ]]; then
     export USER_GROUP_ID="$USER_GROUP_ID"
     export MODEL_PATH="$MODEL_PATH"
     export ENABLED_PLUGINS="$PLUGINS"
+    export OVMS_RELEASE_TAG="$OVMS_RELEASE_TAG"
 
-    # Generate environment file for docker-compose in current directory
-    log_info "Generating environment settings..."
-    cat > .env << EOF
+if [[ "$PLUGINS" =~ hls || "$PLUGINS" == "all" ]]; then
+    log_info "Configuring HLS asset download URLs..."
+    export HLS_3D_POSE_CHECKPOINT_URL="${HLS_3D_POSE_CHECKPOINT_URL:-$HLS_3D_POSE_CHECKPOINT_URL_DEFAULT}"
+    export HLS_ECG_BASE_URL="${HLS_ECG_BASE_URL:-$HLS_ECG_BASE_URL_DEFAULT}"
+    export HLS_RPPG_MODEL_URL="${HLS_RPPG_MODEL_URL:-$HLS_RPPG_MODEL_URL_DEFAULT}"
+else
+    unset HLS_3D_POSE_CHECKPOINT_URL
+    unset HLS_ECG_BASE_URL
+    unset HLS_RPPG_MODEL_URL
+fi
+
+# Generate environment file for docker-compose in current directory
+log_info "Generating environment settings..."
+cat > .env << EOF
 TAG=$TAG
 REGISTRY=$REGISTRY
 USER_GROUP_ID=$USER_GROUP_ID
 MODEL_PATH=$MODEL_PATH
 ENABLED_PLUGINS=$PLUGINS
+OVMS_RELEASE_TAG=$OVMS_RELEASE_TAG
 EOF
+    if [[ -n "$HLS_3D_POSE_CHECKPOINT_URL" ]]; then
+        cat >> .env << EOF
+HLS_3D_POSE_CHECKPOINT_URL=$HLS_3D_POSE_CHECKPOINT_URL
+HLS_ECG_BASE_URL=$HLS_ECG_BASE_URL
+HLS_RPPG_MODEL_URL=$HLS_RPPG_MODEL_URL
+EOF
+    fi
+    log_info "OVMS Release Tag: ${BOLD}$OVMS_RELEASE_TAG${NC}"
     log_success "Environment settings generated successfully."
 fi
 

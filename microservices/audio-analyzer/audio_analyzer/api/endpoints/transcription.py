@@ -18,7 +18,7 @@ from audio_analyzer.core.transcriber import TranscriptionService
 from audio_analyzer.utils.file_utils import get_file_duration
 from audio_analyzer.utils.validation import RequestValidation
 from audio_analyzer.utils.transcription_utils import get_video_path, store_transcript_output
-from audio_analyzer.utils.logger import logger
+from audio_analyzer.utils.logger import logger, sanitize_for_log
 
 router = APIRouter()
 
@@ -63,7 +63,12 @@ async def transcribe_video(
         RequestValidation.validate_form_data(request)
 
         logger.info(f"Received transcription request for {'file upload' if request.file else 'MinIO video'}")
-        logger.debug(f"Transcription parameters: model={request.model_name}, device={request.device}, language={language}")
+        logger.debug(
+            "Transcription parameters: model=%s, device=%s, language_provided=%s",
+            sanitize_for_log(request.model_name),
+            sanitize_for_log(request.device),
+            language is not None,
+        )
     
         # Get video path either from direct upload or MinIO
         video_path, filename = await get_video_path(request)

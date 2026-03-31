@@ -29,7 +29,7 @@ RUN if [ "$tmp/copyleft_sources" = "true" ]; then \
         # Get source code for installed Python packages with copyleft licenses \
         mkdir -p /tmp/copyleft_sources/python && \
         cd /tmp/copyleft_sources/python && \
-        apt-get update && apt-get install -y gcc build-essential libffi-dev python3-dev && \
+        apt-get update && apt-get install --no-install-recommends -y gcc build-essential libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
         pip3 freeze | cut -d= -f1 | while read pkg; do \
             meta=$(pip3 show $pkg 2>/dev/null); \

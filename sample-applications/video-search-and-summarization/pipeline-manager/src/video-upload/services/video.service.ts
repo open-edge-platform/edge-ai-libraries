@@ -62,6 +62,7 @@ export class VideoService {
     videoData: VideoDTO,
   ): Promise<string> {
     Logger.log('Uploading video', videoFilePath, videoFileName, videoData);
+    const safeVideoFilePath = this.$validator.resolveSafeUploadPath(videoFilePath);
 
     const videoId = uuidv4();
 
@@ -71,7 +72,7 @@ export class VideoService {
     );
 
     try {
-      await this.$datastore.uploadFile(objectPath, videoFilePath);
+      await this.$datastore.uploadFile(objectPath, safeVideoFilePath);
     } catch (error) {
       Logger.error('Error uploading video file to object storage', error);
       throw new UnprocessableEntityException(
@@ -79,7 +80,7 @@ export class VideoService {
       );
     }
 
-    unlink(videoFilePath, (err) => {
+    unlink(safeVideoFilePath, (err) => {
       if (err) {
         Logger.error('Error deleting file', err);
       }

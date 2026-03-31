@@ -14,6 +14,17 @@ spec:
       labels:
         app: {{ .Chart.Name }}
     spec:
+    {{- if .Values.modeldownload.affinity.enabled }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.modeldownload.affinity.key }}
+                operator: In
+                values:
+                - {{ .Values.modeldownload.affinity.value }}
+        {{- end }}
       securityContext:
         fsGroup: 1001
         runAsUser: 1001
@@ -45,6 +56,8 @@ spec:
               value: "/opt/models"
             - name: ENABLED_PLUGINS
               value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
+            - name: OVMS_RELEASE_TAG
+              value: "{{ .Values.modeldownload.env.OVMS_RELEASE_TAG }}"
             - name: GETI_WORKSPACE_ID
               value: "{{ .Values.modeldownload.env.GETI_WORKSPACE_ID }}"
             - name: GETI_HOST
@@ -55,14 +68,39 @@ spec:
               value: "{{ .Values.modeldownload.env.GETI_SERVER_API_VERSION }}"
             - name: GETI_SERVER_SSL_VERIFY
               value: "{{ .Values.modeldownload.env.GETI_SERVER_SSL_VERIFY }}"
+            - name: HLS_3D_POSE_CHECKPOINT_URL
+              value: "{{ .Values.modeldownload.env.HLS_3D_POSE_CHECKPOINT_URL }}"
+            - name: HLS_ECG_BASE_URL
+              value: "{{ .Values.modeldownload.env.HLS_ECG_BASE_URL }}"
+            - name: HLS_RPPG_MODEL_URL
+              value: "{{ .Values.modeldownload.env.HLS_RPPG_MODEL_URL }}"
           command: ["/opt/entrypoint.sh"]
           args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:
             - name: models
               mountPath: /opt/models
+            {{- if .Values.modeldownload.gpu.enabled }}
+            - name: dri-device
+              mountPath: /dev/dri
+            {{- end }}
+          {{- if .Values.modeldownload.gpu.enabled }}
+          resources:
+            requests:
+              {{ .Values.modeldownload.gpu.key }}: 1
+            limits:
+              {{ .Values.modeldownload.gpu.key }}: 1
           securityContext:
-            allowPrivilegeEscalation: false
+            privileged: true
+            runAsUser: 1001
+            runAsGroup: 1001
+          {{- end }}
       volumes:
         - name: models
           persistentVolumeClaim:
             claimName: models-pvc
+        {{- if .Values.modeldownload.gpu.enabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+{{- end }}

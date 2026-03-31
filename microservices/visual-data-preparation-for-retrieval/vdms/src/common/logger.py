@@ -82,3 +82,21 @@ config_dict["loggers"] = logger_config.loggers
 
 logging.config.dictConfig(config_dict)
 logger = logging.getLogger(settings.APP_NAME)
+
+
+def sanitize_for_log(value: Any, max_length: int = 512) -> str:
+    """Sanitize untrusted values before writing them to logs."""
+
+    if value is None:
+        return "None"
+
+    text = value if isinstance(value, str) else repr(value)
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    text = "".join(
+        char if char.isprintable() else f"\\x{ord(char):02x}" for char in text
+    )
+
+    if len(text) > max_length:
+        return f"{text[:max_length]}...<truncated:{len(text) - max_length}>"
+
+    return text

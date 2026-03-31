@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Injectable } from '@nestjs/common';
 import { readFile } from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class VideoValidatorService {
+  private readonly uploadDir = path.resolve(process.cwd(), 'data');
+
+  resolveSafeUploadPath(filePath: string): string {
+    const fileName = path.basename(filePath || '').trim();
+    if (!fileName || !/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+      throw new Error('Invalid upload file path');
+    }
+    return path.join(this.uploadDir, fileName);
+  }
+
   private findAtom(buffer: Buffer, atomType: string) {
     for (let i = 0; i < buffer.length - 4; i++) {
       if (
@@ -21,7 +32,8 @@ export class VideoValidatorService {
 
   async isStreamable(filePath: string): Promise<boolean> {
     try {
-      const fileBuffer = await readFile(filePath);
+      const safeFilePath = this.resolveSafeUploadPath(filePath);
+      const fileBuffer = await readFile(safeFilePath);
 
       const moovIndex = this.findAtom(fileBuffer, 'moov');
       const mdatIndex = this.findAtom(fileBuffer, 'mdat');

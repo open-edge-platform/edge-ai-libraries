@@ -31,14 +31,16 @@ class BenchmarkResult:
             * For variant reference: "/pipelines/{pipeline_id}/variants/{variant_id}"
             * For inline graph: "__graph-{16-char-hash}"
         per_stream_fps: Average FPS per stream achieved.
-        video_output_paths: Mapping from pipeline ID to list of output file paths.
+        video_output_paths: Mapping from pipeline ID to output directory path.
             Keys use the same ID format as streams_per_pipeline entries.
+            The directory contains all video files produced by the pipeline.
+            Use collect_video_outputs_from_dirs() to get file lists after pipeline completes.
     """
 
     n_streams: int
     streams_per_pipeline: list[InternalPipelineStreamSpec]
     per_stream_fps: float
-    video_output_paths: dict[str, list[str]]
+    video_output_paths: dict[str, str]
 
     def __repr__(self):
         return (
@@ -141,7 +143,7 @@ class Benchmark:
         # We'll set this once we fall below the fps_floor
         higher_bound = -1
         best_config: tuple[
-            int, list[InternalPipelineStreamSpec], float, dict[str, list[str]]
+            int, list[InternalPipelineStreamSpec], float, dict[str, str]
         ] = (
             0,
             [],
@@ -199,7 +201,7 @@ class Benchmark:
                 raise RuntimeError("Pipeline returned zero or invalid FPS metrics.")
 
             self.logger.info(
-                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
+                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
                 result.exit_code,
                 n_streams,
                 total_fps,
@@ -207,6 +209,7 @@ class Benchmark:
                 exponential,
                 lower_bound,
                 higher_bound,
+                result.details,
             )
 
             # Build streams_per_pipeline with pipeline IDs

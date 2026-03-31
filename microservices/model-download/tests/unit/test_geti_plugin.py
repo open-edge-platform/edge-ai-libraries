@@ -1,4 +1,6 @@
-#!/usr/bin/env python
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Test script to verify model retrieval and download methods work with the reference implementation pattern.
 """
@@ -8,8 +10,11 @@ import sys
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Ensure the repository's src directory is on the path
+ROOT_DIR = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from plugins.geti_plugin import GetiPlugin
 
@@ -149,8 +154,8 @@ async def test_get_model_id_by_name():
 
 
 async def test_download_model_from_geti():
-    """Test that _download_model_from_geti uses the correct SDK pattern"""
-    print("Test 3: _download_model_from_geti()")
+    """Test that download_model_from_geti uses the correct SDK pattern"""
+    print("Test 3: download_model_from_geti()")
     print("-" * 50)
     
     mock_base_model = Mock()
@@ -180,44 +185,47 @@ async def test_download_model_from_geti():
         'GETI_ORGANIZATION': 'test-org'
     }):
         plugin = GetiPlugin()
-        
         plugin.geti = Mock()
         plugin.geti.workspace_id = "ws123"
         plugin.geti.session = Mock()
+
+        plugin._ensure_initialized = AsyncMock()
+        plugin._get_project = AsyncMock(return_value=mock_project)
+        mock_model_client = Mock()
+        mock_model_client._get_model_detail = Mock(return_value=mock_base_model)
+        mock_model_client._download_model = Mock()
+        plugin._get_or_create_model_client = AsyncMock(return_value=mock_model_client)
+        plugin.extract_model_files = AsyncMock()
         
-        with patch.object(plugin, 'get_projects', new_callable=AsyncMock) as mock_get_projects:
-            mock_get_projects.return_value = [{"project": mock_project}]
+        with patch('plugins.geti_plugin.asyncio.to_thread', new_callable=AsyncMock) as mock_thread:
+            async def to_thread_side_effect(func, *args, **kwargs):
+                return func(*args, **kwargs)
+            mock_thread.side_effect = to_thread_side_effect
             
-            with patch('plugins.geti_plugin.ModelClient') as mock_model_client_class:
-                mock_model_client = Mock()
-                mock_model_client._get_model_detail = Mock(return_value=mock_base_model)
-                mock_model_client._download_model = Mock()
-                mock_model_client_class.return_value = mock_model_client
+            with patch('os.makedirs'), \
+                 patch('os.path.exists', return_value=False), \
+                 patch('os.path.join', side_effect=lambda *args: '/'.join(args)):
                 
-                with patch('plugins.geti_plugin.asyncio.to_thread', new_callable=AsyncMock) as mock_thread:
-                    async def to_thread_side_effect(func, *args):
-                        return func(*args)
-                    mock_thread.side_effect = to_thread_side_effect
-                    
-                    with patch('os.makedirs'), \
-                         patch('os.path.exists', return_value=False), \
-                         patch('os.path.join', side_effect=lambda *args: '/'.join(args)):
-                        
-                        result = await plugin._download_model_from_geti(
-                            model_id="model1",
-                            output_dir="/tmp/models",
-                            model_name="Base Model",
-                            export_type="base",
-                            project_id="proj1",
-                            model_group_id="group1"
-                        )
-                        
-                        print(f"✓ Download returned: {result}")
-                        print(f"✓ ModelClient._get_model_detail was called with correct args")
-                        mock_model_client._get_model_detail.assert_called_once()
-                        print(f"✓ ModelClient._download_model was called for base model")
-                        mock_model_client._download_model.assert_called()
-                        print("✓ PASSED\n")
+                model_path, error, ignored = await plugin.download_model_from_geti(
+                    model_id="model1",
+                    output_dir="/tmp/models",
+                    model_name="Base Model",
+                    export_type="base",
+                    project_id="proj1",
+                    model_group_id="group1"
+                )
+                
+                print(f"✓ Download returned path: {model_path}")
+                print(f"✓ Errors: {error}, Ignored fields: {ignored}")
+                plugin._ensure_initialized.assert_awaited_once()
+                plugin._get_project.assert_awaited_once_with("proj1")
+                plugin._get_or_create_model_client.assert_awaited_once_with("proj1", mock_project)
+                mock_model_client._get_model_detail.assert_called_once_with("group1", "model1")
+                mock_model_client._download_model.assert_called_once()
+                plugin.extract_model_files.assert_awaited_once()
+                assert error is None
+                assert ignored is None
+                print("✓ PASSED\n")
     return True
 
 

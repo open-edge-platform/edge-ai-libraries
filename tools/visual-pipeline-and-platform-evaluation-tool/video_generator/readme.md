@@ -78,13 +78,10 @@ The program uses a config.json file to customize the video generation process. B
 | **Encoding**  | **Video Format** |
 |---------------|------------------|
 | **H264**      | .mp4             |
-| **HEVC**      | .mp4             |
 | **VP8**       | .webm            |
 | **VP9**       | .webm            |
-| **AV1**       | .mkv             |
 | **MPEG4**     | .avi             |
 | **ProRes**    | .mov             |
-| **Theora**    | .ogg             |
 
 ## Usage
 
