@@ -1831,7 +1831,8 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
         updated = manager.jobs[job_id]
         assert isinstance(updated, InternalPerformanceJobStatus)
         self.assertIsNotNone(updated.metadata_stream_urls)
-        self.assertIn(pipeline_id, updated.metadata_stream_urls or {})
+        assert updated.metadata_stream_urls is not None
+        self.assertIn(pipeline_id, updated.metadata_stream_urls)
         expected_urls = [
             f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/0/stream",
             f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/1/stream",

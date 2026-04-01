@@ -5616,5 +5616,163 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         self.assertIs(result, graph)
 
 
+class TestInjectMetadataFilePaths(unittest.TestCase):
+    """Test cases for Graph.inject_metadata_file_paths method."""
+
+    def test_single_gvametapublish_sets_correct_properties(self):
+        """Test that method=file, file-format=json-lines and file-path are set on a single node."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametaconvert", data={"add-empty-results": "true"}),
+                Node(id="2", type="gvametapublish", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        _ = graph.inject_metadata_file_paths("/metadata/job/pipeline")
+
+        node = graph.nodes[2]
+        self.assertEqual(node.data["method"], "file")
+        self.assertEqual(node.data["file-format"], "json-lines")
+        self.assertEqual(
+            node.data["file-path"], "/metadata/job/pipeline/metadata_2.jsonl"
+        )
+
+    def test_single_gvametapublish_returns_one_path(self):
+        """Test that exactly one path is returned for a single gvametapublish node."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametapublish", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/job/pipeline")
+
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(paths[0], "/metadata/job/pipeline/metadata_1.jsonl")
+
+    def test_multiple_gvametapublish_nodes_all_injected(self):
+        """Test that all gvametapublish nodes are injected when multiple are present."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametaconvert", data={}),
+                Node(id="2", type="gvametapublish", data={}),
+                Node(id="3", type="tee", data={"name": "t"}),
+                Node(id="4", type="gvametapublish", data={}),
+                Node(id="5", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="3", target="5"),
+            ],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/job/pipeline")
+
+        self.assertEqual(len(paths), 2)
+        self.assertEqual(paths[0], "/metadata/job/pipeline/metadata_2.jsonl")
+        self.assertEqual(paths[1], "/metadata/job/pipeline/metadata_4.jsonl")
+        self.assertEqual(
+            graph.nodes[2].data["file-path"], "/metadata/job/pipeline/metadata_2.jsonl"
+        )
+        self.assertEqual(
+            graph.nodes[4].data["file-path"], "/metadata/job/pipeline/metadata_4.jsonl"
+        )
+
+    def test_no_gvametapublish_returns_empty_list(self):
+        """Test that an empty list is returned when no gvametapublish node exists."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametaconvert", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/job/pipeline")
+
+        self.assertEqual(paths, [])
+
+    def test_file_path_uses_node_id_in_filename(self):
+        """Test that the generated filename includes the node id."""
+        graph = Graph(
+            nodes=[
+                Node(id="42", type="gvametapublish", data={}),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata")
+
+        self.assertEqual(paths[0], "/metadata/metadata_42.jsonl")
+
+    def test_existing_properties_are_overwritten(self):
+        """Test that pre-existing method, file-format and file-path values are overwritten."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="gvametapublish",
+                    data={
+                        "method": "mqtt",
+                        "file-format": "json",
+                        "file-path": "/old/path.jsonl",
+                    },
+                ),
+            ],
+            edges=[],
+        )
+
+        paths = graph.inject_metadata_file_paths("/metadata/new")
+
+        node = graph.nodes[0]
+        self.assertEqual(node.data["method"], "file")
+        self.assertEqual(node.data["file-format"], "json-lines")
+        self.assertEqual(node.data["file-path"], "/metadata/new/metadata_0.jsonl")
+        self.assertEqual(paths[0], "/metadata/new/metadata_0.jsonl")
+
+    def test_non_gvametapublish_nodes_are_not_modified(self):
+        """Test that nodes of other types are not modified."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="fakesrc", data={}),
+                Node(id="1", type="gvametaconvert", data={"add-empty-results": "true"}),
+                Node(id="2", type="gvametapublish", data={}),
+                Node(id="3", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+            ],
+        )
+
+        graph.inject_metadata_file_paths("/metadata/job/pipeline")
+
+        self.assertEqual(graph.nodes[0].data, {})
+        self.assertEqual(graph.nodes[1].data, {"add-empty-results": "true"})
+        self.assertEqual(graph.nodes[3].data, {})
+
+
 if __name__ == "__main__":
     unittest.main()

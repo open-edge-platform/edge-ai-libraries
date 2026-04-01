@@ -242,12 +242,15 @@ class TestMetadataJob(unittest.TestCase):
     def test_stop_sets_stop_event_and_stops_all_files(self):
         """_MetadataJob.stop() should set the internal event and call stop() on every file."""
         job = _make_job(paths=["/a.json", "/b.json"], pipeline_map={"p": [0, 1]})
+        stop_mocks = []
         for mf in job.files:
-            mf.stop = MagicMock()
+            mock_stop = MagicMock()
+            mf.stop = mock_stop  # type: ignore[method-assign]
+            stop_mocks.append(mock_stop)
         job.stop()
         self.assertTrue(job._stop_event.is_set())
-        for mf in job.files:
-            mf.stop.assert_called_once()
+        for mock_stop in stop_mocks:
+            mock_stop.assert_called_once_with()
 
     @patch("threading.Thread")
     def test_start_spawns_one_daemon_thread_per_file(self, mock_thread_cls):
