@@ -61,7 +61,8 @@ export TAG="2025.2.0"
    source env.sh
    ```
 
-    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
+    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
+    See Multimodal Embedding Serving's [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
 
     <details>
     <summary>For EMT-S platform</summary>
