@@ -61,7 +61,7 @@ export TAG="latest"
    source env.sh
    ```
 
-    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
+    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See Multimodal Embedding Serving's [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
 
     <details>
     <summary>For EMT-S platform</summary>
@@ -70,7 +70,7 @@ export TAG="latest"
     ``` bash
     cd emt-s   # go to emt-s specific files
     export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
-    source env.sh 
+    source env.sh
     ```
     </details>
 
