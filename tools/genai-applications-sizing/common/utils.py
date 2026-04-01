@@ -125,8 +125,11 @@ def upload_document_before_conversation(url, filename, filepath):
     Returns:
         dict: File details containing name and size in MB.
     """
-    print("Uploading file for the context...")
+    print("Uploading file for the context...")    
     file_details = {"name": filename, "size_mb": 0.0}
+    if not os.path.isfile(filepath):
+        print(f"Error: File not found at {filepath}")
+        return None
     
     try:
         file_size_bytes = os.path.getsize(filepath)

@@ -60,6 +60,9 @@ def upload_video_file(url, filename, filepath):
         if filepath is None or filename is None:
             print("Error: Filepath or filename is None.")
             return None
+        if not os.path.isfile(filepath):
+            print(f"Error: File not found at {filepath}")
+            return None
         
         print(f"Video file to be uploaded: {filename} at {filepath}")
 
