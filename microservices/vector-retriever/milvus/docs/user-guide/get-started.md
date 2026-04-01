@@ -54,7 +54,7 @@ export TAG="latest"
    cd vector-retriever/milvus/deployment/docker-compose/
    ```
 
-2. Set up environment variables, note that you need to set an embedding model first for multimodal-embedding-serving.
+2. Set up environment variables, note that you need to set an embedding model first for Multimodal Embedding Serving.
 
    ``` bash
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
@@ -62,7 +62,7 @@ export TAG="latest"
    ```
 
     **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-    See Multimodal Embedding Serving's [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for available options.
+    See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
 
     <details>
     <summary>For EMT-S platform</summary>
