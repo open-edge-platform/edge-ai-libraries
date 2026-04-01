@@ -25,6 +25,7 @@ from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
 from managers.metadata_manager import MetadataManager
 from videos import collect_video_outputs_from_dirs
+from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
 
@@ -378,7 +379,7 @@ class TestsManager:
                 MetadataManager().register_job(job_id, metadata_file_paths)
                 metadata_stream_urls = {
                     pipeline_id: [
-                        f"/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{i}/stream"
+                        f"/jobs/tests/performance/{job_id}/metadata/{slugify_text(pipeline_id)}/{i}/stream"
                         for i in range(len(paths))
                     ]
                     for pipeline_id, paths in metadata_file_paths.items()

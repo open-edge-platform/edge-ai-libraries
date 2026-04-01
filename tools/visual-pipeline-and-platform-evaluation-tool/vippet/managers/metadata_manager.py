@@ -13,6 +13,8 @@ import threading
 import time
 from typing import AsyncIterator, Optional
 
+from utils import slugify_text
+
 # Seconds to wait for the metadata file to be created by gvametapublish
 FILE_CREATION_TIMEOUT = 30
 
@@ -72,7 +74,9 @@ class MetadataManager:
         pipeline_map: dict[str, list[int]] = {}
         global_i = 0
         for pipeline_id, paths in file_paths_by_pipeline.items():
-            pipeline_map[pipeline_id] = list(range(global_i, global_i + len(paths)))
+            pipeline_map[slugify_text(pipeline_id)] = list(
+                range(global_i, global_i + len(paths))
+            )
             global_i += len(paths)
         with self._jobs_lock:
             if job_id in self._jobs:

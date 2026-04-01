@@ -494,7 +494,7 @@ class PipelineManager:
             ):
                 raise ValueError(
                     f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element. "
-                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' definition to enable metadata output."
+                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
                 )
 
             # Apply RTSP credentials and settings to rtspsrc nodes
