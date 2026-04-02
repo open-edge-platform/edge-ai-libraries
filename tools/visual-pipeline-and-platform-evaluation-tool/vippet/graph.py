@@ -1420,6 +1420,16 @@ class Graph:
         # Determine if a v4l2src capsfilter node is needed
         v4l2_caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
 
+        # Determine if a post-decoder videoconvert is needed:
+        # - for v4l2src USB camera compatibility, or
+        # - when gvamotiondetect is present and decoding on CPU
+        has_gvamotiondetect = any(
+            n.type == "gvamotiondetect" for n in modified_graph.nodes
+        )
+        needs_post_decoder_converter = v4l2_caps_node_info is not None or (
+            has_gvamotiondetect and device_upper == "CPU"
+        )
+
         # Find max existing ID across all nodes and edges for generating new IDs
         max_id = 0
         for node in modified_graph.nodes:
@@ -1475,8 +1485,9 @@ class Graph:
                 # Determine the source for the caps node (either decoder or converter)
                 caps_source_id = decoder_node_id
 
-                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera compatibility
-                if v4l2_caps_node_info is not None:
+                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera
+                # compatibility or when gvamotiondetect is present on CPU
+                if needs_post_decoder_converter:
                     converter_node_id = str(next_id)
                     next_id += 1
                     if device_upper in {"GPU", "NPU"}:
@@ -1513,7 +1524,7 @@ class Graph:
                 edges_to_add_list.append(edge_parsebin_to_decoder)
 
                 # If converter node exists, add edge decoder → converter
-                if v4l2_caps_node_info is not None:
+                if needs_post_decoder_converter:
                     edge_decoder_to_converter_id = str(next_id)
                     next_id += 1
                     edge_decoder_to_converter = Edge(
