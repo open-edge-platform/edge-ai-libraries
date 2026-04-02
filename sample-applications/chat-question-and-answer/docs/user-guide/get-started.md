@@ -22,7 +22,7 @@ By following this guide, you will learn how to:
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
-- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+- Model download microservice is up and running. [Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
 - `jq` command-line JSON processor: [Installation Guide](https://jqlang.org/download/).
 
 <!--
@@ -62,9 +62,9 @@ The sample application has been validated with a few models just to validate the
 
 ### Getting access to models
 
-To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
+To run a **GATED MODEL** like llama models, the user will need to pass their [Hugging Face token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
 
-Visit https://huggingface.co/settings/tokens to get your token.
+Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to get your token.
 
 ## Running the application using Docker Compose
 
@@ -91,7 +91,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
 
 3. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
@@ -132,7 +132,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Ex: example.com,subdomain.example.com
     ```
 
-    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration)
+    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer to [ALLOWED_HOSTS Configuration](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/pgvector/get-started.html#allowed-hosts-configuration)
 
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 

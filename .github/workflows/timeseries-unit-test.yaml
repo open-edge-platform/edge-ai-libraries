@@ -17,7 +17,7 @@ jobs:
       packages: read          # needed for actions/checkout
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
           path: timeseries
           persist-credentials: false
@@ -42,12 +42,12 @@ jobs:
         echo "Passed tests: $passed_tests" >> $GITHUB_STEP_SUMMARY
         echo "Failed tests: $failed_tests" >> $GITHUB_STEP_SUMMARY
     - name: Upload HTML unit test coverage to Github
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: unit-test-coverage
         path: /tmp/htmlcov
     - name: Upload XML unit test coverage to Github
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: unit-test-report
         path: /tmp/report.txt
