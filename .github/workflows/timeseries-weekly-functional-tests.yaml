@@ -27,8 +27,6 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries-repo
-
     - name: Run time-series-analytics-microservices function tests
       env:
         TEST_PATTERN: ${{ inputs.test_pattern || '.' }}
