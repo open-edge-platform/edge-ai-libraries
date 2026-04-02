@@ -90,16 +90,16 @@ By following this guide, you will learn how to:
 
 5. **Model Configuration Setup**:
 
-   - You can define model settings through a YAML configuration file. To assist you in getting started, sample templates for the respective framework are available in the [Sample Directory](../../model_config/sample/). After creating and customizing your YAML file, set the `MODEL_CONFIG_PATH` environment variable to point to its location. You can specify the path to your YAML configuration file using either an absolute path or a relative path. If you are not familiar with Docker volume mount logic, Intel recommends using a full path to avoid any potential issues.
+   - You can define model settings through a YAML configuration file. To assist you in getting started, sample templates for the respective framework are available in the [Sample directory](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config/sample). After creating and customizing your YAML file, set the `MODEL_CONFIG_PATH` environment variable to point to its location. You can specify the path to your YAML configuration file using either an absolute path or a relative path. If you are not familiar with Docker volume mount logic, Intel recommends using a full path to avoid any potential issues.
 
      ```bash
      # Recommended: Using a full path to your YAML file
      export MODEL_CONFIG_PATH=<path-to-your-yaml-file>
      ```
 
-     If `MODEL_CONFIG_PATH` is not set, the application will automatically fall back to its built-in default configuration, which uses the same [sample template YAML](../../model_config/sample/) file for the respective framework.
+     If `MODEL_CONFIG_PATH` is not set, the application will automatically fall back to its built-in default configuration, which uses the same [sample template YAML](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config/sample) file for the respective framework.
 
-   - A collection of ready-to-use YAML configuration files featuring validated combinations of LLMs, Embedding models, and Rerankers is available in the [model_config folder](../../model_config/). Feel free to explore these examples and use them as a starting point.
+   - A collection of ready-to-use YAML configuration files featuring validated combinations of LLMs, Embedding models, and Rerankers is available in the [model_config folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config). Feel free to explore these examples and use them as a starting point.
 
    - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU or GPU) independently by configuring the `device_settings` section in the YAML as below:
 
@@ -126,7 +126,7 @@ By following this guide, you will learn how to:
      >     LLM_DEVICE: "<GPU.0/GPU.1>"
      >   ```
 
-   - Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+   - Refer to and use the same list of models as documented in [Chat Question-and-Answer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 6. **Start the Application**:
 

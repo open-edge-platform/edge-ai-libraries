@@ -78,7 +78,7 @@ For detailed information on supported and validated hardware platforms and confi
 
 **NOTE**:
 
-- If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template [here](../../model_config/sample/).
+- If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template in the [Sample directory](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config/sample).
 
 - If `gpu.enabled` is set to `false`, the parameters `global.EMBEDDING_DEVICE`, `global.RERANKER_DEVICE`, and `global.LLM_DEVICE` must not be set to `GPU`.
 A validation check is included and will throw an error if any of these parameters are incorrectly set to `GPU` while `GPU support is disabled`.
