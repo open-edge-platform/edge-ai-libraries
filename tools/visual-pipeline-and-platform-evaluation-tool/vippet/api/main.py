@@ -35,7 +35,7 @@ for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
     logger.propagate = False
 
 logger = logging.getLogger()
-logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
+logger.setLevel(os.environ.get("APP_LOG_LEVEL", "INFO").upper())
 logger.handlers = [handler]
 
 

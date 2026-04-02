@@ -411,7 +411,8 @@ class TestsManager:
                         if result.exit_code != 0:
                             # Cancelled with non-zero exit code: mark as FAILED
                             self.logger.info(
-                                f"Performance test {job_id} was cancelled with non-zero exit code ({result.exit_code}), marking as FAILED"
+                                f"Performance test {job_id} was cancelled with non-zero exit code ({result.exit_code}), "
+                                f"marking as FAILED, details={result.details}"
                             )
                             job.state = InternalTestJobState.FAILED
                             job.end_time = int(time.time() * 1000)
@@ -425,7 +426,8 @@ class TestsManager:
                                 f"Performance test {job_id} was cancelled with exit_code=0: "
                                 f"total_fps={result.total_fps}, "
                                 f"per_stream_fps={result.per_stream_fps}, "
-                                f"num_streams={result.num_streams}, marking as COMPLETED"
+                                f"num_streams={result.num_streams}, "
+                                f"marking as COMPLETED, details={result.details}"
                             )
                             job.state = InternalTestJobState.COMPLETED
                             job.end_time = int(time.time() * 1000)
@@ -445,7 +447,8 @@ class TestsManager:
                             f"exit_code={result.exit_code}, "
                             f"total_fps={result.total_fps}, "
                             f"per_stream_fps={result.per_stream_fps}, "
-                            f"total_streams={result.num_streams}"
+                            f"total_streams={result.num_streams}, "
+                            f"details={result.details}"
                         )
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)

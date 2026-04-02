@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from src.common import logger, settings
+from src.common import logger, sanitize_for_log, settings
 from src.core.embedding.simple_client import SimpleVDMSClient
 from src.core.telemetry.recorder import record_video_telemetry
 from src.common.schema import TelemetryRecord
@@ -419,8 +419,15 @@ async def generate_video_embedding_from_content(
     try:
         telemetry_context = _ensure_telemetry_context(telemetry_context)
 
-        logger.info(f"Starting SDK video embedding from content for {video_id}/{filename}")
-        logger.info(f"Video content size: {len(video_content)} bytes")
+        logger.info(
+            "Starting SDK video embedding from content for %s/%s",
+            sanitize_for_log(video_id, max_length=128),
+            sanitize_for_log(filename, max_length=256),
+        )
+        logger.info(
+            "Video content size: %s bytes",
+            sanitize_for_log(len(video_content), max_length=32),
+        )
         
         if settings.EMBEDDING_PROCESSING_MODE.lower() != "sdk":
             logger.warning("generate_video_embedding_from_content called but SDK mode not enabled")
@@ -442,8 +449,15 @@ async def generate_video_embedding_from_content(
         }
         
         # DEBUG: Print metadata dictionary to verify video URLs are created
-        logger.info(f"DEBUG: metadata_dict created in simplified_embedding_helper: {metadata_dict}")
-        logger.info(f"DEBUG: video_url value: '{video_url}', video_rel_url value: '{video_rel_url}'")
+        logger.info(
+            "DEBUG: metadata_dict created in simplified_embedding_helper: %s",
+            sanitize_for_log(metadata_dict, max_length=1024),
+        )
+        logger.info(
+            "DEBUG: video_url value: '%s', video_rel_url value: '%s'",
+            sanitize_for_log(video_url, max_length=512),
+            sanitize_for_log(video_rel_url, max_length=512),
+        )
         
         # Process video using SDK mode directly from memory
         results = generate_video_embedding_sdk(
@@ -454,7 +468,10 @@ async def generate_video_embedding_from_content(
             detection_confidence=detection_confidence
         )
         
-        logger.info(f"SDK processing completed: {results['total_frames_processed']} frames processed")
+        logger.info(
+            "SDK processing completed: %s frames processed",
+            sanitize_for_log(results['total_frames_processed'], max_length=32),
+        )
         _record_sdk_pipeline(
             context=telemetry_context,
             bucket_name=bucket_name,
@@ -509,7 +526,7 @@ async def _generate_video_embedding_api_mode(
         tags=tags or [],
     )
     extraction_time = time.time() - extraction_start
-    logger.info("Video metadata created at %s", metadata_file_path)
+    logger.info("Video metadata created at %s", sanitize_for_log(metadata_file_path, max_length=512))
 
     client_setup_start = time.time()
     vdms_client = _get_cached_vdms_client(use_case="video")
@@ -615,7 +632,7 @@ async def _generate_video_embedding_sdk_mode(
     # DEBUG: Print metadata dictionary to verify video URLs are created
     logger.info(
         "DEBUG: metadata_dict created in _generate_video_embedding_sdk_mode: %s",
-        metadata_dict,
+        sanitize_for_log(metadata_dict, max_length=1024),
     )
     
     # Process video using SDK mode
@@ -627,7 +644,10 @@ async def _generate_video_embedding_sdk_mode(
         detection_confidence=detection_confidence
     )
     
-    logger.info(f"SDK processing completed: {results['total_frames_processed']} frames processed")
+    logger.info(
+        "SDK processing completed: %s frames processed",
+        sanitize_for_log(results['total_frames_processed'], max_length=32),
+    )
     _record_sdk_pipeline(
         context=telemetry_context or {},
         bucket_name=bucket_name,

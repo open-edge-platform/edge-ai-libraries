@@ -55,6 +55,7 @@ data:
         mkdir -p "$TARGET_DIR"
         
         echo "Downloading ${MODEL_TYPE} model '${MODEL_NAME}' via model-download service..."
+
         
         # Build JSON payload
         if [ -n "$CACHE_SIZE" ]; then
@@ -62,8 +63,16 @@ data:
         else
             CONFIG_JSON="{\"precision\": \"${WEIGHT_FORMAT}\", \"device\": \"${DEVICE}\"}"
         fi
-        
+
         # Submit download request
+        local POST_RESPONSE
+
+        local EXTRA_CONFIG=""
+        if [ "$MODEL_TYPE" = "embeddings" ]; then
+            EXTRA_CONFIG=', "extra_quantization_params": "--library sentence_transformers"'
+            CONFIG_JSON="${CONFIG_JSON%\}}${EXTRA_CONFIG}}"
+        fi
+
         POST_RESPONSE=$(curl -s -X POST "${MODEL_DOWNLOAD_API_URL}?download_path=${DOWNLOAD_MODEL_DIR}" \
             -H "Content-Type: application/json" \
             -d "{

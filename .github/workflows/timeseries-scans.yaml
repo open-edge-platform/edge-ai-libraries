@@ -43,7 +43,7 @@ jobs:
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false 
 
@@ -61,7 +61,7 @@ jobs:
           output: results
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.x'
 
@@ -114,7 +114,7 @@ jobs:
           zip codeql_reports.zip results/python.sarif sarif_report.pdf
 
       - name: Upload ZIP Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: Time Series CodeQL Reports
           path: codeql_reports.zip
@@ -131,7 +131,7 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
@@ -178,7 +178,7 @@ jobs:
         EOF
         python3 convert_json_to_csv.py
     - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: bandit-report
         path: |
@@ -205,7 +205,7 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         persist-credentials: false
     - name: Run Virus Scan
@@ -216,7 +216,7 @@ jobs:
         docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/microservices/time-series-analytics/ > ./reports/clamav-report.txt || true
         echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
     - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: virus-reports
         path: reports/clamav-report.txt
@@ -240,10 +240,10 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'  # or any version you need
 
@@ -257,7 +257,7 @@ jobs:
           pylint microservices/time-series-analytics/src/*.py > microservices/time-series-analytics/pylint-report.txt || true
       
       - name: Upload Pylint report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pylint-report
           path: microservices/time-series-analytics/pylint-report.txt
@@ -270,7 +270,7 @@ jobs:
       packages: read          # needed for actions/checkout
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: check the system
@@ -282,7 +282,7 @@ jobs:
           docker compose version
 
       - name: Checkout docker/docker-bench-security (master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: docker/docker-bench-security
           ref: master
@@ -325,7 +325,7 @@ jobs:
           docker compose down -v
           
       - name: Upload Scan artifact to Github
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: DBS_time-series-analytics
           path: microservices/time-series-analytics/docker/dbs_scan_timeseries.txt
@@ -337,7 +337,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false  
       - name: Install Trivy from Aqua Security APT repo
@@ -397,7 +397,7 @@ jobs:
       
       - name: Upload trivy filesystem/repo scan reports
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: Trivy FileSystem scan report
@@ -465,7 +465,7 @@ jobs:
       - name: Upload Trivy Image Scan Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: Trivy image scan report
           path: |
@@ -477,7 +477,7 @@ jobs:
           trivy config . >> trivy_helm.txt
           
       - name: Upload Scan artifact to Github
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: Trivy Config Scan for Helm
           path: microservices/time-series-analytics/helm/trivy_*

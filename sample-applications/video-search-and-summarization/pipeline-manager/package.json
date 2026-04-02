@@ -88,12 +88,17 @@
     "glob": "^10.5.0",
     "qs": "^6.15.0",
     "systeminformation": "^5.30.7",
-    "fast-xml-parser": "^5.3.6",
+    "fast-xml-parser": "^5.5.3",
     "lodash": "^4.17.23",
     "body-parser": "^2.2.2",
     "js-yaml": "^4.1.1",
     "webpack": "^5.105.0",
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "multer": "^2.1.1",
+    "minimatch": "^10.2.4",
+    "serialize-javascript": "^7.0.4",
+    "ajv": "^8.18.0",
+    "file-type": "^21.3.1"
 
   },
   "jest": {

@@ -1,0 +1,30 @@
+From 3de43fd3d056e16df539944a805a9dc4268b3657 Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Wed, 11 Feb 2026 09:20:53 +0800
+Subject: [PATCH 2/7] Implemented new timer interface for mini example since
+ kernel 6.15.
+
+CherryPick from https://gitlab.com/etherlab.org/ethercat/-/commit/240080f11062cca42f9132cd32fad3b993502665
+---
+ examples/mini/mini.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/examples/mini/mini.c b/examples/mini/mini.c
+index 1ebadd87..05946b4e 100644
+--- a/examples/mini/mini.c
++++ b/examples/mini/mini.c
+@@ -525,7 +525,11 @@ void __exit cleanup_mini_module(void)
+ {
+     printk(KERN_INFO PFX "Stopping...\n");
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
++    timer_delete_sync(&timer);
++#else
+     del_timer_sync(&timer);
++#endif
+ 
+ #if EXTERNAL_MEMORY
+     kfree(domain1_pd);
+-- 
+2.34.1
+

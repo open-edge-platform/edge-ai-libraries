@@ -367,6 +367,10 @@ describe('VideoGroupsView Component', () => {
             ...createMockSearchResult().metadata,
             video_id: 'video-1',
             tags: 'action',
+            video_url: '',
+            video_rel_url: '',
+            bucket_name: '',
+            video: '',
           },
         }),
       ];
@@ -376,6 +380,63 @@ describe('VideoGroupsView Component', () => {
       renderWithProviders(<VideoGroupsView />, store);
 
       expect(screen.getByText('Video not available')).toBeInTheDocument();
+    });
+
+    it('should use metadata fallback URL when Redux video URL is unavailable', () => {
+      const mockResults = [
+        createMockSearchResult({
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'livingroom',
+            video_url: '',
+            video_rel_url: '/datastore/video-summary/video-1/01.54.mp4',
+          },
+        }),
+      ];
+
+      const getVideoUrl = vi.fn().mockReturnValue(null);
+      const store = createMockStore(mockResults, getVideoUrl as any);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+
+      expect(screen.queryByText('Video not available')).not.toBeInTheDocument();
+      expect(container.querySelector('video source')?.getAttribute('src')).toContain(
+        '/datastore/video-summary/video-1/01.54.mp4',
+      );
+    });
+
+    it('should prefer datastore video path from result.video over metadata download URL', () => {
+      const mockResults = [
+        createMockSearchResult({
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: '201f002c-74f1-4cd8-bf69-210980e444dc',
+            tags: 'livingroom',
+            video_url:
+              'http://vdms-dataprep:8000/v1/dataprep/videos/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
+            video_rel_url:
+              '/v1/dataprep/videos/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
+            bucket_name: 'video-summary',
+          },
+          video: {
+            ...createMockSearchResult().video,
+            videoId: '201f002c-74f1-4cd8-bf69-210980e444dc',
+            url: '201f002c-74f1-4cd8-bf69-210980e444dc/13.34.mp4',
+            dataStore: {
+              bucket: 'video-summary',
+              fileName: '13.34.mp4',
+              objectName: '201f002c-74f1-4cd8-bf69-210980e444dc',
+            },
+          } as any,
+        }),
+      ];
+
+      const store = createMockStore(mockResults);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+      const source = container.querySelector('video source')?.getAttribute('src') ?? '';
+
+      expect(source).toContain('/video-summary/201f002c-74f1-4cd8-bf69-210980e444dc/13.34.mp4');
+      expect(source).not.toContain('/videos/download?video_id=');
     });
   });
 

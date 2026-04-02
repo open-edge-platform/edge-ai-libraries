@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: FastAPI
-  version: 0.1.0
+  title: Time Series Analytics Microservice API
+  version: 2026.0.0
 servers:
 - url: "/ts-api"
 paths:
@@ -27,7 +27,10 @@ paths:
         and processed successfully.\n        content:\n            application/json:\n
         \               example:\n                    {\n                        \"status_code\":
         200,\n                        \"status\": \"success\",\n                        \"message\":
-        \"Alert received\"\n                    }\n    500:\n        description:
+        \"Alert received\"\n                    }\n    '400':\n        description:
+        OPC UA alerts are not configured in the service\n        content:\n            application/json:\n
+        \               example:\n                    {\n                        \"detail\":
+        \"OPC UA alerts are not configured in the service\"\n                    }\n    500:\n        description:
         Failed to process the alert due to server error or misconfiguration.\n        content:\n
         \           application/json:\n                example:\n                    {\n
         \                       \"detail\": \"Failed to initialize OPC UA client:
@@ -73,6 +76,10 @@ paths:
         object\n            properties:\n            status:\n                type:
         string\n                example: success\n            message:\n                type:
         string\n                example: Data sent to Time series Analytics microservice\n
+        \   '503':\n        description: Kapacitor daemon is not running\n        content:\n
+        \           application/json:\n                schema:\n                    type:
+        object\n                    properties:\n                        detail:\n                            type:
+        string\n                            example: Kapacitor daemon is not running\n
         \   '4XX':\n    description: Client error (e.g., invalid input or Kapacitor
         error)\n    content:\n        application/json:\n        schema:\n            $ref:
         '#/components/schemas/HTTPValidationError'\n    '500':\n    description: Internal
@@ -165,7 +172,7 @@ paths:
                         "udfs": {
                             "name": "udf_name",
                             "model": "model_name",
-                            "device": "cpu or gpu"}
+                            "device": "cpu or gpu"},
                         "alerts": {
                         }
         responses:
@@ -182,8 +189,20 @@ paths:
                                 message:
                                     type: string
                                     example: "Configuration updated successfully"
-            400:
-                description: Invalid input or error processing request
+            413:
+                description: Request payload exceeds the maximum allowed size of 5 KB
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                error:
+                                    type: string
+                                    example: "Request exceeds the maximum allowed payload size of 5 KB."
+            422:
+                description: >
+                    Unprocessable request - invalid or missing fields, invalid device value,
+                    or UDF deployment package files are missing from the server
                 content:
                     application/json:
                         schema:
@@ -191,7 +210,7 @@ paths:
                             properties:
                                 detail:
                                     type: string
-                                    example: "Error message"
+                                    example: "UDF deployment package validation failed for <udf_name>."
             500:
                 description: Failed to write configuration to file
                 content:
@@ -215,12 +234,25 @@ paths:
           content:
             application/json:
               schema: {}
-        '422':
-          description: Validation Error
+        '413':
+          description: Request payload exceeds the maximum allowed size of 5 KB
           content:
             application/json:
-              schema:
-                "$ref": "#/components/schemas/HTTPValidationError"
+              example:
+                error: Request exceeds the maximum allowed payload size of 5 KB.
+        '422':
+          description: Unprocessable request - invalid or missing fields, invalid
+            device value, or UDF deployment package files are missing from the server
+          content:
+            application/json:
+              example:
+                detail: "UDF deployment package validation failed for <udf_name>."
+        '500':
+          description: Failed to write configuration to file
+          content:
+            application/json:
+              example:
+                detail: Failed to write configuration to file
 components:
   schemas:
     Config:
@@ -231,7 +263,7 @@ components:
           title: Udfs
           default:
             name: udf_name
-            device: cpu/gpu
+            device: cpu
         alerts:
           anyOf:
           - additionalProperties: true
@@ -298,6 +330,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc

@@ -10,7 +10,6 @@ from src.utils.common import settings, logger
 from src.vdms_retriever.embedding_wrapper import EmbeddingAPI
 
 DEBUG = False
-client = VDMS_Client(settings.VDMS_VDB_HOST, settings.VDMS_VDB_PORT)
 
 
 # Frame-to-Video Aggregation Configuration
@@ -639,20 +638,25 @@ def get_vectordb() -> VDMS:
         tuple: The vector database instance
     """
 
-    embeddings = EmbeddingAPI(
-        api_url=settings.EMBEDDINGS_ENDPOINT,
-        model_name=settings.EMBEDDINGS_MODEL_NAME,
-    )
+    try:
+        embeddings = EmbeddingAPI(
+            api_url=settings.EMBEDDINGS_ENDPOINT,
+            model_name=settings.EMBEDDINGS_MODEL_NAME,
+        )
 
-    vector_dimensions = embeddings.get_embedding_length()
+        vector_dimensions = embeddings.get_embedding_length()
+        client = VDMS_Client(settings.VDMS_VDB_HOST, settings.VDMS_VDB_PORT)
 
-    vector_db = VDMS(
-        client=client,
-        embedding=embeddings,
-        collection_name=settings.INDEX_NAME,
-        distance_strategy=settings.DISTANCE_STRATEGY,
-        embedding_dimensions=vector_dimensions,
-        engine=settings.SEARCH_ENGINE,
-    )
+        vector_db = VDMS(
+            client=client,
+            embedding=embeddings,
+            collection_name=settings.INDEX_NAME,
+            distance_strategy=settings.DISTANCE_STRATEGY,
+            embedding_dimensions=vector_dimensions,
+            engine=settings.SEARCH_ENGINE,
+        )
 
-    return vector_db
+        return vector_db
+    except Exception as exc:
+        logger.error(f"Failed to initialize VDMS vector DB client: {exc}")
+        raise

@@ -1,0 +1,51 @@
+From 3b1de85dedc3344d3d443446f07b1594c0c9fc14 Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Wed, 11 Feb 2026 09:17:42 +0800
+Subject: [PATCH 1/7] Switched from hrtimer_init() to hrtimer_setup() with
+ Linux 6.15.
+
+CherryPick from https://gitlab.com/etherlab.org/ethercat/-/commit/354f1493cc2a73bd4e5545f60670dfd7fdcf914b
+---
+ devices/ccat/netdev.c | 5 +++++
+ master/master.c       | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/devices/ccat/netdev.c b/devices/ccat/netdev.c
+index b122b790..59bdb7c2 100644
+--- a/devices/ccat/netdev.c
++++ b/devices/ccat/netdev.c
+@@ -862,8 +862,13 @@ static int ccat_eth_open(struct net_device *dev)
+ 	struct ccat_eth_priv *const priv = netdev_priv(dev);
+ 
+ 	if (!priv->ecdev) {
++#if LINUX_KERNEL_CODE >= KERNEL_VERSION(6, 15, 0)
++		hrtimer_setup(&priv->poll_timer, poll_timer_callback,
++				         CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++#else
+ 		hrtimer_init(&priv->poll_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 		priv->poll_timer.function = poll_timer_callback;
++#endif
+ 		hrtimer_start(&priv->poll_timer, POLL_TIME, HRTIMER_MODE_REL);
+ 	}
+ 	return 0;
+diff --git a/master/master.c b/master/master.c
+index 1b4947dd..29778860 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -1607,8 +1607,13 @@ void ec_master_nanosleep(const unsigned long nsecs)
+     struct hrtimer_sleeper t;
+     enum hrtimer_mode mode = HRTIMER_MODE_REL;
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
++		hrtimer_setup(&t.timer, ec_master_nanosleep_wakeup,
++				    CLOCK_MONOTONIC, mode);
++#else
+     hrtimer_init(&t.timer, CLOCK_MONOTONIC, mode);
+     t.timer.function = ec_master_nanosleep_wakeup;
++#endif
+     t.task = current;
+     hrtimer_set_expires(&t.timer, ktime_set(0, nsecs));
+ 
+-- 
+2.34.1
+
