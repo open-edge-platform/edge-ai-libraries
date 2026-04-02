@@ -6,10 +6,6 @@ Utility functions for GenAI application performance profiling.
 
 """
 
-# from gevent import monkey
-# if not monkey.is_module_patched('ssl'):
-#     monkey.patch_all()
-
 import ast
 import json
 import os
@@ -73,21 +69,6 @@ def safe_parse_string_to_dict(data_string):
     except (ValueError, SyntaxError):
         raise ValueError(f"Cannot parse string: {data_string}. Must be valid JSON or Python literal.")
 
-
-# def get_ip_address():
-#     """
-#     Retrieve the IP address of the current machine.
-    
-#     Returns:
-#         str: First IP address found, or empty string on error.
-#     """
-#     try:
-#         result = subprocess.run(["hostname", "-I"], capture_output=True, text=True, check=True)
-#         ip_addresses = result.stdout.strip().split()
-#         return ip_addresses[0] if ip_addresses else ""
-#     except Exception as e:
-#         print(f"Failed to retrieve IP address: {e}")
-#         return ""
 
 
 def delete_existing_docs(url):

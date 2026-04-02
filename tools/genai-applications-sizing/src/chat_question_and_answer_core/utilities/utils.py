@@ -97,7 +97,6 @@ def run_stream_log_hw_sizing(users, total_requests, spawn_rate, ip, profile_path
         f"--chat_endpoint={chat_endpoint}",
         f"--report_dir={report_dir}",
         "--prompt", f"{prompt}",
-    #    "--max_tokens", f"{max_tokens}",
         "--only-summary",
         "--loglevel", "CRITICAL",
     ]
@@ -116,7 +115,6 @@ def run_document_hw_sizing(users, total_requests, spawn_rate, ip, profile_path, 
         report_dir (str): Directory to save the test reports.
         config: Pre-loaded configuration dict.
     """
-    # Import document here to avoid circular imports
     from src.chat_question_and_answer_core.locust_files import document
     
     doc_profile, document_endpoint, file_details = get_document_profile_details(profile_path, config)
