@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 from copy import deepcopy
 from datetime import datetime
@@ -9,6 +8,7 @@ from graph import Graph, OUTPUT_PLACEHOLDER
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
+    InternalMetadataMode,
     InternalPipeline,
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
@@ -20,10 +20,11 @@ from utils import (
     generate_unique_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
-    slugify_text,
+    make_output_dir,
 )
 from video_encoder import VideoEncoder
 from videos import OUTPUT_VIDEO_DIR
+from managers.metadata_manager import METADATA_DIR
 
 logger = logging.getLogger("pipeline_manager")
 
@@ -404,7 +405,7 @@ class PipelineManager:
         pipeline_performance_specs: list[InternalPipelinePerformanceSpec],
         execution_config: InternalExecutionConfig,
         job_id: str,
-    ) -> tuple[str, dict[str, str], dict[str, str]]:
+    ) -> tuple[str, dict[str, str], dict[str, str], dict[str, list[str]]]:
         """
         Build a complete executable GStreamer pipeline command from internal specifications.
 
@@ -426,7 +427,8 @@ class PipelineManager:
         Returns:
             tuple: (Complete GStreamer command string,
                     dictionary mapping pipeline IDs to their output directory paths,
-                    dictionary mapping pipeline IDs to live stream URLs)
+                    dictionary mapping pipeline IDs to live stream URLs,
+                    dictionary mapping pipeline IDs to their metadata file paths)
 
             Note: live_stream_urls will be empty for density tests since they do not
             support live-streaming output mode. The caller is responsible for validating
@@ -457,14 +459,15 @@ class PipelineManager:
                 "or use output_mode='disabled' or 'live_stream' for time-limited execution."
             )
 
-        # Create job output directory: OUTPUT_VIDEO_DIR/<timestamp>_<job_id>/
+        # Create job output directories for videos and metadata using job_id and timestamp for uniqueness
         job_dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id}"
-        job_dir = os.path.join(OUTPUT_VIDEO_DIR, slugify_text(job_dir_name))
-        os.makedirs(job_dir, exist_ok=True)
+        video_job_dir = make_output_dir(OUTPUT_VIDEO_DIR, job_dir_name)
+        metadata_job_dir = make_output_dir(METADATA_DIR, job_dir_name)
 
         pipeline_parts = []
         video_output_paths: dict[str, str] = {}
         live_stream_urls: dict[str, str] = {}
+        metadata_file_paths: dict[str, list[str]] = {}
         output_subpipeline: str | None = None
 
         # Determine if we need looping behavior based on max_runtime
@@ -483,15 +486,25 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate pipeline has gvametapublish when metadata publishing is enabled
+            if (
+                execution_config.metadata_mode != InternalMetadataMode.DISABLED
+                and not base_graph.has_gvametapublish()
+            ):
+                raise ValueError(
+                    f"Metadata generation is enabled, but the pipeline does not contain any gvametapublish element. "
+                    f"Please add a gvametapublish element to the pipeline '{pipeline_name}' (id: '{pipeline_id}') definition to enable metadata output."
+                )
+
             # Apply RTSP credentials and settings to rtspsrc nodes
             base_graph = base_graph.apply_rtsp_connection_settings()
 
-            # Create pipeline output directory: <job_dir>/<pipeline_id>/
-            pipeline_dir = os.path.join(job_dir, slugify_text(pipeline_id))
-            os.makedirs(pipeline_dir, exist_ok=True)
+            # Create output directories for this pipeline's video and metadata outputs
+            video_pipeline_dir = make_output_dir(video_job_dir, pipeline_id)
+            metadata_pipeline_dir = make_output_dir(metadata_job_dir, pipeline_id)
 
             # Store the pipeline directory path for later video file collection
-            video_output_paths[pipeline_id] = pipeline_dir
+            video_output_paths[pipeline_id] = video_pipeline_dir
 
             # Replace decodebin3 with parsebin + specific decoder based on input codec and target device
             if base_graph.has_decodebin3():
@@ -515,7 +528,7 @@ class PipelineManager:
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline = video_encoder.create_video_output_subpipeline(
-                        pipeline_dir, encoder_device
+                        video_pipeline_dir, encoder_device
                     )
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
@@ -531,12 +544,23 @@ class PipelineManager:
 
                 # Prepare intermediate output sinks per stream
                 graph_instance = graph_instance.prepare_intermediate_output_sinks(
-                    pipeline_dir, stream_index
+                    video_pipeline_dir, stream_index
                 )
 
                 if output_mode != InternalOutputMode.DISABLED and stream_index == 0:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
+
+                # Inject metadata file paths into gvametapublish elements for metadata streaming
+                if (
+                    execution_config.metadata_mode == InternalMetadataMode.FILE
+                    and stream_index == 0
+                ):
+                    paths = graph_instance.inject_metadata_file_paths(
+                        metadata_pipeline_dir
+                    )
+                    if paths:
+                        metadata_file_paths[pipeline_id] = paths
 
                 # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
                 graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
@@ -564,7 +588,12 @@ class PipelineManager:
 
                 pipeline_parts.append(unique_pipeline_str)
 
-        return " ".join(pipeline_parts), video_output_paths, live_stream_urls
+        return (
+            " ".join(pipeline_parts),
+            video_output_paths,
+            live_stream_urls,
+            metadata_file_paths,
+        )
 
     def add_variant(
         self,

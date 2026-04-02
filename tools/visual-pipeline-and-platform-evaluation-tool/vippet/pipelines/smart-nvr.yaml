@@ -43,7 +43,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       videoscale !
       video/x-raw,width=320,height=240 !
@@ -85,7 +85,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !
@@ -128,7 +128,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !
@@ -170,7 +170,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
       video/x-raw(memory:VAMemory),width=320,height=240 !

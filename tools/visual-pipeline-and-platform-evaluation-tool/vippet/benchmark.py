@@ -178,7 +178,7 @@ class Benchmark:
             )
 
             # Build pipeline command using PipelineManager singleton
-            pipeline_command, video_output_paths, _ = (
+            pipeline_command, video_output_paths, _, _ = (
                 PipelineManager().build_pipeline_command(
                     run_specs, execution_config, job_id
                 )
