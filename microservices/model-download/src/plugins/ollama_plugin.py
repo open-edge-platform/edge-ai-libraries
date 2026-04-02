@@ -3,10 +3,15 @@
 
 import os
 import subprocess
+import threading
 import time
 from typing import Dict, Any, List
 from src.utils.logging import logger
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+
+# Serialize all Ollama downloads: even when parallel downloads are requested,
+# each model is pulled one at a time to avoid port/server conflicts.
+_ollama_download_lock = threading.Lock()
 
 
 class OllamaPlugin(ModelDownloadPlugin):
@@ -39,47 +44,48 @@ class OllamaPlugin(ModelDownloadPlugin):
             model_name.replace("/", "_") , (f"{revision}" if revision else "")
         )
         model_name = model_name + (f":{revision}" if revision else "")
-        try:
-            
-            logger.info(f"Model will be downloaded to: {model_download_path}")
-            
-            os.environ["OLLAMA_MODELS"] = model_download_path
-
-            logger.info(f"Directory for Ollama model: {model_download_path}")
+        logger.info(f"Waiting for Ollama download lock: {model_name}")
+        with _ollama_download_lock:
             try:
-                os.makedirs(model_download_path, exist_ok=True)
-            except OSError as e:
-                logger.error(f"Failed to create directory {model_download_path}: {str(e)}")
-                raise RuntimeError(f"Failed to create model directory: {str(e)}")
+                logger.info(f"Model will be downloaded to: {model_download_path}")
 
-            logger.info("Starting ollama server")
-            process = subprocess.Popen(["ollama", "serve"])
+                logger.info(f"Directory for Ollama model: {model_download_path}")
+                try:
+                    os.makedirs(model_download_path, exist_ok=True)
+                except OSError as e:
+                    logger.error(f"Failed to create directory {model_download_path}: {str(e)}")
+                    raise RuntimeError(f"Failed to create model directory: {str(e)}")
 
-            # Sleep for 1 second to allow the server to be start
-            time.sleep(1)
+                env = {**os.environ, "OLLAMA_MODELS": model_download_path}
 
-            logger.info(f"Starting download for Ollama model: {model_name}")
-            subprocess.run(["ollama", "pull", model_name], check=True)
-            logger.info(f"Ollama model {model_name} downloaded successfully.")
+                logger.info("Starting ollama server")
+                process = subprocess.Popen(["ollama", "serve"], env=env)
 
-            host_path = hub_dir
-            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
-                host_prefix = os.getenv("MODEL_PATH", "models")
-                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
-            return {
-                "model_name": model_name,
-                "source": "ollama",
-                "download_path": host_path,
-                "success": True
-            }
-        
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to download Ollama model {model_name}: {str(e)}")
-            raise RuntimeError(f"Failed to download Ollama model: {str(e)}")
-        finally:
-            if process is not None:
-                logger.info("Stopping ollama server")
-                process.terminate()
+                # Sleep for 1 second to allow the server to start
+                time.sleep(1)
+
+                logger.info(f"Starting download for Ollama model: {model_name}")
+                subprocess.run(["ollama", "pull", model_name], check=True, env=env)
+                logger.info(f"Ollama model {model_name} downloaded successfully.")
+
+                host_path = hub_dir
+                if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                    host_prefix = os.getenv("MODEL_PATH", "models")
+                    host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+                return {
+                    "model_name": model_name,
+                    "source": "ollama",
+                    "download_path": host_path,
+                    "success": True
+                }
+
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to download Ollama model {model_name}: {str(e)}")
+                raise RuntimeError(f"Failed to download Ollama model: {str(e)}")
+            finally:
+                if process is not None:
+                    logger.info("Stopping ollama server")
+                    process.terminate()
     
     def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
         """

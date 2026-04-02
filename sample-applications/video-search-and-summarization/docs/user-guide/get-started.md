@@ -317,7 +317,7 @@ Follow these steps to run the application:
 
     > **Note:**
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
-    > - Review [docker/compose.vllm.yaml](../../docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
+    > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
 
@@ -392,7 +392,7 @@ After successfully starting the application, open a browser and go to `http://<h
 
 ## CLI Usage
 
-Refer to [CLI Usage](../../cli/README.md) for details on using the application from a text user interface (terminal-based UI).
+Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
 
 ## Running in Kubernetes Cluster
 

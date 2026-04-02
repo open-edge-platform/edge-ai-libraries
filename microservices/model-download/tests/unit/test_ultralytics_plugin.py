@@ -1,4 +1,8 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
+import asyncio
 import pytest
 import tempfile
 import subprocess
@@ -293,11 +297,11 @@ SUPPORTED_QUANTIZATION_DATASETS=(
 
     def test_post_process(self, ultralytics_plugin):
         """Test post_process method"""
-        result = ultralytics_plugin.post_process(
+        result = asyncio.run(ultralytics_plugin.post_process(
             model_name="yolov8n.pt",
             output_dir="/test/output",
             downloaded_paths=["/test/output/model.pt"]
-        )
+        ))
 
         assert result["model_name"] == "yolov8n.pt"
         assert result["source"] == "ultralytics"
@@ -448,11 +452,11 @@ class TestUltralyticsPluginIntegration:
             assert "ultralytics" in result["download_path"]
             
             # Test post-processing
-            post_result = ultralytics_plugin.post_process(
+            post_result = asyncio.run(ultralytics_plugin.post_process(
                 model_name="yolov8n.pt",
                 output_dir=result["download_path"],
                 downloaded_paths=[os.path.join(result["download_path"], "yolov8n.pt")]
-            )
+            ))
             
             assert post_result["success"] == True
             assert post_result["model_name"] == "yolov8n.pt"

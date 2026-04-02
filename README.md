@@ -140,11 +140,12 @@ vector search, and document ingestion across multimodal data. 
 
   High-performance vector similarity search and visual data indexing. 
 
-- [Model Registry](./microservices/model-registry)
+- [Model Download](./microservices/model-download)
   & [Document Ingestion](./microservices/document-ingestion/pgvector)
 
-  Tools for managing AI model versions and preparing documents for AI
-  workflows. 
+  Model Download downloads AI models from external sources, converts
+  them to the OpenVINO™ Intermediate Representation (IR) format with optional optimization,
+  and caches them locally. Document Ingestion prepares documents for AI workflows. 
 
 - [Video Chunking Utils](./libraries/video-chunking-utils)
 

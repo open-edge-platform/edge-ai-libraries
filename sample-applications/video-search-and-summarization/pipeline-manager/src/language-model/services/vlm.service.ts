@@ -188,7 +188,10 @@ export class VlmService {
   ): Promise<string | null> {
     try {
       this.$inferenceCount.incrementVlmProcessCount();
-      console.log(userQuery, imageUri);
+      console.log('Running VLM image inference', {
+        queryLength: userQuery.length,
+        imageCount: imageUri.length,
+      });
       const isVllm = this.$config.get('openai.useVLLM') === CONFIG_STATE.ON;
 
       // vLLM: always map each URI to image_url.

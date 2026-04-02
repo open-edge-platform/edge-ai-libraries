@@ -14,7 +14,7 @@ gunicorn = "^23.0.0"
 python-multipart = "^0.0.22"
 pydantic = "^2.11.5"
 pydantic-settings = "^2.9.1"
-setuptools = "^80.9.0"
+setuptools = "^82.0.1"
 transformers = "^4.51.3"
 pywhispercpp = { git = "https://github.com/absadiki/pywhispercpp.git", tag = "v1.4.0" }
 moviepy = "^2.2.1"
@@ -30,6 +30,7 @@ torchvision = { version = "^0.22.0", source = "pytorch-cpu" }
 urllib3 = "^2.6.3"
 protobuf = "^6.33.5"
 filelock = "^3.20.3"
+wheel = "^0.46.3"
 
 
 [tool.poetry.group.dev.dependencies]

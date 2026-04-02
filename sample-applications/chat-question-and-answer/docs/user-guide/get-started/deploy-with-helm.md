@@ -10,8 +10,8 @@ Before you begin, ensure that you have the following prerequisites:
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
-- Model download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Chart Guide](../../../../../microservices/model-download/docs/user-guide/deploy-with-helm-chart.md) for deployment instructions.
-- Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying ChatQnA. Refer to the [Model Download Get Started Guide](../../../../../microservices/model-download/docs/user-guide/get-started.md).
+- Model Download microservice is deployed using Helm and is up and running (required for OVMS). Refer to the [Deploy with Helm Chart Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started/deploy-with-helm-chart.html) for deployment instructions.
+- Ensure the Model Download Helm chart is deployed and the `model-download` microservice is up and running before deploying Chat QnA. Refer to the [Model Download Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
 
 ## Steps to deploy with Helm
 
@@ -61,7 +61,7 @@ Note: If deploying from a cloned repo, the user can choose to edit only the `val
 
 Ensure you set the `huggingface.apiToken`, proxy settings, and `dataprepPgvector.env.ALLOWED_HOSTS` as required.
 
-For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration).
+For detailed guidance on configuring `ALLOWED_HOSTS` for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/pgvector/get-started.html#allowed-hosts-configuration).
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -146,7 +146,7 @@ Deploy the OVMS Helm chart:
 helm install chatqna . -f values_ovms.yaml -n <your-namespace>
 ```
 
-**Note:** (1) If deploying from cloned repo, using `values.yaml` also works as it points to `values_ovms.yaml` file as default option. (2) When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
+> **Note:** (1) If deploying from cloned repo, using `values.yaml` also works as it points to `values_ovms.yaml` file as default option. (2) When deploying OVMS, the OVMS service is observed to take more time than other model serving services due to model conversion time.
 
 Deploy the vLLM Helm chart:
 
@@ -213,9 +213,9 @@ helm uninstall <name> -n <your-namespace>
   ```
 
 **Note:**
-ChatQnA uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
+Chat QnA uses a shared PVC created and managed by the `model-download` microservice. Do not delete this PVC while either service is running, as it stores downloaded model data and is required by both.
 
-Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall ChatQnA first, then clean up `model-download` resources, and remove the PVC if needed.
+Only delete the shared PVC when intentionally cleaning up model artifacts and after ensuring no workloads depend on it. Typically, uninstall Chat QnA first, then clean up `model-download` resources, and remove the PVC if needed.
 
 ## Related links
 

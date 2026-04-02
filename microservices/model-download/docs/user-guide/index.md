@@ -3,7 +3,7 @@
 <!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-download">
-     GitHub project
+     GitHub
   </a>
   <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md">
      Readme
@@ -58,6 +58,7 @@ The Plugin System extends the service's functionality by handling interactions w
 - **Ollama Hub Plugin**: Interfaces with Ollama tool to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
 - **Geti™ Plugin**: Downloads models optimized through the Geti™ platform.
+- **HLS Plugin**: Download pre-configured Health AI suite models from Github.
 
 **Conversion Plugins:**
 
