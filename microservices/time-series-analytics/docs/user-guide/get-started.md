@@ -157,7 +157,7 @@ Run the following commands to package and upload the `temperature_classifier` UD
 cd edge-ai-libraries/microservices/time-series-analytics/
 rm -f temperature_classifier.zip
 zip -r temperature_classifier.zip udfs/ tick_scripts/
-curl -X POST http://localhost:5000/update_udf_deployment_package \
+curl -X POST http://localhost:5000/udfs/package \
   -F "file=@temperature_classifier.zip"
 ```
 

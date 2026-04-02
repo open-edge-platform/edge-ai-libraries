@@ -253,9 +253,9 @@ paths:
             application/json:
               example:
                 detail: Failed to write configuration to file
-  "/update_udf_deployment_package":
+  "/udfs/package":
     post:
-      summary: Update UDF Deployment Package
+      summary: Adds UDF Deployment Package
       description: |-
         Upload a zip file containing the UDF deployment package.
 
@@ -278,13 +278,13 @@ paths:
 
         **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
         `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
-      operationId: update_udf_deployment_package_update_udf_deployment_package_post
+      operationId: udfs_package_post
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              "$ref": "#/components/schemas/Body_update_udf_deployment_package"
+              "$ref": "#/components/schemas/Body_adds_udf_deployment_package"
       responses:
         '200':
           description: UDF deployment package uploaded and extracted successfully
@@ -382,7 +382,7 @@ components:
       type: object
       title: OpcuaAlertsMessage
       description: Model for OPC UA alert messages.
-    Body_update_udf_deployment_package:
+    Body_adds_udf_deployment_package:
       type: object
       required:
       - file
@@ -391,7 +391,7 @@ components:
           type: string
           contentMediaType: application/octet-stream
           title: File
-      title: Body_update_udf_deployment_package
+      title: Body_adds_udf_deployment_package
     ValidationError:
       properties:
         loc:

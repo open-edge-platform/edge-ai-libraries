@@ -21,9 +21,6 @@ import threading
 import zipfile
 from typing import Optional
 import requests
-import socket
-import urllib.request
-import urllib.error
 
 from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
 from pydantic import BaseModel
@@ -656,7 +653,7 @@ def _scan_zip(zf: zipfile.ZipFile) -> None:
         logger.info("Zip archive does not contain a 'models/' folder (optional, skipping).")
 
 
-@app.post("/update_udf_deployment_package", responses={
+@app.post("/udfs/package", responses={
     400: {"description": "Invalid file — not a .zip, corrupt archive, failed security scan, or missing required folders",
           "content": {"application/json": {"example": {"detail": "Zip archive must contain a 'udfs/' folder with at least one .py file."}}}},
     413: {"description": "Uploaded file exceeds the maximum allowed size",
@@ -664,9 +661,9 @@ def _scan_zip(zf: zipfile.ZipFile) -> None:
     500: {"description": "Failed to extract the UDF deployment package on the server",
           "content": {"application/json": {"example": {"detail": "Failed to extract UDF deployment package."}}}},
 })
-async def update_udf_deployment_package(file: UploadFile = File(...)):
+async def adds_udf_deployment_package(file: UploadFile = File(...)):
     """
-    Upload a zip file containing the UDF deployment package.
+    Adds UDF deployment package.
 
     **Request body**: multipart/form-data with a single field named `file` containing the zip archive.
 
@@ -745,17 +742,20 @@ async def update_udf_deployment_package(file: UploadFile = File(...)):
     chunks = []
     received = 0
     chunk_size = 1024 * 1024  # 1 MB per read
-    while True:
-        chunk = await file.read(chunk_size)
-        if not chunk:
-            break
-        received += len(chunk)
-        if received > MAX_UPLOAD_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"Uploaded file exceeds the maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB."
-            )
-        chunks.append(chunk)
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            received += len(chunk)
+            if received > MAX_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Uploaded file exceeds the maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB."
+                )
+            chunks.append(chunk)
+    finally:
+        await file.close()
     contents = b"".join(chunks)
 
     try:
@@ -763,43 +763,76 @@ async def update_udf_deployment_package(file: UploadFile = File(...)):
     except zipfile.BadZipFile as exc:
         raise HTTPException(status_code=400, detail="Uploaded file is not a valid zip archive.") from exc
 
-    # Security scan before extraction
-    _scan_zip(zf)
+    with zf:
+        # Security scan before extraction
+        _scan_zip(zf)
 
-    base_dir = classifier_startup.SECURE_TEMP_DIR
-    sample_app = os.environ.get("SAMPLE_APP")
-    if sample_app:
-        dest_dir = os.path.join(base_dir, sample_app)
+        # Reserved names that must not be used as extraction directory names
+        # to avoid colliding with service-critical paths under SECURE_TEMP_DIR.
+        _RESERVED_DIR_NAMES = {
+            "tmp", "log", "kapacitor", "py_package", "udfs",
+            "tick_scripts", "models", ".", "..",
+        }
+
+        def _safe_dir_name(name: str) -> str:
+            """Validate and return a safe directory name, or raise HTTPException."""
+            import re
+            if not name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot derive a valid deployment directory name: name is empty."
+                )
+            # Allow only alphanumeric, hyphen, underscore, dot (no slashes or other special chars)
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot derive a valid deployment directory name: '{name}' "
+                           "contains disallowed characters (only alphanumeric, '-', '_', '.' are allowed)."
+                )
+            if name.lower() in _RESERVED_DIR_NAMES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot extract into reserved directory name '{name}'. "
+                )
+            return name
+
+        base_dir = classifier_startup.SECURE_TEMP_DIR
+
+        zip_stem = _safe_dir_name(os.path.splitext(os.path.basename(file.filename))[0])
+        sample_app = os.environ.get("SAMPLE_APP")
+        if sample_app:
+            dest_dir = os.path.join(base_dir, _safe_dir_name(sample_app))
+        else:
+            dest_dir = os.path.join(base_dir, zip_stem)
+
+        # Extract into a staging directory first so a failed upload never
+        # corrupts the live deployment.
+        staging_dir = dest_dir + ".tmp"
+        if os.path.exists(staging_dir):
+            shutil.rmtree(staging_dir)
+        os.makedirs(staging_dir)
+
+        try:
+            zf.extractall(staging_dir)
+        except Exception as exc:
+            logger.error("Failed to extract UDF deployment package: %s", exc)
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+
+    if os.path.exists(dest_dir):
+        old_dir = dest_dir + ".old"
+        os.rename(dest_dir, old_dir)
+        try:
+            os.rename(staging_dir, dest_dir)
+        except Exception as exc:
+            # Roll back: restore previous deployment
+            os.rename(old_dir, dest_dir)
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            logger.error("Failed to replace UDF deployment directory: %s", exc)
+            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+        shutil.rmtree(old_dir, ignore_errors=True)
     else:
-        # Use the zip filename (without extension) as the package directory name,
-        # so the extracted layout becomes SECURE_TEMP_DIR/<zip_name>/udfs/... etc.
-        zip_stem = os.path.splitext(os.path.basename(file.filename))[0]
-        dest_dir = os.path.join(base_dir, zip_stem)
-    os.makedirs(dest_dir, exist_ok=True)
-
-    # Collect top-level entries so we can clean them up on failure
-    top_level_entries = {name.replace("\\", "/").split("/")[0]
-                         for name in zf.namelist() if name.strip("/")}
-
-    def _cleanup_extracted():
-        """Remove any files/folders that were extracted to dest_dir."""
-        for entry in top_level_entries:
-            entry_path = os.path.join(dest_dir, entry)
-            if os.path.isdir(entry_path):
-                shutil.rmtree(entry_path, ignore_errors=True)
-            elif os.path.isfile(entry_path):
-                try:
-                    os.remove(entry_path)
-                except OSError as remove_err:
-                    logger.warning("Could not remove extracted file %s: %s", entry_path, remove_err)
-
-    try:
-        zf.extractall(dest_dir)
-    except Exception as exc:
-        logger.error("Failed to extract UDF deployment package: %s", exc)
-        _cleanup_extracted()
-        raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
-    
+        os.rename(staging_dir, dest_dir)
 
     logger.info("UDF deployment package '%s' uploaded and extracted to %s.", file.filename, dest_dir)
     return {"status": "success", "message": f"UDF deployment package '{file.filename}' uploaded successfully."}
