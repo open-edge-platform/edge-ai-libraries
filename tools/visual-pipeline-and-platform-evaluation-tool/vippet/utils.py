@@ -7,7 +7,6 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import List, Optional
-
 from slugify import slugify
 
 logger = logging.getLogger("utils")
@@ -231,6 +230,13 @@ def get_current_timestamp() -> datetime:
         >>> # Returns datetime object like datetime(2024, 1, 15, 10, 30, 45, 123000, tzinfo=timezone.utc)
     """
     return datetime.now(timezone.utc)
+
+
+def make_output_dir(base: str, name: str) -> str:
+    """Join base with slugified name, create the directory, and return the path."""
+    path = os.path.join(base, slugify_text(name))
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def load_thumbnail_as_base64(

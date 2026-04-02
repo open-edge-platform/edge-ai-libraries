@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 from copy import deepcopy
 from datetime import datetime
@@ -21,7 +20,7 @@ from utils import (
     generate_unique_id,
     get_current_timestamp,
     load_thumbnail_as_base64,
-    slugify_text,
+    make_output_dir,
 )
 from video_encoder import VideoEncoder
 from videos import OUTPUT_VIDEO_DIR
@@ -462,8 +461,8 @@ class PipelineManager:
 
         # Create job output directories for videos and metadata using job_id and timestamp for uniqueness
         job_dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{job_id}"
-        video_job_dir = self._make_output_dir(OUTPUT_VIDEO_DIR, job_dir_name)
-        metadata_job_dir = self._make_output_dir(METADATA_DIR, job_dir_name)
+        video_job_dir = make_output_dir(OUTPUT_VIDEO_DIR, job_dir_name)
+        metadata_job_dir = make_output_dir(METADATA_DIR, job_dir_name)
 
         pipeline_parts = []
         video_output_paths: dict[str, str] = {}
@@ -501,8 +500,8 @@ class PipelineManager:
             base_graph = base_graph.apply_rtsp_connection_settings()
 
             # Create output directories for this pipeline's video and metadata outputs
-            video_pipeline_dir = self._make_output_dir(video_job_dir, pipeline_id)
-            metadata_pipeline_dir = self._make_output_dir(metadata_job_dir, pipeline_id)
+            video_pipeline_dir = make_output_dir(video_job_dir, pipeline_id)
+            metadata_pipeline_dir = make_output_dir(metadata_job_dir, pipeline_id)
 
             # Store the pipeline directory path for later video file collection
             video_output_paths[pipeline_id] = video_pipeline_dir
@@ -932,13 +931,6 @@ class PipelineManager:
             )
 
         return updated_advanced_graph
-
-    @staticmethod
-    def _make_output_dir(base: str, name: str) -> str:
-        """Join base with slugified name, create the directory, and return the path."""
-        path = os.path.join(base, slugify_text(name))
-        os.makedirs(path, exist_ok=True)
-        return path
 
     def _validate_and_trim_variant_name(self, name: str) -> str:
         """
