@@ -34,6 +34,29 @@ import yaml
 from src.common import logger, settings
 
 
+def _resolve_safe_config_path(config_file: str | pathlib.Path) -> pathlib.Path:
+    """Resolve and validate config paths against trusted roots."""
+    raw_path = pathlib.Path(config_file).expanduser()
+    if any(part == ".." for part in raw_path.parts):
+        raise ValueError(f"Unsupported config path traversal: {raw_path}")
+
+    path = (
+        raw_path.resolve(strict=False)
+        if raw_path.is_absolute()
+        else (pathlib.Path.cwd() / raw_path).resolve(strict=False)
+    )
+
+    config_root = pathlib.Path(settings.CONFIG_FILEPATH).expanduser().resolve(strict=False).parent
+    cwd_root = pathlib.Path.cwd().resolve(strict=False)
+    tmp_root = pathlib.Path("/tmp").resolve(strict=False)
+    allowed_roots = [config_root, cwd_root, tmp_root]
+
+    if not any(path.is_relative_to(root) for root in allowed_roots):
+        raise ValueError(f"Unsupported config path location: {path}")
+
+    return path
+
+
 def read_config(config_file: str | pathlib.Path, type: str = "yaml") -> dict | None:
     """Takes a yaml/json file path as input. Parses and returns
     the file content as dictionary.
@@ -45,11 +68,14 @@ def read_config(config_file: str | pathlib.Path, type: str = "yaml") -> dict | N
     Returns:
         Configuration dictionary or None if error occurred
     """
-    path = pathlib.Path(config_file)
+    path = _resolve_safe_config_path(config_file)
     config: dict = {}
 
     try:
-        with open(path.absolute(), "r") as f:
+        if path.suffix.lower() not in {".yaml", ".yml", ".json"}:
+            raise ValueError(f"Unsupported config file extension: {path.suffix}")
+
+        with open(path, "r", encoding="utf-8") as f:
             if type == "yaml" or path.suffix.lower() == ".yaml":
                 config = yaml.safe_load(f)
             elif type == "json" or path.suffix.lower() == ".json":

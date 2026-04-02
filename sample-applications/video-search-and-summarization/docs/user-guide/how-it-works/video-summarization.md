@@ -119,15 +119,15 @@ The key components of the Video Summarization mode are as follows:
 
    **Inference microservices**:
 
-   - [Multimodal Embedding](../../../../../microservices/multimodal-embedding-serving/)
+   - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html)
 
-   - [Audio Analyzer](../../../../../microservices/audio-analyzer/)
+   - [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html)
 
-   - [VLM microservice](../../../../../microservices/vlm-openvino-serving/)
+   - [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/vlm-openvino-serving/docs/user-guide/Overview.md)
 
     **Data-handling microservices**
 
-   - [VDMS-based data preparation](../../../../../microservices/visual-data-preparation-for-retrieval/vdms/)
+   - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/README.md)
 
    See the respective documentation for details.
 

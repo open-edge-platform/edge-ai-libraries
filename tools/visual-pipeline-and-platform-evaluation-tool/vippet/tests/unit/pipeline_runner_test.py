@@ -10,6 +10,39 @@ from pipeline_runner import (
 )
 
 
+def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock:
+    """Create a mocked Popen process that emits given stdout lines.
+
+    The mock is configured so that each while-loop iteration in _run_normal
+    reads exactly one line. poll() returns None for len(stdout_lines) + 1
+    iterations (all real lines plus one empty-read cycle), then returns
+    exit_code to end the loop.
+
+    Args:
+        stdout_lines: List of raw FpsCounter/gst_runner lines (without newline).
+        exit_code: Process exit code to simulate.
+
+    Returns:
+        MagicMock configured to behave like a Popen process.
+    """
+    process_mock = MagicMock()
+    encoded = [f"{line}\n".encode("utf-8") for line in stdout_lines]
+    process_mock.stdout.readline.side_effect = itertools.chain(
+        encoded, itertools.repeat(b"")
+    )
+    process_mock.pid = 1234
+    process_mock.stdout.fileno.return_value = 10
+    process_mock.stderr.fileno.return_value = 11
+    # Allow enough loop iterations: one per line + one extra for the empty read
+    # where zombie/exit is detected.
+    n = len(stdout_lines)
+    process_mock.poll.side_effect = [None] * (n + 1) + [exit_code]
+    process_mock.wait.return_value = exit_code
+    process_mock.returncode = exit_code
+    process_mock.communicate.return_value = (b"", b"")
+    return process_mock
+
+
 class TestPipelineRunnerNormalMode(unittest.TestCase):
     """Tests for PipelineRunner in normal mode (production pipeline execution)."""
 
@@ -28,23 +61,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
     @patch("pipeline_runner.select.select")
     def test_run_pipeline_normal_mode(self, mock_select, mock_ps, mock_popen):
         """PipelineRunner in normal mode should execute gst_runner.py and extract FPS metrics."""
-        # Mock process
-        process_mock = MagicMock()
-        process_mock.poll.side_effect = [None, 0]
-        # Avoid StopIteration by returning empty bytes forever after the real line
-        process_mock.stdout.readline.side_effect = itertools.chain(
+        process_mock = _make_process_mock(
             [
-                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n".encode(
-                    "utf-8"
-                )
-            ],
-            itertools.repeat(b""),
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
+            ]
         )
-        process_mock.pid = 1234
-        # Ensure fileno returns an int to avoid TypeError in select and bad fd errors
-        process_mock.stdout.fileno.return_value = 10
-        process_mock.stderr.fileno.return_value = 11
-        process_mock.wait.return_value = 0
         mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         if mock_ps is not None:
@@ -68,13 +89,16 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertIn(cmd[7], ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"))
         self.assertEqual(cmd[8], self.test_pipeline_command)
 
-        # Verify FPS extraction
+        # Verify FPS extraction — should use Priority 1 (last average, exact match)
         self.assertIsInstance(result, PipelineResult)
         self.assertEqual(result.total_fps, 100.0)
         self.assertEqual(result.per_stream_fps, 100.0)
         self.assertEqual(result.num_streams, 1)
         self.assertEqual(result.exit_code, 0)
         self.assertFalse(result.cancelled)
+        assert result.details is not None
+        self.assertIn("last average fps", result.details)
+        self.assertIn("primary source", result.details)
 
     @patch("pipeline_runner.Popen")
     def test_stop_pipeline_normal_mode(self, mock_popen):
@@ -86,6 +110,8 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         # so it sends SIGINT and waits).
         process_mock.poll.side_effect = [None, None]
         process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.communicate.return_value = (b"", b"")
         mock_popen.return_value = process_mock
 
         runner = PipelineRunner(mode="normal", max_runtime=0)
@@ -101,6 +127,7 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self.assertEqual(result.num_streams, 0)
         self.assertEqual(result.exit_code, 0)
         self.assertTrue(result.cancelled)
+        self.assertEqual(result.details, "no fps metrics found in pipeline output")
 
         # Verify SIGINT was sent for graceful shutdown
         process_mock.send_signal.assert_called_once_with(signal.SIGINT)
@@ -142,20 +169,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self, mock_open_file, mock_select, mock_ps, mock_popen
     ):
         """PipelineRunner should write 0.0 to FPS file after successful completion."""
-        process_mock = MagicMock()
-        process_mock.poll.side_effect = [None, 0]
-        process_mock.stdout.readline.side_effect = itertools.chain(
+        process_mock = _make_process_mock(
             [
-                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n".encode(
-                    "utf-8"
-                )
-            ],
-            itertools.repeat(b""),
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
+            ]
         )
-        process_mock.pid = 1234
-        process_mock.stdout.fileno.return_value = 10
-        process_mock.stderr.fileno.return_value = 11
-        process_mock.wait.return_value = 0
         mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         if mock_ps is not None:
@@ -194,15 +212,8 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         self, mock_open_file, mock_select, mock_popen
     ):
         """PipelineRunner should write 0.0 to FPS file after pipeline failure."""
-        process_mock = MagicMock()
-        # First poll returns None (running), second poll returns 1 (exit code)
-        process_mock.poll.side_effect = [None, 1]
-        process_mock.stdout.readline.side_effect = itertools.repeat(b"")
+        process_mock = _make_process_mock([], exit_code=1)
         process_mock.stderr.readline.side_effect = itertools.repeat(b"")
-        process_mock.stdout.fileno.return_value = 10
-        process_mock.stderr.fileno.return_value = 11
-        process_mock.wait.return_value = 1  # Non-zero exit code
-        # Return empty lists for select to indicate no data available
         mock_select.return_value = ([], [], [])
         mock_popen.return_value = process_mock
 
@@ -276,8 +287,11 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
         # second poll() returns None (_graceful_terminate: still running).
         process_mock.poll.side_effect = [None, None]
         process_mock.wait.return_value = 0
+        process_mock.returncode = 0
         process_mock.stdout.fileno.return_value = 10
         process_mock.stderr.fileno.return_value = 11
+        # Mock communicate() for the post-loop stdout/stderr drain
+        process_mock.communicate.return_value = (b"", b"")
         mock_popen.return_value = process_mock
 
         runner = PipelineRunner(
@@ -302,6 +316,211 @@ class TestPipelineRunnerNormalMode(unittest.TestCase):
             1,
             "0.0 should be written exactly once to FPS file after cancellation",
         )
+
+
+class TestFpsMetricSelection(unittest.TestCase):
+    """Tests for the FPS metric selection fallback chain in _run_normal.
+
+    gvafpscounter emits three metric types:
+    - "last": FPS over the most recent N-second window (volatile, resets each print)
+    - "average": cumulative mean FPS printed every ~1s (stable steady-state)
+    - "overall": same as average but printed once at pipeline end (includes shutdown)
+
+    The selection priority is:
+    1. Last average for exact total_streams (best steady-state metric)
+    2. Overall for exact total_streams (includes shutdown artifacts)
+    3. Last average for closest total_streams (stream count mismatch)
+    4. Last "last" line (volatile, last resort)
+    """
+
+    def setUp(self):
+        self.pipeline_cmd = "videotestsrc ! gvafpscounter ! fakesink"
+
+    def _run_with_lines(
+        self, stdout_lines: list[str], total_streams: int = 5
+    ) -> PipelineResult:
+        """Helper: run PipelineRunner with mocked stdout lines and return result.
+
+        The ps.Process mock returns "running" for each real line (so the inner
+        loop continues to the next select iteration) and "zombie" on the first
+        empty-read cycle (so the process terminates after all lines are consumed).
+        """
+        with (
+            patch("pipeline_runner.Popen") as mock_popen,
+            patch("pipeline_runner.ps") as mock_ps,
+            patch("pipeline_runner.select.select") as mock_select,
+        ):
+            process_mock = _make_process_mock(stdout_lines)
+            mock_select.return_value = ([process_mock.stdout], [], [])
+            mock_popen.return_value = process_mock
+            # Return "running" for each real line, then "zombie" to break out
+            n = len(stdout_lines)
+            mock_ps.Process.return_value.status.side_effect = ["running"] * n + [
+                "zombie"
+            ]
+
+            runner = PipelineRunner(mode="normal", max_runtime=0)
+            return runner.run(
+                pipeline_command=self.pipeline_cmd,
+                total_streams=total_streams,
+            )
+
+    def test_priority1_average_exact_match(self):
+        """Priority 1: last average with exact total_streams should be selected."""
+        result = self._run_with_lines(
+            [
+                # Multiple average lines — last one should win
+                "FpsCounter(average 5.0sec): total=50.0 fps, number-streams=5, per-stream=10.0 fps",
+                "FpsCounter(average 10.0sec): total=75.0 fps, number-streams=5, per-stream=15.0 fps",
+                # Overall also present — should be ignored in favor of average
+                "FpsCounter(overall 12.0sec): total=60.0 fps, number-streams=5, per-stream=12.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 75.0)
+        self.assertEqual(result.per_stream_fps, 15.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("last average fps", result.details)
+        self.assertIn("primary source", result.details)
+        self.assertIn("5 stream(s)", result.details)
+
+    def test_priority2_overall_exact_match(self):
+        """Priority 2: overall with exact total_streams when no average is available."""
+        result = self._run_with_lines(
+            [
+                # Only "last" and "overall" — no average lines
+                "FpsCounter(last 1.0sec): total=120.0 fps, number-streams=5, per-stream=24.0 fps",
+                "FpsCounter(overall 12.0sec): total=85.0 fps, number-streams=5, per-stream=17.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 85.0)
+        self.assertEqual(result.per_stream_fps, 17.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("overall fps", result.details)
+        self.assertIn("fallback 1", result.details)
+        self.assertIn("5 stream(s)", result.details)
+
+    def test_priority3_average_closest_stream_count(self):
+        """Priority 3: last average for closest total_streams when exact match unavailable."""
+        result = self._run_with_lines(
+            [
+                # Average for 3 streams only — requested is 5
+                "FpsCounter(average 8.0sec): total=90.0 fps, number-streams=3, per-stream=30.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 90.0)
+        self.assertEqual(result.per_stream_fps, 30.0)
+        self.assertEqual(result.num_streams, 3)
+        assert result.details is not None
+        self.assertIn("fallback 2", result.details)
+        self.assertIn("3 stream(s)", result.details)
+        self.assertIn("closest match to requested 5", result.details)
+
+    def test_priority3_picks_closest_stream_count(self):
+        """Priority 3 should pick the stream count closest to total_streams."""
+        result = self._run_with_lines(
+            [
+                # Averages for 2 and 4 streams — requested is 5, so 4 is closest
+                "FpsCounter(average 8.0sec): total=40.0 fps, number-streams=2, per-stream=20.0 fps",
+                "FpsCounter(average 8.0sec): total=100.0 fps, number-streams=4, per-stream=25.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 100.0)
+        self.assertEqual(result.per_stream_fps, 25.0)
+        self.assertEqual(result.num_streams, 4)
+        assert result.details is not None
+        self.assertIn("4 stream(s)", result.details)
+        self.assertIn("fallback 2", result.details)
+
+    def test_priority4_last_line_only(self):
+        """Priority 4: last "last" line when no average or overall is available."""
+        result = self._run_with_lines(
+            [
+                # Only "last" lines — no average, no overall
+                "FpsCounter(last 1.0sec): total=100.0 fps, number-streams=5, per-stream=20.0 fps",
+                "FpsCounter(last 1.0sec): total=130.0 fps, number-streams=5, per-stream=26.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 130.0)
+        self.assertEqual(result.per_stream_fps, 26.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("last instantaneous fps", result.details)
+        self.assertIn("fallback 3", result.details)
+
+    def test_no_fps_metrics(self):
+        """No FPS metrics at all should return zeros with appropriate details."""
+        result = self._run_with_lines(
+            [
+                # Non-FpsCounter output only
+                "gst_runner - INFO - Pipeline parsed successfully.",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 0.0)
+        self.assertEqual(result.per_stream_fps, 0.0)
+        self.assertEqual(result.num_streams, 0)
+        self.assertEqual(result.details, "no fps metrics found in pipeline output")
+
+    def test_average_preferred_over_overall_same_streams(self):
+        """When both average and overall exist for exact total_streams, average must win."""
+        result = self._run_with_lines(
+            [
+                "FpsCounter(average 10.0sec): total=610.0 fps, number-streams=16, per-stream=38.0 fps",
+                # overall is lower due to shutdown flush — must NOT be selected
+                "FpsCounter(overall 13.0sec): total=472.0 fps, number-streams=16, per-stream=29.5 fps",
+            ],
+            total_streams=16,
+        )
+
+        # Must use average (38.0), not overall (29.5)
+        self.assertEqual(result.total_fps, 610.0)
+        self.assertEqual(result.per_stream_fps, 38.0)
+        self.assertEqual(result.num_streams, 16)
+        assert result.details is not None
+        self.assertIn("primary source", result.details)
+
+    def test_full_realistic_output(self):
+        """Realistic gvafpscounter output with all three metric types, interleaved."""
+        result = self._run_with_lines(
+            [
+                "gst_runner - INFO - Pipeline parsed successfully.",
+                "FpsCounter(last 1.02sec): total=135.09 fps, number-streams=5, per-stream=27.02 fps",
+                "FpsCounter(average 1.91sec): total=16.19 fps, number-streams=5, per-stream=3.24 fps",
+                "FpsCounter(last 1.11sec): total=102.27 fps, number-streams=5, per-stream=20.45 fps",
+                "FpsCounter(average 3.03sec): total=47.87 fps, number-streams=5, per-stream=9.57 fps",
+                "FpsCounter(last 1.02sec): total=124.95 fps, number-streams=5, per-stream=24.99 fps",
+                "FpsCounter(average 4.05sec): total=67.24 fps, number-streams=5, per-stream=13.45 fps",
+                "FpsCounter(average 10.75sec): total=76.49 fps, number-streams=5, per-stream=15.30 fps",
+                "gst_runner - INFO - Stopping pipeline (reason: max_runtime).",
+                "FpsCounter(average 11.99sec): total=75.51 fps, number-streams=5, per-stream=15.10 fps",
+                # Shutdown flush spike — should be ignored
+                "FpsCounter(last 0.47sec): total=330.93 fps, number-streams=5, per-stream=66.19 fps",
+                # Overall is lower than last average due to shutdown — should also be ignored
+                "FpsCounter(overall 12.45sec): total=85.06 fps, number-streams=5, per-stream=17.01 fps",
+                "gst_runner - INFO - Pipeline run succeeded.",
+            ],
+            total_streams=5,
+        )
+
+        # Must pick last average (75.51 total, 15.10 per-stream), NOT overall (85.06, 17.01)
+        self.assertEqual(result.total_fps, 75.51)
+        self.assertEqual(result.per_stream_fps, 15.10)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("primary source", result.details)
 
 
 class TestPipelineRunnerValidationMode(unittest.TestCase):

@@ -4,9 +4,14 @@
 import os
 import subprocess
 from collections import deque
+from enum import Enum
 from typing import Dict, Any, Optional, List
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
+from src.api.models import OPENVINO_EXPORT_PARAMS, EXPORT_TYPE_PARAMS
 from src.utils.logging import logger
+
+# Default OVMS release tag for export_model.py script
+OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2025.4.1")
 
 
 class OpenVINOConverter(ModelDownloadPlugin):
@@ -26,28 +31,164 @@ class OpenVINOConverter(ModelDownloadPlugin):
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         # Check if the hub is openvino or if is_ovms is True
         return hub.lower() == "openvino" or kwargs.get("is_ovms", False)
+    
+    def _get_param(self, param_name: str, config: Dict[str, Any], kwargs: Dict[str, Any], default_value: Any = None) -> Any:
+        """
+        Extract parameter with fallback chain.
+        
+        Priority:
+        1. Config level
+        2. Direct kwargs
+        3. Default value
+        
+        Args:
+            param_name: Parameter name to extract
+            config: Config dictionary
+            kwargs: Direct kwargs passed to method
+            default_value: Fallback default value
+            
+        Returns:
+            Parameter value or default_value if not found
+        """
+        # Check config level first
+        if isinstance(config, dict) and param_name in config:
+            return config[param_name]
+        
+        # Fall back to direct kwargs
+        if param_name in kwargs:
+            return kwargs[param_name]
+        
+        return default_value
+
+    def _convert_value_to_string(self, value: Any) -> str:
+        """
+        Convert any value to string, handling Enum types properly.
+        
+        Args:
+            value: Value to convert
+            
+        Returns:
+            String representation of the value
+        """
+        if isinstance(value, Enum):
+            return value.value
+        return str(value)
+
+    def _build_export_command(
+        self,
+        export_type: str,
+        model_name: str,
+        output_dir: str,
+        config_dict: Optional[Dict[str, Any]] = None,
+        target_device: str = "CPU",
+        weight_format: str = "int8"
+    ) -> List[str]:
+        """
+        Build export_model.py command         
+        Args:
+            export_type: Model type (text_generation, embeddings_ov, rerank_ov)
+            model_name: Source model identifier
+            output_dir: Output directory path
+            config_dict: Configuration dictionary (can contain any parameters)
+            target_device: Target device (CPU, GPU, NPU, HETERO)
+            weight_format: Precision format (int4, int8, fp16, fp32)
+            
+        Returns:
+            List of command arguments ready for subprocess execution
+        """
+        config_dict = config_dict or {}
+        
+        # Convert enum values to strings in base parameters
+        weight_format_str = self._convert_value_to_string(weight_format)
+        target_device_str = self._convert_value_to_string(target_device)
+        
+        # Base command
+        command = [
+            "python3", "scripts/export_model.py", export_type,
+            "--source_model", model_name,
+            "--weight-format", weight_format_str,
+            "--config_file_path", f"{output_dir}/config_all.json",
+            "--model_repository_path", f"{output_dir}/",
+            "--target_device", target_device_str
+        ]
+        
+        logger.info(f"The additional params are {config_dict}")
+        # Process all parameters
+        for param_name, param_value in config_dict.items():
+            if param_value is None:
+                continue  # Skip None values
+
+            # Skip parameters that are already handled as base command arguments or metadata
+            if param_name in ("precision", "device", "source_model", "type", "model_type"):
+                continue
+
+            if param_name in OPENVINO_EXPORT_PARAMS:
+                # Use documented mapping for known parameters
+                flag_name, param_type = OPENVINO_EXPORT_PARAMS[param_name]
+
+                if param_type == "bool":
+                    if param_value:  # Only add flag if True
+                        command.append(flag_name)
+                        logger.debug(f"Added parameter: {flag_name} (bool)")
+                else:
+                    # For string/int types, always add flag and value
+                    command.append(flag_name)
+                    param_value_str = self._convert_value_to_string(param_value)
+                    # Strip any existing quotes first
+                    param_value_str = param_value_str.strip('"')
+                    # Add quotes around the value if it contains spaces (needed for script parsing)
+                    if " " in param_value_str:
+                        param_value_str = f"{param_value_str}"
+                    command.append(param_value_str)
+                    logger.debug(f"Added parameter: {flag_name} {param_value_str}")
+            else:
+                flag_name = "--" + param_name  #.replace("_", "-")
+
+                logger.info(f"Parameter '{param_name}' not in known_params mapping. "
+                           f"Passing to export_model.py as: {flag_name}={param_value}")
+
+                if isinstance(param_value, bool):
+                    if param_value:
+                        command.append(flag_name)
+                else:
+                    command.append(flag_name)
+                    param_value_str = self._convert_value_to_string(param_value)
+                    # Strip any existing quotes first
+                    param_value_str = param_value_str.strip('"')
+                    # Add quotes around the value if it contains spaces (needed for script parsing)
+                    if " " in param_value_str:
+                        param_value_str = f'"{param_value_str}"'
+                    command.append(param_value_str)
+        
+        return command
 
     def convert(self, model_name: str, output_dir: str, hf_token: str, **kwargs) -> Dict[str, Any]:
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
-        """
-        # Extract parameters from the new payload structure
-        # Handle both direct parameters and nested config
-        config = kwargs.get("config", {})
-        logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
-        logger.info(f"Conversion config: {kwargs.get('config', {})}")
-        # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("precision")) or "int8"
+        """        
+        # Extract core parameters using helper (supports multiple sources)
+        weight_format = kwargs.get("precision",kwargs.get("weight-format"))
+        target_device = kwargs.get("device",kwargs.get("target_device"))
+        cache_size = kwargs.get("cache_size", kwargs.get("cache", None))
+        
+        # Extract model metadata
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
-        target_device = config.get("device", kwargs.get("device")) or "CPU"
-        cache_size = config.get("cache", kwargs.get("cache_size"))
-
-        if target_device.upper() == "NPU":
+        
+        # Always use flat config structure for export, passthrough all config params
+        config_for_export = kwargs.copy()
+        config_for_export.pop("weight-format", None)
+        config_for_export.pop("target_device", None)
+        logger.info(f"Using flat config structure: {list(config_for_export.keys())}")
+        logger.info(f"Extracted parameters - precision: {weight_format}, device: {target_device}, cache_size: {cache_size}")
+        
+        # Handle NPU special cases
+        if str(target_device).upper() == "NPU":
             logger.warning("NPU target device selected. Only 'int4' weight format is supported for NPU. Overriding weight_format to 'int4'.")
             weight_format = "int4"
+            config_for_export["precision"] = "int4"
             if model_type != "llm" and model_type != "vlm":
                 raise RuntimeError("NPU target device is only supported for 'llm' and 'vlm' model types.")
             if output_dir.endswith("/fp16") or output_dir.endswith("/int8") or output_dir.endswith("/int4"):
@@ -56,23 +197,34 @@ class OpenVINOConverter(ModelDownloadPlugin):
         try:
             # Perform the conversion
             result = self.convert_to_ovms_format(
+                model_name=model_name,
                 weight_format=weight_format,
                 huggingface_token=huggingface_token,
                 model_type=model_type,
                 target_device=target_device,
                 model_directory=output_dir,
-                cache_size=cache_size,
                 version=version,
-                model_name=model_name 
+                config_dict=config_for_export
             )
 
             host_path = output_dir
             if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
                 host_prefix = os.getenv("MODEL_PATH", "models")
                 host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
-            #Check the result of conversion
+            
+            # Check the result of conversion
             if result["returncode"] != 0:
-                raise RuntimeError(f"Model conversion failed due to {result['stderr']}! Also, Check if the model is compatible to be converted with Openvino and the configuration provided. ")
+                raise RuntimeError(f"Model conversion failed due to {result['stderr']}! Also, check if the model is compatible to be converted with OpenVINO and the configuration provided.")
+            
+            # Build response config - only include parameters that were in the original request
+            response_config = {}
+            if isinstance(kwargs, dict):
+                if "precision" in kwargs:
+                    response_config["precision"] = weight_format
+                if "device" in kwargs:
+                    response_config["device"] = target_device
+                if ("cache_size" in kwargs or "cache" in kwargs) and cache_size is not None:
+                    response_config["cache"] = cache_size
             
             return {
                 "model_name": model_name,
@@ -80,11 +232,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "type": model_type,
                 "conversion_path": host_path,
                 "is_ovms": True,
-                "config": {
-                    "precision": weight_format,
-                    "device": target_device,
-                    "cache": cache_size if cache_size is not None else None
-                },
+                "config": response_config,
                 "success": True,
                 "message": "Model successfully converted to OVMS format."
             }
@@ -92,7 +240,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             logger.error(f"Failed to convert model to OVMS format: {str(e)}")
             raise RuntimeError(f"Failed to convert model to OVMS format: {str(e)}")
             
-    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
+    async def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """
         This plugin is a converter, not a downloader, but implementing this method for compatibility.
         Raises NotImplementedError as this plugin does not support direct downloads.
@@ -108,16 +256,17 @@ class OpenVINOConverter(ModelDownloadPlugin):
         target_device: str,
         model_directory: str,
         version: str = "",
-        cache_size: Optional[int] = None,
+        config_dict: Optional[Dict[str, Any]] = None,
     ):
         """
-        Convert a downloaded model to OpenVINO Model Server (OVMS) format.
+        Convert a downloaded model to OpenVINO Model Server (OVMS) format using export_model.py.
+        Supports all export_model.py arguments via config_dict parameters.
 
         Args:
             model_name (str): The name of the Hugging Face model to download.
             weight_format (str): The weight format for the exported model (e.g., "int4", "fp16").
             huggingface_token (str): The Hugging Face API token for authentication.
-            model_type (str): The type of the model (e.g., "llm", "embeddings", "rerank").
+            model_type (str): The type of the model (e.g., "llm", "embeddings", "rerank", "vlm").
             target_device (str): Target hardware device for optimization (e.g., "CPU", "GPU", "NPU").
             model_directory (str): Directory to save the converted model.
             cache_size (int, optional): Cache size for model optimization.
@@ -125,12 +274,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
         Raises:
             RuntimeError: If model type is invalid, authentication fails, or model conversion fails
         """
+        config_dict = config_dict or {}
+        
         # Map model_type to export type
         export_type_map = {
             "llm": "text_generation",
+            "text_generation": "text_generation",
+            "embeddings_ov": "embeddings_ov",
+            "rerank_ov": "rerank_ov",
             "embeddings": "embeddings_ov",
             "rerank": "rerank_ov",
-            "vlm": "vlm",
+            "vlm": "text_generation",  # VLM uses text_generation type
+            "image_generation": "image_generation",
+            "text2speech": "text2speech",
+            "speech2text": "speech2text"
         }
 
         # Validate model_type
@@ -166,53 +323,34 @@ class OpenVINOConverter(ModelDownloadPlugin):
         else:
             logger.info(f"Already logged in to Hugging Face as: {check_login.stdout.strip()}")
 
-        logger.info("Checking for export_model.py script...")
-        # THIS IS COMMENTED FOR FUTURE UPDATES
-        export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/releases/2026/0/demos/common/export_models/export_model.py"
-      
-        if not os.path.exists("scripts/export_model.py"):
-            logger.info(f"Downloading export_model.py script...")
-            try:
-                subprocess.run(["curl", export_script_url, "-o", "scripts/export_model.py"], check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to download export script: {str(e)}")
-        else:
-            logger.info("export_model.py already exists, skipping download.")
-
+        # Export the model using export_model.py with intelligent parameter handling
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
 
         # Ensure models directory exists
         os.makedirs(model_directory, exist_ok=True)
         
-        if model_type == "vlm":
-            command = [
-                "python3", "scripts/export_model.py", "text_generation",
-                "--source_model", model_name,
-                "--weight-format", weight_format,
-                "--pipeline_type", "VLM",
-                "--config_file_path", f"{model_directory}/config_all.json",
-                "--model_repository_path", f"{model_directory}/",
-                "--target_device", target_device
-            ]
-        else:    
-            # Build command with Python from the virtual environment
-            command = [
-                "python3", "scripts/export_model.py", export_type,
-                "--source_model", model_name,
-                "--weight-format", weight_format,
-                "--config_file_path", f"{model_directory}/config_all.json",
-                "--model_repository_path", f"{model_directory}/",
-                "--target_device", target_device
-            ]
+        # Add VLM-specific parameter if needed
+        if model_type == "vlm" and "pipeline_type" not in config_dict:
+            config_dict["pipeline_type"] = "VLM"
+        if model_type == "embeddings" or model_type == "rerank":
+            config_dict.pop("cache_size", None)  
 
-            if version:
-                command += ["--version", version]
-            if export_type == "text_generation" and cache_size is not None:
-                command += ["--cache_size", f"{cache_size}"]
-            if  export_type == "embeddings_ov":
-                command += ["--extra_quantization_params", f"--library sentence_transformers"]
+        logger.info(f"Final parameters to be passed to export_model.py: {config_dict}")
+        # Build command using smart parameter builder
+        command = self._build_export_command(
+            export_type=export_type,
+            model_name=model_name,
+            output_dir=model_directory,
+            config_dict=config_dict,
+            target_device=target_device,
+            weight_format=weight_format
+        )
+        
+        # Add version if specified
+        if version:
+            command.extend(["--version", version])
 
-        logger.info(f"Executing command with virtual environment: {command}")
+        logger.info(f"Executing export_model.py command: {' '.join(command)}")
         try:
             result = subprocess.Popen(
                 command,
@@ -320,7 +458,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         # Extract parameters to maintain consistent response structure
         config = kwargs.get("config", {})
-        weight_format = config.get("precision", kwargs.get("precision", "int8"))
+        weight_format = config.get("precision", kwargs.get("weight-format", "int8"))
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))

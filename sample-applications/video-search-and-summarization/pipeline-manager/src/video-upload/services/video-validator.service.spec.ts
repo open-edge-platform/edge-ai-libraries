@@ -72,17 +72,10 @@ describe('VideoValidatorService', () => {
       expect(result).toBe(false);
     });
 
-    it('should handle file path with special characters and whitespace', async () => {
-      // Ensure moov appears well before mdat
-      const buf = Buffer.concat([
-        Buffer.from('start-----moov-----middle-----'),
-        Buffer.from('-----mdat-----end'),
-      ]);
-      readFileMock.mockResolvedValueOnce(buf as any);
-
-      const result = await service.isStreamable('/path/to/video with spaces.mp4');
-
-      expect(result).toBe(true);
+    it('should reject file paths with unsupported characters', async () => {
+      await expect(service.isStreamable('/path/to/video with spaces.mp4')).rejects.toThrow(
+        'Invalid upload file path',
+      );
     });
 
     it('should throw an error when readFile fails', async () => {
@@ -93,13 +86,8 @@ describe('VideoValidatorService', () => {
       expect(console.log).toHaveBeenCalled(); // Should log the error
     });
 
-    it('should handle empty file path gracefully', async () => {
-      const buf = Buffer.from('no atoms');
-      readFileMock.mockResolvedValueOnce(buf as any);
-
-      const result = await service.isStreamable('');
-
-      expect(result).toBe(false);
+    it('should reject empty file path', async () => {
+      await expect(service.isStreamable('')).rejects.toThrow('Invalid upload file path');
     });
 
     it('should log the script output when readFile returns content', async () => {

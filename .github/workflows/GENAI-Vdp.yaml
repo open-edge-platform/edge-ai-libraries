@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       
@@ -129,13 +129,13 @@ jobs:
           report_suffix: "-config-milvus-dockerfile-CT223"
            
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: trivy-report-visual-data-preparation
           path: security-results/trivy*
            
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: trivy-report-visual-data-preparation
           path: security-results/trivy*
@@ -145,7 +145,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Run Bandit Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
@@ -158,7 +158,7 @@ jobs:
           report_suffix: "-bandit-visual-data-preparation-CT161"
           
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandit-report-visual-data-preparation
           path: bandit-report-*.txt
@@ -169,7 +169,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Run ClamAV Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
@@ -182,7 +182,7 @@ jobs:
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: clamav-report-visual-data-preparation
           path: security-results/clamav*
@@ -194,7 +194,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           
@@ -208,7 +208,7 @@ jobs:
         run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
         
       - name: Clone CI repo
-        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: open-edge-platform/orch-ci
           path: ci
@@ -219,7 +219,7 @@ jobs:
           gitleaks dir "microservices/visual-data-preparation-for-retrieval/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-visual-data-preparation.json -r gitleaks-visual-data-preparation.json || true
           
       - name: Upload Gitleaks Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gitleaks-report-visual-data-preparation-${{ steps.timestamp.outputs.time }}
           path: gitleaks-visual-data-preparation.json
@@ -230,10 +230,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -275,7 +275,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pylint-report-vdms-dataprep
           path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/pylint-report-vdms-dataprep.txt
@@ -286,10 +286,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -326,7 +326,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pylint-report-milvus-dataprep
           path: microservices/visual-data-preparation-for-retrieval/milvus/src/security-results/pylint-report-milvus-dataprep.txt
@@ -337,10 +337,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -368,7 +368,7 @@ jobs:
           echo "Black formatting check completed"
       
       - name: Upload Black Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: black-check-report-vdms
           path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/black-check-report-vdms.txt
@@ -379,10 +379,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -406,7 +406,7 @@ jobs:
           echo "Black formatting check completed"
       
       - name: Upload Black Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: black-check-report-milvus
           path: microservices/visual-data-preparation-for-retrieval/milvus/src/security-results/black-check-report-milvus.txt
@@ -417,10 +417,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -448,7 +448,7 @@ jobs:
           echo "isort import sorting check completed"
       
       - name: Upload isort Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: isort-check-report-vdms
           path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/isort-check-report-vdms.txt
@@ -459,10 +459,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -486,7 +486,7 @@ jobs:
           echo "isort import sorting check completed"
       
       - name: Upload isort Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: isort-check-report-milvus
           path: microservices/visual-data-preparation-for-retrieval/milvus/src/security-results/isort-check-report-milvus.txt
@@ -497,7 +497,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup environment with shellcheck
         uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
@@ -521,7 +521,7 @@ jobs:
           echo "ShellCheck scan completed"
       
       - name: Upload ShellCheck Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: shellcheck-report-visual-data-preparation
           path: security-results/shellcheck-report-visual-data-preparation.txt
