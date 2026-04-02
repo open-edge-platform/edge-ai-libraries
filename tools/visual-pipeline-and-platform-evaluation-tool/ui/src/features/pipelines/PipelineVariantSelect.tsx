@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Variant } from "@/api/api.generated";
 import { UnsavedChangesDialog } from "@/components/shared/UnsavedChangesDialog";
 
@@ -59,10 +60,18 @@ export const PipelineVariantSelect = ({
       <div className="flex items-center gap-1">
         <span>({currentVariantName})</span>
         <DropdownMenu>
-          <DropdownMenuTrigger className="p-1 hover:bg-accent rounded transition-colors">
-            <ChevronDown className="size-4 text-muted-foreground" />
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger className="p-1 hover:bg-accent rounded transition-colors">
+                <ChevronDown className="size-4 text-muted-foreground" />
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Switch variant</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="start">
+            <p className="px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+              VARIANTS
+            </p>
             {variants.map((variant) => (
               <DropdownMenuItem
                 key={variant.id}
