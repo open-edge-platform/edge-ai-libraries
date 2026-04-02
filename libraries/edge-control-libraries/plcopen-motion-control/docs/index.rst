@@ -7,7 +7,7 @@
 
    <div class="component_card_widget">
      <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/plcopen-motion-control">
-        GitHub project
+        GitHub
      </a>
      <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.0.0/libraries/edge-control-libraries/plcopen-motion-control/README.md">
         Readme
