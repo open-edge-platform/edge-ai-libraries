@@ -32,7 +32,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Home, ChevronRight, ChevronLeft } from "lucide-react";
+import { Home, ChevronRight } from "lucide-react";
+import { DemoCarouselNav } from "./DemoCarouselNav";
+import { DemoTestTabButton } from "./DemoTestTabButton";
 import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaConvertNode.config.ts";
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
@@ -561,7 +563,8 @@ const DemoMode = () => {
   // UI color styles
   const colors = {
     headerTitle: "text-demo-header-title",
-    headerGradient: "from-demo-surface-via via-brand-accent-hover to-demo-header-title",
+    headerGradient:
+      "from-demo-surface-via via-brand-accent-hover to-demo-header-title",
     exitButton:
       "border-demo-exit-border hover:bg-demo-exit-hover-surface hover:border-demo-exit-hover-border",
     exitIcon: "text-demo-exit-fg",
@@ -586,7 +589,8 @@ const DemoMode = () => {
     checkboxLabel: "text-demo-checkbox-label group-hover:text-demo-panel-title",
     runButton:
       "bg-demo-primary-button hover:bg-demo-primary-button-hover rounded-xl shadow-lg shadow-demo-primary-button-shadow hover:shadow-demo-primary-button-shadow-hover",
-    runButtonOverlay: "bg-gradient-to-r from-demo-primary-button-overlay-from to-demo-primary-button-overlay-to",
+    runButtonOverlay:
+      "bg-gradient-to-r from-demo-primary-button-overlay-from to-demo-primary-button-overlay-to",
     runButtonText: "",
     gridConfigBorder: "border-demo-panel-border shadow-lg",
     gridConfigTitle: "text-demo-panel-title",
@@ -1453,44 +1457,19 @@ const DemoMode = () => {
 
                   {/* Carousel navigation buttons */}
                   {totalPages > 1 && (
-                    <>
-                      <button
-                        onClick={() =>
-                          setCarouselIndex((prev) => Math.max(0, prev - 1))
-                        }
-                        disabled={carouselIndex === 0}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-demo-carousel-button-surface hover:bg-demo-carousel-button-surface-hover disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-demo-carousel-button-border transition-all"
-                      >
-                        <ChevronLeft className="w-5 h-5 text-demo-carousel-button-icon" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setCarouselIndex((prev) =>
-                            Math.min(totalPages - 1, prev + 1),
-                          )
-                        }
-                        disabled={carouselIndex >= totalPages - 1}
-                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-demo-carousel-button-surface hover:bg-demo-carousel-button-surface-hover disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-demo-carousel-button-border transition-all"
-                      >
-                        <ChevronRight className="w-5 h-5 text-demo-carousel-button-icon" />
-                      </button>
-
-                      {/* Dots indicator */}
-                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                        {Array.from({ length: totalPages }).map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setCarouselIndex(idx)}
-                            className={cn(
-                              "w-2 h-2 rounded-full transition-all",
-                              idx === carouselIndex
-                                ? "bg-demo-carousel-dot-active w-6"
-                                : "bg-demo-carousel-dot hover:bg-demo-carousel-dot-hover",
-                            )}
-                          />
-                        ))}
-                      </div>
-                    </>
+                    <DemoCarouselNav
+                      index={carouselIndex}
+                      total={totalPages}
+                      onPrev={() =>
+                        setCarouselIndex((prev) => Math.max(0, prev - 1))
+                      }
+                      onNext={() =>
+                        setCarouselIndex((prev) =>
+                          Math.min(totalPages - 1, prev + 1),
+                        )
+                      }
+                      onGoTo={setCarouselIndex}
+                    />
                   )}
                 </div>
               );
@@ -1556,51 +1535,22 @@ const DemoMode = () => {
                           </div>
 
                           {totalPreviewPages > 1 && (
-                            <>
-                              <button
-                                onClick={() =>
-                                  setPreviewCarouselIndex((prev) =>
-                                    Math.max(0, prev - 1),
-                                  )
-                                }
-                                disabled={previewCarouselIndex === 0}
-                                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 bg-demo-carousel-button-surface hover:bg-demo-carousel-button-surface-hover disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-demo-carousel-button-border transition-all z-10"
-                              >
-                                <ChevronLeft className="w-5 h-5 text-demo-carousel-button-icon" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  setPreviewCarouselIndex((prev) =>
-                                    Math.min(totalPreviewPages - 1, prev + 1),
-                                  )
-                                }
-                                disabled={
-                                  previewCarouselIndex >= totalPreviewPages - 1
-                                }
-                                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 bg-demo-carousel-button-surface hover:bg-demo-carousel-button-surface-hover disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg backdrop-blur-sm border border-demo-carousel-button-border transition-all z-10"
-                              >
-                                <ChevronRight className="w-5 h-5 text-demo-carousel-button-icon" />
-                              </button>
-
-                              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                                {Array.from({ length: totalPreviewPages }).map(
-                                  (_, idx) => (
-                                    <button
-                                      key={idx}
-                                      onClick={() =>
-                                        setPreviewCarouselIndex(idx)
-                                      }
-                                      className={cn(
-                                        "w-2 h-2 rounded-full transition-all",
-                                        idx === previewCarouselIndex
-                                          ? "bg-demo-carousel-dot-active w-6"
-                                          : "bg-demo-carousel-dot hover:bg-demo-carousel-dot-hover",
-                                      )}
-                                    />
-                                  ),
-                                )}
-                              </div>
-                            </>
+                            <DemoCarouselNav
+                              index={previewCarouselIndex}
+                              total={totalPreviewPages}
+                              onPrev={() =>
+                                setPreviewCarouselIndex((prev) =>
+                                  Math.max(0, prev - 1),
+                                )
+                              }
+                              onNext={() =>
+                                setPreviewCarouselIndex((prev) =>
+                                  Math.min(totalPreviewPages - 1, prev + 1),
+                                )
+                              }
+                              onGoTo={setPreviewCarouselIndex}
+                              layered
+                            />
                           )}
                         </div>
                       );
@@ -2190,34 +2140,22 @@ const DemoMode = () => {
                           <div className="pr-1 pb-3">
                             <div className="w-full">
                               <div className="inline-flex rounded-lg border border-demo-panel-menu-border bg-surface-overlay-strong p-1 mb-3">
-                                <button
-                                  type="button"
+                                <DemoTestTabButton
+                                  isActive={activeTest === "performance-test"}
+                                  disabled={isReadOnly}
                                   onClick={() =>
                                     setActiveTest("performance-test")
                                   }
-                                  disabled={isReadOnly}
-                                  className={cn(
-                                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                    activeTest === "performance-test"
-                                      ? "bg-demo-checkbox-active text-white"
-                                      : "text-demo-panel-title hover:text-primary-foreground",
-                                  )}
                                 >
                                   Throughput Test
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveTest("density-test")}
+                                </DemoTestTabButton>
+                                <DemoTestTabButton
+                                  isActive={activeTest === "density-test"}
                                   disabled={isReadOnly}
-                                  className={cn(
-                                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                                    activeTest === "density-test"
-                                      ? "bg-demo-checkbox-active text-white"
-                                      : "text-demo-panel-title hover:text-primary-foreground",
-                                  )}
+                                  onClick={() => setActiveTest("density-test")}
                                 >
                                   Density Test
-                                </button>
+                                </DemoTestTabButton>
                               </div>
 
                               {activeTest === "performance-test" ? (

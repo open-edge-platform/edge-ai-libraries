@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { Braces } from "lucide-react";
 import type { Edge, Node, Viewport } from "@xyflow/react";
+import { PipelineToolbarButton } from "./shared";
 
 type StatePreviewButtonProps = {
   nodes: Node[];
@@ -23,9 +24,11 @@ const StatePreviewButton = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button className="bg-primary hover:bg-primary-90 text-primary-foreground p-2 rounded-lg shadow-lg transition-colors">
-          <Braces className="w-5 h-5" />
-        </button>
+        <PipelineToolbarButton
+          icon={<Braces className="w-5 h-5" />}
+          variant="icon-primary"
+          className="p-2"
+        />
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
         <DialogHeader>

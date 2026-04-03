@@ -1,4 +1,5 @@
 import { Square } from "lucide-react";
+import { PipelineToolbarButton } from "./shared";
 
 type StopPipelineButtonProps = {
   isStopping: boolean;
@@ -9,15 +10,15 @@ const StopPipelineButton = ({
   isStopping,
   onStop,
 }: StopPipelineButtonProps) => (
-  <button
+  <PipelineToolbarButton
     onClick={onStop}
     disabled={isStopping}
-    className="w-[10rem] bg-destructive hover:bg-destructive-90 disabled:bg-muted text-primary-foreground px-3 py-2 shadow-lg transition-colors flex items-center gap-2 font-medium"
     title="Stop Pipeline"
-  >
-    <Square className="w-5 h-5" />
-    <span>Stop pipeline</span>
-  </button>
+    icon={<Square className="w-5 h-5" />}
+    label={<span>Stop pipeline</span>}
+    variant="destructive"
+    widthClassName="w-[10rem]"
+  />
 );
 
 export default StopPipelineButton;

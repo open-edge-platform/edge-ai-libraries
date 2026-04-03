@@ -1,5 +1,4 @@
-import { Handle, Position } from "@xyflow/react";
-import { getHandleLeftPosition } from "../../utils/graphLayout";
+import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "../shared";
 
 export const SourceNodeWidth = 330;
 
@@ -12,54 +11,35 @@ type SourceNodeProps = {
 
 const SourceNode = ({ data }: SourceNodeProps) => {
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-node-role-source-border min-w-[20.625rem]">
-      <div className="flex gap-3">
-        <div className="shrink-0 w-10 h-10 rounded bg-node-role-source-surface flex items-center justify-center self-center">
-          <svg
-            className="w-6 h-6 text-node-role-source-icon"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
+    <PipelineNodeCard
+      title="Input"
+      nodeType="source"
+      roleClasses={PIPELINE_NODE_ROLE_CLASSES.source}
+      minWidthClass="min-w-[20.625rem]"
+      handles="source"
+      details={
+        <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
+          {data.kind && <span>{data.kind}</span>}
+
+          {data.source && (
+            <>
+              {data.kind && <span className="text-node-separator">•</span>}
+              <span className="truncate max-w-[11.5625rem]" title={data.source}>
+                {data.source}
+              </span>
+            </>
+          )}
         </div>
-
-        <div className="flex-1 flex flex-col">
-          <div className="text-xl font-bold text-node-role-source-title">
-            Input
-          </div>
-
-          <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
-            {data.kind && <span>{data.kind}</span>}
-
-            {data.source && (
-              <>
-                {data.kind && <span className="text-node-separator">•</span>}
-                <span
-                  className="truncate max-w-[11.5625rem]"
-                  title={data.source}
-                >
-                  {data.source}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="w-3 h-3 bg-node-role-source-handle!"
-        style={{ left: getHandleLeftPosition("source") }}
-      />
-    </div>
+      }
+      icon={
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+        />
+      }
+    />
   );
 };
 
