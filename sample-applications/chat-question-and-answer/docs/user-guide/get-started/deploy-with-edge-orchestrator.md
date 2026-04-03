@@ -12,7 +12,7 @@ Edge Orchestrator, part of Intel’s Edge Software, simplifies edge application 
 
 - **Flexible Configuration**: From organizing your physical infrastructure to managing the permutations of executing applications in a variety of runtime environments, Edge Orchestrator gives you the flexibility to define the policies, criteria, and hierarchies that make the most sense for your specific business needs.
 
-To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the steps described in this document.
+To deploy the **Chat Question & Answer (Chat Q&A)** sample application with the Edge Orchestrator, follow the steps described in this document.
 
 ## Procedure to Deploy with Edge Orchestrator
 
@@ -41,7 +41,7 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 
 1. Once the deployment package has been imported into the Edge Orchestrator, you can see it in the list of Web UI as shown here.
 
-    **![ChatQnA Image](../_assets/chatqna-emf.png)**
+    **![ChatQ&A Image](../_assets/chatqna-emf.png)**
 
 See [Deployment Packages](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/deploy_packages.html#view-deployment-packages) for more information on deployment packages.
 
