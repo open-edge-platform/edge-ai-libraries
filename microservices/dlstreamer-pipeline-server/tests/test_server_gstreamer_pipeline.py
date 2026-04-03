@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024-2026 Intel Corporation
+# Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -182,14 +182,13 @@ class TestGStreamerPipeline:
     def test_stop_pipeline_not_running(self, gstreamer_pipeline,mocker,Gst):
         gstreamer_pipeline.state = MagicMock()
         gstreamer_pipeline.state.stopped.return_value = False
-        mock_delete_pipeline = mocker.patch.object(gstreamer_pipeline, '_delete_pipeline')
         mock_state = mocker.patch("src.server.gstreamer_pipeline.Pipeline",return_value = MagicMock())
         mock_status = MagicMock()
         mock_state.State.ABORTED = "ABORT"
         mocker.patch.object(gstreamer_pipeline,'status',return_value = mock_status)
         status = gstreamer_pipeline.stop()
         assert status == mock_status
-        mock_delete_pipeline.assert_called_once_with("ABORT")
+        assert gstreamer_pipeline.state == "ABORT"
         Gst.Structure.new_empty.call_count == 0
         Gst.Message.new_custom.call_count == 0
 

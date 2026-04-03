@@ -237,7 +237,7 @@ class GStreamerPipeline(Pipeline):
                         Gst.MessageType.APPLICATION, None, structure)
                     self.pipeline.get_bus().post(message)
                 else:
-                    self._delete_pipeline(Pipeline.State.ABORTED)
+                    self.state = Pipeline.State.ABORTED
         return self.status()
 
     def params(self):
@@ -578,12 +578,6 @@ class GStreamerPipeline(Pipeline):
 
         with(self._create_delete_lock):
             if (self.start_time is not None):
-                return
-
-            if self.state is Pipeline.State.ABORTED:
-                self._logger.info("Pipeline {id} was aborted before starting".format(
-                    id=self.identifier))
-                self._delete_pipeline(Pipeline.State.ABORTED)
                 return
 
             self._logger.debug("Starting Pipeline {id}".format(id=self.identifier))
