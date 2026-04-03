@@ -228,6 +228,13 @@ class GStreamerPipeline(Pipeline):
         with(self._create_delete_lock):
             self._delete_pipeline(new_state)
 
+    def _delete_pipeline_in_background(self, new_state):
+        """Schedule pipeline deletion on a background thread to avoid
+        blocking the GLib MainLoop when called from bus callbacks."""
+        thread = Thread(target=self._delete_pipeline_with_lock, args=(new_state,))
+        thread.daemon = True
+        thread.start()
+
     def stop(self):
         with(self._create_delete_lock):
             if not self.state.stopped():
@@ -815,12 +822,20 @@ class GStreamerPipeline(Pipeline):
 
     def bus_call(self, unused_bus, message, unused_data=None):
         message_type = message.type
+        # Guard: skip if pipeline deletion is already in progress or complete.
+        # Needed because _delete_pipeline_in_background returns immediately,
+        # so the bus handler may still fire before the background thread
+        # disconnects it.
+        if self.state in (Pipeline.State.ABORTED, Pipeline.State.COMPLETED, Pipeline.State.ERROR):
+            return True
         if message_type == Gst.MessageType.APPLICATION:
             self._logger.info("Pipeline {id} Aborted".format(id=self.identifier))
-            self._delete_pipeline_with_lock(Pipeline.State.ABORTED)
-        if message_type == Gst.MessageType.EOS:
+            self.state = Pipeline.State.ABORTED
+            self._delete_pipeline_in_background(Pipeline.State.ABORTED)
+        elif message_type == Gst.MessageType.EOS:
             self._logger.info("Pipeline {id} Ended".format(id=self.identifier))
-            self._delete_pipeline_with_lock(Pipeline.State.COMPLETED)
+            self.state = Pipeline.State.COMPLETED
+            self._delete_pipeline_in_background(Pipeline.State.COMPLETED)
         elif message_type == Gst.MessageType.ERROR:
             error_message, self._debug_message = message.parse_error()
             # Skip error handling if already in recovery state
@@ -837,13 +852,12 @@ class GStreamerPipeline(Pipeline):
             # Attempt to recover from connection errors
             if self._handle_source_error(error_message, self._debug_message):
                 return True  # Recovery initiated, don't terminate yet
-            self._delete_pipeline_with_lock(Pipeline.State.ERROR)
+            self.state = Pipeline.State.ERROR
+            self._delete_pipeline_in_background(Pipeline.State.ERROR)
         elif message_type == Gst.MessageType.STATE_CHANGED:
             old_state, new_state, unused_pending_state = message.parse_state_changed()
             if message.src == self.pipeline:
                 if old_state == Gst.State.PAUSED and new_state == Gst.State.PLAYING:
-                    if self.state is Pipeline.State.ABORTED:
-                        self._delete_pipeline_with_lock(Pipeline.State.ABORTED)
                     if self.state is Pipeline.State.QUEUED:
                         self._logger.info(
                             "Setting Pipeline {id} State to RUNNING".format(id=self.identifier))
@@ -890,7 +904,16 @@ class GStreamerPipeline(Pipeline):
         return True  # Recovery attempted, will be handled asynchronously
 
     def _scheduled_reconnection_attempt(self, max_retries, initial_delay_ms, backoff_multiplier, max_delay_ms):
-        """Scheduled reconnection callback - runs in main loop, not in bus handler."""
+        """Scheduled reconnection callback - spawns a background thread
+        to avoid blocking the GLib MainLoop with set_state(NULL)."""
+        thread = Thread(target=self._do_reconnection,
+                        args=(max_retries, initial_delay_ms, backoff_multiplier, max_delay_ms))
+        thread.daemon = True
+        thread.start()
+        return False  # Don't reschedule the GLib timeout
+
+    def _do_reconnection(self, max_retries, initial_delay_ms, backoff_multiplier, max_delay_ms):
+        """Actual reconnection logic running in a background thread."""
         try:
             self._logger.info(
                 f"Pipeline {self.identifier}: Attempting reconnection "
@@ -954,12 +977,13 @@ class GStreamerPipeline(Pipeline):
                 self.pipeline.set_state(Gst.State.PLAYING)
                 self._save_start_time()
 
-            # Reconnection successful
-            self.state = Pipeline.State.RUNNING
-            self._connection_retries = 0  # Reset retry counter on success
-            self._current_retry_delay = 1000
+                # Mark reconnection successful inside the lock to prevent
+                # a concurrent stop/delete from racing with state assignment.
+                self.state = Pipeline.State.RUNNING
+                self._connection_retries = 0
+                self._current_retry_delay = 1000
+
             self._logger.info(f"Pipeline {self.identifier}: Reconnection successful")
-            return False  # Don't reschedule
 
         except Exception as e:
             self._logger.error(f"Pipeline {self.identifier}: Reconnection attempt failed - {e}")
@@ -974,13 +998,11 @@ class GStreamerPipeline(Pipeline):
                 self._logger.info(
                     f"Pipeline {self.identifier}: Scheduling next retry in {current_delay}ms"
                 )
-                # Reschedule for next attempt
+                # Reschedule for next attempt via MainLoop (thread-safe)
                 GLib.timeout_add(current_delay, self._scheduled_reconnection_attempt, max_retries, initial_delay_ms, backoff_multiplier, max_delay_ms)
-                return False  # Don't reschedule this call
             else:
                 # All retries exhausted
                 self._logger.error(
                     f"Pipeline {self.identifier}: All reconnection attempts exhausted ({max_retries})"
                 )
                 self._delete_pipeline_with_lock(Pipeline.State.ERROR)
-                return False
