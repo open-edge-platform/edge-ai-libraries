@@ -33,7 +33,7 @@ export class LlmController {
         },
         error: (err: Error) => {
           console.error('Streaming error:', err);
-          res.status(500).send(err.message);
+          res.status(500).json({ message: 'Internal server error' });
         },
         complete: () => {
           console.log(response);
@@ -51,7 +51,7 @@ export class LlmController {
       );
     } catch (error) {
       console.error('Error in textInference:', error);
-      res.status(500).send(error);
+      res.status(500).json({ message: 'Internal server error' });
     }
   }
 }

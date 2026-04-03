@@ -18,7 +18,7 @@
 
 ## Overview
 
-Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/index.md), providing video ingestion and deep learning inferencing functionalities.
+Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/index.md), providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
@@ -148,7 +148,7 @@ Update the following lines in [.env file](./docker/.env) for choosing the right 
   BUILD_TARGET=
   ```
 
-  Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/source/dev_guide/advanced_install/advanced_build_docker_image.md) and use it as `BASE_IMAGE` in the above mentioned `.env` file
+  Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_build_docker_image.md) and use it as `BASE_IMAGE` in the above mentioned `.env` file
 
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 
@@ -157,21 +157,21 @@ Run the following commands:
 To enable GPU/NPU you must first grant the container user access to GPU/NPU device(s).Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
 To check the render ID group you can use below command:
 
-    ```sh
-     stat -c "%g" /dev/dri/render* | head -1
-   ```
+  ```sh
+  stat -c "%g" /dev/dri/render* | head -1
+  ```
 
-   ```sh
-     cd docker
-     source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
-     docker compose build
-   ```
+  ```sh
+  cd docker
+  source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
+  docker compose build
+  ```
 
    The docker image of DL Streamer Pipeline Server is now built (based on the .env changes done above) and available for you to run.
 
-   ```sh
-     docker compose up
-   ```
+  ```sh
+  docker compose up
+  ```
 
 ---
 ### Run default sample

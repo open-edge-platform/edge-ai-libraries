@@ -1,9 +1,8 @@
 import logging
 import time
-from typing import List
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import api.api_schemas as schemas
 from graph import Graph
@@ -19,8 +18,12 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.optimization_manager import OptimizationManager
+from managers.metadata_manager import MetadataManager
 from managers.tests_manager import TestsManager
 from managers.validation_manager import ValidationManager
+
+# Maximum number of records that can be requested in a single snapshot query
+METADATA_SNAPSHOT_LIMIT = 1000
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
@@ -102,7 +105,7 @@ def stop_test_job_handler(job_id: str):
     "/tests/performance/status",
     operation_id="get_performance_statuses",
     summary="List all performance test jobs",
-    response_model=List[schemas.PerformanceJobStatus],
+    response_model=list[schemas.PerformanceJobStatus],
 )
 def get_performance_statuses():
     """
@@ -141,6 +144,7 @@ def get_performance_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 120000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": 480.0,
         "per_stream_fps": 30.0,
         "total_streams": 16,
@@ -150,8 +154,7 @@ def get_performance_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
@@ -217,6 +220,7 @@ def get_performance_job_status(job_id: str):
       "start_time": 1715000000000,
       "elapsed_time": 60000,
       "state": "COMPLETED",
+      "details": ["Pipeline completed successfully"],
       "total_fps": 480.0,
       "per_stream_fps": 30.0,
       "total_streams": 16,
@@ -226,8 +230,7 @@ def get_performance_job_status(job_id: str):
       ],
       "video_output_paths": {
         "pipeline-1": ["/outputs/job123-p1-0.mp4"]
-      },
-      "error_message": null
+      }
     }
     ```
 
@@ -391,10 +394,181 @@ def stop_performance_test_job(job_id: str):
 
 
 @router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}",
+    operation_id="get_performance_job_metadata_snapshot",
+    summary="Get metadata snapshot for a specific pipeline stream",
+    response_class=JSONResponse,
+    responses={
+        200: {
+            "description": "List of metadata records for the specified pipeline stream",
+            "content": {
+                "application/json": {
+                    "schema": {"type": "array", "items": {"type": "object"}}
+                }
+            },
+        },
+        404: {
+            "description": "Job, pipeline, or file index not found",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+def get_performance_job_metadata_for_stream(
+    job_id: str,
+    pipeline_id: str,
+    file_index: int,
+    limit: int = Query(default=100, ge=1, le=METADATA_SNAPSHOT_LIMIT),
+):
+    """
+    **Return the most recent metadata records for a specific pipeline stream.**
+
+    ## Operation
+
+    Returns a snapshot of up to ``limit`` JSON records read directly from disk,
+    written by the ``gvametapublish`` element identified by *pipeline_id* and
+    the per-pipeline *file_index*.  Records remain available after the job
+    completes.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job
+    - `pipeline_id`: Pipeline identifier
+    - `file_index`: Zero-based index of the metadata file within that pipeline
+
+    ## Query Parameters
+
+    - `limit` *(optional, default 100, max 1000)*: Maximum number of records to return
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | JSON array of metadata records (may be empty) |
+    | 404  | Job id, pipeline id, or file index is unknown |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+    records = MetadataManager().get_snapshot(
+        job_id, file_index=global_index, limit=limit
+    )
+    return JSONResponse(content=records)
+
+
+@router.get(
+    "/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}/stream",
+    operation_id="stream_performance_job_metadata",
+    summary="Stream metadata from a running performance test job via SSE",
+    responses={
+        200: {
+            "description": "SSE stream of metadata records",
+            "content": {"text/event-stream": {}},
+        },
+        404: {"description": "Job not found", "model": schemas.MessageResponse},
+    },
+)
+async def stream_performance_job_metadata(
+    job_id: str, pipeline_id: str, file_index: int
+):
+    """
+    **Stream live metadata records from gvametapublish via Server-Sent Events.**
+
+    ## Operation
+
+    Opens a persistent HTTP connection and pushes each new JSON record emitted
+    by the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.
+    The stream terminates automatically when the pipeline finishes.
+    A ``": keepalive"`` comment is sent every 30 s to prevent proxy timeouts.
+
+    ## Path Parameters
+
+    - `job_id`: Identifier of the performance job to stream metadata from
+
+    ## Response Format
+
+    ``text/event-stream`` — each event is:
+    ```
+    data: {<json record>}\n\n
+    ```
+
+    ## Response Codes
+
+    | Code | Description |
+    |------|-------------|
+    | 200  | SSE stream opened |
+    | 404  | Job id is unknown or no metadata is available for this job |
+    """
+    if not MetadataManager().job_exists(job_id):
+        internal_status = TestsManager().get_job_status(job_id)
+        if internal_status is None:
+            return JSONResponse(
+                content=schemas.MessageResponse(
+                    message=f"Performance job {job_id} not found"
+                ).model_dump(),
+                status_code=404,
+            )
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"No metadata stream available for job {job_id}. "
+                "The pipeline may not include a gvametapublish element writing to a file."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
+    if global_index is None:
+        return JSONResponse(
+            content=schemas.MessageResponse(
+                message=f"Pipeline '{pipeline_id}' or file index {file_index} not found for job {job_id}."
+            ).model_dump(),
+            status_code=404,
+        )
+
+    async def _event_generator():
+        async for line in MetadataManager().stream_events(job_id, global_index):
+            # Keepalive comments are already formatted by MetadataManager
+            if line.startswith(":"):
+                yield line
+            else:
+                yield f"data: {line}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get(
     "/tests/density/status",
     operation_id="get_density_statuses",
     summary="List all density test jobs",
-    response_model=List[schemas.DensityJobStatus],
+    response_model=list[schemas.DensityJobStatus],
 )
 def get_density_statuses():
     """
@@ -428,6 +602,7 @@ def get_density_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 45000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "per_stream_fps": 28.5,
         "total_streams": 32,
@@ -437,8 +612,7 @@ def get_density_statuses():
         ],
         "video_output_paths": {
           "pipeline-1": ["/outputs/job456-p1-0.mp4"]
-        },
-        "error_message": null
+        }
       }
     ]
     ```
@@ -639,7 +813,7 @@ def stop_density_test_job(job_id: str):
     "/optimization/status",
     operation_id="get_optimization_statuses",
     summary="List all optimization jobs",
-    response_model=List[schemas.OptimizationJobStatus],
+    response_model=list[schemas.OptimizationJobStatus],
 )
 def get_optimization_statuses():
     """
@@ -674,12 +848,12 @@ def get_optimization_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 20000,
         "state": "RUNNING",
+        "details": [],
         "total_fps": null,
         "original_pipeline_graph": {"nodes": [], "edges": []},
         "optimized_pipeline_graph": null,
         "original_pipeline_description": "videotestsrc ! fakesink",
-        "optimized_pipeline_description": null,
-        "error_message": null
+        "optimized_pipeline_description": null
       }
     ]
     ```
@@ -808,7 +982,7 @@ def get_optimization_job_status(job_id: str):
     "/validation/status",
     operation_id="get_validation_statuses",
     summary="List all validation jobs",
-    response_model=List[schemas.ValidationJobStatus],
+    response_model=list[schemas.ValidationJobStatus],
 )
 def get_validation_statuses():
     """
@@ -842,8 +1016,8 @@ def get_validation_statuses():
         "start_time": 1715000000000,
         "elapsed_time": 10000,
         "state": "RUNNING",
-        "is_valid": null,
-        "error_message": null
+        "details": [],
+        "is_valid": null
       }
     ]
     ```
@@ -927,7 +1101,7 @@ def get_validation_job_status(job_id: str):
 
     ## Operation
 
-    Retrieves timings, state, is_valid flag and error_message list for a specific validation job.
+    Retrieves timings, state, is_valid flag and details list for a specific validation job.
 
     ## Path Parameters
 
@@ -937,7 +1111,7 @@ def get_validation_job_status(job_id: str):
 
     | Code | Description |
     |------|-------------|
-    | 200  | ValidationJobStatus with timings, state, is_valid flag and error_message |
+    | 200  | ValidationJobStatus with timings, state, is_valid flag and details |
     | 404  | Job does not exist |
 
     ## Conditions
@@ -1035,13 +1209,14 @@ def _performance_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
         live_stream_urls=job.live_stream_urls,
-        error_message=job.error_message,
+        metadata_stream_urls=job.metadata_stream_urls,
     )
 
 
@@ -1072,12 +1247,12 @@ def _density_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.TestJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         per_stream_fps=job.per_stream_fps,
         total_streams=job.total_streams,
         streams_per_pipeline=_convert_streams_per_pipeline(job.streams_per_pipeline),
         video_output_paths=job.video_output_paths,
-        error_message=job.error_message,
     )
 
 
@@ -1130,6 +1305,7 @@ def _optimization_job_to_api_status(
         start_time=job.start_time,
         elapsed_time=elapsed_time,
         state=schemas.OptimizationJobState(job.state.value),
+        details=list(job.details),
         total_fps=job.total_fps,
         original_pipeline_graph=_graph_to_api(job.original_pipeline_graph),
         original_pipeline_graph_simple=_graph_to_api(
@@ -1147,7 +1323,6 @@ def _optimization_job_to_api_status(
         ),
         original_pipeline_description=job.original_pipeline_description,
         optimized_pipeline_description=job.optimized_pipeline_description,
-        error_message=job.error_message,
     )
 
 
@@ -1193,8 +1368,8 @@ def _validation_job_to_api_status(
         start_time=status.start_time,
         elapsed_time=status.elapsed_time,
         state=schemas.ValidationJobState(status.state.value),
+        details=list(status.details),
         is_valid=status.is_valid,
-        error_message=status.error_message,
     )
 
 

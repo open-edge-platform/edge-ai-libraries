@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
   useRunDensityTestMutation,
   useStopDensityTestJobMutation,
 } from "@/api/api.generated.ts";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -44,7 +45,7 @@ interface PipelineSelection {
 }
 
 export const DensityTests = () => {
-  const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
+  const DEFAULT_LOOPING_RUNTIME_SECONDS = 10;
   const pipelines = useAppSelector(selectPipelines);
   const [stopDensityTest, { isLoading: isStopping }] =
     useStopDensityTestJobMutation();
@@ -62,8 +63,13 @@ export const DensityTests = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -184,6 +190,7 @@ export const DensityTests = () => {
 
     setTestResult(null);
     setErrorMessage(null);
+    startRecording();
     try {
       const status = await runTest({
         densityTestSpec: {
@@ -210,18 +217,18 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
+      freezeSnapshot(status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
-        setErrorMessage(
-          formatErrorMessage(error?.error_message, "Test failed"),
-        );
+        setErrorMessage(formatErrorMessage(error?.details, "Test failed"));
       } else {
         const errorMessage = handleApiError(error, "Test failed");
         setErrorMessage(errorMessage);
       }
       console.error("Test failed:", error);
       setTestResult(null);
+      freezeSnapshot(null);
     }
   };
 
@@ -246,7 +253,7 @@ export const DensityTests = () => {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container pl-16 mx-auto py-10">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Density Tests</h1>
         <p className="text-muted-foreground mt-2">
@@ -352,9 +359,7 @@ export const DensityTests = () => {
         <Button
           onClick={handleAddPipeline}
           variant="outline"
-          disabled={
-            pipelineSelections.length >= pipelines.length || isRunning
-          }
+          disabled={pipelineSelections.length >= pipelines.length || isRunning}
         >
           <Plus className="w-5 h-5" />
           <span>Add Pipeline</span>
@@ -376,7 +381,7 @@ export const DensityTests = () => {
           <span className="text-sm text-muted-foreground">FPS</span>
         </div>
 
-        <div className="my-4 flex flex-col">
+        <div className="my-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -390,37 +395,53 @@ export const DensityTests = () => {
                     }}
                   />
                   <span className="text-sm font-medium">
-                    Run pipeline in loop
+                    Set iteration duration
                   </span>
                 </label>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p>Run test in loop mode for a selected duration</p>
+                <p>Run test iteration for a selected duration</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
           {loopingEnabled && (
-            <div className="ml-6 flex items-center gap-2">
+            <div className="flex items-center gap-2 h-[42px]">
               <span className="text-xs text-muted-foreground">Duration</span>
               <Input
-                type="number"
-                min={1}
-                step={1}
-                value={loopingRuntimeSeconds}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={loopingRuntimeInput}
                 disabled={isRunning}
                 onChange={(event) => {
-                  const value = event.target.valueAsNumber;
-                  setLoopingRuntimeSeconds(
-                    Number.isNaN(value)
-                      ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                      : value,
-                  );
+                  const value = event.target.value;
+
+                  if (value !== "" && !/^\d+$/.test(value)) {
+                    return;
+                  }
+
+                  setLoopingRuntimeInput(value);
+
+                  if (value === "") {
+                    return;
+                  }
+
+                  const parsedValue = Number.parseInt(value, 10);
+                  setLoopingRuntimeSeconds(parsedValue);
                 }}
                 onBlur={() => {
-                  if (loopingRuntimeSeconds < 1) {
-                    setLoopingRuntimeSeconds(DEFAULT_LOOPING_RUNTIME_SECONDS);
-                  }
+                  const parsedValue =
+                    loopingRuntimeInput.trim().length === 0
+                      ? Number.NaN
+                      : Number.parseInt(loopingRuntimeInput, 10);
+                  const normalizedValue =
+                    Number.isFinite(parsedValue) && parsedValue >= 1
+                      ? parsedValue
+                      : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                  setLoopingRuntimeSeconds(normalizedValue);
+                  setLoopingRuntimeInput(String(normalizedValue));
                 }}
                 className="h-8 w-24 px-2 text-xs"
               />
@@ -462,9 +483,21 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <TestProgressIndicator />
+                <MetricsDashboard />
               </div>
             )}
+          </div>
+        )}
+
+        {!isRunning && frozenSummary && (
+          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
           </div>
         )}
 

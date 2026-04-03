@@ -21,6 +21,7 @@ import {
   useCreatePipelineMutation,
   useGetPipelineTemplatesQuery,
   useGetValidationJobStatusQuery,
+  useGetVideosQuery,
   useToGraphMutation,
   useValidatePipelineMutation,
   type Pipeline,
@@ -70,6 +71,7 @@ import {
   createPipelineSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
+import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -83,10 +85,12 @@ export const CreatePipelineDialog = ({
   const [selectedTemplate, setSelectedTemplate] = useState<Pipeline | null>(
     null,
   );
+  const dialogContentRef = useRef<HTMLElement | null>(null);
   const stepperRef = useRef<HTMLDivElement & IStepperMethods>(null);
 
   const { data: templates, isLoading: isLoadingTemplates } =
     useGetPipelineTemplatesQuery();
+  const { data: videos = [] } = useGetVideosQuery();
   const models = useAppSelector(selectModels);
 
   const {
@@ -113,6 +117,10 @@ export const CreatePipelineDialog = ({
   });
 
   const tags = watch("tags");
+
+  const videoOptions = videos
+    .filter((video) => isSupportedVideoFilename(video.filename))
+    .map((video) => video.filename);
 
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
@@ -297,7 +305,19 @@ export const CreatePipelineDialog = ({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         className="max-w-6xl!"
-        onInteractOutside={(e) => e.preventDefault()}
+        ref={(node) => {
+          dialogContentRef.current = node;
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+
+          if (target.closest('[data-slot="combobox-content"]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Create Pipeline</DialogTitle>
@@ -340,6 +360,7 @@ export const CreatePipelineDialog = ({
             <Field>
               <FieldLabel htmlFor="tags">Tags</FieldLabel>
               <PipelineTagsCombobox
+                portalContainer={dialogContentRef}
                 value={tags}
                 onChange={(newTags) => {
                   setValue("tags", newTags);
@@ -461,6 +482,7 @@ export const CreatePipelineDialog = ({
                 <Field>
                   <FieldLabel htmlFor="template-tags">Tags</FieldLabel>
                   <PipelineTagsCombobox
+                    portalContainer={dialogContentRef}
                     value={tags}
                     onChange={(newTags) => {
                       setValue("tags", newTags);
@@ -602,12 +624,24 @@ export const CreatePipelineDialog = ({
                           <FieldLabel htmlFor="source-filename">
                             Source Filename
                           </FieldLabel>
-                          <Input
-                            id="source-filename"
-                            type="text"
-                            {...register("sourceFileName")}
-                            placeholder="Enter source filename..."
-                          />
+                          <Select
+                            value={watch("sourceFileName")}
+                            onValueChange={(value) => {
+                              setValue("sourceFileName", value);
+                              trigger("sourceFileName");
+                            }}
+                          >
+                            <SelectTrigger id="source-filename">
+                              <SelectValue placeholder="Select source filename" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {videoOptions.map((fn) => (
+                                <SelectItem key={fn} value={fn}>
+                                  {fn}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FieldError
                             errors={
                               errors.sourceFileName

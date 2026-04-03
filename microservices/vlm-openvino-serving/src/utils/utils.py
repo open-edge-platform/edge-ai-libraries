@@ -44,6 +44,23 @@ logger.debug(f"proxies: {proxies}")
 _MODEL_CONFIG_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
+def sanitize_for_log(value: Any, max_len: int = 2048) -> str:
+    """Return a printable, bounded string suitable for logging user-influenced values."""
+
+    if value is None:
+        return "None"
+
+    text = value if isinstance(value, str) else repr(value)
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    text = "".join(
+        char if char.isprintable() else f"\\x{ord(char):02x}" for char in text
+    )
+
+    if len(text) > max_len:
+        return f"{text[:max_len]}...<truncated>"
+    return text
+
+
 def is_base64_image_data(value: str) -> bool:
     if not value:
         return False
@@ -312,7 +329,10 @@ def get_device_property(device: str = ""):
                 properties_dict[property_key] = property_val
     except RuntimeError:
         # Handle invalid device names
-        logger.warning(f"Device '{device}' is not registered in the OpenVINO Runtime.")
+        logger.warning(
+            "Device '%s' is not registered in the OpenVINO Runtime.",
+            sanitize_for_log(device, max_len=128),
+        )
         return {}
 
     return properties_dict
@@ -420,7 +440,7 @@ def setup_seed(seed: int):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    logger.info(f"Random seed set to: {seed}")
+    logger.info("Random seed set to: %s", sanitize_for_log(seed, max_len=32))
 
 
 def validate_video_inputs(content, model_name):

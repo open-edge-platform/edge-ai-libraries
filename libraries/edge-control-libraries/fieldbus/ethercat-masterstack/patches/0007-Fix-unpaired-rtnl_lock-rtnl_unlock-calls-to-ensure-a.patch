@@ -1,0 +1,94 @@
+From b6f9fb3a4697de9a3be415272ee99052539d8dc9 Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Wed, 25 Feb 2026 15:16:56 +0800
+Subject: [PATCH 7/7] Fix unpaired rtnl_lock/rtnl_unlock calls to ensure all
+ rtnl_lock() calls have corresponding rtnl_unlock() calls to prevent deadlocks
+ and maintain proper RTNL mutex state.
+
+Signed-off-by: Zhang, Wei E <wei.e.zhang@intel.com>
+---
+ devices/igc/igc_main-6.12-ethercat.c | 4 +++-
+ devices/igc/igc_main-6.17-ethercat.c | 4 +++-
+ devices/igc/igc_main-6.18-ethercat.c | 4 +++-
+ devices/igc/igc_main-6.4-ethercat.c  | 4 +++-
+ devices/igc/igc_main-6.6-ethercat.c  | 4 +++-
+ 5 files changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/devices/igc/igc_main-6.12-ethercat.c b/devices/igc/igc_main-6.12-ethercat.c
+index 6836e3e2..76d77b2d 100644
+--- a/devices/igc/igc_main-6.12-ethercat.c
++++ b/devices/igc/igc_main-6.12-ethercat.c
+@@ -7714,7 +7714,9 @@ static int __igc_shutdown(struct pci_dev *pdev, bool *enable_wake,
+ 	igc_ptp_suspend(adapter);
+ 
+ 	igc_clear_interrupt_scheme(adapter);
+-	rtnl_unlock();
++	if (!get_ecdev(adapter)) {
++		rtnl_unlock();
++	}
+ 
+ 	status = rd32(IGC_STATUS);
+ 	if (status & IGC_STATUS_LU)
+diff --git a/devices/igc/igc_main-6.17-ethercat.c b/devices/igc/igc_main-6.17-ethercat.c
+index e47bc14e..5517f316 100644
+--- a/devices/igc/igc_main-6.17-ethercat.c
++++ b/devices/igc/igc_main-6.17-ethercat.c
+@@ -7630,7 +7630,9 @@ static int __igc_shutdown(struct pci_dev *pdev, bool *enable_wake,
+ 	igc_ptp_suspend(adapter);
+ 
+ 	igc_clear_interrupt_scheme(adapter);
+-	rtnl_unlock();
++	if (!get_ecdev(adapter)) {
++		rtnl_unlock();
++	}
+ 
+ 	status = rd32(IGC_STATUS);
+ 	if (status & IGC_STATUS_LU)
+diff --git a/devices/igc/igc_main-6.18-ethercat.c b/devices/igc/igc_main-6.18-ethercat.c
+index c9674021..4e297ae0 100644
+--- a/devices/igc/igc_main-6.18-ethercat.c
++++ b/devices/igc/igc_main-6.18-ethercat.c
+@@ -7630,7 +7630,9 @@ static int __igc_shutdown(struct pci_dev *pdev, bool *enable_wake,
+ 	igc_ptp_suspend(adapter);
+ 
+ 	igc_clear_interrupt_scheme(adapter);
+-	rtnl_unlock();
++	if (!get_ecdev(adapter)) {
++		rtnl_unlock();
++	}
+ 
+ 	status = rd32(IGC_STATUS);
+ 	if (status & IGC_STATUS_LU)
+diff --git a/devices/igc/igc_main-6.4-ethercat.c b/devices/igc/igc_main-6.4-ethercat.c
+index 67001f28..989e4df2 100644
+--- a/devices/igc/igc_main-6.4-ethercat.c
++++ b/devices/igc/igc_main-6.4-ethercat.c
+@@ -7048,7 +7048,9 @@ static int __igc_shutdown(struct pci_dev *pdev, bool *enable_wake,
+ 	igc_ptp_suspend(adapter);
+ 
+ 	igc_clear_interrupt_scheme(adapter);
+-	rtnl_unlock();
++	if (!get_ecdev(adapter)) {
++		rtnl_unlock();
++	}
+ 
+ 	status = rd32(IGC_STATUS);
+ 	if (status & IGC_STATUS_LU)
+diff --git a/devices/igc/igc_main-6.6-ethercat.c b/devices/igc/igc_main-6.6-ethercat.c
+index 0a92adb8..9c167359 100644
+--- a/devices/igc/igc_main-6.6-ethercat.c
++++ b/devices/igc/igc_main-6.6-ethercat.c
+@@ -7188,7 +7188,9 @@ static int __igc_shutdown(struct pci_dev *pdev, bool *enable_wake,
+ 	igc_ptp_suspend(adapter);
+ 
+ 	igc_clear_interrupt_scheme(adapter);
+-	rtnl_unlock();
++	if (!get_ecdev(adapter)) {
++		rtnl_unlock();
++	}
+ 
+ 	status = rd32(IGC_STATUS);
+ 	if (status & IGC_STATUS_LU)
+-- 
+2.34.1
+

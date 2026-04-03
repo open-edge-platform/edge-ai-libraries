@@ -55,8 +55,7 @@ class TestJobState(str, Enum):
     ## Values
     - `RUNNING` - Job is still executing
     - `COMPLETED` - Job finished successfully
-    - `ERROR` - Job failed with an error_message
-    - `ABORTED` - Job was cancelled by the user
+    - `FAILED` - Job finished unsuccessfully
 
     ### Example
     ```json
@@ -66,8 +65,7 @@ class TestJobState(str, Enum):
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class OptimizationJobState(str, Enum):
@@ -77,8 +75,7 @@ class OptimizationJobState(str, Enum):
     ## Values
     - `RUNNING` - Optimization is in progress
     - `COMPLETED` - Optimization finished successfully
-    - `ERROR` - Optimization failed with an error_message
-    - `ABORTED` - Optimization was cancelled by the user
+    - `FAILED` - Optimization finished unsuccessfully
 
     ### Example
     ```json
@@ -88,8 +85,7 @@ class OptimizationJobState(str, Enum):
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class ValidationJobState(str, Enum):
@@ -98,9 +94,8 @@ class ValidationJobState(str, Enum):
 
     ## Values
     - `RUNNING` - Validation is in progress
-    - `COMPLETED` - Validation finished
-    - `ERROR` - Validation failed with a technical error
-    - `ABORTED` - Validation was cancelled by the user
+    - `COMPLETED` - Validation finished successfully (pipeline is valid)
+    - `FAILED` - Validation finished unsuccessfully (pipeline is invalid, or encountered an error)
 
     ### Example
     ```json
@@ -110,8 +105,7 @@ class ValidationJobState(str, Enum):
 
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    ERROR = "ERROR"
-    ABORTED = "ABORTED"
+    FAILED = "FAILED"
 
 
 class DeviceType(str, Enum):
@@ -1120,12 +1114,33 @@ class OutputMode(str, Enum):
     LIVE_STREAM = "live_stream"
 
 
+class MetadataMode(str, Enum):
+    """
+    **Mode for pipeline metadata publishing via gvametapublish elements.**
+
+    Controls whether and how inference metadata produced by `gvametapublish`
+    elements in the pipeline is published.
+
+    ## Values
+    - `DISABLED` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
+    - `FILE` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+
+    ### Example
+    ```json
+    "file"
+    ```
+    """
+
+    DISABLED = "disabled"
+    FILE = "file"
+
+
 class ExecutionConfig(BaseModel):
     """
     **Configuration for pipeline execution behavior.**
 
-    This configuration controls both output generation and runtime limits
-    for test pipelines.
+    This configuration controls output generation, runtime limits, and
+    metadata publishing for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1136,6 +1151,9 @@ class ExecutionConfig(BaseModel):
       - 0: Run until natural completion (EOS), no time limit (default)
       - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)
       - <0: Not allowed (will be rejected)
+    - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
+      - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
+      - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1160,6 +1178,15 @@ class ExecutionConfig(BaseModel):
       "max_runtime": 60
     }
     ```
+
+    ### Example (metadata publishing to file)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "metadata_mode": "file"
+    }
+    ```
     """
 
     output_mode: OutputMode = Field(
@@ -1171,6 +1198,10 @@ class ExecutionConfig(BaseModel):
         ge=0.0,
         description="Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
     )
+    metadata_mode: MetadataMode = Field(
+        default=MetadataMode.DISABLED,
+        description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
+    )
 
 
 class PerformanceTestSpec(BaseModel):
@@ -1179,7 +1210,7 @@ class PerformanceTestSpec(BaseModel):
 
     ## Attributes
     - `pipeline_performance_specs` - List of pipelines and their stream counts
-    - `execution_config` - Configuration for output generation and runtime limits
+    - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
     ### Example
     ```json
@@ -1196,7 +1227,8 @@ class PerformanceTestSpec(BaseModel):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -1221,7 +1253,9 @@ class PerformanceTestSpec(BaseModel):
     execution_config: ExecutionConfig = Field(
         default=ExecutionConfig(),
         description="Execution configuration for output and runtime.",
-        examples=[{"output_mode": "disabled", "max_runtime": 0}],
+        examples=[
+            {"output_mode": "disabled", "max_runtime": 0, "metadata_mode": "disabled"}
+        ],
     )
 
 
@@ -1232,7 +1266,7 @@ class DensityTestSpec(BaseModel):
     ## Attributes
     - `fps_floor` - Minimum acceptable FPS per stream
     - `pipeline_density_specs` - List of pipelines with relative stream_rate ratios
-    - `execution_config` - Configuration for output generation and runtime limits
+    - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
     ### Example
     ```json
@@ -1258,7 +1292,8 @@ class DensityTestSpec(BaseModel):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -1296,7 +1331,9 @@ class DensityTestSpec(BaseModel):
     execution_config: ExecutionConfig = Field(
         default=ExecutionConfig(),
         description="Execution configuration for output and runtime.",
-        examples=[{"output_mode": "disabled", "max_runtime": 0}],
+        examples=[
+            {"output_mode": "disabled", "max_runtime": 0, "metadata_mode": "disabled"}
+        ],
     )
 
 
@@ -1333,12 +1370,12 @@ class TestsJobStatus(BaseModel):
     - `start_time` - Start time in milliseconds since epoch
     - `elapsed_time` - Elapsed time in milliseconds
     - `state` - Current job state
+    - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline completed successfully"], ["Cancelled by user"], ["Cancelled by user", "Pipeline exited with non-zero exit code: 1"], ["Pipeline runtime error: ..."]
     - `total_fps` - Total FPS across all streams (may be null)
     - `per_stream_fps` - Average FPS per stream (may be null)
     - `total_streams` - Number of active streams (may be null)
     - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
     - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
-    - `error_message` - Error description when state is ERROR or ABORTED
 
     > **Note:** live_stream_urls is intentionally not included here because density tests
     > do not support live-streaming. PerformanceJobStatus adds this field separately.
@@ -1348,27 +1385,29 @@ class TestsJobStatus(BaseModel):
     start_time: int
     elapsed_time: int
     state: TestJobState
-    total_fps: Optional[float]
-    per_stream_fps: Optional[float]
-    total_streams: Optional[int]
-    streams_per_pipeline: Optional[List[PipelineStreamSpec]]
-    video_output_paths: Optional[Dict[str, List[str]]]
-    error_message: Optional[str]
+    details: list[str]
+    total_fps: float | None
+    per_stream_fps: float | None
+    total_streams: int | None
+    streams_per_pipeline: list[PipelineStreamSpec] | None
+    video_output_paths: dict[str, list[str]] | None
 
 
 class PerformanceJobStatus(TestsJobStatus):
     """
     **Status of a performance test job.**
 
-    Inherits all fields from TestsJobStatus and adds live_stream_urls
-    for live-streaming output mode support.
+    Inherits all fields from TestsJobStatus and adds live_stream_urls and
+    metadata_stream_urls for live-streaming output mode support.
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths, error_message
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
+    - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     """
 
     live_stream_urls: Optional[Dict[str, str]]
+    metadata_stream_urls: Optional[Dict[str, list[str]]]
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -1380,7 +1419,7 @@ class DensityJobStatus(TestsJobStatus):
     live-streaming output mode (only disabled or file modes are allowed).
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths, error_message
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
     pass
@@ -1469,6 +1508,7 @@ class OptimizationJobStatus(BaseModel):
     - `start_time` - Start time in milliseconds since epoch
     - `elapsed_time` - Elapsed time in milliseconds
     - `state` - Current job state
+    - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Cancellation always results in FAILED state. Examples: ["Optimization completed successfully"], ["Cancelled by user"], ["Optimization failed: ..."]
     - `total_fps` - Measured FPS for optimized pipeline (for OPTIMIZE)
     - `original_pipeline_graph` - Original pipeline graph (advanced view) before optimization
     - `original_pipeline_graph_simple` - Original pipeline graph (simple view) before optimization
@@ -1476,22 +1516,21 @@ class OptimizationJobStatus(BaseModel):
     - `optimized_pipeline_graph_simple` - Optimized pipeline graph (simple view) if available
     - `original_pipeline_description` - Original GStreamer pipeline string before optimization
     - `optimized_pipeline_description` - Optimized GStreamer pipeline string after optimization (if any)
-    - `error_message` - Error details when state is ERROR or ABORTED
     """
 
     id: str
-    type: Optional[OptimizationType]
+    type: OptimizationType | None
     start_time: int
     elapsed_time: int
     state: OptimizationJobState
-    total_fps: Optional[float]
+    details: list[str]
+    total_fps: float | None
     original_pipeline_graph: PipelineGraph
     original_pipeline_graph_simple: PipelineGraph
-    optimized_pipeline_graph: Optional[PipelineGraph]
-    optimized_pipeline_graph_simple: Optional[PipelineGraph]
+    optimized_pipeline_graph: PipelineGraph | None
+    optimized_pipeline_graph_simple: PipelineGraph | None
     original_pipeline_description: str
-    optimized_pipeline_description: Optional[str]
-    error_message: Optional[str]
+    optimized_pipeline_description: str | None
 
 
 class OptimizationJobSummary(BaseModel):
@@ -1527,16 +1566,16 @@ class ValidationJobStatus(BaseModel):
     - `start_time` - Start time in milliseconds since epoch
     - `elapsed_time` - Elapsed time in milliseconds
     - `state` - Current validation job state
+    - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline is valid"], ["Pipeline validation failed: no element foo"]
     - `is_valid` - Final validation result (true/false) when completed
-    - `error_message` - Optional list of validation error descriptions
     """
 
     id: str
     start_time: int
     elapsed_time: int
     state: ValidationJobState
-    is_valid: Optional[bool]
-    error_message: Optional[List[str]]
+    details: list[str]
+    is_valid: bool | None
 
 
 class ValidationJobSummary(BaseModel):
@@ -1655,7 +1694,7 @@ class Video(BaseModel):
     **Metadata for a single input video file.**
 
     ## Attributes
-    - `filename` - Base name of the video file located under RECORDINGS_PATH
+    - `filename` - Base name of the video file located under INPUT_VIDEO_DIR
     - `width` - Frame width in pixels
     - `height` - Frame height in pixels
     - `fps` - Frames per second for the stream
@@ -1665,15 +1704,17 @@ class Video(BaseModel):
 
     ### Example
     ```json
-    {
-      "filename": "traffic_1080p_h264.mp4",
-      "width": 1920,
-      "height": 1080,
-      "fps": 30.0,
-      "frame_count": 900,
-      "codec": "h264",
-      "duration": 30.0
-    }
+    [
+      {
+        "filename": "traffic_1080p_h264.mp4",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0,
+        "frame_count": 900,
+        "codec": "h264",
+        "duration": 30.0
+      }
+    ]
     ```
     """
 

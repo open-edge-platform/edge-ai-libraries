@@ -68,9 +68,20 @@ type UrlParams = {
   variant: string;
 };
 
+// Helper function to detect if nodes contain camera input
+const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
+  return nodes.some((node) => {
+    if (node.type === "source") {
+      const sourceType = (node.data as { source?: string })?.source || "";
+      // Check if it's a camera: /dev/video* or rtsp://
+      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+    }
+    return false;
+  });
+};
+
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
-  const LIVE_PREVIEW_MAX_RUNTIME_SECONDS = 30 * 60;
   const { id, variant } = useParams<UrlParams>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -86,7 +97,11 @@ export const Pipelines = () => {
   const [loopingRuntimeSeconds, setLoopingRuntimeSeconds] = useState(
     DEFAULT_LOOPING_RUNTIME_SECONDS,
   );
+  const [loopingRuntimeInput, setLoopingRuntimeInput] = useState(
+    String(DEFAULT_LOOPING_RUNTIME_SECONDS),
+  );
   const [streams, setStreams] = useState(1);
+  const [streamsInput, setStreamsInput] = useState("1");
   const [isSimpleMode, setIsSimpleMode] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
@@ -94,7 +109,8 @@ export const Pipelines = () => {
   );
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
-  const detailsPanelSizeRef = useRef(30);
+  const nodeDetailsPanelSizeRef = useRef(24);
+  const runPanelSizeRef = useRef(35);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
@@ -130,6 +146,7 @@ export const Pipelines = () => {
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isJobCancelled,
     jobStatus,
   } = useAsyncJob({
     asyncJobHook: useRunPerformanceTestMutation,
@@ -243,8 +260,10 @@ export const Pipelines = () => {
     setSelectedNode(null);
 
     try {
+      const hasCameraInput = containsCameraInput(currentNodes);
+      const adjustedLivePreviewMaxRuntime = hasCameraInput ? 0 : 30 * 60;
       const maxRuntimeSeconds = livePreviewEnabled
-        ? LIVE_PREVIEW_MAX_RUNTIME_SECONDS
+        ? adjustedLivePreviewMaxRuntime
         : loopingEnabled
           ? Number.isNaN(loopingRuntimeSeconds)
             ? DEFAULT_LOOPING_RUNTIME_SECONDS
@@ -301,9 +320,15 @@ export const Pipelines = () => {
         },
       });
 
-      toast.success("Pipeline run completed", {
-        description: new Date().toISOString(),
-      });
+      if (isJobCancelled(status)) {
+        toast.info("Pipeline run cancelled", {
+          description: new Date().toISOString(),
+        });
+      } else {
+        toast.success("Pipeline run completed", {
+          description: new Date().toISOString(),
+        });
+      }
 
       if (videoOutputEnabled && status.video_output_paths) {
         const paths = Object.values(status.video_output_paths)[0];
@@ -331,13 +356,7 @@ export const Pipelines = () => {
       await stopPerformanceTest({
         jobId: jobStatus.id,
       }).unwrap();
-
-      setShowDetailsPanel(false);
       setCompletedVideoPath(null);
-
-      toast.success("Pipeline stopped", {
-        description: new Date().toISOString(),
-      });
     } catch (error) {
       handleApiError(error, "Failed to stop pipeline");
       console.error("Failed to stop pipeline:", error);
@@ -392,6 +411,17 @@ export const Pipelines = () => {
   }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
+    const detailsPanelType: "node" | "run" | null = showDetailsPanel
+      ? selectedNode
+        ? "node"
+        : "run"
+      : null;
+    const activePanelSize =
+      detailsPanelType === "node"
+        ? nodeDetailsPanelSizeRef.current
+        : detailsPanelType === "run"
+          ? runPanelSizeRef.current
+          : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
 
@@ -415,6 +445,8 @@ export const Pipelines = () => {
             initialViewport={currentViewport}
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
+            showDetailsPanel={showDetailsPanel}
+            detailsPanelType={detailsPanelType}
           />
         </div>
       </div>
@@ -560,84 +592,116 @@ export const Pipelines = () => {
                         <span>Streams</span>
                       </div>
                       <Input
-                        type="number"
-                        min={1}
-                        max={12}
-                        step={1}
-                        value={streams}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={streamsInput}
                         onChange={(event) => {
-                          const value = event.target.valueAsNumber;
-                          if (Number.isNaN(value)) {
-                            setStreams(1);
+                          const value = event.target.value;
+
+                          if (value !== "" && !/^\d+$/.test(value)) {
                             return;
                           }
 
+                          setStreamsInput(value);
+
+                          if (value === "") {
+                            return;
+                          }
+
+                          const parsedValue = Number.parseInt(value, 10);
+
                           const normalizedValue = Math.min(
                             12,
-                            Math.max(1, Math.trunc(value)),
+                            Math.max(1, parsedValue),
                           );
                           setStreams(normalizedValue);
                         }}
                         onBlur={() => {
-                          if (streams < 1) {
-                            setStreams(1);
-                          }
+                          const parsedValue =
+                            streamsInput.trim().length === 0
+                              ? Number.NaN
+                              : Number.parseInt(streamsInput, 10);
 
-                          if (streams > 12) {
-                            setStreams(12);
-                          }
+                          const normalizedValue = Number.isFinite(parsedValue)
+                            ? Math.min(12, Math.max(1, parsedValue))
+                            : 1;
+
+                          setStreams(normalizedValue);
+                          setStreamsInput(String(normalizedValue));
                         }}
                         className="h-8 w-24 px-2 text-sm bg-background dark:bg-input/60"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>Run pipeline in loop</span>
-                      </div>
-                      <Switch
-                        checked={loopingEnabled}
-                        onCheckedChange={(checked) => {
-                          setLoopingEnabled(checked);
-                          if (checked) {
-                            setVideoOutputEnabled(false);
-                            setLivePreviewEnabled(false);
-                          }
-                        }}
-                      />
-                    </div>
+                    {!containsCameraInput(currentNodes) && (
+                      <>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+                            <span>Run pipeline in loop</span>
+                          </div>
+                          <Switch
+                            checked={loopingEnabled}
+                            onCheckedChange={(checked) => {
+                              setLoopingEnabled(checked);
+                              if (checked) {
+                                setVideoOutputEnabled(false);
+                                setLivePreviewEnabled(false);
+                              }
+                            }}
+                          />
+                        </div>
 
-                    {loopingEnabled && (
-                      <div className="ml-6 flex items-center gap-2">
-                        <Timer className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          Duration
-                        </span>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={loopingRuntimeSeconds}
-                          onChange={(event) => {
-                            const value = event.target.valueAsNumber;
-                            setLoopingRuntimeSeconds(
-                              Number.isNaN(value)
-                                ? DEFAULT_LOOPING_RUNTIME_SECONDS
-                                : value,
-                            );
-                          }}
-                          onBlur={() => {
-                            if (loopingRuntimeSeconds < 1) {
-                              setLoopingRuntimeSeconds(
-                                DEFAULT_LOOPING_RUNTIME_SECONDS,
-                              );
-                            }
-                          }}
-                          className="h-8 w-24 px-2 text-xs"
-                        />
-                        <span className="text-xs text-muted-foreground">s</span>
-                      </div>
+                        {loopingEnabled && (
+                          <div className="ml-6 flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">
+                              Duration
+                            </span>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={loopingRuntimeInput}
+                              onChange={(event) => {
+                                const value = event.target.value;
+
+                                if (value !== "" && !/^\d+$/.test(value)) {
+                                  return;
+                                }
+
+                                setLoopingRuntimeInput(value);
+
+                                if (value === "") {
+                                  return;
+                                }
+
+                                const parsedValue = Number.parseInt(value, 10);
+                                setLoopingRuntimeSeconds(parsedValue);
+                              }}
+                              onBlur={() => {
+                                const parsedValue =
+                                  loopingRuntimeInput.trim().length === 0
+                                    ? Number.NaN
+                                    : Number.parseInt(loopingRuntimeInput, 10);
+                                const normalizedValue =
+                                  Number.isFinite(parsedValue) &&
+                                  parsedValue >= 1
+                                    ? parsedValue
+                                    : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+                                setLoopingRuntimeSeconds(normalizedValue);
+                                setLoopingRuntimeInput(String(normalizedValue));
+                              }}
+                              className="h-8 w-24 px-2 text-xs bg-background dark:bg-input/60"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              s
+                            </span>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     <div className="space-y-3">
@@ -724,50 +788,66 @@ export const Pipelines = () => {
           <ResizablePanelGroup
             orientation="horizontal"
             className="w-full h-full"
-            onLayoutChange={(sizes) => {
-              const sizeValues = Object.values(sizes);
-              if (sizeValues.length === 2) {
-                detailsPanelSizeRef.current = sizeValues[1];
-              }
-            }}
           >
             <ResizablePanel
-              defaultSize={
-                showDetailsPanel ? 100 - detailsPanelSizeRef.current : 100
-              }
+              defaultSize={showDetailsPanel ? 100 - activePanelSize : 100}
               minSize={30}
             >
               {editorContent}
             </ResizablePanel>
 
-            {showDetailsPanel && (
+            {detailsPanelType === "run" && (
               <>
                 <ResizableHandle withHandle />
 
                 <ResizablePanel
-                  defaultSize={detailsPanelSizeRef.current}
-                  minSize={20}
+                  defaultSize={runPanelSizeRef.current}
+                  minSize={900}
+                  onResize={(size) => {
+                    if (typeof size === "number") {
+                      runPanelSizeRef.current = size;
+                    }
+                  }}
                 >
                   <div
                     ref={detailsPanelRef}
                     className="w-full h-full bg-background overflow-auto relative"
                   >
-                    {showDetailsPanel && !selectedNode ? (
-                      <PerformanceTestPanel
-                        isRunning={jobStatus?.state === "RUNNING"}
-                        completedVideoPath={completedVideoPath}
-                        livePreviewEnabled={livePreviewEnabled}
-                        liveStreamUrl={
-                          Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
-                          null
-                        }
-                      />
-                    ) : (
-                      <NodeDataPanel
-                        selectedNode={selectedNode}
-                        onNodeDataUpdate={handleNodeDataUpdate}
-                      />
-                    )}
+                    <PerformanceTestPanel
+                      isRunning={jobStatus?.state === "RUNNING"}
+                      completedVideoPath={completedVideoPath}
+                      livePreviewEnabled={livePreviewEnabled}
+                      liveStreamUrl={
+                        Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
+                        null
+                      }
+                    />
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+
+            {detailsPanelType === "node" && (
+              <>
+                <ResizableHandle withHandle />
+
+                <ResizablePanel
+                  defaultSize={nodeDetailsPanelSizeRef.current}
+                  minSize={400}
+                  onResize={(size) => {
+                    if (typeof size === "number") {
+                      nodeDetailsPanelSizeRef.current = size;
+                    }
+                  }}
+                >
+                  <div
+                    ref={detailsPanelRef}
+                    className="w-full h-full bg-background overflow-auto relative"
+                  >
+                    <NodeDataPanel
+                      selectedNode={selectedNode}
+                      onNodeDataUpdate={handleNodeDataUpdate}
+                    />
                   </div>
                 </ResizablePanel>
               </>

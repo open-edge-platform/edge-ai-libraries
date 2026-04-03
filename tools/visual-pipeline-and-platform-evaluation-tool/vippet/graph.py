@@ -15,9 +15,9 @@ from resources import (
     get_public_model_proc_manager,
     get_scripts_manager,
 )
-from utils import generate_unique_filename, slugify_text
+from utils import slugify_text
 from video_decoder import VideoDecoder
-from videos import OUTPUT_VIDEO_DIR, VideosManager
+from videos import VideosManager
 
 # Internal constant used as a placeholder type for the main output sink in the graph.
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
@@ -43,6 +43,11 @@ SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
 SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
     "SIMPLE_VIEW_INVISIBLE_ELEMENTS",
     "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
+)
+
+# Default latency (in ms) applied to rtspsrc elements that do not specify it explicitly.
+RTSPSRC_DEFAULT_LATENCY_MS: int = int(
+    os.environ.get("RTSPSRC_DEFAULT_LATENCY_MS", "100")
 )
 
 
@@ -363,7 +368,6 @@ class Graph:
         # Work on a deep copy of nodes to avoid mutating the original graph.
         nodes = copy.deepcopy(self.nodes)
         _validate_models_supported_on_devices(nodes)
-        _validate_camera_source_followed_by_decodebin3(nodes, self.edges)
         _model_display_name_to_path(nodes)
         _input_video_name_to_path(nodes)
         _labels_name_to_path(nodes)
@@ -415,7 +419,7 @@ class Graph:
         - Replace filesrc with multifilesrc loop=true
         - Change input file extension to .ts in location (ensures TS file exists)
         - Replace demuxers (qtdemux, matroskademux, avidemux, flvdemux) with tsdemux
-        - Replace splitmuxsink with fakesink (looping mode doesn't produce output files)
+        - Set default max-size-time and max-files on splitmuxsink if not already configured
 
         Returns:
             Modified Graph object with looping support
@@ -489,11 +493,53 @@ class Graph:
                 node.type = "tsdemux"
                 logger.debug("Replaced demuxer with tsdemux for looping support")
 
-            # Replace splitmuxsink with fakesink (no output files during looping)
+            # Set default max-size-time and max-files on splitmuxsink if not already configured
             elif node.type == "splitmuxsink":
-                node.data.clear()  # Clear all properties to avoid invalid args for fakesink
-                node.type = "fakesink"
-                logger.debug("Replaced splitmuxsink with fakesink for looping support")
+                if not node.data.get("max-size-time"):
+                    node.data["max-size-time"] = "10000000000"
+                if not node.data.get("max-files"):
+                    node.data["max-files"] = "100"
+
+        return modified_graph
+
+    def apply_rtsp_connection_settings(self) -> "Graph":
+        """
+        Apply connection settings to all rtspsrc nodes in the pipeline.
+
+        Settings applied to each rtspsrc node:
+        - user-id / user-pw: credentials looked up from CameraManager by RTSP URL.
+        - latency: set to RTSPSRC_DEFAULT_LATENCY_MS if not already explicitly configured.
+
+        If no rtspsrc node is found, the graph is returned unchanged.
+
+        Returns:
+            Modified Graph object with connection settings applied to rtspsrc nodes.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if node.type != "rtspsrc":
+                continue
+
+            location = node.data.get("location")
+            if not location:
+                continue
+
+            details = CameraManager().get_network_camera_details_by_rtsp_url(location)
+            if details is not None:
+                if details.username is not None:
+                    node.data["user-id"] = details.username
+                if details.password is not None:
+                    node.data["user-pw"] = details.password
+
+            node.data.setdefault("latency", str(RTSPSRC_DEFAULT_LATENCY_MS))
+            logger.debug(f"Applied RTSP connection settings to rtspsrc node {node.id}")
 
         return modified_graph
 
@@ -575,27 +621,29 @@ class Graph:
         return modified_graph
 
     def prepare_intermediate_output_sinks(
-        self, pipeline_id: str, job_id: str
-    ) -> tuple["Graph", list[str]]:
+        self, output_dir: str, stream_index: int
+    ) -> "Graph":
         """
-        Prepare intermediate output sink nodes with unique filenames in the output directory.
+        Prepare intermediate output sink nodes with filenames in the given output directory.
 
-        This method handles intermediate/simulation output sinks (e.g., video recorder simulation)
+        This method handles intermediate output sinks (e.g., video recorder simulation)
         that are part of the pipeline definition. These are distinct from main output sinks
         which replace fakesink elements for user viewing (live stream or file output).
 
+        Filename format: intermediate_stream{streamidx}_{file_name}{_splitmuxsink_pattern}{ext}
+        - streamidx: three-digit zero-padded stream index
+        - file_name: slugified stem from the original location property
+        - _splitmuxsink_pattern: "_%03d" appended only for splitmuxsink nodes with max-files > 0
+        - ext: slugified original extension (defaults to ".mp4" when missing)
+
         Args:
-            pipeline_id: Pipeline identifier used in output filename generation.
-            job_id: Job identifier used in output filename generation.
+            output_dir: Directory path where intermediate output files will be placed.
+            stream_index: Stream index used in filename generation.
 
         Returns:
-            tuple: (Graph object with updated sink nodes, list of intermediate output file paths)
-
-        Iterates through all sink nodes in the pipeline graph, generates unique filenames with
-        timestamp and random suffix, updates the location to the output directory, and collects
-        the output paths.
+            Graph object with updated sink node locations.
         """
-        output_paths: list[str] = []
+        stream_idx_str = f"{stream_index:03d}"
 
         for node in self.nodes:
             # Check if node is a sink type
@@ -608,56 +656,30 @@ class Graph:
                 continue
 
             path = Path(location)
-            stem = Path(path.name).stem
-            ext = path.suffix
+            file_name = slugify_text(Path(path.name).stem)
+            ext = path.suffix if path.suffix else ".mp4"
+            ext = slugify_text(ext)
 
-            filename = slugify_text(
-                f"{stem}-intermediate_output-{pipeline_id}-{job_id}"
-            )
+            # Add splitmuxsink pattern only for splitmuxsink with max-files > 0
+            splitmux_pattern = ""
+            if node.type == "splitmuxsink":
+                max_files = node.data.get("max-files")
+                if max_files is not None:
+                    try:
+                        if int(max_files) > 0:
+                            splitmux_pattern = "_%03d"
+                    except (ValueError, TypeError):
+                        pass
 
-            # Create new filename with timestamp and suffix
-            new_filename = generate_unique_filename(f"{filename}{ext}")
-
-            # Construct new full path
-            new_path = str(Path(OUTPUT_VIDEO_DIR) / new_filename)
+            filename = f"intermediate_stream{stream_idx_str}_{file_name}{splitmux_pattern}{ext}"
+            new_path = str(Path(output_dir) / filename)
 
             # Update node's location
             node.data["location"] = new_path
 
-            # Add to output paths list
-            output_paths.append(new_path)
-
             logger.debug(f"Updated sink node {node.id}: {location} -> {new_path}")
 
-        return self, output_paths
-
-    def get_input_sources(self) -> list[str]:
-        """
-        Retrieve a list of input sources from source nodes in the graph.
-
-        Supports multiple source types:
-        - Video files (filesrc): file paths or filenames
-        - RTSP cameras (rtspsrc): rtsp:// URLs
-        - USB cameras (v4l2src): /dev/videoX device paths
-
-        Returns:
-            list[str]: List of input sources (file paths, RTSP URLs, or device paths)
-
-        This intentionally skips sink nodes to avoid collecting output paths.
-        """
-        input_sources: list[str] = []
-
-        for node in self.nodes:
-            if node.type.endswith("sink"):
-                # Skip sinks to avoid collecting output paths
-                continue
-            for key in ("source", "location", "device"):
-                source = node.data.get(key)
-                if source is None:
-                    continue
-                input_sources.append(source)
-
-        return input_sources
+        return self
 
     def unify_all_element_names(
         self, pipeline_index: int, stream_index: int
@@ -781,6 +803,32 @@ class Graph:
             modified_graph.nodes = [n for n in modified_graph.nodes if n.id != wm_id]
 
         return modified_graph
+
+    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+        """
+        Assign output file paths to all gvametapublish nodes and configure them for file output.
+
+        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
+        node found in the graph, overwriting any existing values.
+
+        Args:
+            metadata_dir: Directory where metadata files will be written.
+
+        Returns:
+            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+        """
+        metadata_file_paths: list[str] = []
+        for node in self.nodes:
+            if node.type == "gvametapublish":
+                meta_path = os.path.join(
+                    metadata_dir,
+                    f"metadata_{node.id}.jsonl",
+                )
+                node.data["method"] = "file"
+                node.data["file-format"] = "json-lines"
+                node.data["file-path"] = meta_path
+                metadata_file_paths.append(meta_path)
+        return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
         """
@@ -1240,6 +1288,14 @@ class Graph:
 
         return "CPU"
 
+    def has_gvametapublish(self) -> bool:
+        """Check whether the graph contains any gvametapublish element.
+
+        Returns:
+            True if at least one gvametapublish node is present, False otherwise.
+        """
+        return any(node.type == "gvametapublish" for node in self.nodes)
+
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
         return any(node.type == "decodebin3" for node in self.nodes)
@@ -1396,7 +1452,17 @@ class Graph:
             output_caps_type = "video/x-raw"
 
         # Determine if a v4l2src capsfilter node is needed
-        caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
+        v4l2_caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
+
+        # Determine if a post-decoder videoconvert is needed:
+        # - for v4l2src USB camera compatibility, or
+        # - when gvamotiondetect is present and decoding on CPU
+        has_gvamotiondetect = any(
+            n.type == "gvamotiondetect" for n in modified_graph.nodes
+        )
+        needs_post_decoder_converter = v4l2_caps_node_info is not None or (
+            has_gvamotiondetect and device_upper == "CPU"
+        )
 
         # Find max existing ID across all nodes and edges for generating new IDs
         max_id = 0
@@ -1433,7 +1499,11 @@ class Graph:
 
         for db_node_id in decodebin3_node_ids:
             if replacement_kind == "videoconvert":
-                replacements.append((db_node_id, "videoconvert", [], []))
+                if device_upper in {"GPU", "NPU"}:
+                    element_type = "vapostproc"
+                else:
+                    element_type = "videoconvert"
+                replacements.append((db_node_id, element_type, [], []))
 
             elif replacement_kind == "parsebin_decoder":
                 assert decoder_element is not None
@@ -1443,7 +1513,28 @@ class Graph:
                 next_id += 1
                 decoder_node = Node(id=decoder_node_id, type=decoder_element, data={})
 
-                # Output caps node after decoder
+                nodes_to_insert_list = [decoder_node]
+                edges_to_add_list = []
+
+                # Determine the source for the caps node (either decoder or converter)
+                caps_source_id = decoder_node_id
+
+                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera
+                # compatibility or when gvamotiondetect is present on CPU
+                if needs_post_decoder_converter:
+                    converter_node_id = str(next_id)
+                    next_id += 1
+                    if device_upper in {"GPU", "NPU"}:
+                        converter_element = "vapostproc"
+                    else:
+                        converter_element = "videoconvert"
+                    converter_node = Node(
+                        id=converter_node_id, type=converter_element, data={}
+                    )
+                    nodes_to_insert_list.append(converter_node)
+                    caps_source_id = converter_node_id
+
+                # Output caps node after decoder (or after converter if present)
                 caps_node_id = str(next_id)
                 next_id += 1
                 caps_node = Node(
@@ -1451,8 +1542,9 @@ class Graph:
                     type=output_caps_type,
                     data={NODE_KIND_KEY: NODE_KIND_CAPS},
                 )
+                nodes_to_insert_list.append(caps_node)
 
-                # Edges: parsebin → decoder → caps → (original target)
+                # Edges: parsebin → decoder → [converter] → caps → (original target)
                 # We need to know the original outgoing edge from decodebin3
                 # to rewire it. We'll handle that during phase 2, but we can
                 # pre-build the internal edges now.
@@ -1463,21 +1555,35 @@ class Graph:
                     source=db_node_id,  # parsebin (renamed decodebin3)
                     target=decoder_node_id,
                 )
+                edges_to_add_list.append(edge_parsebin_to_decoder)
 
-                edge_decoder_to_caps_id = str(next_id)
+                # If converter node exists, add edge decoder → converter
+                if needs_post_decoder_converter:
+                    edge_decoder_to_converter_id = str(next_id)
+                    next_id += 1
+                    edge_decoder_to_converter = Edge(
+                        id=edge_decoder_to_converter_id,
+                        source=decoder_node_id,
+                        target=caps_source_id,
+                    )
+                    edges_to_add_list.append(edge_decoder_to_converter)
+
+                # Edge from caps source (decoder or converter) to caps
+                edge_to_caps_id = str(next_id)
                 next_id += 1
-                edge_decoder_to_caps = Edge(
-                    id=edge_decoder_to_caps_id,
-                    source=decoder_node_id,
+                edge_to_caps = Edge(
+                    id=edge_to_caps_id,
+                    source=caps_source_id,
                     target=caps_node_id,
                 )
+                edges_to_add_list.append(edge_to_caps)
 
                 replacements.append(
                     (
                         db_node_id,
                         "parsebin_decoder",
-                        [decoder_node, caps_node],
-                        [edge_parsebin_to_decoder, edge_decoder_to_caps],
+                        nodes_to_insert_list,
+                        edges_to_add_list,
                     )
                 )
 
@@ -1487,8 +1593,8 @@ class Graph:
         v4l2_edge: Optional[Edge] = None
         v4l2_node_id: Optional[str] = None
 
-        if caps_node_info is not None:
-            v4l2_node_id, caps_base_type, caps_data = caps_node_info
+        if v4l2_caps_node_info is not None:
+            v4l2_node_id, caps_base_type, caps_data = v4l2_caps_node_info
 
             v4l2_caps_node_id = str(next_id)
             next_id += 1
@@ -1542,10 +1648,10 @@ class Graph:
             if db_node is None:
                 continue
 
-            if kind == "videoconvert":
-                db_node.type = "videoconvert"
+            if kind in {"videoconvert", "vapostproc"}:
+                db_node.type = kind
                 logger.debug(
-                    f"Replaced decodebin3 (node {db_node_id}) with videoconvert "
+                    f"Replaced decodebin3 (node {db_node_id}) with {kind} "
                     f"for raw format '{codec}'"
                 )
 
@@ -1575,6 +1681,58 @@ class Graph:
                 )
 
         return modified_graph
+
+    def validate_camera_sources_followed_by_decodebin3(self) -> None:
+        """
+        Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
+
+        This validation ensures that camera pipelines have the required decoder element
+        after the source element to properly handle the incoming stream.
+
+        This function only validates direct camera source nodes (v4l2src, rtspsrc) which
+        appear in advanced view.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If any camera source is not followed by any element
+            ValueError: If any camera source is not followed by decodebin3
+
+        Example:
+            Validates that: rtspsrc -> decodebin3 or v4l2src -> decodebin3
+        """
+        # Build a mapping of node IDs to nodes for quick lookup
+        node_by_id = {node.id: node for node in self.nodes}
+
+        # Build adjacency map for outgoing edges
+        edges_from: dict[str, list[str]] = {}
+        for edge in self.edges:
+            edges_from.setdefault(edge.source, []).append(edge.target)
+
+        for node in self.nodes:
+            if node.type not in {"v4l2src", "rtspsrc"}:
+                continue
+
+            next_nodes = edges_from.get(node.id, [])
+            if not next_nodes:
+                raise ValueError(
+                    f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                    "but no element follows the camera source"
+                )
+
+            next_node_id = next_nodes[0]
+            next_node = node_by_id.get(next_node_id)
+
+            if not next_node or next_node.type != "decodebin3":
+                next_type = next_node.type if next_node else "unknown"
+                raise ValueError(
+                    f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
+                    f"but found '{next_type}' instead"
+                )
 
     @staticmethod
     def _build_v4l2_caps_node(
@@ -2451,8 +2609,7 @@ def _input_video_name_to_path(nodes: list[Node]) -> None:
     """
     Convert logical video filenames back into absolute paths for file-based source nodes.
 
-    This is performed when creating a runnable pipeline description from a
-    stored graph. Only processes nodes that actually read from video files.
+    This is performed when creating a runnable pipeline description from a stored graph. Only processes nodes that actually read from video files.
 
     Args:
         nodes: List of nodes to process (modified in place)
@@ -2552,63 +2709,6 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted rtspsrc to generic source (camera): {source_name}")
-
-
-def _validate_camera_source_followed_by_decodebin3(
-    nodes: list[Node],
-    edges: list[Edge],
-) -> None:
-    """
-    Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
-
-    This validation ensures that camera pipelines have the required decoder element
-    after the source element to properly handle the incoming stream.
-
-    This function only validates direct camera source nodes (v4l2src, rtspsrc) which
-    appear in advanced view.
-
-    Args:
-        nodes: List of all nodes in the graph
-        edges: List of all edges connecting the nodes
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If any camera source is not followed by any element
-        ValueError: If any camera source is not followed by decodebin3
-
-    Example:
-        Validates that: rtspsrc -> decodebin3 or v4l2src -> decodebin3
-    """
-    # Build a mapping of node IDs to nodes for quick lookup
-    node_by_id = {node.id: node for node in nodes}
-
-    # Build adjacency map for outgoing edges
-    edges_from: dict[str, list[str]] = {}
-    for edge in edges:
-        edges_from.setdefault(edge.source, []).append(edge.target)
-
-    for node in nodes:
-        if node.type not in {"v4l2src", "rtspsrc"}:
-            continue
-
-        next_nodes = edges_from.get(node.id, [])
-        if not next_nodes:
-            raise ValueError(
-                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
-                "but no element follows the camera source"
-            )
-
-        next_node_id = next_nodes[0]
-        next_node = node_by_id.get(next_node_id)
-
-        if not next_node or next_node.type != "decodebin3":
-            next_type = next_node.type if next_node else "unknown"
-            raise ValueError(
-                f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
-                f"but found '{next_type}' instead"
-            )
 
 
 def _labels_path_to_display_name(nodes: list[Node]) -> None:

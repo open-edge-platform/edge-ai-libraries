@@ -2,13 +2,14 @@ import logging
 import threading
 import time
 import uuid
-from typing import Optional, Union
+from typing import TypeVar
 from graph import Graph
 
 from internal_types import (
     InternalDensityJobStatus,
     InternalDensityJobSummary,
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalDensityTestSpec,
     InternalPerformanceJobStatus,
@@ -19,11 +20,16 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
-from pipeline_runner import PipelineRunner, PipelineRunResult
+from pipeline_runner import PipelineRunner
 from benchmark import Benchmark
 from managers.pipeline_manager import PipelineManager
+from managers.metadata_manager import MetadataManager
+from videos import collect_video_outputs_from_dirs
+from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
+
+_T = TypeVar("_T", InternalPerformanceJobStatus, InternalDensityJobStatus)
 
 
 class TestsManager:
@@ -43,7 +49,7 @@ class TestsManager:
     types happens in the route layer.
     """
 
-    _instance: Optional["TestsManager"] = None
+    _instance: "TestsManager | None" = None
     _lock = threading.Lock()
 
     def __new__(cls) -> "TestsManager":
@@ -198,6 +204,15 @@ class TestsManager:
                 "Use output_mode='disabled' or output_mode='file' instead."
             )
 
+        if (
+            is_density_test
+            and execution_config.metadata_mode != InternalMetadataMode.DISABLED
+        ):
+            raise ValueError(
+                "Density tests do not support metadata output. "
+                "Set metadata_mode to 'disabled' for density tests."
+            )
+
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
         """
         Get list of USB camera device paths from a pipeline graph.
@@ -302,6 +317,22 @@ class TestsManager:
         using :class:`PipelineRunner` and then updates the corresponding
         :class:`InternalPerformanceJobStatus` accordingly.
 
+        When a job is cancelled by the user:
+        - If the pipeline exit code is 0, the job is marked COMPLETED and all
+          result data (fps, streams, output paths) is saved.
+        - If the pipeline exit code is non-zero, the job is marked FAILED.
+
+        When the pipeline finishes without cancellation:
+        - Non-zero exit codes raise RuntimeError inside PipelineRunner,
+          which is caught by the except block below and marks the job FAILED.
+        - Zero exit code means normal successful completion (COMPLETED).
+
+        The details list is cleared when transitioning to a new state, then
+        new entries for that state are appended.
+
+        After pipeline completes, output directory paths are scanned to collect
+        the actual video file lists using collect_video_outputs_from_dirs().
+
         Args:
             job_id: Job identifier.
             internal_spec: Internal test specification with resolved pipeline information.
@@ -323,20 +354,36 @@ class TestsManager:
             )
 
             if total_streams == 0:
-                self._update_job_error(
+                self._update_job_failed(
                     job_id,
                     "At least one stream must be specified to run the pipeline.",
                 )
                 return
 
             # Build pipeline command from specs
-            pipeline_command, video_output_paths, live_stream_urls = (
-                self.pipeline_manager.build_pipeline_command(
-                    internal_spec.pipeline_performance_specs,
-                    internal_spec.execution_config,
-                    job_id,
-                )
+            # video_output_dirs maps pipeline IDs to their output directory paths
+            (
+                pipeline_command,
+                video_output_dirs,
+                live_stream_urls,
+                metadata_file_paths,
+            ) = self.pipeline_manager.build_pipeline_command(
+                internal_spec.pipeline_performance_specs,
+                internal_spec.execution_config,
+                job_id,
             )
+
+            # Set up metadata streaming if the pipeline produces metadata output files.
+            metadata_stream_urls = None
+            if metadata_file_paths:
+                MetadataManager().register_job(job_id, metadata_file_paths)
+                metadata_stream_urls = {
+                    pipeline_id: [
+                        f"/jobs/tests/performance/{job_id}/metadata/{slugify_text(pipeline_id)}/{i}/stream"
+                        for i in range(len(paths))
+                    ]
+                    for pipeline_id, paths in metadata_file_paths.items()
+                }
 
             # Build streams_per_pipeline using InternalPipelineStreamSpec
             streams_per_pipeline = [
@@ -344,7 +391,7 @@ class TestsManager:
                 for spec in internal_spec.pipeline_performance_specs
             ]
 
-            # Update job with live_stream_urls and streams_per_pipeline immediately
+            # Update job with live_stream_urls, metadata_stream_urls and streams_per_pipeline immediately
             with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
@@ -357,8 +404,10 @@ class TestsManager:
                         )
                     else:
                         job.live_stream_urls = live_stream_urls
+                        job.metadata_stream_urls = metadata_stream_urls
                         self.logger.debug(
-                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}"
+                            f"Updated job {job_id} with live_stream_urls: {live_stream_urls}, "
+                            f"metadata_stream_urls: {metadata_stream_urls}"
                         )
 
             # Initialize PipelineRunner in normal mode with max_runtime from execution_config
@@ -367,41 +416,72 @@ class TestsManager:
                 max_runtime=internal_spec.execution_config.max_runtime,
             )
 
-            # Store runner for this job so that a future extension could cancel it.
+            # Store runner for this job so it can be cancelled via stop_job()
             with self._jobs_lock:
                 self.runners[job_id] = runner
 
-            # Run the pipeline
+            # Run the pipeline.
+            # If exit_code != 0 and the run was not cancelled, PipelineRunner
+            # raises RuntimeError which is handled in the except block below.
             result = runner.run(
                 pipeline_command=pipeline_command,
                 total_streams=total_streams,
             )
 
-            # Type narrowing: PipelineRunner in normal mode returns PipelineRunResult
-            if not isinstance(result, PipelineRunResult):
-                self._update_job_error(
-                    job_id,
-                    "Unexpected result type from pipeline runner",
-                )
-                return
+            # Collect actual video file lists from output directories after pipeline completes
+            video_output_paths = collect_video_outputs_from_dirs(video_output_dirs)
 
             # Update job with results
             with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
-                    # Check if job was cancelled while running
-                    if runner.is_cancelled():
-                        self.logger.info(
-                            f"Performance test {job_id} was cancelled, updating state to ABORTED"
-                        )
-                        job.state = InternalTestJobState.ABORTED
-                        job.end_time = int(time.time() * 1000)
-                        job.error_message = "Cancelled by user"
+                    if result.cancelled:
+                        if result.exit_code != 0:
+                            # Cancelled with non-zero exit code: mark as FAILED
+                            self.logger.info(
+                                f"Performance test {job_id} was cancelled with non-zero exit code ({result.exit_code}), "
+                                f"marking as FAILED, details={result.details}"
+                            )
+                            job.state = InternalTestJobState.FAILED
+                            job.end_time = int(time.time() * 1000)
+                            job.details = [
+                                "Cancelled by user",
+                                f"Pipeline exited with non-zero exit code: {result.exit_code}",
+                            ]
+                        else:
+                            # Cancelled with zero exit code: mark as COMPLETED with results
+                            self.logger.info(
+                                f"Performance test {job_id} was cancelled with exit_code=0: "
+                                f"total_fps={result.total_fps}, "
+                                f"per_stream_fps={result.per_stream_fps}, "
+                                f"num_streams={result.num_streams}, "
+                                f"marking as COMPLETED, details={result.details}"
+                            )
+                            job.state = InternalTestJobState.COMPLETED
+                            job.end_time = int(time.time() * 1000)
+                            job.details = ["Cancelled by user"]
+
+                            # Save result data even when cancelled with exit code 0
+                            job.total_fps = result.total_fps
+                            job.per_stream_fps = result.per_stream_fps
+                            job.total_streams = result.num_streams
+                            job.video_output_paths = video_output_paths
                     else:
-                        # Normal completion
+                        # Normal completion (exit_code is always 0 here because
+                        # non-zero exit without cancellation raises RuntimeError
+                        # in PipelineRunner)
+                        self.logger.info(
+                            f"Performance test {job_id} completed successfully: "
+                            f"exit_code={result.exit_code}, "
+                            f"total_fps={result.total_fps}, "
+                            f"per_stream_fps={result.per_stream_fps}, "
+                            f"total_streams={result.num_streams}, "
+                            f"details={result.details}"
+                        )
                         job.state = InternalTestJobState.COMPLETED
                         job.end_time = int(time.time() * 1000)
+                        job.details = ["Pipeline completed successfully"]
 
                         # Update performance metrics
                         job.total_fps = result.total_fps
@@ -409,21 +489,18 @@ class TestsManager:
                         job.total_streams = result.num_streams
                         job.video_output_paths = video_output_paths
 
-                        self.logger.info(
-                            f"Performance test {job_id} completed successfully: "
-                            f"total_fps={result.total_fps}, "
-                            f"per_stream_fps={result.per_stream_fps}, "
-                            f"total_streams={result.num_streams}"
-                        )
-
                 # Clean up runner after completion regardless of outcome
                 self.runners.pop(job_id, None)
+
+            # Stop tailing metadata files now that the pipeline has finished
+            MetadataManager().stop_tailing(job_id)
 
         except Exception as e:
             # Clean up runner on error
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
-            self._update_job_error(job_id, str(e))
+            MetadataManager().stop_tailing(job_id)
+            self._update_job_failed(job_id, str(e))
 
     def _execute_density_test(
         self,
@@ -435,6 +512,17 @@ class TestsManager:
 
         The method runs the benchmark using :class:`Benchmark` and then
         updates the corresponding :class:`InternalDensityJobStatus` accordingly.
+
+        When a density job is cancelled, it is always marked as FAILED
+        regardless of exit code, because partial benchmark results are
+        not meaningful.
+
+        After benchmark completes, output directory paths from the best result
+        are scanned to collect the actual video file lists using
+        collect_video_outputs_from_dirs().
+
+        The details list is cleared when transitioning to a new state, then
+        new entries for that state are appended.
 
         Note: Density tests do not support live-streaming output mode.
 
@@ -470,36 +558,41 @@ class TestsManager:
                 job_id=job_id,
             )
 
+            # Collect actual video file lists from output directories after benchmark completes
+            video_output_paths = collect_video_outputs_from_dirs(
+                results.video_output_paths
+            )
+
             # Update job with results
             with self._jobs_lock:
                 if job_id in self.jobs:
                     job = self.jobs[job_id]
 
-                    # Check if job was cancelled while running
+                    # Cancelled density tests are always FAILED
                     if benchmark.runner.is_cancelled():
                         self.logger.info(
-                            f"Density test {job_id} was cancelled, updating state to ABORTED"
+                            f"Density test {job_id} was cancelled, marking as FAILED"
                         )
-                        job.state = InternalTestJobState.ABORTED
+                        job.state = InternalTestJobState.FAILED
                         job.end_time = int(time.time() * 1000)
-                        job.error_message = "Cancelled by user"
+                        job.details = ["Cancelled by user"]
                     else:
                         # Normal completion
-                        job.state = InternalTestJobState.COMPLETED
-                        job.end_time = int(time.time() * 1000)
-
-                        job.total_fps = None
-                        job.per_stream_fps = results.per_stream_fps
-                        job.streams_per_pipeline = results.streams_per_pipeline
-                        job.total_streams = results.n_streams
-                        job.video_output_paths = results.video_output_paths
-
                         self.logger.info(
                             f"Density test {job_id} completed successfully: "
                             f"streams={results.n_streams}, "
                             f"streams_per_pipeline={results.streams_per_pipeline}, "
                             f"per_stream_fps={results.per_stream_fps}"
                         )
+                        job.state = InternalTestJobState.COMPLETED
+                        job.end_time = int(time.time() * 1000)
+                        job.details = ["Density test completed successfully"]
+
+                        job.total_fps = None
+                        job.per_stream_fps = results.per_stream_fps
+                        job.streams_per_pipeline = results.streams_per_pipeline
+                        job.total_streams = results.n_streams
+                        job.video_output_paths = video_output_paths
 
                 # Clean up benchmark after completion regardless of outcome
                 self.runners.pop(job_id, None)
@@ -508,25 +601,27 @@ class TestsManager:
             # Clean up benchmark on error
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
-            self._update_job_error(job_id, str(e))
+            self._update_job_failed(job_id, str(e))
 
-    def _update_job_error(self, job_id: str, error_message: str) -> None:
+    def _update_job_failed(self, job_id: str, detail_message: str) -> None:
         """
-        Mark the job as failed and persist the error message.
+        Mark the job as failed, clear the details list, and append the failure message.
 
-        Used both for validation errors and unexpected exceptions.
+        The details list is cleared when transitioning to FAILED state,
+        then the new failure message is appended.
+
+        Used for validation errors, unexpected exceptions, and cancellations
+        with non-zero exit codes.
         """
         with self._jobs_lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
-                job.state = InternalTestJobState.ERROR
+                job.state = InternalTestJobState.FAILED
                 job.end_time = int(time.time() * 1000)
-                job.error_message = error_message
-        self.logger.error(f"Test job {job_id} error: {error_message}")
+                job.details = [detail_message]
+        self.logger.error(f"Test job {job_id} failed: {detail_message}")
 
-    def get_job_statuses_by_type(
-        self, job_type: type
-    ) -> list[Union[InternalPerformanceJobStatus, InternalDensityJobStatus]]:
+    def get_job_statuses_by_type(self, job_type: type[_T]) -> list[_T]:
         """
         Return internal job status objects for all jobs of a specific type.
 
@@ -537,9 +632,7 @@ class TestsManager:
         Returns internal types. Conversion to API types happens in the route layer.
         """
         with self._jobs_lock:
-            statuses: list[
-                Union[InternalPerformanceJobStatus, InternalDensityJobStatus]
-            ] = []
+            statuses: list[_T] = []
             for job in self.jobs.values():
                 if isinstance(job, job_type):
                     statuses.append(job)
@@ -548,7 +641,7 @@ class TestsManager:
 
     def get_job_status(
         self, job_id: str
-    ) -> Union[InternalPerformanceJobStatus, InternalDensityJobStatus, None]:
+    ) -> InternalPerformanceJobStatus | InternalDensityJobStatus | None:
         """
         Return the internal job status for a single job.
 
@@ -565,7 +658,7 @@ class TestsManager:
 
     def get_job_summary(
         self, job_id: str
-    ) -> Union[InternalPerformanceJobSummary, InternalDensityJobSummary, None]:
+    ) -> InternalPerformanceJobSummary | InternalDensityJobSummary | None:
         """
         Return a short summary for a single job.
 
@@ -580,9 +673,7 @@ class TestsManager:
             job = self.jobs[job_id]
 
             if isinstance(job, InternalPerformanceJobStatus):
-                job_summary: Union[
-                    InternalPerformanceJobSummary, InternalDensityJobSummary
-                ] = InternalPerformanceJobSummary(
+                job_summary = InternalPerformanceJobSummary(
                     id=job.id,
                     request=job.request,
                 )
@@ -609,11 +700,6 @@ class TestsManager:
                 self.logger.warning(msg)
                 return False, msg
 
-            if job_id not in self.runners:
-                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
-                self.logger.warning(msg)
-                return False, msg
-
             job = self.jobs[job_id]
 
             if job.state != InternalTestJobState.RUNNING:
@@ -623,7 +709,7 @@ class TestsManager:
 
             runner = self.runners.get(job_id)
             if runner is None:
-                msg = f"No active runner found for job {job_id}"
+                msg = f"No active runner found for job {job_id}. It may have already completed or was never started."
                 self.logger.warning(msg)
                 return False, msg
 

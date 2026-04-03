@@ -1,15 +1,25 @@
 # Model Download
 
-The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, and handles optional format conversions.
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-download">
+     GitHub
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
 
+**Note: Model Download replaces Model Registry, which will be deprecated soon.**
+
+The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, and handles optional format conversions.
 
 ## Architecture
 
 The following figure shows the high-level architecture of Model Download, which includes its core components and their interactions with external systems:
 
-<p align="center">
-    <img src="./images/architecture.png" alt="Architecture" />
-</p>
+![architecture](./_assets/architecture.png "Architecture overview")
 
 ## Components
 
@@ -43,12 +53,15 @@ The following are the core components of the plugin-based microservice architect
 The Plugin System extends the service's functionality by handling interactions with different model sources and conversion tasks.
 
 **Model Hub Plugins:**
+
 - **HuggingFace Hub Plugin**: Downloads models from the Hugging Face hub, including handling authentication for private or gated models.
 - **Ollama Hub Plugin**: Interfaces with Ollama tool to pull and manage models from the Ollama model library.
 - **Ultralytics Hub Plugin**: Downloads computer vision models, such as YOLO, from the Ultralytics framework.
-- **Geti™ Plugin**:  Downloads models optimized through the Geti™ platform.
+- **Geti™ Plugin**: Downloads models optimized through the Geti™ platform.
+- **HLS Plugin**: Download pre-configured Health AI suite models from Github.
 
 **Conversion Plugins:**
+
 - **OpenVINO™ Model Conversion Plugin**: Converts downloaded models, for example, from Hugging Face model hub into the OpenVINO Intermediate Representation (IR) format for optimized inference on Intel® hardware.
 
 ### Storage
@@ -71,6 +84,7 @@ The Plugin System extends the service's functionality by handling interactions w
 ## Integration
 
 The service can be integrated into applications through:
+
 - REST API calls
 - Docker container deployment
 - Docker Compose orchestration
@@ -78,6 +92,7 @@ The service can be integrated into applications through:
 ## Use Cases
 
 This microservice is ideal for:
+
 - Edge AI applications requiring model downloads
 - Development and testing environments
 - Sample applications demonstrating AI capabilities
@@ -86,6 +101,7 @@ This microservice is ideal for:
 ## Limitations
 
 This service does not replace full model registry solutions and has the following limitations:
+
 - Basic model versioning
 - Limited model metadata management
 - No built-in model serving capabilities
@@ -100,11 +116,8 @@ This service does not replace full model registry solutions and has the followin
 :hidden:
 
 get-started
-system-requirements
-build-from-source
-deploy-with-helm-chart
 running-tests
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

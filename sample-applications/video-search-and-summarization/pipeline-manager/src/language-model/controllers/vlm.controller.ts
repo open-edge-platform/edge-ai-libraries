@@ -35,7 +35,11 @@ export class VlmController {
     @Body('frameData') frameData?: FrameData,
   ) {
     try {
-      console.log(template, imageUrl, frameData);
+      console.log('VLM image inference request received', {
+        hasTemplate: typeof template === 'string' && template.length > 0,
+        hasFrameData: Boolean(frameData),
+        imageUrlLength: typeof imageUrl === 'string' ? imageUrl.length : 0,
+      });
 
       if (!template && !frameData) {
         throw new Error('Either template or frameData must be provided.');

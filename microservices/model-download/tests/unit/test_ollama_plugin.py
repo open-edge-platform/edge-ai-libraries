@@ -1,4 +1,8 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
+import asyncio
 import pytest
 import tempfile
 import subprocess
@@ -264,11 +268,11 @@ class TestOllamaPlugin:
 
     def test_post_process(self, ollama_plugin):
         """Test post_process method"""
-        result = ollama_plugin.post_process(
+        result = asyncio.run(ollama_plugin.post_process(
             model_name="llama2",
             output_dir="/test/output",
             downloaded_paths=["/test/output/model"]
-        )
+        ))
 
         assert result["model_name"] == "llama2"
         assert result["source"] == "ollama"
@@ -347,11 +351,11 @@ class TestOllamaPluginIntegration:
             assert "ollama" in result["download_path"]
             
             # Test post-processing
-            post_result = ollama_plugin.post_process(
+            post_result = asyncio.run(ollama_plugin.post_process(
                 model_name="llama2:7b",
                 output_dir=result["download_path"],
                 downloaded_paths=[os.path.join(result["download_path"], "model")]
-            )
+            ))
             
             assert post_result["success"] == True
             assert post_result["model_name"] == "llama2:7b"

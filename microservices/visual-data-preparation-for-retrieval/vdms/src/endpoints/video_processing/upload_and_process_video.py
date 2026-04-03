@@ -12,7 +12,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from src.common import DataPrepException, Strings, logger, settings
+from src.common import DataPrepException, Strings, logger, sanitize_for_log, settings
 from src.common.schema import DataPrepResponse
 from src.core.embedding import generate_video_embedding, generate_video_embedding_from_content
 from src.core.utils.common_utils import get_minio_client
@@ -141,7 +141,12 @@ async def upload_and_process_video(
         try:
             content_stream = io.BytesIO(content)
             minio_client.upload_video(bucket_name, object_name, content_stream, len(content))
-            logger.info(f"Uploaded video {filename} to {bucket_name}/{object_name}")
+            logger.info(
+                "Uploaded video %s to %s/%s",
+                sanitize_for_log(filename, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(object_name, max_length=256),
+            )
         except Exception as ex:
             logger.error(f"Error uploading video to Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
@@ -194,7 +199,11 @@ async def upload_and_process_video(
             )
             logger.info(f"API mode: {len(ids)} embeddings created using HTTP calls")
 
-        logger.info(f"Frame-based embeddings created for video using {settings.EMBEDDING_PROCESSING_MODE} mode: {ids}")
+        logger.info(
+            "Frame-based embeddings created for video using %s mode: %s",
+            sanitize_for_log(settings.EMBEDDING_PROCESSING_MODE, max_length=64),
+            sanitize_for_log(ids, max_length=512),
+        )
         return DataPrepResponse(
             message=f"{Strings.embedding_success} (Mode: {settings.EMBEDDING_PROCESSING_MODE})"
         )

@@ -18,8 +18,8 @@ This CLI tool provides a terminal-based-ui interface to connect to video summari
 
 This CLI is a real-time terminal UI for video analysis and summarization. All parameters (video path, chunk duration, prompts, etc.) are read from a YAML config file. The CLI automatically uploads the video, tracks progress, and displays results.
 
-![TUI Screenshot](../docs/user-guide/images/TUI_Screenshot.png)
-> CLI Screenshot running generic usecase yaml. 
+![TUI Screenshot](../docs/user-guide/_assets/TUI_Screenshot.png)
+> CLI Screenshot running generic usecase yaml.
 
 ## Project Structure
 
@@ -81,27 +81,27 @@ make build
    ```
 
 2. Run the CLI in one of the following ways:
-   
+
    - With default config:
      ```
      ./video-summarizer-cli
      ```
-   
+
    - With video path specified via flag (overrides config):
      ```
      ./video-summarizer-cli --video=/path/to/your/video.mp4
      ```
-   
+
    - With a specific use case config (retail analysis):
      ```
      ./video-summarizer-cli --config=./config/retail.yaml
      ```
-   
+
    - With traffic monitoring config:
      ```
      ./video-summarizer-cli --config=./config/traffic.yaml
      ```
-   
+
    - With your custom config file:
      ```
      ./video-summarizer-cli --config=./config/my-custom-config.yaml
@@ -147,7 +147,7 @@ backendEndpoint: "http://your-backend-endpoint:port"  # Backend API endpoint
 The CLI supports custom YAML configuration files for different video summarization use cases. You can create specialized configurations for:
 
 - **Retail Analytics**: Product demonstrations, customer behavior analysis
-- **Traffic Monitoring**: Vehicle counting, incident detection, flow analysis  
+- **Traffic Monitoring**: Vehicle counting, incident detection, flow analysis
 - **Security Surveillance**: Event detection, anomaly identification
 - **Educational Content**: Lecture summarization, tutorial breakdown
 - **Marketing Videos**: Campaign analysis, engagement tracking

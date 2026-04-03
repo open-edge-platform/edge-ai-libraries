@@ -1,0 +1,15 @@
+{
+  "order_001": [
+    {"name": "apple", "quantity": 2},
+    {"name": "banana", "quantity": 1},
+    {"name": "milk", "quantity": 1}
+  ],
+  "order_002": [
+    {"name": "bread", "quantity": 1},
+    {"name": "cheese", "quantity": 2}
+  ],
+  "order_003": [
+    {"name": "coca cola", "quantity": 3},
+    {"name": "orange juice", "quantity": 1}
+  ]
+}

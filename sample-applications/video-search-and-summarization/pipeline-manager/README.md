@@ -1,9 +1,11 @@
 # Pipeline Manager Service
 
 ## Overview
+
 The Pipeline Manager Service is a core component of the Intel EGAI Video Summary application. It manages the video processing pipeline, coordinating various services to generate video summaries.
 
 ## Features
+
 - Manages video processing pipeline
 - Coordinates with other services like Deep Learning Streamer Pipeline Server, OVMS, VLM, RabbitMQ, and Minio
 - Call minio service to save the Videos.
@@ -15,17 +17,19 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 - Handles video uploads and state management
 
 ## Prerequisites
+
 - Docker
 - Docker Compose
 
 ## Setup
+
 1. Clone the repository:
    ```sh
    # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, Clone a specific release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-   
+
    cd edge-ai-libraries/sample-applications/video-search-and-summarization/pipeline-manager
    ```
 2. Build the Docker image:
@@ -35,6 +39,7 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 3. To use the service refer to the docker compose (file)(/sample-applications/video-search-and-summarization/compose.yaml) and [README](/sample-applications/video-search-and-summarization/README.md)
 
 ## Environment Variables
+
 - `no_proxy`: No proxy settings
 - `http_proxy`: HTTP proxy settings
 - `https_proxy`: HTTPS proxy settings
@@ -51,24 +56,29 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 ## Testing
 
 ### Test Commands
+
 - `npm test`: Run all tests
 - `npm run test:cov`: Run tests with coverage (src folder only)
 - `npm run test:watch`: Run tests in watch mode
 - `npm run test:e2e`: Run end-to-end tests
 
 ### Coverage
+
 - Coverage is collected from `src/**/*.ts` files only
 - Test files and declaration files are excluded
 - Coverage reports are generated in `./coverage` directory
 
 ## Usage
+
 - Upload videos through the UI
 - Monitor the processing state
-- Manage the Video Summary process 
+- Manage the Video Summary process
 - Updates the Endpoint with state and data.
 
 ## Contributing
-Contributions are welcome! Please read the [contributing guidelines](../../../../CONTRIBUTING.md) first.
+
+Contributions are welcome! Please read the [contributing guidelines](../../../CONTRIBUTING.md) first.
 
 ## License
-This project is licensed under the Apache License 2.0. See the [LICENSE](../../../../LICENSE) file for details.
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](../../../LICENSE) file for details.
