@@ -9,13 +9,16 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { formatElapsedTimeSeconds } from "@/lib/timeUtils.ts";
+import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
 
 export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
+  const filteredVideos =
+    isSuccess && videos ? filterOutTransportStreams(videos) : [];
 
-  if (isSuccess && videos.length > 0) {
+  if (isSuccess && filteredVideos.length > 0) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container pl-16 mx-auto py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Videos</h1>
           <p className="text-muted-foreground mt-2">
@@ -35,7 +38,7 @@ export const Videos = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {videos.map((video) => (
+            {filteredVideos.map((video) => (
               <TableRow key={video.filename}>
                 <TableCell className="font-medium">{video.filename}</TableCell>
                 <TableCell>

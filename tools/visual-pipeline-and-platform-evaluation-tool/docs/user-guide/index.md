@@ -3,7 +3,7 @@
 <!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool">
-     GitHub project
+     GitHub
   </a>
   <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/README.md">
      Readme
@@ -52,9 +52,9 @@ performance under controlled conditions.
 
 - [System Requirements](./get-started/system-requirements)
 - [Get Started](./get-started)
-- [How to Build Source](./get-started/how-to-build-source)
+- [How to Build Source](./get-started/build-from-source)
 - [How to use gvapython scripts](./how-to-guides/use-gvapython-scripts)
-- [How to use Video Generator](./how-to-guides/how-to-use-video-generator)
+- [How to use Video Generator](./how-to-guides/use-video-generator)
 - [Release Notes](./release-notes)
 
 <!--hide_directive

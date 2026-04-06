@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  semantic-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+        - NO_PROXY=${NO_PROXY}
+        - http_proxy=${http_proxy}
+        - https_proxy=${https_proxy}
+        - no_proxy=${no_proxy}
+    image: semantic-search-agent:latest
+    container_name: semantic-search-agent
+    ports:
+      - "${API_PORT:-8080}:8080"    # API endpoint
+      - "${METRICS_PORT:-9090}:9090"    # Prometheus metrics
+    volumes:
+      - ../config:/app/config:ro  # Mount config as read-only
+      - ./logs:/app/logs          # Logs directory
+      - ${MODEL_DIR:-./models}:/models:ro  # For OpenVINO mode
+    devices:
+      - /dev/dri:/dev/dri  # GPU access for OpenVINO
+    group_add:
+      - video
+    environment:
+      # App settings
+      - APP_NAME=${APP_NAME:-semantic-search-agent}
+      - APP_VERSION=${APP_VERSION:-1.0.0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Matching configuration
+      - DEFAULT_MATCHING_STRATEGY=${DEFAULT_MATCHING_STRATEGY:-hybrid}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.85}
+      # VLM Backend: 'ovms' or 'openvino'
+      - VLM_BACKEND=${VLM_BACKEND:-ovms}
+      # OVMS settings (when VLM_BACKEND=ovms)
+      - OVMS_ENDPOINT=${OVMS_ENDPOINT:-http://oa_ovms_vlm:8000}
+      - OVMS_MODEL_NAME=${OVMS_MODEL_NAME:-Qwen/Qwen2.5-VL-7B-Instruct-ov-int8}
+      - OVMS_TIMEOUT=${OVMS_TIMEOUT:-60}
+      # OpenVINO settings (when VLM_BACKEND=openvino)
+      - OPENVINO_MODEL_PATH=${OPENVINO_MODEL_PATH:-/models/Qwen2.5-VL-7B-Instruct-ov-int8}
+      - OPENVINO_DEVICE=${OPENVINO_DEVICE:-GPU}
+      # Redis settings
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - CACHE_TTL=${CACHE_TTL:-3600}
+    networks:
+      - semantic-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: semantic-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - semantic-net
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+networks:
+  semantic-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

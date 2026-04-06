@@ -1,0 +1,651 @@
+import itertools
+import signal
+import sys
+import unittest
+from unittest.mock import MagicMock, patch, mock_open
+
+from pipeline_runner import (
+    PipelineRunner,
+    PipelineResult,
+)
+
+
+def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock:
+    """Create a mocked Popen process that emits given stdout lines.
+
+    The mock is configured so that each while-loop iteration in _run_normal
+    reads exactly one line. poll() returns None for len(stdout_lines) + 1
+    iterations (all real lines plus one empty-read cycle), then returns
+    exit_code to end the loop.
+
+    Args:
+        stdout_lines: List of raw FpsCounter/gst_runner lines (without newline).
+        exit_code: Process exit code to simulate.
+
+    Returns:
+        MagicMock configured to behave like a Popen process.
+    """
+    process_mock = MagicMock()
+    encoded = [f"{line}\n".encode("utf-8") for line in stdout_lines]
+    process_mock.stdout.readline.side_effect = itertools.chain(
+        encoded, itertools.repeat(b"")
+    )
+    process_mock.pid = 1234
+    process_mock.stdout.fileno.return_value = 10
+    process_mock.stderr.fileno.return_value = 11
+    # Allow enough loop iterations: one per line + one extra for the empty read
+    # where zombie/exit is detected.
+    n = len(stdout_lines)
+    process_mock.poll.side_effect = [None] * (n + 1) + [exit_code]
+    process_mock.wait.return_value = exit_code
+    process_mock.returncode = exit_code
+    process_mock.communicate.return_value = (b"", b"")
+    return process_mock
+
+
+class TestPipelineRunnerNormalMode(unittest.TestCase):
+    """Tests for PipelineRunner in normal mode (production pipeline execution)."""
+
+    def setUp(self):
+        self.test_pipeline_command = (
+            "videotestsrc "
+            " num-buffers=5 "
+            " pattern=snow ! "
+            "videoconvert ! "
+            "gvafpscounter ! "
+            "fakesink"
+        )
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    def test_run_pipeline_normal_mode(self, mock_select, mock_ps, mock_popen):
+        """PipelineRunner in normal mode should execute gst_runner.py and extract FPS metrics."""
+        process_mock = _make_process_mock(
+            [
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
+            ]
+        )
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        if mock_ps is not None:
+            mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+        result = runner.run(
+            pipeline_command=self.test_pipeline_command, total_streams=1
+        )
+
+        # Verify command arguments
+        call_args = mock_popen.call_args
+        cmd = call_args[0][0]
+        self.assertEqual(cmd[0], sys.executable)
+        self.assertEqual(cmd[1], "gst_runner.py")
+        self.assertEqual(cmd[2], "--mode")
+        self.assertEqual(cmd[3], "normal")
+        self.assertEqual(cmd[4], "--max-runtime")
+        self.assertEqual(cmd[5], "0")
+        self.assertEqual(cmd[6], "--log-level")
+        self.assertIn(cmd[7], ("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"))
+        self.assertEqual(cmd[8], self.test_pipeline_command)
+
+        # Verify FPS extraction — should use Priority 1 (last average, exact match)
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 100.0)
+        self.assertEqual(result.per_stream_fps, 100.0)
+        self.assertEqual(result.num_streams, 1)
+        self.assertEqual(result.exit_code, 0)
+        self.assertFalse(result.cancelled)
+        assert result.details is not None
+        self.assertIn("last average fps", result.details)
+        self.assertIn("primary source", result.details)
+
+    @patch("pipeline_runner.Popen")
+    def test_stop_pipeline_normal_mode(self, mock_popen):
+        """PipelineRunner in normal mode should handle cancellation correctly."""
+        # Mock process
+        process_mock = MagicMock()
+        # First poll() returns None (main loop check: process running),
+        # second poll() returns None (_graceful_terminate check: still running,
+        # so it sends SIGINT and waits).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.communicate.return_value = (b"", b"")
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(mode="normal", max_runtime=0)
+        runner.cancel()
+        result = runner.run(
+            pipeline_command=self.test_pipeline_command, total_streams=1
+        )
+
+        self.assertTrue(runner.is_cancelled())
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 0.0)
+        self.assertEqual(result.per_stream_fps, 0.0)
+        self.assertEqual(result.num_streams, 0)
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.details, "no fps metrics found in pipeline output")
+
+        # Verify SIGINT was sent for graceful shutdown
+        process_mock.send_signal.assert_called_once_with(signal.SIGINT)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.select.select")
+    def test_pipeline_hang_raises_runtime_error(self, mock_select, mock_popen):
+        """PipelineRunner in normal mode should raise RuntimeError on inactivity timeout."""
+        runner = PipelineRunner(
+            mode="normal",
+            max_runtime=0,
+            poll_interval=1,
+            fps_file_path="/tmp/fps.txt",
+            inactivity_timeout=0,
+        )
+
+        process_mock = MagicMock()
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.stdout = MagicMock()
+        process_mock.stderr = MagicMock()
+        # No data available on stdout/stderr, select returns no readable fds.
+        mock_select.return_value = ([], [], [])
+        process_mock.wait.return_value = 0
+        mock_popen.return_value = process_mock
+
+        # Act + Assert: with no activity, run() should hit inactivity timeout and raise.
+        with self.assertRaises(RuntimeError) as ctx:
+            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        self.assertIn("inactivity timeout", str(ctx.exception))
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_run_pipeline_writes_zero_fps_on_completion(
+        self, mock_open_file, mock_select, mock_ps, mock_popen
+    ):
+        """PipelineRunner should write 0.0 to FPS file after successful completion."""
+        process_mock = _make_process_mock(
+            [
+                "FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps",
+            ]
+        )
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        if mock_ps is not None:
+            mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(
+            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
+        )
+        result = runner.run(
+            pipeline_command=self.test_pipeline_command, total_streams=1
+        )
+
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.total_fps, 100.0)
+
+        # Verify that current FPS (100.0) was written during execution
+        # and 0.0 was written at the end (in finally block)
+        write_calls = mock_open_file().write.call_args_list
+        fps_writes = [call[0][0] for call in write_calls]
+
+        # Should have written the current FPS during execution
+        self.assertIn(
+            "100.0\n", fps_writes, "Current FPS should be written during execution"
+        )
+
+        # Should have written 0.0 at the end
+        self.assertIn("0.0\n", fps_writes, "0.0 should be written after completion")
+
+        # Last write should be 0.0 (from finally block)
+        self.assertEqual(fps_writes[-1], "0.0\n", "Last FPS write should be 0.0")
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.select.select")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_run_pipeline_writes_zero_fps_on_error(
+        self, mock_open_file, mock_select, mock_popen
+    ):
+        """PipelineRunner should write 0.0 to FPS file after pipeline failure."""
+        process_mock = _make_process_mock([], exit_code=1)
+        process_mock.stderr.readline.side_effect = itertools.repeat(b"")
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
+        )
+
+        with self.assertRaises(RuntimeError):
+            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        # Verify that 0.0 was written to FPS file (in finally block) even on error
+        write_calls = [
+            call
+            for call in mock_open_file().write.call_args_list
+            if call[0][0] == "0.0\n"
+        ]
+        self.assertEqual(
+            len(write_calls),
+            1,
+            "0.0 should be written exactly once to FPS file after pipeline error",
+        )
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.select.select")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_pipeline_hang_writes_zero_fps_before_raising(
+        self, mock_open_file, mock_select, mock_popen
+    ):
+        """PipelineRunner should write 0.0 to FPS file when raising inactivity timeout error."""
+        runner = PipelineRunner(
+            mode="normal",
+            max_runtime=0,
+            poll_interval=1,
+            fps_file_path="/tmp/test_fps.txt",
+            inactivity_timeout=0,
+        )
+
+        process_mock = MagicMock()
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.stdout = MagicMock()
+        process_mock.stderr = MagicMock()
+        mock_select.return_value = ([], [], [])
+        process_mock.wait.return_value = 0
+        mock_popen.return_value = process_mock
+
+        with self.assertRaises(RuntimeError) as ctx:
+            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+
+        self.assertIn("inactivity timeout", str(ctx.exception))
+
+        # Verify that 0.0 was written to FPS file (in finally block)
+        write_calls = [
+            call
+            for call in mock_open_file().write.call_args_list
+            if call[0][0] == "0.0\n"
+        ]
+        self.assertEqual(
+            len(write_calls),
+            1,
+            "0.0 should be written exactly once to FPS file after timeout error",
+        )
+
+    @patch("pipeline_runner.Popen")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_stop_pipeline_writes_zero_fps(self, mock_open_file, mock_popen):
+        """PipelineRunner should write 0.0 to FPS file when cancelled."""
+        process_mock = MagicMock()
+        # First poll() returns None (main loop: process running),
+        # second poll() returns None (_graceful_terminate: still running).
+        process_mock.poll.side_effect = [None, None]
+        process_mock.wait.return_value = 0
+        process_mock.returncode = 0
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
+        # Mock communicate() for the post-loop stdout/stderr drain
+        process_mock.communicate.return_value = (b"", b"")
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(
+            mode="normal", max_runtime=0, fps_file_path="/tmp/test_fps.txt"
+        )
+        runner.cancel()
+        result = runner.run(
+            pipeline_command=self.test_pipeline_command, total_streams=1
+        )
+
+        self.assertTrue(runner.is_cancelled())
+        self.assertIsInstance(result, PipelineResult)
+
+        # Verify that 0.0 was written to FPS file (in finally block) after cancellation
+        write_calls = [
+            call
+            for call in mock_open_file().write.call_args_list
+            if call[0][0] == "0.0\n"
+        ]
+        self.assertEqual(
+            len(write_calls),
+            1,
+            "0.0 should be written exactly once to FPS file after cancellation",
+        )
+
+
+class TestFpsMetricSelection(unittest.TestCase):
+    """Tests for the FPS metric selection fallback chain in _run_normal.
+
+    gvafpscounter emits three metric types:
+    - "last": FPS over the most recent N-second window (volatile, resets each print)
+    - "average": cumulative mean FPS printed every ~1s (stable steady-state)
+    - "overall": same as average but printed once at pipeline end (includes shutdown)
+
+    The selection priority is:
+    1. Last average for exact total_streams (best steady-state metric)
+    2. Overall for exact total_streams (includes shutdown artifacts)
+    3. Last average for closest total_streams (stream count mismatch)
+    4. Last "last" line (volatile, last resort)
+    """
+
+    def setUp(self):
+        self.pipeline_cmd = "videotestsrc ! gvafpscounter ! fakesink"
+
+    def _run_with_lines(
+        self, stdout_lines: list[str], total_streams: int = 5
+    ) -> PipelineResult:
+        """Helper: run PipelineRunner with mocked stdout lines and return result.
+
+        The ps.Process mock returns "running" for each real line (so the inner
+        loop continues to the next select iteration) and "zombie" on the first
+        empty-read cycle (so the process terminates after all lines are consumed).
+        """
+        with (
+            patch("pipeline_runner.Popen") as mock_popen,
+            patch("pipeline_runner.ps") as mock_ps,
+            patch("pipeline_runner.select.select") as mock_select,
+        ):
+            process_mock = _make_process_mock(stdout_lines)
+            mock_select.return_value = ([process_mock.stdout], [], [])
+            mock_popen.return_value = process_mock
+            # Return "running" for each real line, then "zombie" to break out
+            n = len(stdout_lines)
+            mock_ps.Process.return_value.status.side_effect = ["running"] * n + [
+                "zombie"
+            ]
+
+            runner = PipelineRunner(mode="normal", max_runtime=0)
+            return runner.run(
+                pipeline_command=self.pipeline_cmd,
+                total_streams=total_streams,
+            )
+
+    def test_priority1_average_exact_match(self):
+        """Priority 1: last average with exact total_streams should be selected."""
+        result = self._run_with_lines(
+            [
+                # Multiple average lines — last one should win
+                "FpsCounter(average 5.0sec): total=50.0 fps, number-streams=5, per-stream=10.0 fps",
+                "FpsCounter(average 10.0sec): total=75.0 fps, number-streams=5, per-stream=15.0 fps",
+                # Overall also present — should be ignored in favor of average
+                "FpsCounter(overall 12.0sec): total=60.0 fps, number-streams=5, per-stream=12.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 75.0)
+        self.assertEqual(result.per_stream_fps, 15.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("last average fps", result.details)
+        self.assertIn("primary source", result.details)
+        self.assertIn("5 stream(s)", result.details)
+
+    def test_priority2_overall_exact_match(self):
+        """Priority 2: overall with exact total_streams when no average is available."""
+        result = self._run_with_lines(
+            [
+                # Only "last" and "overall" — no average lines
+                "FpsCounter(last 1.0sec): total=120.0 fps, number-streams=5, per-stream=24.0 fps",
+                "FpsCounter(overall 12.0sec): total=85.0 fps, number-streams=5, per-stream=17.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 85.0)
+        self.assertEqual(result.per_stream_fps, 17.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("overall fps", result.details)
+        self.assertIn("fallback 1", result.details)
+        self.assertIn("5 stream(s)", result.details)
+
+    def test_priority3_average_closest_stream_count(self):
+        """Priority 3: last average for closest total_streams when exact match unavailable."""
+        result = self._run_with_lines(
+            [
+                # Average for 3 streams only — requested is 5
+                "FpsCounter(average 8.0sec): total=90.0 fps, number-streams=3, per-stream=30.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 90.0)
+        self.assertEqual(result.per_stream_fps, 30.0)
+        self.assertEqual(result.num_streams, 3)
+        assert result.details is not None
+        self.assertIn("fallback 2", result.details)
+        self.assertIn("3 stream(s)", result.details)
+        self.assertIn("closest match to requested 5", result.details)
+
+    def test_priority3_picks_closest_stream_count(self):
+        """Priority 3 should pick the stream count closest to total_streams."""
+        result = self._run_with_lines(
+            [
+                # Averages for 2 and 4 streams — requested is 5, so 4 is closest
+                "FpsCounter(average 8.0sec): total=40.0 fps, number-streams=2, per-stream=20.0 fps",
+                "FpsCounter(average 8.0sec): total=100.0 fps, number-streams=4, per-stream=25.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 100.0)
+        self.assertEqual(result.per_stream_fps, 25.0)
+        self.assertEqual(result.num_streams, 4)
+        assert result.details is not None
+        self.assertIn("4 stream(s)", result.details)
+        self.assertIn("fallback 2", result.details)
+
+    def test_priority4_last_line_only(self):
+        """Priority 4: last "last" line when no average or overall is available."""
+        result = self._run_with_lines(
+            [
+                # Only "last" lines — no average, no overall
+                "FpsCounter(last 1.0sec): total=100.0 fps, number-streams=5, per-stream=20.0 fps",
+                "FpsCounter(last 1.0sec): total=130.0 fps, number-streams=5, per-stream=26.0 fps",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 130.0)
+        self.assertEqual(result.per_stream_fps, 26.0)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("last instantaneous fps", result.details)
+        self.assertIn("fallback 3", result.details)
+
+    def test_no_fps_metrics(self):
+        """No FPS metrics at all should return zeros with appropriate details."""
+        result = self._run_with_lines(
+            [
+                # Non-FpsCounter output only
+                "gst_runner - INFO - Pipeline parsed successfully.",
+            ],
+            total_streams=5,
+        )
+
+        self.assertEqual(result.total_fps, 0.0)
+        self.assertEqual(result.per_stream_fps, 0.0)
+        self.assertEqual(result.num_streams, 0)
+        self.assertEqual(result.details, "no fps metrics found in pipeline output")
+
+    def test_average_preferred_over_overall_same_streams(self):
+        """When both average and overall exist for exact total_streams, average must win."""
+        result = self._run_with_lines(
+            [
+                "FpsCounter(average 10.0sec): total=610.0 fps, number-streams=16, per-stream=38.0 fps",
+                # overall is lower due to shutdown flush — must NOT be selected
+                "FpsCounter(overall 13.0sec): total=472.0 fps, number-streams=16, per-stream=29.5 fps",
+            ],
+            total_streams=16,
+        )
+
+        # Must use average (38.0), not overall (29.5)
+        self.assertEqual(result.total_fps, 610.0)
+        self.assertEqual(result.per_stream_fps, 38.0)
+        self.assertEqual(result.num_streams, 16)
+        assert result.details is not None
+        self.assertIn("primary source", result.details)
+
+    def test_full_realistic_output(self):
+        """Realistic gvafpscounter output with all three metric types, interleaved."""
+        result = self._run_with_lines(
+            [
+                "gst_runner - INFO - Pipeline parsed successfully.",
+                "FpsCounter(last 1.02sec): total=135.09 fps, number-streams=5, per-stream=27.02 fps",
+                "FpsCounter(average 1.91sec): total=16.19 fps, number-streams=5, per-stream=3.24 fps",
+                "FpsCounter(last 1.11sec): total=102.27 fps, number-streams=5, per-stream=20.45 fps",
+                "FpsCounter(average 3.03sec): total=47.87 fps, number-streams=5, per-stream=9.57 fps",
+                "FpsCounter(last 1.02sec): total=124.95 fps, number-streams=5, per-stream=24.99 fps",
+                "FpsCounter(average 4.05sec): total=67.24 fps, number-streams=5, per-stream=13.45 fps",
+                "FpsCounter(average 10.75sec): total=76.49 fps, number-streams=5, per-stream=15.30 fps",
+                "gst_runner - INFO - Stopping pipeline (reason: max_runtime).",
+                "FpsCounter(average 11.99sec): total=75.51 fps, number-streams=5, per-stream=15.10 fps",
+                # Shutdown flush spike — should be ignored
+                "FpsCounter(last 0.47sec): total=330.93 fps, number-streams=5, per-stream=66.19 fps",
+                # Overall is lower than last average due to shutdown — should also be ignored
+                "FpsCounter(overall 12.45sec): total=85.06 fps, number-streams=5, per-stream=17.01 fps",
+                "gst_runner - INFO - Pipeline run succeeded.",
+            ],
+            total_streams=5,
+        )
+
+        # Must pick last average (75.51 total, 15.10 per-stream), NOT overall (85.06, 17.01)
+        self.assertEqual(result.total_fps, 75.51)
+        self.assertEqual(result.per_stream_fps, 15.10)
+        self.assertEqual(result.num_streams, 5)
+        assert result.details is not None
+        self.assertIn("primary source", result.details)
+
+
+class TestPipelineRunnerValidationMode(unittest.TestCase):
+    """Tests for PipelineRunner in validation mode (pipeline validation)."""
+
+    def setUp(self):
+        self.test_pipeline_command = "videotestsrc ! fakesink"
+
+    def test_validation_mode_requires_positive_max_runtime(self):
+        """PipelineRunner in validation mode should require max_runtime > 0."""
+        with self.assertRaises(ValueError) as ctx:
+            PipelineRunner(mode="validation", max_runtime=0)
+
+        self.assertIn("max_runtime > 0", str(ctx.exception))
+
+    def test_validation_mode_sets_default_hard_timeout(self):
+        """PipelineRunner in validation mode should set default hard_timeout to max_runtime + 60."""
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+        self.assertEqual(runner.hard_timeout, 70)
+
+    def test_validation_mode_accepts_custom_hard_timeout(self):
+        """PipelineRunner in validation mode should accept custom hard_timeout."""
+        runner = PipelineRunner(mode="validation", max_runtime=10, hard_timeout=100)
+        self.assertEqual(runner.hard_timeout, 100)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    def test_run_validation_success(self, mock_popen):
+        """PipelineRunner in validation mode should return PipelineResult with exit_code=0 and empty stderr on success."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = (
+            "gst_runner - INFO - Pipeline parsed successfully.\n",
+            "",  # No errors in stderr
+        )
+        process_mock.returncode = 0
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.stderr, [])
+        self.assertFalse(result.cancelled)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    def test_run_validation_failure(self, mock_popen):
+        """PipelineRunner in validation mode should return PipelineResult with errors in stderr."""
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = (
+            "",
+            "gst_runner - ERROR - no element foo\ngst_runner - ERROR - some other error\n",
+        )
+        process_mock.returncode = 1
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertIsInstance(result, PipelineResult)
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.stderr, ["no element foo", "some other error"])
+        self.assertFalse(result.cancelled)
+
+    @patch("pipeline_runner.subprocess.Popen")
+    def test_run_validation_timeout(self, mock_popen):
+        """PipelineRunner in validation mode should handle timeout gracefully."""
+        process_mock = MagicMock()
+
+        def communicate_with_timeout(timeout=None):
+            if timeout:
+                raise __import__("subprocess").TimeoutExpired("gst_runner.py", timeout)
+            return "", ""
+
+        process_mock.communicate = communicate_with_timeout
+        # _graceful_terminate checks poll(), sends SIGINT, then waits.
+        process_mock.poll.return_value = None
+        process_mock.wait.return_value = 0
+        process_mock.returncode = -2
+        mock_popen.return_value = process_mock
+
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+        result = runner.run(self.test_pipeline_command)
+
+        self.assertIsInstance(result, PipelineResult)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertTrue(any("timed out" in err for err in result.stderr))
+        self.assertFalse(result.cancelled)
+
+        # Verify SIGINT was sent for graceful shutdown
+        process_mock.send_signal.assert_called_once_with(signal.SIGINT)
+
+    def test_parse_validation_stderr(self):
+        """_parse_validation_stderr should extract only gst_runner ERROR messages."""
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+
+        raw_stderr = "\n".join(
+            [
+                "some-other-tool - INFO - hello",
+                "gst_runner - ERROR - first error",
+                "gst_runner - ERROR -   second error   ",
+                "gst_runner - ERROR -    ",
+                "completely unrelated line",
+            ]
+        )
+
+        errors = runner._parse_validation_stderr(raw_stderr)
+        self.assertEqual(errors, ["first error", "second error"])
+
+    def test_parse_validation_stderr_empty_input(self):
+        """_parse_validation_stderr should handle empty input."""
+        runner = PipelineRunner(mode="validation", max_runtime=10)
+        errors = runner._parse_validation_stderr("")
+        self.assertEqual(errors, [])
+
+
+class TestPipelineRunnerModeValidation(unittest.TestCase):
+    """Tests for PipelineRunner mode validation."""
+
+    def test_invalid_mode_raises_error(self):
+        """PipelineRunner should reject invalid mode values."""
+        with self.assertRaises(ValueError) as ctx:
+            PipelineRunner(mode="invalid_mode")
+
+        self.assertIn("Invalid mode", str(ctx.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()

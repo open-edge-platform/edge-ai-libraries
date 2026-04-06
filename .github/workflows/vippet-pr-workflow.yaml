@@ -35,7 +35,7 @@ jobs:
       run_reuse_check: false
       project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
       trivy_config_path: 'tools/visual-pipeline-and-platform-evaluation-tool/trivy.yaml'
-      trivy_image_skip: "intel/vippet-app:test,ghcr.io/dependabot/dependabot-updater-core:latest"
+      trivy_image_skip: "intel/vippet-app:test,ghcr.io/dependabot/dependabot-updater-core:latest,ghcr.io/github/github-mcp-server:latest,ghcr.io/github/gh-aw-mcpg:latest,ghcr.io/github/gh-aw-firewall/agent:latest,ghcr.io/github/gh-aw-firewall/api-proxy:latest,ghcr.io/github/gh-aw-firewall/squid:latest"
   filter-docker-related-changes:
     permissions:
       contents: read
@@ -45,7 +45,7 @@ jobs:
       docker_changed: ${{ steps.check.outputs.docker_changed }}
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0

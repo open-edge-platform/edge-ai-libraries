@@ -7,7 +7,7 @@
 
    <div class="component_card_widget">
      <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/plcopen-motion-control">
-        GitHub project
+        GitHub
      </a>
      <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/edge-control-libraries/plcopen-motion-control/README.md">
         Readme
@@ -15,7 +15,7 @@
    </div>
 
 
-The PLCopen motion standard provides a way to have standard and modular application libraries that are reusable for multiple industrial automation scenarios, such as PLC motion control, CNC and robotics. For more detailed information of the PLCopen motion specifications, please refer to `Motion Control <https://plcopen.org/technical-activities/motion-control>`_.
+The PLCopen motion standard provides a way to have standard and modular application libraries that are reusable for multiple industrial automation scenarios, such as PLC motion control, CNC and robotics. For more detailed information of the PLCopen motion specifications, please refer to the `Motion Control Standards <https://www.plcopen.org/standards/motion-control/>`_.
 
 
 RTmotion Library

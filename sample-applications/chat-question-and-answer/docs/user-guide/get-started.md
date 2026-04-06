@@ -22,21 +22,23 @@ By following this guide, you will learn how to:
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
-- Model download microservice is up and running. [Get Started Guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
-- `jq` command-line JSON processor: [Installation Guide](https://jqlang.github.io/jq/download/).
+- Model download microservice is up and running. [Get Started Guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
+- `jq` command-line JSON processor: [Installation Guide](https://jqlang.org/download/).
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
 -->
 
 ## Supported Models
+
 All models - embedding, reranker, and LLM - which are supported by the chosen model serving can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models.
 
 The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
 
 ### Embedding Models validated for each model server
+
    | Model Server | Models Validated |
-   |--------------|-------------------|
+   |--------------|------------------|
    | `TEI` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
    | `OVMS` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
 
@@ -48,19 +50,21 @@ The sample application has been validated with a few models just to validate the
    | `TGI` (deprecated) | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
 **Note:**
+
 1. Limited validation was done on DeepSeek model.
 2. Effective 2025.2.0 release, support for vLLM and TGI is deprecated. The functionality is not guaranteed to work and the user is advised not to use them. Should there be a strong requirement for the same, please raise an issue in github.
 
 ### Reranker Models validated
-   | Model Server | Models Validated |
+
+   | Model Server | Models Validated  |
    |--------------|-------------------|
    | `TEI` | `BAAI/bge-reranker-base` |
 
 ### Getting access to models
 
-To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
+To run a **GATED MODEL** like llama models, the user will need to pass their [Hugging Face token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
 
-Visit https://huggingface.co/settings/tokens to get your token.
+Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to get your token.
 
 ## Running the application using Docker Compose
 
@@ -83,10 +87,11 @@ Visit https://huggingface.co/settings/tokens to get your token.
    # Alternatively, Clone a specific release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
+
    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Bring Up the Model Download Microservice**:
-  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](../../../../microservices/model-download/docs/user-guide/get-started.md).
+  Before proceeding, you must bring up the model-download microservice with `plugin=openvino`. This service is required for downloading and converting models. For instructions on how to deploy and configure the model-download microservice, refer to its [Get Started guide](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/get-started.html).
 
 3. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
@@ -127,13 +132,14 @@ Visit https://huggingface.co/settings/tokens to get your token.
     export ALLOWED_HOSTS=<comma_separated_list_of_trusted_domains> # Ex: example.com,subdomain.example.com
     ```
 
-    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer [ALLOWED_HOSTS Configuration](../../../../microservices/document-ingestion/pgvector/docs/user-guide/get-started.md#allowed_hosts-configuration)
+    For detailed guidance on configuring __ALLOWED_HOSTS__ for different deployment scenarios, refer to [ALLOWED_HOSTS Configuration](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/pgvector/get-started.html#allowed-hosts-configuration)
 
     __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
     Refer to the supported model list in the [Get Started](./get-started.md) document.
 
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
+
     ```bash
     export REGISTRY="intel/"
     export TAG=latest
@@ -149,6 +155,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    docker compose up
    ```
+
    - Refer to [the application architecture diagram](./how-it-works.md#technical-architecture-diagram) .
 
 6. **Verify the Application**:
@@ -175,6 +182,7 @@ Refer to [Deploy with Helm](./get-started/deploy-with-helm.md) for the details. 
 1. Ensure you have the necessary environment variables set up as mentioned in the setup section.
 
 2. Run the tests using `pytest`:
+
    ```sh
    cd sample-applications/chat-question-and-answer/tests/unit_tests/
    poetry run pytest

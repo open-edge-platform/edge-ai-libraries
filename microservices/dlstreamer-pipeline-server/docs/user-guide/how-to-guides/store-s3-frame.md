@@ -20,23 +20,25 @@ For this tutorial we will be following this approach.
 For demonstration, we will use SeaweedFS as the S3 storage for frames, launching it together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
 1. Modify environment variables in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.
-    - Provide the S3 storage server details and credentials.
 
-        ```sh
-        S3_STORAGE_HOST=seaweedfs-s3
-        S3_STORAGE_PORT=8333
-        S3_STORAGE_USER=suser
-        S3_STORAGE_PASS=spass
-        ```
+   - Provide the S3 storage server details and credentials.
+
+     ```sh
+     S3_STORAGE_HOST=seaweedfs-s3
+     S3_STORAGE_PORT=8333
+     S3_STORAGE_USER=suser
+     S3_STORAGE_PASS=spass
+     ```
 
 > **Note**: SeaweedFS S3 gateway API is mapped to port 8888 externally (internal port 8333)
 > to avoid conflict with DL Streamer Pipeline Server (which uses port 8080).
 
-    - For metadata publishing, we would be using MQTT. To enable it, we need to add the host and port details of MQTT broker in `.env` file mentioned above.
-        ```sh
-        MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
-        MQTT_PORT=1883
-        ```
+   - For metadata publishing, we would be using MQTT. To enable it, we need to add the host and port details of MQTT broker in `.env` file mentioned above.
+
+     ```sh
+     MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
+     MQTT_PORT=1883
+     ```
 > **Note:** the default compose file from DL Streamer Pipeline Server provides an MQTT broker.
 > If you already have a broker running, only the host and port details are to be added to the
 > environment variables.

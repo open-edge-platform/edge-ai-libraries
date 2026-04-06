@@ -89,6 +89,7 @@ vi.mock('../components/Notification/notify', () => ({
 
 vi.mock('../redux/video/videoSlice', () => ({
   videosLoad: (...args: any[]) => videosLoadMock(...args),
+  videosSelector: (state: any) => state.video,
 }));
 
 vi.mock('../redux/search/searchSlice', () => ({
@@ -102,11 +103,15 @@ vi.mock('../redux/store', () => ({
       search: {
         suggestedTags: suggestedTagsMock,
       },
+      video: {
+        videos: [],
+      },
     }),
 }));
 
 vi.mock('../config', () => ({
   APP_URL: 'http://localhost:3000',
+  ASSETS_ENDPOINT: 'http://localhost/assets',
 }));
 
 vi.mock('axios', () => ({
@@ -121,6 +126,7 @@ vi.mock('axios', () => ({
 describe('VideoEmbeddingFlow', () => {
   const createObjectURLSpy = vi.fn(() => 'blob:http://localhost/mock');
   const revokeObjectURLSpy = vi.fn();
+  const streamableMp4Buffer = new TextEncoder().encode('ftypmoovmdatfree').buffer;
 
   const renderFlow = (props: Record<string, unknown> = {}) => {
     return render(<VideoEmbeddingFlow onClose={vi.fn()} {...props} />);
@@ -138,6 +144,9 @@ describe('VideoEmbeddingFlow', () => {
     videosLoadMock.mockReturnValue({ type: 'videos/load' });
     global.URL.createObjectURL = createObjectURLSpy as unknown as typeof URL.createObjectURL;
     global.URL.revokeObjectURL = revokeObjectURLSpy as unknown as typeof URL.revokeObjectURL;
+    File.prototype.arrayBuffer = vi.fn(async function () {
+      return streamableMp4Buffer;
+    });
     VideoEmbeddingFlow = (await import('../components/VideoActions/VideoEmbeddingFlow')).default;
   });
 

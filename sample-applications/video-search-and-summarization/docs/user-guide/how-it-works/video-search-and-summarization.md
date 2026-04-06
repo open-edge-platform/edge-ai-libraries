@@ -135,17 +135,17 @@ The key components of Video Search and Summarization mode are as follows:
 
    **Inference microservices**:
 
-    - [Multimodal Embedding](../../../../../microservices/multimodal-embedding-serving/) - Creates vector embeddings for semantic search.
+    - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html) - Creates vector embeddings for semantic search.
 
-    - [Audio Analyzer](../../../../../microservices/audio-analyzer/) - Provides audio transcription capabilities.
+    - [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html) - Provides audio transcription capabilities.
 
-    - [VLM microservice](../../../../../microservices/vlm-openvino-serving/) - Generates captions for video content.
+    - [VLM microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/vlm-openvino-serving/docs/user-guide/Overview.md) - Generates captions for video content.
 
    **Data-handling microservices**
 
-    - [VDMS-based data preparation](../../../../../microservices/visual-data-preparation-for-retrieval/vdms/) - Handles vector database storage and retrieval.
+    - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/README.md) - Handles vector database storage and retrieval.
 
-    - [Vector Retriever](../../../../../microservices/vector-retriever/) - Enables semantic search across the video collection.
+    - [Vector Retriever](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/vector-retriever/index.html) - Enables semantic search across the video collection.
 
    See the respective documentation for details.
 

@@ -71,6 +71,7 @@ import {
   createPipelineSchema,
 } from "./pipelineSchemas";
 import { PipelineTagsCombobox } from "./PipelineTagsCombobox";
+import { isSupportedVideoFilename } from "@/lib/videoUtils.ts";
 
 type CreatePipelineDialogProps = {
   children: ReactNode;
@@ -84,6 +85,7 @@ export const CreatePipelineDialog = ({
   const [selectedTemplate, setSelectedTemplate] = useState<Pipeline | null>(
     null,
   );
+  const dialogContentRef = useRef<HTMLElement | null>(null);
   const stepperRef = useRef<HTMLDivElement & IStepperMethods>(null);
 
   const { data: templates, isLoading: isLoadingTemplates } =
@@ -116,7 +118,9 @@ export const CreatePipelineDialog = ({
 
   const tags = watch("tags");
 
-  const videoOptions = videos.map((v) => v.filename);
+  const videoOptions = videos
+    .filter((video) => isSupportedVideoFilename(video.filename))
+    .map((video) => video.filename);
 
   const [createPipeline, { isLoading: isCreating }] =
     useCreatePipelineMutation();
@@ -301,7 +305,19 @@ export const CreatePipelineDialog = ({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         className="max-w-6xl!"
-        onInteractOutside={(e) => e.preventDefault()}
+        ref={(node) => {
+          dialogContentRef.current = node;
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+
+          if (target.closest('[data-slot="combobox-content"]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Create Pipeline</DialogTitle>
@@ -344,6 +360,7 @@ export const CreatePipelineDialog = ({
             <Field>
               <FieldLabel htmlFor="tags">Tags</FieldLabel>
               <PipelineTagsCombobox
+                portalContainer={dialogContentRef}
                 value={tags}
                 onChange={(newTags) => {
                   setValue("tags", newTags);
@@ -465,6 +482,7 @@ export const CreatePipelineDialog = ({
                 <Field>
                   <FieldLabel htmlFor="template-tags">Tags</FieldLabel>
                   <PipelineTagsCombobox
+                    portalContainer={dialogContentRef}
                     value={tags}
                     onChange={(newTags) => {
                       setValue("tags", newTags);

@@ -8,6 +8,7 @@ import api.api_schemas as schemas
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPipelineDensitySpec,
     InternalPipelinePerformanceSpec,
@@ -64,9 +65,10 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
       - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
       - Pipeline description: `{"source": "description", "pipeline_description": "..."}`
-    - `execution_config`: Configuration for output mode and runtime limits
+    - `execution_config`: Configuration for output mode, metadata mode and runtime limits
       - `output_mode`: disabled (default), file, or live_stream
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
+      - `metadata_mode`: disabled (default) or file
 
     ## Response Codes
 
@@ -105,7 +107,8 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -127,7 +130,8 @@ def run_performance_test(body: schemas.PerformanceTestSpec):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -211,9 +215,10 @@ def run_density_test(body: schemas.DensityTestSpec):
       - Variant reference: `{"source": "variant", "pipeline_id": "...", "variant_id": "..."}`
       - Inline graph: `{"source": "graph", "pipeline_graph": {...}}`
       - Pipeline description: `{"source": "description", "pipeline_description": "..."}`
-    - `execution_config`: Configuration for output mode and runtime limits
+    - `execution_config`: Configuration for output mode, metadata mode and runtime limits
       - `output_mode`: disabled (default) or file (live_stream not supported)
       - `max_runtime`: maximum runtime in seconds (0 = run until EOS)
+      - `metadata_mode`: must be disabled (metadata output not supported)
 
     ## Response Codes
 
@@ -262,7 +267,8 @@ def run_density_test(body: schemas.DensityTestSpec):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -285,7 +291,8 @@ def run_density_test(body: schemas.DensityTestSpec):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -437,6 +444,23 @@ def _convert_output_mode(mode: schemas.OutputMode) -> InternalOutputMode:
     return mode_mapping[mode]
 
 
+def _convert_metadata_mode(mode: schemas.MetadataMode) -> InternalMetadataMode:
+    """
+    Convert API MetadataMode to internal representation.
+
+    Args:
+        mode: API MetadataMode enum value.
+
+    Returns:
+        InternalMetadataMode with equivalent value.
+    """
+    mode_mapping = {
+        schemas.MetadataMode.DISABLED: InternalMetadataMode.DISABLED,
+        schemas.MetadataMode.FILE: InternalMetadataMode.FILE,
+    }
+    return mode_mapping[mode]
+
+
 def _convert_execution_config(
     config: schemas.ExecutionConfig,
 ) -> InternalExecutionConfig:
@@ -452,6 +476,7 @@ def _convert_execution_config(
     return InternalExecutionConfig(
         output_mode=_convert_output_mode(config.output_mode),
         max_runtime=config.max_runtime,
+        metadata_mode=_convert_metadata_mode(config.metadata_mode),
     )
 
 

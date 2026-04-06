@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { useFrozenMetrics } from "@/hooks/useFrozenMetrics";
 import {
   type PipelineStreamSpec,
   useGetDensityJobStatusQuery,
   useRunDensityTestMutation,
   useStopDensityTestJobMutation,
 } from "@/api/api.generated.ts";
-import { TestProgressIndicator } from "@/features/pipeline-tests/TestProgressIndicator.tsx";
+import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
 import { PipelineStreamsSummary } from "@/features/pipeline-tests/PipelineStreamsSummary.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
@@ -67,6 +68,8 @@ export const DensityTests = () => {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
+  const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
+    useFrozenMetrics();
 
   const {
     execute: runTest,
@@ -187,6 +190,7 @@ export const DensityTests = () => {
 
     setTestResult(null);
     setErrorMessage(null);
+    startRecording();
     try {
       const status = await runTest({
         densityTestSpec: {
@@ -213,6 +217,7 @@ export const DensityTests = () => {
         video_output_paths: status.video_output_paths,
       });
       setErrorMessage(null);
+      freezeSnapshot(status.per_stream_fps);
     } catch (error) {
       if (isAsyncJobError(error)) {
         handleAsyncJobError(error, "Test failed");
@@ -223,6 +228,7 @@ export const DensityTests = () => {
       }
       console.error("Test failed:", error);
       setTestResult(null);
+      freezeSnapshot(null);
     }
   };
 
@@ -247,7 +253,7 @@ export const DensityTests = () => {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container pl-16 mx-auto py-10">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Density Tests</h1>
         <p className="text-muted-foreground mt-2">
@@ -477,9 +483,21 @@ export const DensityTests = () => {
                     Running density test...
                   </span>
                 </div>
-                <TestProgressIndicator />
+                <MetricsDashboard />
               </div>
             )}
+          </div>
+        )}
+
+        {!isRunning && frozenSummary && (
+          <div className="m-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+              Frozen Metrics Snapshot
+            </p>
+            <MetricsDashboard
+              historyOverride={frozenHistory}
+              metricsOverride={frozenSummary}
+            />
           </div>
         )}
 

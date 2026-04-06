@@ -21,14 +21,21 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
     ```
 
-- Pull the image with the latest tag from docker registry
+- To enable GPU/NPU you must first grant the container user access to GPU/NPU device(s). Because Docker Compose does not evaluate shell expressions, you need to determine the `render` group ID on the host system and define/export it as an environment variable **before** running Docker Compose. You can add group ID in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`.
+To check the render ID group you can use the command below:
+
+  ```sh
+  stat -c "%g" /dev/dri/render* | head -1
+  ```
+
+- Pull the image with the latest tag from docker registry:
 
    ```sh
      # Update DLSTREAMER_PIPELINE_SERVER_IMAGE in <edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env> if necessary
      docker pull "$(grep ^DLSTREAMER_PIPELINE_SERVER_IMAGE= .env | cut -d= -f2-)"
    ```
 
-- Bring up the container
+- Bring up the container:
 
    ```sh
      docker compose up

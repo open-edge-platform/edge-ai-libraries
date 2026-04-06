@@ -33,7 +33,7 @@ ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
 ENV HOME=/home/appuser
 
 # Install curl to be used for health checks in final stages
-RUN apt update -y && apt install -y curl
+RUN apt-get update -y && apt-get install --no-install-recommends -y curl && rm -rf /var/lib/apt/lists/*
 # Upgrade pip to the latest version
 RUN pip install --upgrade pip 
 
@@ -141,7 +141,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         # Get source code for installed Python packages with copyleft licenses \
         mkdir -p /copyleft_sources/python && \
         cd /copyleft_sources/python && \
-        apt-get update && apt-get install -y gcc build-essential libffi-dev python3-dev && \
+        apt-get update && apt-get install --no-install-recommends -y gcc build-essential libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
         pip3 freeze | cut -d= -f1 | while read pkg; do \
             meta=$(pip3 show $pkg 2>/dev/null); \

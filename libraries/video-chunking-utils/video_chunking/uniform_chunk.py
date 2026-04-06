@@ -61,7 +61,7 @@ class UniformChunking(BaseChunking):
         """
         if isinstance(frames, np.ndarray):
             frames = [frames]
-        if isinstance(frames, float):
+        if isinstance(timestamps, float):
             timestamps = [timestamps]
 
         for (dummy_frame, timestamp) in zip(frames, timestamps):

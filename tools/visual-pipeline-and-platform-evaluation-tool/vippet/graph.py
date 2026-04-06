@@ -45,6 +45,11 @@ SIMPLE_VIEW_INVISIBLE_ELEMENTS = os.environ.get(
     "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark",
 )
 
+# Default latency (in ms) applied to rtspsrc elements that do not specify it explicitly.
+RTSPSRC_DEFAULT_LATENCY_MS: int = int(
+    os.environ.get("RTSPSRC_DEFAULT_LATENCY_MS", "100")
+)
+
 
 def _compile_visibility_patterns(pattern_string: str) -> list[re.Pattern]:
     """
@@ -497,6 +502,47 @@ class Graph:
 
         return modified_graph
 
+    def apply_rtsp_connection_settings(self) -> "Graph":
+        """
+        Apply connection settings to all rtspsrc nodes in the pipeline.
+
+        Settings applied to each rtspsrc node:
+        - user-id / user-pw: credentials looked up from CameraManager by RTSP URL.
+        - latency: set to RTSPSRC_DEFAULT_LATENCY_MS if not already explicitly configured.
+
+        If no rtspsrc node is found, the graph is returned unchanged.
+
+        Returns:
+            Modified Graph object with connection settings applied to rtspsrc nodes.
+
+        Note:
+            This creates a deep copy of the graph to avoid modifying the original.
+        """
+        from managers.camera_manager import CameraManager
+        # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
+
+        modified_graph = copy.deepcopy(self)
+
+        for node in modified_graph.nodes:
+            if node.type != "rtspsrc":
+                continue
+
+            location = node.data.get("location")
+            if not location:
+                continue
+
+            details = CameraManager().get_network_camera_details_by_rtsp_url(location)
+            if details is not None:
+                if details.username is not None:
+                    node.data["user-id"] = details.username
+                if details.password is not None:
+                    node.data["user-pw"] = details.password
+
+            node.data.setdefault("latency", str(RTSPSRC_DEFAULT_LATENCY_MS))
+            logger.debug(f"Applied RTSP connection settings to rtspsrc node {node.id}")
+
+        return modified_graph
+
     def prepare_main_output_placeholder(self) -> "Graph":
         """
         Convert default fakesink node to a main output placeholder.
@@ -757,6 +803,32 @@ class Graph:
             modified_graph.nodes = [n for n in modified_graph.nodes if n.id != wm_id]
 
         return modified_graph
+
+    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+        """
+        Assign output file paths to all gvametapublish nodes and configure them for file output.
+
+        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
+        node found in the graph, overwriting any existing values.
+
+        Args:
+            metadata_dir: Directory where metadata files will be written.
+
+        Returns:
+            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+        """
+        metadata_file_paths: list[str] = []
+        for node in self.nodes:
+            if node.type == "gvametapublish":
+                meta_path = os.path.join(
+                    metadata_dir,
+                    f"metadata_{node.id}.jsonl",
+                )
+                node.data["method"] = "file"
+                node.data["file-format"] = "json-lines"
+                node.data["file-path"] = meta_path
+                metadata_file_paths.append(meta_path)
+        return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
         """
@@ -1216,6 +1288,14 @@ class Graph:
 
         return "CPU"
 
+    def has_gvametapublish(self) -> bool:
+        """Check whether the graph contains any gvametapublish element.
+
+        Returns:
+            True if at least one gvametapublish node is present, False otherwise.
+        """
+        return any(node.type == "gvametapublish" for node in self.nodes)
+
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
         return any(node.type == "decodebin3" for node in self.nodes)
@@ -1374,6 +1454,16 @@ class Graph:
         # Determine if a v4l2src capsfilter node is needed
         v4l2_caps_node_info = self._build_v4l2_caps_node(modified_graph.nodes)
 
+        # Determine if a post-decoder videoconvert is needed:
+        # - for v4l2src USB camera compatibility, or
+        # - when gvamotiondetect is present and decoding on CPU
+        has_gvamotiondetect = any(
+            n.type == "gvamotiondetect" for n in modified_graph.nodes
+        )
+        needs_post_decoder_converter = v4l2_caps_node_info is not None or (
+            has_gvamotiondetect and device_upper == "CPU"
+        )
+
         # Find max existing ID across all nodes and edges for generating new IDs
         max_id = 0
         for node in modified_graph.nodes:
@@ -1429,8 +1519,9 @@ class Graph:
                 # Determine the source for the caps node (either decoder or converter)
                 caps_source_id = decoder_node_id
 
-                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera compatibility
-                if v4l2_caps_node_info is not None:
+                # Post-decoder converter (videoconvert/vapostproc) needed for USB camera
+                # compatibility or when gvamotiondetect is present on CPU
+                if needs_post_decoder_converter:
                     converter_node_id = str(next_id)
                     next_id += 1
                     if device_upper in {"GPU", "NPU"}:
@@ -1467,7 +1558,7 @@ class Graph:
                 edges_to_add_list.append(edge_parsebin_to_decoder)
 
                 # If converter node exists, add edge decoder → converter
-                if v4l2_caps_node_info is not None:
+                if needs_post_decoder_converter:
                     edge_decoder_to_converter_id = str(next_id)
                     next_id += 1
                     edge_decoder_to_converter = Edge(

@@ -56,6 +56,8 @@ spec:
               value: "/opt/models"
             - name: ENABLED_PLUGINS
               value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
+            - name: OVMS_RELEASE_TAG
+              value: "{{ .Values.modeldownload.env.OVMS_RELEASE_TAG }}"
             - name: GETI_WORKSPACE_ID
               value: "{{ .Values.modeldownload.env.GETI_WORKSPACE_ID }}"
             - name: GETI_HOST
@@ -66,6 +68,12 @@ spec:
               value: "{{ .Values.modeldownload.env.GETI_SERVER_API_VERSION }}"
             - name: GETI_SERVER_SSL_VERIFY
               value: "{{ .Values.modeldownload.env.GETI_SERVER_SSL_VERIFY }}"
+            - name: HLS_3D_POSE_CHECKPOINT_URL
+              value: "{{ .Values.modeldownload.env.HLS_3D_POSE_CHECKPOINT_URL }}"
+            - name: HLS_ECG_BASE_URL
+              value: "{{ .Values.modeldownload.env.HLS_ECG_BASE_URL }}"
+            - name: HLS_RPPG_MODEL_URL
+              value: "{{ .Values.modeldownload.env.HLS_RPPG_MODEL_URL }}"
           command: ["/opt/entrypoint.sh"]
           args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:

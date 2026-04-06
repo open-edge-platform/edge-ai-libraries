@@ -1,0 +1,62 @@
+service:
+  name: semantic-search-agent
+  version: 1.0.0
+  log_level: INFO
+  api_port: 8080
+  metrics_port: 9090
+
+vlm:
+  backend: ovms  # Options: openvino_local, ovms, openai
+  
+  ovms:
+    endpoint: http://localhost:8000  # Set via OVMS_ENDPOINT environment variable
+    model_name: vision-language-model  # Set via OVMS_MODEL_NAME environment variable
+    timeout: 30
+    api_path: /v3/chat/completions
+  
+  openvino_local:
+    model_path: /models/vision-language-model  # Set via OPENVINO_MODEL_PATH environment variable
+    device: GPU
+    max_new_tokens: 512
+    temperature: 0.0
+  
+  openai:
+    model: gpt-4o-mini  # Set via OPENAI_MODEL environment variable
+    max_tokens: 100
+    temperature: 0.0
+
+matching:
+  default_strategy: exact  # Options: exact, semantic, hybrid (set to 'exact' for no VLM)
+  
+  exact_match:
+    case_insensitive: true
+    strip_whitespace: true
+    normalize_special_chars: true
+  
+  semantic_match:
+    confidence_threshold: 0.85
+    max_retries: 2
+    cache_ttl: 3600
+    
+  hybrid_match:
+    exact_first: true
+    semantic_fallback: true
+
+cache:
+  enabled: true
+  backend: memory  # Options: memory, redis
+  ttl: 3600
+  
+  redis:
+    host: redis
+    port: 6379
+    db: 0
+    password: null
+    socket_timeout: 5
+    socket_connect_timeout: 5
+
+metrics:
+  enabled: true
+  prometheus:
+    port: 9090
+    path: /metrics

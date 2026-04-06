@@ -178,7 +178,7 @@ class Benchmark:
             )
 
             # Build pipeline command using PipelineManager singleton
-            pipeline_command, video_output_paths, _ = (
+            pipeline_command, video_output_paths, _, _ = (
                 PipelineManager().build_pipeline_command(
                     run_specs, execution_config, job_id
                 )
@@ -201,7 +201,7 @@ class Benchmark:
                 raise RuntimeError("Pipeline returned zero or invalid FPS metrics.")
 
             self.logger.info(
-                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
+                "exit_code=%d, n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s, details=%s",
                 result.exit_code,
                 n_streams,
                 total_fps,
@@ -209,6 +209,7 @@ class Benchmark:
                 exponential,
                 lower_bound,
                 higher_bound,
+                result.details,
             )
 
             # Build streams_per_pipeline with pipeline IDs

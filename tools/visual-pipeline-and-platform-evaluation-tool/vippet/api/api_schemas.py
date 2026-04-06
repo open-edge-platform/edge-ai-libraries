@@ -1114,12 +1114,33 @@ class OutputMode(str, Enum):
     LIVE_STREAM = "live_stream"
 
 
+class MetadataMode(str, Enum):
+    """
+    **Mode for pipeline metadata publishing via gvametapublish elements.**
+
+    Controls whether and how inference metadata produced by `gvametapublish`
+    elements in the pipeline is published.
+
+    ## Values
+    - `DISABLED` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
+    - `FILE` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
+
+    ### Example
+    ```json
+    "file"
+    ```
+    """
+
+    DISABLED = "disabled"
+    FILE = "file"
+
+
 class ExecutionConfig(BaseModel):
     """
     **Configuration for pipeline execution behavior.**
 
-    This configuration controls both output generation and runtime limits
-    for test pipelines.
+    This configuration controls output generation, runtime limits, and
+    metadata publishing for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1130,6 +1151,9 @@ class ExecutionConfig(BaseModel):
       - 0: Run until natural completion (EOS), no time limit (default)
       - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)
       - <0: Not allowed (will be rejected)
+    - `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:
+      - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)
+      - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints
 
     ### Example (disabled output, no runtime limit)
     ```json
@@ -1154,6 +1178,15 @@ class ExecutionConfig(BaseModel):
       "max_runtime": 60
     }
     ```
+
+    ### Example (metadata publishing to file)
+    ```json
+    {
+      "output_mode": "disabled",
+      "max_runtime": 0,
+      "metadata_mode": "file"
+    }
+    ```
     """
 
     output_mode: OutputMode = Field(
@@ -1165,6 +1198,10 @@ class ExecutionConfig(BaseModel):
         ge=0.0,
         description="Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
     )
+    metadata_mode: MetadataMode = Field(
+        default=MetadataMode.DISABLED,
+        description="Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
+    )
 
 
 class PerformanceTestSpec(BaseModel):
@@ -1173,7 +1210,7 @@ class PerformanceTestSpec(BaseModel):
 
     ## Attributes
     - `pipeline_performance_specs` - List of pipelines and their stream counts
-    - `execution_config` - Configuration for output generation and runtime limits
+    - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
     ### Example
     ```json
@@ -1190,7 +1227,8 @@ class PerformanceTestSpec(BaseModel):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -1215,7 +1253,9 @@ class PerformanceTestSpec(BaseModel):
     execution_config: ExecutionConfig = Field(
         default=ExecutionConfig(),
         description="Execution configuration for output and runtime.",
-        examples=[{"output_mode": "disabled", "max_runtime": 0}],
+        examples=[
+            {"output_mode": "disabled", "max_runtime": 0, "metadata_mode": "disabled"}
+        ],
     )
 
 
@@ -1226,7 +1266,7 @@ class DensityTestSpec(BaseModel):
     ## Attributes
     - `fps_floor` - Minimum acceptable FPS per stream
     - `pipeline_density_specs` - List of pipelines with relative stream_rate ratios
-    - `execution_config` - Configuration for output generation and runtime limits
+    - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
     ### Example
     ```json
@@ -1252,7 +1292,8 @@ class DensityTestSpec(BaseModel):
       ],
       "execution_config": {
         "output_mode": "disabled",
-        "max_runtime": 0
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
       }
     }
     ```
@@ -1290,7 +1331,9 @@ class DensityTestSpec(BaseModel):
     execution_config: ExecutionConfig = Field(
         default=ExecutionConfig(),
         description="Execution configuration for output and runtime.",
-        examples=[{"output_mode": "disabled", "max_runtime": 0}],
+        examples=[
+            {"output_mode": "disabled", "max_runtime": 0, "metadata_mode": "disabled"}
+        ],
     )
 
 
@@ -1354,15 +1397,17 @@ class PerformanceJobStatus(TestsJobStatus):
     """
     **Status of a performance test job.**
 
-    Inherits all fields from TestsJobStatus and adds live_stream_urls
-    for live-streaming output mode support.
+    Inherits all fields from TestsJobStatus and adds live_stream_urls and
+    metadata_stream_urls for live-streaming output mode support.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
+    - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     """
 
     live_stream_urls: Optional[Dict[str, str]]
+    metadata_stream_urls: Optional[Dict[str, list[str]]]
 
 
 class DensityJobStatus(TestsJobStatus):
