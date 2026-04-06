@@ -26,7 +26,7 @@ from .utils import (
     download_image,
     download_video,
     logger,
-    extract_batched_frames
+    extract_batched_frames,
     resolve_safe_local_path,
     sanitize_for_log,
 )
