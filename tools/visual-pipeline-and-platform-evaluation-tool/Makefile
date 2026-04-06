@@ -108,6 +108,7 @@ test: env-setup ## Run unit tests and generate coverage report
 		cd $(PROJECT_NAME) && \
 		INPUT_VIDEO_DIR=/tmp \
 		OUTPUT_VIDEO_DIR=/tmp \
+		METADATA_DIR=/tmp \
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests/unit -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 

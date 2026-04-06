@@ -36,7 +36,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink
   - name: GPU
@@ -67,7 +67,7 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink
   - name: GPU_NPU
@@ -98,6 +98,6 @@ variants:
         reclassify-interval=1 !
       queue !
       gvawatermark !
-      gvametaconvert format=json json-indent=4 !
+      gvametaconvert format=json !
       gvametapublish method=file file-path=/dev/null !
       fakesink name=default_output_sink

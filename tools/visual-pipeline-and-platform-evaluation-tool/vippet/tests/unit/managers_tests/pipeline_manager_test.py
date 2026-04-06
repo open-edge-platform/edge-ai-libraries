@@ -5,13 +5,14 @@ from unittest.mock import patch
 from graph import Graph
 from internal_types import (
     InternalExecutionConfig,
+    InternalMetadataMode,
     InternalOutputMode,
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
     InternalVariantCreate,
 )
-from managers.pipeline_manager import PipelineManager
+from managers.pipeline_manager import PipelineManager, METADATA_DIR
 from videos import OUTPUT_VIDEO_DIR
 
 
@@ -32,6 +33,30 @@ def create_simple_graph() -> Graph:
     )
 
 
+def create_gvametapublish_graph(publish_nodes: int = 1) -> Graph:
+    """Helper to create a pipeline graph with gvametapublish nodes for metadata tests.
+
+    Builds a linear chain: fakesrc → gvametapublish(1) … gvametapublish(N) → fakesink.
+
+    Args:
+        publish_nodes: Number of gvametapublish nodes to include (default 1).
+    """
+    nodes: list[dict] = [{"id": "0", "type": "fakesrc", "data": {}}]
+    edges: list[dict] = []
+    for i in range(publish_nodes):
+        node_id = str(1 + i)
+        nodes.append({"id": node_id, "type": "gvametapublish", "data": {}})
+        edges.append({"id": str(i), "source": str(i), "target": node_id})
+    sink_id = str(1 + publish_nodes)
+    nodes.append(
+        {"id": sink_id, "type": "fakesink", "data": {"name": "default_output_sink"}}
+    )
+    edges.append(
+        {"id": str(publish_nodes), "source": str(publish_nodes), "target": sink_id}
+    )
+    return Graph.from_dict({"nodes": nodes, "edges": edges})
+
+
 def create_variant_create(name: str = "CPU") -> InternalVariantCreate:
     """Helper to create a valid InternalVariantCreate for testing."""
     graph = create_simple_graph()
@@ -45,11 +70,13 @@ def create_variant_create(name: str = "CPU") -> InternalVariantCreate:
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
+    metadata_mode: InternalMetadataMode = InternalMetadataMode.DISABLED,
 ) -> InternalExecutionConfig:
     """Helper to create InternalExecutionConfig for testing."""
     return InternalExecutionConfig(
         output_mode=output_mode,
         max_runtime=max_runtime,
+        metadata_mode=metadata_mode,
     )
 
 
@@ -293,14 +320,17 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify command is not empty and contains pipeline elements
         self.assertIsInstance(command, str)
         self.assertIsInstance(output_paths, dict)
         self.assertIsInstance(live_stream_urls, dict)
+        self.assertIsInstance(metadata_file_paths, dict)
         self.assertGreater(len(command), 0)
         self.assertIn("fakesrc", command)
         self.assertIn("fakesink", command)
@@ -320,8 +350,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -368,8 +400,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify command contains multiple instances
@@ -427,8 +461,10 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify both pipeline types are present
@@ -567,10 +603,13 @@ class TestPipelineManager(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = manager.build_pipeline_command(
-            pipeline_performance_specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            manager.build_pipeline_command(
+                pipeline_performance_specs, execution_config, self.job_id
+            )
         )
 
         # Verify video output is configured
@@ -604,7 +643,7 @@ class TestPipelineManager(unittest.TestCase):
         ]
         execution_config = create_internal_execution_config()
 
-        _, output_paths, _ = manager.build_pipeline_command(
+        _, output_paths, _, _ = manager.build_pipeline_command(
             pipeline_performance_specs, execution_config, self.job_id
         )
 
@@ -1037,7 +1076,7 @@ class TestGraphConversionMethods(unittest.TestCase):
 
 
 class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
-    """Test cases for ExecutionConfig validation in build_pipeline_command."""
+    """Test cases for ExecutionConfig and metadata_mode validation in build_pipeline_command."""
 
     def setUp(self):
         PipelineManager._instance = None
@@ -1059,6 +1098,7 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
         with self.assertRaises(ValueError) as context:
@@ -1076,10 +1116,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, _ = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1091,10 +1134,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1106,10 +1152,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        (command, output_paths, live_stream_urls, metadata_file_paths) = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         self.assertIsInstance(command, str)
@@ -1123,10 +1172,13 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            self.specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
         )
 
         pipeline_id = "/pipelines/test-execution-config/variants/cpu"
@@ -1151,16 +1203,309 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, output_paths, live_stream_urls = self.manager.build_pipeline_command(
-            specs, execution_config, self.job_id
+        command, output_paths, live_stream_urls, metadata_file_paths = (
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
         )
 
         # Should have exactly 2 live stream URLs (one per pipeline)
         self.assertEqual(len(live_stream_urls), 2)
         # Only first stream of each pipeline should have rtspclientsink
         self.assertEqual(command.count("rtspclientsink"), 2)
+
+    def test_metadata_file_paths_empty_when_mode_disabled(self):
+        """metadata_file_paths must be an empty dict when metadata_mode=DISABLED."""
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            self.specs, execution_config, self.job_id
+        )
+
+        self.assertEqual(metadata_file_paths, {})
+
+    def test_metadata_mode_disabled_with_gvametapublish_does_not_inject_paths(self):
+        """When metadata is disabled, gvametapublish nodes must not have file-path set."""
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/test-meta/variants/cpu",
+                pipeline_name="test-meta",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+
+        command, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        self.assertEqual(metadata_file_paths, {})
+        # file-path must NOT appear in the command (no injection happened)
+        self.assertNotIn("file-path", command)
+
+    def test_metadata_mode_file_without_gvametapublish_raises_error(self):
+        """metadata_mode=FILE on a pipeline that has no gvametapublish must raise ValueError."""
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(
+                self.specs, execution_config, self.job_id
+            )
+
+        self.assertIn(
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_multiple_pipelines_one_missing_gvametapublish_raises(
+        self,
+    ):
+        """Even if only one pipeline in a multi-pipeline spec lacks gvametapublish the
+        error must be raised."""
+        specs = [
+            # has gvametapublish
+            InternalPipelinePerformanceSpec(
+                pipeline_id="/pipelines/with-publish/variants/cpu",
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            ),
+            # does NOT have gvametapublish
+            create_internal_performance_spec(
+                pipeline_id="/pipelines/no-publish/variants/cpu",
+                pipeline_name="no-publish",
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.build_pipeline_command(specs, execution_config, self.job_id)
+
+        self.assertIn(
+            "Metadata generation is enabled, but the pipeline does not contain any gvametapublish element.",
+            str(ctx.exception),
+        )
+
+    def test_metadata_mode_file_returns_paths_for_pipeline(self):
+        """metadata_file_paths must contain the pipeline_id mapped to a list of paths."""
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        self.assertIn(pipeline_id, metadata_file_paths)
+        paths = metadata_file_paths[pipeline_id]
+        self.assertIsInstance(paths, list)
+        self.assertEqual(len(paths), 1)
+
+    def test_metadata_mode_file_paths_end_with_jsonl(self):
+        """Each injected metadata path must be a .jsonl file."""
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        for path in metadata_file_paths[pipeline_id]:
+            self.assertTrue(
+                path.endswith(".jsonl"),
+                f"Expected .jsonl extension, got: {path}",
+            )
+
+    def test_metadata_mode_file_paths_are_under_metadata_dir(self):
+        """Injected metadata paths must be located beneath METADATA_DIR."""
+
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        for path in metadata_file_paths[pipeline_id]:
+            self.assertTrue(
+                path.startswith(METADATA_DIR),
+                f"Expected path under {METADATA_DIR}, got: {path}",
+            )
+
+    def test_metadata_mode_file_paths_appear_in_command(self):
+        """The injected metadata file paths must be present in the GStreamer command."""
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        command, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        for path in metadata_file_paths[pipeline_id]:
+            self.assertIn(path, command)
+
+    def test_metadata_mode_file_multiple_gvametapublish_returns_one_path_each(self):
+        """A pipeline with two gvametapublish elements must produce two metadata paths."""
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(publish_nodes=2),
+                streams=1,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        self.assertIn(pipeline_id, metadata_file_paths)
+        self.assertEqual(len(metadata_file_paths[pipeline_id]), 2)
+
+    def test_metadata_mode_file_only_injects_paths_for_first_stream(self):
+        """Metadata paths must be returned as a single list regardless of stream count
+        (injection happens only for stream_index 0)."""
+        pipeline_id = "/pipelines/with-publish/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id,
+                pipeline_name="with-publish",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=3,
+            )
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        # Paths list length equals number of gvametapublish nodes, NOT stream count
+        self.assertIn(pipeline_id, metadata_file_paths)
+        self.assertEqual(len(metadata_file_paths[pipeline_id]), 1)
+
+    def test_metadata_mode_file_multiple_pipelines_get_independent_paths(self):
+        """Each pipeline in a multi-pipeline spec gets its own entry in metadata_file_paths."""
+        pipeline_id_1 = "/pipelines/pipe-1/variants/cpu"
+        pipeline_id_2 = "/pipelines/pipe-2/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id_1,
+                pipeline_name="pipe-1",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            ),
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id_2,
+                pipeline_name="pipe-2",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        self.assertIn(pipeline_id_1, metadata_file_paths)
+        self.assertIn(pipeline_id_2, metadata_file_paths)
+        # Paths for the two pipelines must be different
+        self.assertNotEqual(
+            metadata_file_paths[pipeline_id_1],
+            metadata_file_paths[pipeline_id_2],
+        )
+
+    def test_metadata_mode_file_paths_are_unique_across_pipelines(self):
+        """The injected metadata paths for different pipelines must not overlap."""
+        pipeline_id_1 = "/pipelines/pipe-a/variants/cpu"
+        pipeline_id_2 = "/pipelines/pipe-b/variants/cpu"
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id_1,
+                pipeline_name="pipe-a",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            ),
+            InternalPipelinePerformanceSpec(
+                pipeline_id=pipeline_id_2,
+                pipeline_name="pipe-b",
+                pipeline_graph=create_gvametapublish_graph(),
+                streams=1,
+            ),
+        ]
+        execution_config = create_internal_execution_config(
+            metadata_mode=InternalMetadataMode.FILE,
+        )
+
+        _, _, _, metadata_file_paths = self.manager.build_pipeline_command(
+            specs, execution_config, self.job_id
+        )
+
+        all_paths = (
+            metadata_file_paths[pipeline_id_1] + metadata_file_paths[pipeline_id_2]
+        )
+        self.assertEqual(
+            len(all_paths), len(set(all_paths)), "Metadata paths must be unique"
+        )
 
 
 class TestBuildPipelineCommandLooping(unittest.TestCase):
@@ -1200,9 +1545,10 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1214,9 +1560,10 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.DISABLED,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1228,9 +1575,10 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.LIVE_STREAM,
             max_runtime=60,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, live_stream_urls = self.manager.build_pipeline_command(
+        command, _, live_stream_urls, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
@@ -1243,9 +1591,10 @@ class TestBuildPipelineCommandLooping(unittest.TestCase):
         execution_config = create_internal_execution_config(
             output_mode=InternalOutputMode.FILE,
             max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
         )
 
-        command, _, _ = self.manager.build_pipeline_command(
+        command, _, _, _ = self.manager.build_pipeline_command(
             self.specs, execution_config, self.job_id
         )
 
