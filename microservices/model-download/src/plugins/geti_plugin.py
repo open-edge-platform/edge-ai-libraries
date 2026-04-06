@@ -624,9 +624,37 @@ class GetiPlugin(ModelDownloadPlugin):
 
         return model_id, project_id, model_group_id, None, None
 
+    def _safe_extract_archive(self, archive_path: str, extract_dir: str) -> None:
+        """Safely extract a zip or tar.gz archive, blocking path traversal attacks.
+
+        Validates every archive entry to ensure it resolves within extract_dir
+        before extraction. Unsafe entries are skipped with a warning.
+
+        Args:
+            archive_path: Path to the zip or tar.gz/.tgz archive file.
+            extract_dir: Directory to extract files into.
+        """
+        abs_extract_dir = os.path.realpath(extract_dir)
+
+        def _is_safe(name: str) -> bool:
+            return os.path.realpath(os.path.join(abs_extract_dir, name)).startswith(abs_extract_dir + os.sep)
+
+        lower_path = archive_path.lower()
+        if lower_path.endswith(".zip") and zipfile.is_zipfile(archive_path):
+            with zipfile.ZipFile(archive_path, "r") as zip_ref:
+                for member in zip_ref.namelist():
+                    if _is_safe(member):
+                        zip_ref.extract(member, extract_dir)
+                    else:
+                        logger.warning(f"Skipping unsafe zip entry: {member}")
+        elif lower_path.endswith((".tar.gz", ".tgz")) and tarfile.is_tarfile(archive_path):
+            with tarfile.open(archive_path, "r:gz") as tar_ref:
+                safe_members = [m for m in tar_ref.getmembers() if _is_safe(m.name)]
+                tar_ref.extractall(extract_dir, members=safe_members)
+
     async def extract_model_files(self, model_dir: str) -> None:
         """Extract nested model files from SDK structure.
-        
+
         Moves files from 'models' subdirectory to parent directory.
         """
         models_subdir = os.path.join(model_dir, "models")
@@ -644,13 +672,8 @@ class GetiPlugin(ModelDownloadPlugin):
                 shutil.copy2(src, dst)
 
                 lower_dst = dst.lower()
-                if lower_dst.endswith(".zip") and zipfile.is_zipfile(dst):
-                    with zipfile.ZipFile(dst, "r") as zip_ref:
-                        zip_ref.extractall(model_dir)
-                    os.remove(dst)
-                elif lower_dst.endswith((".tar.gz", ".tgz")) and tarfile.is_tarfile(dst):
-                    with tarfile.open(dst, "r:gz") as tar_ref:
-                        tar_ref.extractall(model_dir)
+                if lower_dst.endswith(".zip") or lower_dst.endswith((".tar.gz", ".tgz")):
+                    self._safe_extract_archive(dst, model_dir)
                     os.remove(dst)
             shutil.rmtree(models_subdir)
         except Exception as e:

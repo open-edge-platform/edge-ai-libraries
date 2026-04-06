@@ -176,7 +176,8 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `LOG_LEVEL` | Python logging level | `INFO` |
 | `MODELS_PATH` | Path to downloaded models | `/models/output` |
 | `SUPPORTED_MODELS_FILE` | Path to supported_models.yaml | `/models/supported_models.yaml` |
-| `RECORDINGS_PATH` | Path to input videos | `/videos/input` |
+| `INPUT_VIDEO_DIR` | Path to input videos | `/videos/input` |
+| `OUTPUT_VIDEO_DIR` | Path to output videos | `/videos/output` |
 | `LIVE_STREAM_SERVER_HOST` | RTSP server hostname | `mediamtx` |
 | `LIVE_STREAM_SERVER_PORT` | RTSP server port | `8554` |
 | `COMPOSE_PROFILES` | Hardware profile (cpu/gpu/npu) | Auto-detected |
