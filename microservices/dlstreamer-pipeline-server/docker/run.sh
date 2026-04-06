@@ -65,9 +65,9 @@ done
 if [ ${#taskset_cores[@]} -gt 0 ]; then
   coreset="${taskset_cores[@]}"
   echo "Core pinned to $coreset" 1>&2
-  taskset -c ${coreset// /,} python3 -m src
+  taskset -c ${coreset// /,} python3 -m src &
 else
-  python3 -m src
+  python3 -m src &
 fi
 
 wait
