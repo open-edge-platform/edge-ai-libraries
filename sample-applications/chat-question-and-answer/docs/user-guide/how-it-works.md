@@ -1,10 +1,10 @@
 # How It Works
 
-The ChatQ&A sample application is a RAG based chatbot pipeline that allows developers to customize and deploy the sample application in an on-prem environment and on their private documents without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
+The Chat Question & Answer (ChatQ&A) Sample Application is a RAG based chatbot pipeline that allows developers to customize and deploy the sample application in an on-prem environment and on their private documents without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
 
 ## Purpose
 
-The ChatQ&A sample application is designed to:
+The ChatQ&A Sample Application is designed to:
 
 - Demonstrate how Intel Edge AI catalog of inference microservices can be used to quickly build and deploy on Intel Edge AI systems portfolio.
 - Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Edge AI systems.
@@ -14,12 +14,12 @@ The ChatQ&A sample application is designed to:
 
 ## Detailed Architecture
 
-ChatQ&A application is a combination of the core LangChain application logic that implements the ChatQ&A pipeline and the set of microservices that implements the salient blocks of a RAG based ChatQ&A application. The figure below illustrates the setup. The ChatQ&A UI communicates with the ChatQ&A backend application. The LLM, Reranker, and Embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs like [Hugging Face OpenVINO](https://huggingface.co/OpenVINO). The document ingestion microservice provides capability to ingest popular document types, convert it into embedding space, and store it in the VectorDB. A copy of the document can also be saved to the object store.
+The ChatQ&A application is a combination of the core LangChain application logic that implements the ChatQ&A pipeline and the set of microservices that implements the salient blocks of a RAG based ChatQ&A application. The figure below illustrates the setup. The ChatQ&A UI communicates with the ChatQ&A backend application. The LLM, Reranker, and Embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs like [Hugging Face OpenVINO](https://huggingface.co/OpenVINO). The document ingestion microservice provides capability to ingest popular document types, convert it into embedding space, and store it in the VectorDB. A copy of the document can also be saved to the object store.
 
 ### Technical Architecture Diagram
 
 ![Technical Architecture Diagram](./_assets/TEAI_ChatQnA_Arch.png)
-**Figure 1**: Detailed Architecture of ChatQ&A sample application
+**Figure 1**: Detailed Architecture of the ChatQ&A Sample Application
 
 ### Application Flow
 
@@ -53,7 +53,7 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./_assets/request.jpg)
-**Figure 2:** Dataflow for ChatQ&A sample application
+**Figure 2:** Dataflow for the ChatQ&A sample application
 
 ## Key Components and Their Roles
 
@@ -68,7 +68,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
    - **Benefits**: The core part of the document ingestion microservice is the vector handling capability which is optimized for target deployment hardware. Selection of the vectorDB is based on performance considerations. Rest of the document ingestion microservice can be treated as sample reference implementation.
 
 3. **ChatQ&A backend microservice**:
-   - **What it is**: ChatQ&A backend microservice is a LangChain based implementation of ChatQ&A RAG pipeline providing required handling of the user queries.
+   - **What it is**: The ChatQ&A backend microservice is a LangChain based implementation of ChatQ&A RAG pipeline providing required handling of the user queries.
    - **How it’s used**: A `streamlog` REST API endpoint is provided which is used by the UI front end to send user queries and trigger the RAG pipeline.
    - **Benefits**: The microservice provides a reference of how LangChain framework is used to implement ChatQ&A using Intel Edge AI inference microservices.
 
@@ -79,7 +79,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 
 ## Extensibility
 
-The ChatQ&A sample application is designed with modularity in mind, allowing developers to:
+The ChatQ&A Sample Application is designed with modularity in mind, allowing developers to:
 
 1. **Change inference microservices**:
    - The default option is OVMS for LLM and TEI for embeddings and reranker.
