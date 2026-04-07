@@ -1,10 +1,10 @@
 # How It Works
 
-The Chat Question & Answer (Chat Q&A) Sample Application is a RAG based chatbot pipeline that allows developers to customize and deploy the sample application in an on-prem environment and on their private documents without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
+The Chat Question & Answer (Chat Q&A) sample application is a RAG based chatbot pipeline that allows developers to customize and deploy the sample application in an on-prem environment and on their private documents without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
 
 ## Purpose
 
-The Chat Q&A Sample Application is designed to:
+The Chat Q&A sample application is designed to:
 
 - Demonstrate how Intel Edge AI catalog of inference microservices can be used to quickly build and deploy on Intel Edge AI systems portfolio.
 - Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Edge AI systems.
@@ -19,7 +19,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
 ### Technical Architecture Diagram
 
 ![Technical Architecture Diagram](./_assets/TEAI_ChatQnA_Arch.png)
-**Figure 1**: Detailed Architecture of the Chat Q&A Sample Application
+**Figure 1**: Detailed Architecture of the Chat Q&A sample application
 
 ### Application Flow
 
@@ -53,7 +53,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./_assets/request.jpg)
-**Figure 2:** Dataflow for the Chat Q&A Sample Application
+**Figure 2:** Dataflow for the Chat Q&A sample application
 
 ## Key Components and Their Roles
 
@@ -79,7 +79,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 
 ## Extensibility
 
-The Chat Q&A Sample Application is designed with modularity in mind, allowing developers to:
+The Chat Q&A sample application is designed with modularity in mind, allowing developers to:
 
 1. **Change inference microservices**:
    - The default option is OVMS for LLM and TEI for embeddings and reranker.

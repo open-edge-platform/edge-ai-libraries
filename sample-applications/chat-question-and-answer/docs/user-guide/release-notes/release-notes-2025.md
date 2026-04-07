@@ -80,6 +80,6 @@
 **Version**: 1.0.0 \
 **Release Date**: WW11 2025
 
-- Initial release of the Chat Q&A Sample Application.
+- Initial release of the Chat Q&A sample application.
 - Added support for vLLM, TGI, and OVMS inference methods.
 - Improved user interface for better user experience.
