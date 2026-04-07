@@ -67,7 +67,7 @@ more information on the Ollama framework, visit its
 The Chat Question-and-Answer Core sample application consists of two main parts:
 
 1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding
-   documents to the ChatQ&A instance. The data ingestion step allows ingestion of
+   documents to the Chat Q&A instance. The data ingestion step allows ingestion of
    common document formats like pdf and doc. The ingestion process cleans and formats
    the input document, creates embeddings of the documents using embedding microservice,
    and stores them in the preferred vector database. CPU version of

@@ -1,6 +1,6 @@
 # Build from Source
 
-This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
+This guide provides step-by-step instructions for building the Chat Q&A Sample Application from source.
 
 > **Note:**
 >
@@ -18,7 +18,7 @@ Before you begin, ensure that you have the following prerequisites:
 ## Steps to Build from Source
 
 1. **Clone the Repository**:
-    - Clone the ChatQ&A Sample Application repository:
+    - Clone the Chat Q&A Sample Application repository:
 
       ```bash
       # Clone the latest on mainline
@@ -89,7 +89,7 @@ Before you begin, ensure that you have the following prerequisites:
     ```
 
 5. **Build the Docker Image**:
-    - Build the Docker image for the ChatQ&A Sample Application:
+    - Build the Docker image for the Chat Q&A Sample Application:
 
       ```bash
       docker compose build

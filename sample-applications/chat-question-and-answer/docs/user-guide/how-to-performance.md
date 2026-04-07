@@ -1,11 +1,11 @@
 # How to Test Performance
 
-This guide provides step-by-step instructions for testing the performance of the ChatQ&A Sample Application.
+This guide provides step-by-step instructions for testing the performance of the Chat Q&A Sample Application.
 
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
-- The ChatQ&A Sample Application is set up and running. Refer to the [Get Started](./get-started.md) guide for setup instructions.
+- The Chat Q&A Sample Application is set up and running. Refer to the [Get Started](./get-started.md) guide for setup instructions.
 
 ## Steps to Test Performance
 
