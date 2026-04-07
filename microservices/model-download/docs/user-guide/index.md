@@ -115,8 +115,9 @@ This service does not replace full model registry solutions and has the followin
 :::{toctree}
 :hidden:
 
-get-started
-running-tests
+./get-started.md
+./running-tests.md
+./api-reference.md
 Release Notes <./release-notes.md>
 
 :::
