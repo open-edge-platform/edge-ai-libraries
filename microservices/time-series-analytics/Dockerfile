@@ -60,11 +60,9 @@ ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 # Copy Python source files in a single layer for better caching
 COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
 
-# Copy configuration files and directories efficiently
-COPY ./config.json /app/
 COPY ./config/kapacitor*.conf /app/config/
-COPY ./tick_scripts /app/temperature_classifier/tick_scripts/
-COPY ./udfs /app/temperature_classifier/udfs/
+
+#Copying for Core Pinning
 COPY ./docker/run.sh /app/
 COPY ./docker/detect-cores.sh /app/
 RUN chmod +x /app/run.sh /app/detect-cores.sh
