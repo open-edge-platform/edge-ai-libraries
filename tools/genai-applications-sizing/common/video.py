@@ -311,14 +311,21 @@ def convert_timestamp_to_float(timestamp):
 
 def wait_for_search_to_complete(search_url, query_id):
     querySearchStatus = None 
+    search_time = 0 
+    each_response = {}
     while querySearchStatus != "idle":
         get_response = requests.get(search_url)
+
+        if get_response.status_code != 200:
+            print(f"Error: Failed to fetch search status. HTTP status code: {get_response.status_code}")
+            break
+        
         for each in get_response.json():
             if each.get("queryId") == query_id:
                 querySearchStatus = each.get("queryStatus")
                 each_search_time = convert_timestamp_to_float(each.get("updatedAt", 0)) - convert_timestamp_to_float(each.get("createdAt", 0))
                 each_response = each
-        time.sleep(1)
+            time.sleep(1)
     search_time = round(each_search_time, 4)
     return search_time, each_response
 
