@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-Chat Question & Answer (Chat Q&A) Sample Application is a foundational Retrieval Augmented Generation (RAG) pipeline,
+The Chat Question & Answer (Chat Q&A) Sample Application is a foundational Retrieval Augmented Generation (RAG) pipeline,
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
 Compared to the

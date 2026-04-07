@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-Chat Q&A sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline
+The Chat Question & Answer (Chat Q&A) Sample Application is a foundational Retrieval-Augmented Generation (RAG) pipeline
 that allows users to ask questions and receive answers, including those based on their own
 private data corpus. The sample application demonstrates how to build a RAG pipeline using
 Intel's Edge AI microservices catalog and deploy it optimally on Intel's Edge AI systems.
@@ -52,7 +52,7 @@ enabling developers to monitor the application's performance and health in real-
 
 ### Technical Architecture
 
-The Chat Q&A sample application includes the following components:
+The Chat Q&A Sample Application includes the following components:
 
 - **LLM inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server)
 is used to efficiently run large language models on Intel hardware. Developers also have other
@@ -95,7 +95,7 @@ Further details on the system architecture and customizable options are availabl
 
 Refer to the [Get Started](./get-started.md) page to get started with the sample-application.
 The UI is the recommended mode of interaction with the sample-application though users can
-also use the CLI approach using the REST endpoints. The Chat Q&A sample application consists
+also use the CLI approach using the REST endpoints. The Chat Q&A Sample Application consists
 of two main parts:
 
 1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding documents to

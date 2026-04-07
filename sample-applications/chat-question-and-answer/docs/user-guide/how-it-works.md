@@ -53,7 +53,7 @@ The Chat Q&A application is a combination of the core LangChain application logi
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./_assets/request.jpg)
-**Figure 2:** Dataflow for the Chat Q&A sample application
+**Figure 2:** Dataflow for the Chat Q&A Sample Application
 
 ## Key Components and Their Roles
 
@@ -68,7 +68,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
    - **Benefits**: The core part of the document ingestion microservice is the vector handling capability which is optimized for target deployment hardware. Selection of the vectorDB is based on performance considerations. Rest of the document ingestion microservice can be treated as sample reference implementation.
 
 3. **Chat Q&A backend microservice**:
-   - **What it is**: The Chat Q&A backend microservice is a LangChain based implementation of Chat Q&A RAG pipeline providing required handling of the user queries.
+   - **What it is**: The Chat Q&A backend microservice is a LangChain based implementation of the Chat Q&A RAG pipeline providing required handling of the user queries.
    - **How it’s used**: A `streamlog` REST API endpoint is provided which is used by the UI front end to send user queries and trigger the RAG pipeline.
    - **Benefits**: The microservice provides a reference of how LangChain framework is used to implement Chat Q&A using Intel Edge AI inference microservices.
 

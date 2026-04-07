@@ -39,7 +39,7 @@ By following this guide, you will learn how to:
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
 
-   To utilize the release images for the Chat Q&A sample application from the registry, set the following environment variables:
+   To utilize the release images for the Chat Q&A Sample Application from the registry, set the following environment variables:
 
    ```bash
    export REGISTRY="intel/"
