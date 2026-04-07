@@ -227,7 +227,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "2 parallel runs" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -235,7 +235,7 @@ profiles:
                 "maxNewTokens": 70,
                 "pipelineName": "GenAI_Pipeline_on_GPU"
               }'
-      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -248,7 +248,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "single run" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.24.158:8554/parking",
+      - run: '{ "rtspUrl": "rtsp://<ip:port/name>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
