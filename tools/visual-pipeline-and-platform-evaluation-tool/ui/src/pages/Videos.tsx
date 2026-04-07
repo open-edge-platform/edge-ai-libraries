@@ -1,4 +1,4 @@
-import { useGetVideosQuery } from "@/api/api.generated.ts";
+import { useGetVideosQuery, api } from "@/api/api.generated.ts";
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label.tsx";
 import { useState, useRef } from "react";
 import { Upload, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress.tsx";
+import { useAppDispatch } from "@/store/hooks";
 
 type UploadFormData = {
   files: FileList | null;
@@ -33,6 +34,7 @@ const MAX_CONCURRENT_UPLOADS = 3;
 
 export const Videos = () => {
   const { data: videos, isSuccess } = useGetVideosQuery();
+  const dispatch = useAppDispatch();
   const { register, handleSubmit, reset, watch, setValue } =
     useForm<UploadFormData>({
       defaultValues: {
@@ -66,25 +68,31 @@ export const Videos = () => {
    *
    * API IMPLEMENTATION HINTS:
    *
-   * Backend should provide an endpoint like: POST /api/videos/upload
+   * Backend endpoint: POST /api/v1/videos (configured in apiSlice baseUrl + endpoint)
    *
    * The endpoint should:
-   * 1. Accept multipart/form-data
+   * 1. Accept multipart/form-data with field name "file"
    * 2. Support chunked transfer encoding for progress tracking
    * 3. Return appropriate HTTP status codes (201 for success, 4xx/5xx for errors)
+   * 4. Return Video object with metadata after processing
    *
    * Example backend (Express.js + Multer):
    * ```javascript
    * const multer = require('multer');
    * const upload = multer({ dest: 'uploads/videos/' });
    *
-   * app.post('/api/videos/upload', upload.single('video'), (req, res) => {
+   * app.post('/api/v1/videos', upload.single('file'), (req, res) => {
    *   // req.file contains the uploaded file
    *   // Validate file type, size, etc.
    *   // Process the video (extract metadata, generate thumbnails, etc.)
    *   res.status(201).json({
    *     filename: req.file.originalname,
-   *     path: req.file.path
+   *     width: 1920,
+   *     height: 1080,
+   *     fps: 30,
+   *     frame_count: 300,
+   *     codec: 'h264',
+   *     duration: 10.0
    *   });
    * });
    * ```
@@ -93,14 +101,23 @@ export const Videos = () => {
    * ```python
    * from fastapi import FastAPI, File, UploadFile
    *
-   * @app.post("/api/videos/upload")
-   * async def upload_video(video: UploadFile = File(...)):
+   * @app.post("/api/v1/videos")
+   * async def upload_video(file: UploadFile = File(...)):
    *     # Save file
-   *     file_path = f"uploads/videos/{video.filename}"
+   *     file_path = f"uploads/videos/{file.filename}"
    *     with open(file_path, "wb") as f:
-   *         content = await video.read()
+   *         content = await file.read()
    *         f.write(content)
-   *     return {"filename": video.filename, "path": file_path}
+   *     # Extract video metadata using ffprobe or similar
+   *     return {
+   *         "filename": file.filename,
+   *         "width": 1920,
+   *         "height": 1080,
+   *         "fps": 30.0,
+   *         "frame_count": 300,
+   *         "codec": "h264",
+   *         "duration": 10.0
+   *     }
    * ```
    */
   const uploadFile = async (
@@ -109,7 +126,7 @@ export const Videos = () => {
   ): Promise<void> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
-      formData.append("video", file);
+      formData.append("file", file); // Backend expects "file" field
 
       // Use XMLHttpRequest for progress tracking
       // Note: fetch() doesn't support upload progress natively
@@ -141,8 +158,8 @@ export const Videos = () => {
         reject(new Error("Upload aborted"));
       });
 
-      // Configure and send request
-      xhr.open("POST", "/api/videos/upload");
+      // Configure and send request to the correct API endpoint
+      xhr.open("POST", "/api/v1/videos");
       xhr.send(formData);
     });
   };
@@ -301,6 +318,9 @@ export const Videos = () => {
       const allSucceeded = uploadStates.every((s) => s.status === "completed");
 
       if (allSucceeded) {
+        // Invalidate videos cache to refetch the updated list
+        dispatch(api.util.invalidateTags(["videos"]));
+
         // Reset form after successful upload
         setTimeout(() => {
           setSelectedFilesList([]);
