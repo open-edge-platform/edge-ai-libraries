@@ -1,4 +1,4 @@
-# Chat Q&A sample application
+# Chat Q&A Sample Application
 
 <!--hide_directive
 <div class="component_card_widget">
