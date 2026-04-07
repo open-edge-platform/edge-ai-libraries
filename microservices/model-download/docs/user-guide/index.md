@@ -109,7 +109,7 @@ This service does not replace full model registry solutions and has the followin
 ## Learn More
 
 - [**Get Started Guide**](./get-started.md)
-- [**API Reference**](./api-docs/openapi.yaml)
+- [**API Reference**](./api-reference.md)
 
 <!--hide_directive
 :::{toctree}
