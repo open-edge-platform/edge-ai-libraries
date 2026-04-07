@@ -60,7 +60,14 @@ ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 # Copy Python source files in a single layer for better caching
 COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
 
+# Copy configuration files and directories efficiently
+COPY ./config.json /app/
 COPY ./config/kapacitor*.conf /app/config/
+COPY ./tick_scripts /app/temperature_classifier/tick_scripts/
+COPY ./udfs /app/temperature_classifier/udfs/
+COPY ./docker/run.sh /app/
+COPY ./docker/detect-cores.sh /app/
+RUN chmod +x /app/run.sh /app/detect-cores.sh
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false
@@ -106,4 +113,13 @@ USER $TIMESERIES_USER_NAME
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "main.py"]
+# Optional CPU core pinning behavior:
+# - Set CORE_PINNING to control which CPU cores the service should prefer.
+# - Supported values:
+#     * "e-cores"  : prefer efficiency cores
+#     * "p-cores"  : prefer performance cores
+#     * "lp-cores" : prefer low-power cores (if available)
+# - If CORE_PINNING is unset or empty, no explicit core pinning policy is applied.
+# The run.sh script uses detect-cores.sh together with CORE_PINNING (if set)
+# to determine and apply the appropriate core affinity at container startup.
+ENTRYPOINT ["./run.sh"]
