@@ -13,7 +13,7 @@
     "/health": {
       "get": {
         "summary": "Health Check",
-        "description": "Get the health status of the kapacitor daemon.",
+        "description": "Get the health status of the Kapacitor daemon.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -213,10 +213,93 @@
           }
         }
       }
+    },
+    "/udfs/package": {
+      "post": {
+        "summary": "Adds Udf Deployment Package",
+        "description": "Adds UDF deployment package.\n\n**Request body**: multipart/form-data with a single field named `file` containing the zip archive.\n\nThe zip must have the following structure (no wrapping top-level directory):\n\n.. code-block:: text\n\n    udfs/\n        \u003Cudf_name\u003E.py          (required)\n        requirements.txt       (optional)\n    tick_scripts/\n        \u003Cudf_name\u003E.tick        (required)\n    models/                    (optional)\n        \u003Cmodel_files\u003E\n\n**Extraction destination**:\n\n- If `SAMPLE_APP` env var is set → `/tmp/\u003CSAMPLE_APP\u003E/`\n- Otherwise → `/tmp/\u003Czip_filename_without_extension\u003E/`\n\n**Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,\n`.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`\n\nresponses:\n    200:\n        description: UDF deployment package uploaded and extracted successfully\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        status:\n                            type: string\n                            example: \"success\"\n                        message:\n                            type: string\n                            example: \"UDF deployment package 'my_udf.zip' uploaded successfully.\"\n    400:\n        description: \u003E\n            Invalid upload — file is not a .zip, archive is corrupt, failed security\n            scan (path traversal, symlink, encryption, zip-bomb, disallowed extension),\n            or required folders/files are missing\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Zip archive must contain a 'udfs/' folder with at least one .py file.\"\n    413:\n        description: Uploaded file exceeds the maximum allowed size\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Uploaded file exceeds the maximum allowed size of 500 MB.\"\n    500:\n        description: Server failed to extract the UDF deployment package\n        content:\n            application/json:\n                schema:\n                    type: object\n                    properties:\n                        detail:\n                            type: string\n                            example: \"Failed to extract UDF deployment package.\"",
+        "operationId": "udfs_package_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_adds_udf_deployment_package"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file — not a .zip, corrupt archive, failed security scan, or missing required folders",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Zip archive must contain a 'udfs/' folder with at least one .py file."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Uploaded file exceeds the maximum allowed size",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Uploaded file exceeds the maximum allowed size of 500 MB."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to extract the UDF deployment package on the server",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Failed to extract UDF deployment package."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Body_adds_udf_deployment_package": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_adds_udf_deployment_package"
+      },
       "Config": {
         "properties": {
           "udfs": {

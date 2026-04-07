@@ -464,12 +464,6 @@ def classifier_startup(config):
     with open(dest_conf_path, 'w', encoding='utf-8') as file:
         file.write(tomlkit.dumps(config_data, sort_keys=False))
 
-    # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
-    src_dir = "/app/temperature_classifier"
-    dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier")
-    if os.path.exists(dst_dir):
-        shutil.rmtree(dst_dir)
-    shutil.copytree(src_dir, dst_dir)
 
     logger.info("=============== STARTING kapacitor ==============")
     host_name = "localhost"
