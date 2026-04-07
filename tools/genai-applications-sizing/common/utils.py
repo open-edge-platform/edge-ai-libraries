@@ -118,13 +118,14 @@ def upload_document_before_conversation(url, filename, filepath):
         file_details["size_mb"] = file_size_mb
 
         delete_existing_docs(url)
-        upload_files = [("files", (filename, open(filepath, 'rb'), 'application/octet-stream'))]
-        upload_response = requests.request("POST", url=url, files=upload_files)
+        with open(filepath, 'rb') as file_obj:
+            upload_files = [('files', (filename, file_obj, 'application/octet-stream'))]
+            upload_response = requests.request("POST", url=url, files=upload_files)       
         
-        if upload_response.status_code == 200:
-            print(f"{filename} uploaded for the conversation context. Size: {file_size_mb} MB")
-        else:
-            print(f"{filename} upload failed with status code: {upload_response.status_code}")
+            if upload_response.status_code == 200:
+                print(f"{filename} uploaded for the conversation context. Size: {file_size_mb} MB")
+            else:
+                print(f"{filename} upload failed with status code: {upload_response.status_code}")
             
     except FileNotFoundError:
         print(f"Error: File not found at {filepath}")
