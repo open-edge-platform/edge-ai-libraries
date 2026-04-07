@@ -15,6 +15,62 @@ from .config import Settings
 logger = logging.getLogger(__name__)
 
 
+def build_default_vss_headers(settings: Settings) -> dict[str, str]:
+    """Build headers applied to outbound VSS requests."""
+
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "vss-mcp/0.1.0",
+    }
+    if settings.vss_api_token:
+        headers["Authorization"] = f"{settings.vss_auth_scheme} {settings.vss_api_token}"
+    return headers
+
+
+def fetch_backend_features(settings: Settings) -> dict[str, Any]:
+    """Fetch backend feature flags once during MCP server initialization."""
+
+    try:
+        with httpx.Client(
+            base_url=settings.vss_base_url,
+            follow_redirects=False,
+            timeout=settings.request_timeout_seconds,
+            headers=build_default_vss_headers(settings),
+        ) as client:
+            response = client.get("/app/features")
+    except httpx.RequestError:
+        logger.warning(
+            "Could not fetch VSS feature flags from %s/app/features; search capabilities will be disabled.",
+            settings.vss_base_url,
+            exc_info=True,
+        )
+        return {}
+
+    if not response.is_success:
+        logger.warning(
+            "VSS feature flag request returned HTTP %s; search capabilities will be disabled.",
+            response.status_code,
+        )
+        return {}
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logger.warning(
+            "VSS /app/features returned invalid JSON; search capabilities will be disabled.",
+            exc_info=True,
+        )
+        return {}
+
+    if not isinstance(payload, dict):
+        logger.warning(
+            "VSS /app/features returned a non-object payload; search capabilities will be disabled."
+        )
+        return {}
+
+    return payload
+
+
 @dataclass(slots=True)
 class VSSServiceError(Exception):
     """A transport-level error while calling the VSS backend."""
@@ -120,15 +176,7 @@ class VSSApiClient:
     def _build_default_headers(self) -> dict[str, str]:
         """Build headers applied to every outbound VSS request."""
 
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "User-Agent": "vss-mcp/0.1.0",
-        }
-        if self._settings.vss_api_token:
-            headers["Authorization"] = (
-                f"{self._settings.vss_auth_scheme} {self._settings.vss_api_token}"
-            )
-        return headers
+        return build_default_vss_headers(self._settings)
 
     def _build_response(
         self,

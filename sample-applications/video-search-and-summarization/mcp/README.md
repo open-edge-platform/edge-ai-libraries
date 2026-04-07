@@ -18,8 +18,12 @@ Media upload is intentionally **not proxied through MCP**. Agents should upload 
 | `vss_delete_tag` | `DELETE /tags/{tagId}` | Destructive |
 | `vss_get_video` | `GET /videos/{videoId}` | Can optionally include binary content as base64 |
 | `vss_list_videos` | `GET /videos` | Read-only |
-| `vss_create_video_search_embeddings` | `POST /videos/search-embeddings/{videoId}` | Action |
-| `vss_execute_search_query` | `POST /search/query` | Action |
+| `vss_list_summaries` | `GET /summary` | Available only when `/app/features` reports `"summary": "FEATURE_ON"` at MCP server startup |
+| `vss_get_summary` | `GET /summary/{stateId}` | Available only when `/app/features` reports `"summary": "FEATURE_ON"` at MCP server startup |
+| `vss_get_summary_raw` | `GET /summary/{stateId}/raw` | Available only when `/app/features` reports `"summary": "FEATURE_ON"` at MCP server startup |
+| `vss_start_summary_pipeline` | `POST /summary` | Available only when `/app/features` reports `"summary": "FEATURE_ON"` at MCP server startup |
+| `vss_create_video_search_embeddings` | `POST /videos/search-embeddings/{videoId}` | Available only when `/app/features` reports `"search": "FEATURE_ON"` at MCP server startup |
+| `vss_execute_search_query` | `POST /search/query` | Available only when `/app/features` reports `"search": "FEATURE_ON"` at MCP server startup |
 
 Every tool returns:
 
@@ -35,6 +39,9 @@ Every tool returns:
 | `vss://tags` | `GET /tags` |
 | `vss://videos` | `GET /videos` |
 | `vss://videos/{video_id}` | `GET /videos/{videoId}` |
+| `vss://summary` | `GET /summary` when summary is enabled at startup |
+| `vss://summary/{state_id}` | `GET /summary/{stateId}` when summary is enabled at startup |
+| `vss://summary/{state_id}/raw` | `GET /summary/{stateId}/raw` when summary is enabled at startup |
 | `vss://help/upload-api` | Static MCP guidance for direct media upload |
 
 Resources are intended for read-only context loading. When a backend response is binary, the resource returns metadata instead of embedding large binary payloads into model context.
@@ -53,27 +60,28 @@ mcp/
 ├── README.md
 ├── main.py
 ├── pyproject.toml
+├── src/
+│   └── vss_mcp/
+│       ├── __init__.py
+│       ├── client.py
+│       ├── config.py
+│       ├── feature_flags.py
+│       ├── formatting.py
+│       ├── lifecycle.py
+│       ├── logging_config.py
+│       ├── main.py
+│       ├── models.py
+│       ├── prompts.py
+│       ├── registry.py
+│       ├── resources.py
+│       ├── tools_core.py
+│       ├── tools_search.py
+│       └── tools_summary.py
 ├── uv.lock
-└── vss_proxy/
-    ├── __init__.py
-    ├── client.py
-    ├── config.py
-    ├── formatting.py
-    ├── logging_config.py
-    ├── main.py
-    └── models.py
 ```
 
-## Requirements
+The project now uses a standard `src` layout. `src/vss_mcp/main.py` only bootstraps the server, while feature-flag resolution, lifecycle management, prompt/resource registration, and tool registration live in separate modules.
 
-- Python 3.10 or newer
-- `uv`
-- A reachable VSS backend URL
-
-Dependencies:
-
-- `mcp[cli]`
-- `httpx`
 
 ## Configuration
 
@@ -95,16 +103,21 @@ For local-only development, keep `MCP_HOST=127.0.0.1`. For container or remote d
 
 ## Setup
 
-```bash
-cd sample-applications/video-search-and-summarization/mcp
-uv sync
-```
+### Running with Docker
 
-## Running the MCP server
+Build:
 
 ```bash
-VSS_BASE_URL=http://localhost:8000 uv run vss-mcp
+docker build -t vss-mcp-server .
 ```
+
+Run:
+
+```bash
+docker run --rm -p 8000:8000 -e VSS_BASE_URL=http://<VSS_IP>:12345/manager vss-mcp-server
+```
+
+The container defaults `MCP_HOST=0.0.0.0`, so the MCP endpoint is reachable on `http://localhost:8000/mcp`.
 
 The streamable HTTP transport is available at:
 
@@ -156,9 +169,57 @@ Then connect the inspector UI to `http://localhost:8000/mcp`.
 
 - Load context with the `vss://app/config` resource.
 - Read `vss://help/upload-api` or invoke `vss_upload_api_help` when an agent needs upload instructions.
-- Execute search with `vss_execute_search_query`.
+- Work with summaries using `vss_list_summaries`, `vss_get_summary`, `vss_get_summary_raw`, and `vss_start_summary_pipeline` when the backend summary feature is enabled.
+- Execute search with `vss_execute_search_query` when the backend search feature is enabled.
 - Upload media directly to `POST {VSS_BASE_URL}/videos`.
-- After direct upload, use `vss_list_videos`, `vss_get_video`, and `vss_create_video_search_embeddings`.
+- After direct upload, use `vss_list_videos`, `vss_get_video`, `vss_start_summary_pipeline` when summary is enabled, and `vss_create_video_search_embeddings` when search is enabled.
+
+## Feature-gated MCP capabilities
+
+At MCP server startup, the server reads:
+
+```text
+GET {VSS_BASE_URL}/app/features
+```
+
+If the backend responds with:
+
+```json
+{
+  "summary": "FEATURE_OFF",
+  "search": "FEATURE_ON"
+}
+```
+
+then the MCP server registers:
+
+- `vss_create_video_search_embeddings`
+- `vss_execute_search_query`
+
+If `search` is not `FEATURE_ON`, those search capabilities are omitted from the MCP server entirely and will not appear in MCP tool discovery.
+
+If the backend responds with:
+
+```json
+{
+  "summary": "FEATURE_ON",
+  "search": "FEATURE_OFF"
+}
+```
+
+then the MCP server registers:
+
+- `vss_list_summaries`
+- `vss_get_summary`
+- `vss_get_summary_raw`
+- `vss_start_summary_pipeline`
+- `vss://summary`
+- `vss://summary/{state_id}`
+- `vss://summary/{state_id}/raw`
+
+If both features are `FEATURE_ON`, both the summary and search MCP capabilities are registered together.
+
+This check is performed **when the MCP server starts**. If the backend feature flags change later, restart the MCP server so the tool list is rebuilt.
 
 ## Direct upload guidance for agents
 
@@ -189,29 +250,12 @@ Inside MCP clients, the same guidance is available through:
 - resource: `vss://help/upload-api`
 - prompt: `vss_upload_api_help`
 
-## Running with Docker
-
-Build:
-
-```bash
-docker build -t vss-mcp-server .
-```
-
-Run:
-
-```bash
-docker run --rm -p 8000:8000 \
-  -e VSS_BASE_URL=http://host.docker.internal:12345/manager \
-  vss-mcp-server
-```
-
-The container defaults `MCP_HOST=0.0.0.0`, so the MCP endpoint is reachable on `http://localhost:8000/mcp`.
 
 ## Extending the server
 
-1. Add a new helper call in `vss_proxy/client.py` only if a new endpoint needs special request handling.
-2. Add a tool or resource in `vss_proxy/main.py`.
-3. Reuse the shared formatting helpers in `vss_proxy/formatting.py` so new operations keep the same JSON and Markdown result shape.
+1. Add a new helper call in `src/vss_mcp/client.py` only if a new endpoint needs special request handling.
+2. Add a tool, prompt, or resource in the relevant registrar under `src/vss_mcp/` such as `tools_core.py`, `tools_summary.py`, `tools_search.py`, `resources.py`, or `prompts.py`.
+3. Reuse the shared formatting helpers in `src/vss_mcp/formatting.py` so new operations keep the same JSON and Markdown result shape.
 
 This keeps transport concerns, backend access, and result rendering separate and makes future endpoint additions straightforward.
 
@@ -225,5 +269,6 @@ This keeps transport concerns, backend access, and result rendering separate and
 
 - Uploads are intentionally out of band: agents should call the VSS backend directly rather than routing media through this MCP server.
 - Saved-search CRUD and listing are intentionally omitted; use `vss_execute_search_query` for search requests.
+- Summary and search tools/resources are gated at startup from `{VSS_BASE_URL}/app/features`; restart the MCP server after backend feature changes.
 - `vss_get_video(include_binary_content=true)` returns base64 when the backend responds with binary data. The default behavior omits large binary payloads from tool results and returns metadata instead.
 - This server intentionally exposes only the requested subset of VSS endpoints.

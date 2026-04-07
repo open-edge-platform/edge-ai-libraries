@@ -16,7 +16,7 @@ COPY uv.lock ./
 COPY README.md ./
 
 COPY main.py .
-COPY vss_proxy ./vss_proxy
+COPY src ./src
 RUN uv sync --frozen --no-dev
 
 EXPOSE 8000

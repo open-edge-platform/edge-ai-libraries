@@ -10,11 +10,11 @@ dependencies = [
 ]
 
 [project.scripts]
-vss-mcp = "vss_proxy.main:main"
+vss-mcp = "vss_mcp.main:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["vss_proxy"]
+packages = ["src/vss_mcp"]

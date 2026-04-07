@@ -1,6 +1,6 @@
 """Convenience entrypoint for running the VSS MCP server."""
 
-from vss_proxy.main import main, mcp
+from vss_mcp.main import main, mcp
 
 __all__ = ["main", "mcp"]
 
