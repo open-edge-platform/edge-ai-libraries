@@ -62,6 +62,10 @@ def setup_docker_environment():
     docker_compose_up()
     print("Started container")
     time.sleep(30)  # Wait for containers to start
+    print("Uploading zip file and updating config...")
+    utils.upload_zip_file(TS_DOCKER_PORT)
+    utils.update_config(TS_DOCKER_PORT)
+    time.sleep(30)  # Wait for the service to be ready
     print("yielding control to tests...")
     yield
     # Stop docker containers

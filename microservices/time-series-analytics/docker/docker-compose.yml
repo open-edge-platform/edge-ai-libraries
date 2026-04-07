@@ -43,6 +43,7 @@ services:
       KAPACITOR_LOGGING_LEVEL: ${LOG_LEVEL}
       INFLUXDB_DBNAME: datain
       PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      UDF_MAX_FILE_SIZE_MB: 100
       SSL_CERT_FILE: /run/secrets/ca_certificate.pem
       MODEL_REGISTRY_URL: http://model-registry:8111
     networks:
@@ -51,7 +52,6 @@ services:
     - 5000:5000
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
-    - ../config.json:/app/config.json:ro
     - /dev/dri:/dev/dri:ro
     - "/run/udev:/run/udev:ro"
     devices:
