@@ -1,4 +1,4 @@
-# ChatQ&A Conversational UI
+# Chat Q&A Conversational UI
 
 ## 📸 Project Screenshots
 

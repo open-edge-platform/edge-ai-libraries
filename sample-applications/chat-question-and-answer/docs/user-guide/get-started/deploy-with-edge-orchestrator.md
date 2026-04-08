@@ -41,7 +41,7 @@ To deploy the **Chat Question & Answer (Chat Q&A)** sample application with the 
 
 1. Once the deployment package has been imported into the Edge Orchestrator, you can see it in the list of Web UI as shown here.
 
-    **![ChatQ&A Image](../_assets/chatqna-emf.png)**
+    **![Chat Q&A Image](../_assets/chatqna-emf.png)**
 
 See [Deployment Packages](https://docs.openedgeplatform.intel.com/edge-manage-docs/dev/user_guide/package_software/deploy_packages.html#view-deployment-packages) for more information on deployment packages.
 
