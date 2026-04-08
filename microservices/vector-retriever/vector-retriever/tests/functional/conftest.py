@@ -27,6 +27,7 @@ _COMPOSE_PROJECT = "docker"
 # compose-managed ov-models volume so the embedding service skips model conversion.
 _OV_MODELS_SOURCE_VOLUME = "docker_ov_models"
 _OV_MODELS_DEST_VOLUME = f"{_COMPOSE_PROJECT}_ov-models"
+_DEFAULT_TEST_EMBEDDING_MODEL_NAME = "CLIP/clip-vit-b-32"
 
 PORT_MAP = {
     "vdms": {
@@ -175,10 +176,9 @@ def _build_env(backend: str) -> dict[str, str]:
     index_name = f"vr_functional_{backend}_{uuid4().hex[:8]}"
     env["INDEX_NAME"] = index_name
     env["VS_INDEX_NAME"] = index_name
-    embedding_model_name = env.get("EMBEDDING_MODEL_NAME", "").strip()
-    if not embedding_model_name:
-        raise AssertionError("EMBEDDING_MODEL_NAME must be set before running functional tests")
-    env["EMBEDDING_MODEL_NAME"] = embedding_model_name
+    env["EMBEDDING_MODEL_NAME"] = (
+        env.get("EMBEDDING_MODEL_NAME", "").strip() or _DEFAULT_TEST_EMBEDDING_MODEL_NAME
+    )
     env["EMBEDDING_DEVICE"] = "CPU"
     env["EMBEDDING_USE_OV"] = "true"
     if backend == "faiss":

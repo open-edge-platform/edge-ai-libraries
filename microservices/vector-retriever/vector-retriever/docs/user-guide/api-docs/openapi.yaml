@@ -1,0 +1,355 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.0.3
+info:
+  title: Vector Retriever Microservice API
+  version: 1.0.0
+  description: Semantic retrieval service with pluggable vector database backends and a primary `where` filter grammar.
+servers:
+  - url: /
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /ready:
+    get:
+      summary: Readiness check
+      operationId: getReady
+      responses:
+        '200':
+          description: Service dependencies are ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is not ready
+  /query:
+    post:
+      summary: Batch semantic query
+      operationId: postQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Batch query response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchQueryResponse'
+        '400':
+          description: Invalid payload
+        '422':
+          description: Request validation failed
+        '500':
+          description: Internal query execution error
+  /capabilities/filters:
+    get:
+      summary: Filter grammar capabilities
+      operationId: getFilterCapabilities
+      parameters:
+        - in: query
+          name: backend
+          required: false
+          schema:
+            type: string
+            enum: [vdms, milvus, pgvector, faiss]
+          description: Optional backend scope. If omitted, all backends are returned.
+      responses:
+        '200':
+          description: Filter capability metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterCapabilitiesResponse'
+        '400':
+          description: Unsupported backend name
+components:
+  schemas:
+    TimeRange:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+
+    WherePredicate:
+      type: object
+      required: [field, op]
+      properties:
+        field:
+          type: string
+          pattern: ^[A-Za-z0-9_/\\-]{1,128}$
+        op:
+          type: string
+          enum:
+            - eq
+            - in
+            - contains
+            - starts_with
+            - gt
+            - gte
+            - lt
+            - lte
+            - between
+            - contains_any
+            - contains_all
+            - exists
+            - missing
+        value:
+          description: Predicate value. Required for most operators, omitted for `exists` and `missing`.
+          nullable: true
+      additionalProperties: false
+
+    WhereAll:
+      type: object
+      required: [all]
+      properties:
+        all:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/WhereClause'
+      additionalProperties: false
+
+    WhereAny:
+      type: object
+      required: [any]
+      properties:
+        any:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/WhereClause'
+      additionalProperties: false
+
+    WhereNot:
+      type: object
+      required: [not]
+      properties:
+        not:
+          $ref: '#/components/schemas/WhereClause'
+      additionalProperties: false
+
+    WhereClause:
+      description: Primary recursive filter clause. Use either a predicate or one logical block.
+      oneOf:
+        - $ref: '#/components/schemas/WherePredicate'
+        - $ref: '#/components/schemas/WhereAll'
+        - $ref: '#/components/schemas/WhereAny'
+        - $ref: '#/components/schemas/WhereNot'
+
+    FilterCondition:
+      type: object
+      required: [op, value]
+      properties:
+        op:
+          type: string
+          enum: [eq, in, gte, lte, between]
+        value:
+          description: Operator value. For between, provide [lower, upper].
+      additionalProperties: false
+
+    QueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query_id:
+          type: string
+        query:
+          type: string
+          minLength: 1
+          description: User search text.
+        where:
+          $ref: '#/components/schemas/WhereClause'
+          description: Primary filter object.
+        tags:
+          type: array
+          items:
+            type: string
+          description: Backward-compatible alias; normalized into where(tags contains_any).
+        time_filter:
+          $ref: '#/components/schemas/TimeRange'
+          description: Backward-compatible alias; normalized into where(created_at between).
+        filters:
+          type: object
+          maxProperties: 20
+          propertyNames:
+            pattern: ^[A-Za-z0-9_/\\-]{1,128}$
+          additionalProperties:
+            $ref: '#/components/schemas/FilterCondition'
+          description: Backward-compatible alias map.
+        top_k:
+          type: integer
+          minimum: 1
+          description: Requested result count. Runtime enforces MAX_TOP_K.
+        explain_filters:
+          type: boolean
+          default: false
+          description: Include compiled backend filter and rewrite details in response.
+    QueryResultItem:
+      type: object
+      required: [score, metadata, page_content]
+      properties:
+        score:
+          type: number
+          format: float
+        metadata:
+          type: object
+          additionalProperties: true
+        page_content:
+          type: string
+    AppliedFilters:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+        time_filter:
+          $ref: '#/components/schemas/TimeRange'
+        filters:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FilterCondition'
+        normalized_where:
+          $ref: '#/components/schemas/WhereClause'
+        warnings:
+          type: array
+          items:
+            type: string
+        compiled_backend_filter:
+          description: Backend-native filter payload returned when explain_filters=true.
+          nullable: true
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: string
+        dropped_or_rewritten_clauses:
+          type: array
+          nullable: true
+          items:
+            type: string
+
+    BackendFilterCapabilities:
+      type: object
+      required:
+        - backend
+        - top_level_fields
+        - logical_blocks
+        - supported_operators
+        - pushdown_operators
+        - known_fields
+        - max_where_depth
+        - max_where_clauses
+        - max_where_list_size
+      properties:
+        backend:
+          type: string
+        top_level_fields:
+          type: array
+          items:
+            type: string
+        logical_blocks:
+          type: array
+          items:
+            type: string
+        supported_operators:
+          type: array
+          items:
+            type: string
+        pushdown_operators:
+          type: array
+          items:
+            type: string
+        known_fields:
+          type: object
+          additionalProperties:
+            type: string
+        max_where_depth:
+          type: integer
+        max_where_clauses:
+          type: integer
+        max_where_list_size:
+          type: integer
+
+    FilterCapabilitiesResponse:
+      type: object
+      required: [active_backend, backends]
+      properties:
+        active_backend:
+          type: string
+        backends:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackendFilterCapabilities'
+
+    QueryResultBlock:
+      type: object
+      required: [query_id, query, count, items, applied_filters]
+      properties:
+        query_id:
+          type: string
+        query:
+          type: string
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryResultItem'
+        applied_filters:
+          $ref: '#/components/schemas/AppliedFilters'
+    QueryError:
+      type: object
+      required: [code, message]
+      properties:
+        query_id:
+          type: string
+          nullable: true
+        code:
+          type: string
+        message:
+          type: string
+    BatchQueryResponse:
+      type: object
+      required: [request_id, results, errors]
+      properties:
+        request_id:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryResultBlock'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryError'
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+        timestamp:
+          type: string
