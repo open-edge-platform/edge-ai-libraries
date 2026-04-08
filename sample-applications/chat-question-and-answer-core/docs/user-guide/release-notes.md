@@ -40,7 +40,7 @@
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
 
-- Image Optimization for ChatQnA Core Backend. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
+- Image Optimization for Chat Q&A Core Backend. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
 - Security Vulnerabilities Fix for Dependency Packages.
 - Update in Setup Scripts for default model download path in the backend.
 - Bug fixes.

@@ -253,6 +253,73 @@ paths:
             application/json:
               example:
                 detail: Failed to write configuration to file
+  "/udfs/package":
+    post:
+      summary: Adds UDF Deployment Package
+      description: |-
+        Upload a zip file containing the UDF deployment package.
+
+        **Request body**: multipart/form-data with a single field named `file` containing the zip archive.
+
+        The zip must have the following structure (no wrapping top-level directory):
+
+            udfs/
+                <udf_name>.py          (required)
+                requirements.txt       (optional)
+            tick_scripts/
+                <udf_name>.tick        (required)
+            models/                    (optional)
+                <model_files>
+
+        **Extraction destination**:
+
+        - If `SAMPLE_APP` env var is set -> `/tmp/<SAMPLE_APP>/`
+        - Otherwise -> `/tmp/<zip_filename_without_extension>/`
+
+        **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
+        `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
+      operationId: udfs_package_post
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              "$ref": "#/components/schemas/Body_adds_udf_deployment_package"
+      responses:
+        '200':
+          description: UDF deployment package uploaded and extracted successfully
+          content:
+            application/json:
+              example:
+                status: success
+                message: "UDF deployment package 'my_udf.zip' uploaded successfully."
+        '400':
+          description: >-
+            Invalid upload - file is not a .zip, archive is corrupt, failed security
+            scan (path traversal, symlink, encryption, zip-bomb, disallowed extension),
+            or required folders/files are missing
+          content:
+            application/json:
+              example:
+                detail: "Zip archive must contain a 'udfs/' folder with at least one .py file."
+        '413':
+          description: Uploaded file exceeds the maximum allowed size
+          content:
+            application/json:
+              example:
+                detail: Uploaded file exceeds the maximum allowed size of 500 MB.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+        '500':
+          description: Failed to extract the UDF deployment package on the server
+          content:
+            application/json:
+              example:
+                detail: Failed to extract UDF deployment package.
 components:
   schemas:
     Config:
@@ -315,6 +382,16 @@ components:
       type: object
       title: OpcuaAlertsMessage
       description: Model for OPC UA alert messages.
+    Body_adds_udf_deployment_package:
+      type: object
+      required:
+      - file
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      title: Body_adds_udf_deployment_package
     ValidationError:
       properties:
         loc:

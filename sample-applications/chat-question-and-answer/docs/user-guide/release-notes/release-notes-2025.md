@@ -49,7 +49,7 @@
 **Release Date**: WW27 2025
 
 - Image Optimization for Chat QnA Backend and Document Ingestion Microservices. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
-- Update to Run ChatQnA-UI and Nginx Container with Non-Root Access Privileges.
+- Update to Run Chat Q&A UI and Nginx Container with Non-Root Access Privileges.
 - Security Vulnerabilities Fix for Dependency Packages.
 - Max Token Parameter Added to /stream_log API.
 - EMF deployment is supported.

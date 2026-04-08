@@ -10,16 +10,19 @@ Time Series Analytics Microservice's main module
 This module exposes FastAPI server providing capabilities for data ingestion,
 configuration management, and OPC UA alerts.
 """
+import io
 import os
 import logging
+import shutil
 import time
 import json
 import subprocess
 import threading
+import zipfile
 from typing import Optional
 import requests
 
-from fastapi import FastAPI, HTTPException, Response, status, Request, Query, BackgroundTasks
+from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 import uvicorn
@@ -43,6 +46,7 @@ app = FastAPI(root_path=REST_API_ROOT_PATH)
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
+MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed zip upload
 
 config = {}
 OPCUA_SEND_ALERT = None
@@ -532,6 +536,306 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
     background_tasks.add_task(restart_kapacitor)
     return {"status": "success", "message": "Configuration updated successfully"}
 
+
+def _scan_zip(zf: zipfile.ZipFile) -> None:
+    """Scan a ZipFile for security issues before extraction.
+
+    Raises HTTPException(400) for any detected threat.
+    """
+    # Security limits for uploaded UDF zip files
+    max_file_size = int(os.getenv("UDF_MAX_FILE_SIZE_MB", 100))  # Max size for a single UDF file in MB
+    _ZIP_MAX_UNCOMPRESSED_BYTES = max_file_size * 1024 * 1024   # 100 MB total
+    _ZIP_MAX_SINGLE_FILE_BYTES  = max_file_size * 1024 * 1024   # 100 MB per entry
+    _ZIP_MAX_FILE_COUNT         = 100
+    _ZIP_MAX_COMPRESSION_RATIO  = 100                  # flag zip-bomb if ratio > 100x
+    _ZIP_ALLOWED_EXTENSIONS     = {
+        ".py", ".tick", ".txt", ".cb",
+        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth",
+    }
+    entries = zf.infolist()
+
+    # 1. Max file count
+    if len(entries) > _ZIP_MAX_FILE_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Zip archive contains too many files ({len(entries)}). Maximum allowed: {_ZIP_MAX_FILE_COUNT}."
+        )
+
+    total_uncompressed = 0
+    for info in entries:
+        name = info.filename
+        parts = name.replace("\\", "/").split("/")
+
+        # 2. Path traversal
+        if os.path.isabs(name) or ".." in parts:
+            raise HTTPException(status_code=400, detail=f"Invalid path in zip entry: {name}")
+
+        # 3. Symlink detection (Unix symlink bit is 0xA in the high nibble of external_attr)
+        unix_attrs = (info.external_attr >> 16) & 0xFFFF
+        is_symlink = (unix_attrs & 0xF000) == 0xA000
+        if is_symlink:
+            raise HTTPException(status_code=400, detail=f"Zip entry is a symlink, which is not allowed: {name}")
+
+        # 4. Encryption detection (bit 0 of flag_bits indicates the entry is encrypted)
+        if info.flag_bits & 0x1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Zip entry '{name}' is encrypted/password-protected. Encrypted archives are not allowed."
+            )
+
+        # Skip directory entries for the remaining checks
+        if info.is_dir():
+            continue
+
+        # 4. Allowed file extensions
+        _, ext = os.path.splitext(name.lower())
+        if ext not in _ZIP_ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{ext}' is not allowed in the UDF deployment package: {name}"
+            )
+
+        # 5. Single-file size limit
+        if info.file_size > _ZIP_MAX_SINGLE_FILE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{name}' exceeds the maximum allowed size of {_ZIP_MAX_SINGLE_FILE_BYTES // (1024*1024)} MB."
+            )
+
+        # 6. Zip-bomb detection via compression ratio
+        if info.compress_size > 0:
+            ratio = info.file_size / info.compress_size
+            if ratio > _ZIP_MAX_COMPRESSION_RATIO:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Suspicious compression ratio ({ratio:.0f}x) detected in '{name}'. Possible zip bomb."
+                )
+
+        total_uncompressed += info.file_size
+
+    # 7. Total uncompressed size limit
+    if total_uncompressed > _ZIP_MAX_UNCOMPRESSED_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total uncompressed size exceeds the maximum allowed limit of {_ZIP_MAX_UNCOMPRESSED_BYTES // (1024*1024)} MB."
+        )
+
+    # 8. Required folder structure validation
+    # Collect normalized paths of file entries only (not directories)
+    file_names = [e.filename.replace("\\", "/") for e in entries if not e.is_dir()]
+
+    def _has_file_in_folder(file_list, folder_segment, extension=None):
+        """Return True if any file has `folder_segment` as an exact path segment."""
+        for n in file_list:
+            parts = n.split("/")
+            # folder_segment must appear as an actual segment, and the file must follow it
+            if folder_segment in parts[:-1]:
+                if extension is None or n.lower().endswith(extension):
+                    return True
+        return False
+
+    # udfs/ must contain at least one .py file
+    if not _has_file_in_folder(file_names, "udfs", ".py"):
+        raise HTTPException(
+            status_code=400,
+            detail="Zip archive must contain a 'udfs/' folder with at least one .py file."
+        )
+
+    # tick_scripts/ must contain at least one .tick file
+    if not _has_file_in_folder(file_names, "tick_scripts", ".tick"):
+        raise HTTPException(
+            status_code=400,
+            detail="Zip archive must contain a 'tick_scripts/' folder with at least one .tick file."
+        )
+
+    # models/ is optional — log a notice if absent
+    if not _has_file_in_folder(file_names, "models"):
+        logger.info("Zip archive does not contain a 'models/' folder (optional, skipping).")
+
+
+@app.post("/udfs/package", responses={
+    400: {"description": "Invalid file — not a .zip, corrupt archive, failed security scan, or missing required folders",
+          "content": {"application/json": {"example": {"detail": "Zip archive must contain a 'udfs/' folder with at least one .py file."}}}},
+    413: {"description": "Uploaded file exceeds the maximum allowed size",
+          "content": {"application/json": {"example": {"detail": "Uploaded file exceeds the maximum allowed size of 500 MB."}}}},
+    500: {"description": "Failed to extract the UDF deployment package on the server",
+          "content": {"application/json": {"example": {"detail": "Failed to extract UDF deployment package."}}}},
+})
+async def adds_udf_deployment_package(file: UploadFile = File(...)):
+    """
+    Adds UDF deployment package.
+
+    **Request body**: multipart/form-data with a single field named `file` containing the zip archive.
+
+    The zip must have the following structure (no wrapping top-level directory):
+
+    .. code-block:: text
+
+        udfs/
+            <udf_name>.py          (required)
+            requirements.txt       (optional)
+        tick_scripts/
+            <udf_name>.tick        (required)
+        models/                    (optional)
+            <model_files>
+
+    **Extraction destination**:
+
+    - If `SAMPLE_APP` env var is set → `/tmp/<SAMPLE_APP>/`
+    - Otherwise → `/tmp/<zip_filename_without_extension>/`
+
+    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`,
+    `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
+
+    responses:
+        200:
+            description: UDF deployment package uploaded and extracted successfully
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            status:
+                                type: string
+                                example: "success"
+                            message:
+                                type: string
+                                example: "UDF deployment package 'my_udf.zip' uploaded successfully."
+        400:
+            description: >
+                Invalid upload — file is not a .zip, archive is corrupt, failed security
+                scan (path traversal, symlink, encryption, zip-bomb, disallowed extension),
+                or required folders/files are missing
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            detail:
+                                type: string
+                                example: "Zip archive must contain a 'udfs/' folder with at least one .py file."
+        413:
+            description: Uploaded file exceeds the maximum allowed size
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            detail:
+                                type: string
+                                example: "Uploaded file exceeds the maximum allowed size of 500 MB."
+        500:
+            description: Server failed to extract the UDF deployment package
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            detail:
+                                type: string
+                                example: "Failed to extract UDF deployment package."
+    """
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a .zip archive.")
+
+    # Read in chunks to enforce upload size limit before loading into memory
+    chunks = []
+    received = 0
+    chunk_size = 1024 * 1024  # 1 MB per read
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            received += len(chunk)
+            if received > MAX_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Uploaded file exceeds the maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB."
+                )
+            chunks.append(chunk)
+    finally:
+        await file.close()
+    contents = b"".join(chunks)
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(contents))
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid zip archive.") from exc
+
+    with zf:
+        # Security scan before extraction
+        _scan_zip(zf)
+
+        # Reserved names that must not be used as extraction directory names
+        # to avoid colliding with service-critical paths under SECURE_TEMP_DIR.
+        _RESERVED_DIR_NAMES = {
+            "tmp", "log", "kapacitor", "py_package", "udfs",
+            "tick_scripts", "models", ".", "..",
+        }
+
+        def _safe_dir_name(name: str) -> str:
+            """Validate and return a safe directory name, or raise HTTPException."""
+            import re
+            if not name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot derive a valid deployment directory name: name is empty."
+                )
+            # Allow only alphanumeric, hyphen, underscore, dot (no slashes or other special chars)
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot derive a valid deployment directory name: '{name}' "
+                           "contains disallowed characters (only alphanumeric, '-', '_', '.' are allowed)."
+                )
+            if name.lower() in _RESERVED_DIR_NAMES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot extract into reserved directory name '{name}'. "
+                )
+            return name
+
+        base_dir = classifier_startup.SECURE_TEMP_DIR
+
+        zip_stem = _safe_dir_name(os.path.splitext(os.path.basename(file.filename))[0])
+        sample_app = os.environ.get("SAMPLE_APP")
+        if sample_app:
+            dest_dir = os.path.join(base_dir, _safe_dir_name(sample_app))
+        else:
+            dest_dir = os.path.join(base_dir, zip_stem)
+
+        # Extract into a staging directory first so a failed upload never
+        # corrupts the live deployment.
+        staging_dir = dest_dir + ".tmp"
+        if os.path.exists(staging_dir):
+            shutil.rmtree(staging_dir)
+        os.makedirs(staging_dir)
+
+        try:
+            zf.extractall(staging_dir)
+        except Exception as exc:
+            logger.error("Failed to extract UDF deployment package: %s", exc)
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+
+    if os.path.exists(dest_dir):
+        old_dir = dest_dir + ".old"
+        os.rename(dest_dir, old_dir)
+        try:
+            os.rename(staging_dir, dest_dir)
+        except Exception as exc:
+            # Roll back: restore previous deployment
+            os.rename(old_dir, dest_dir)
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            logger.error("Failed to replace UDF deployment directory: %s", exc)
+            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+        shutil.rmtree(old_dir, ignore_errors=True)
+    else:
+        os.rename(staging_dir, dest_dir)
+
+    logger.info("UDF deployment package '%s' uploaded and extracted to %s.", file.filename, dest_dir)
+    return {"status": "success", "message": f"UDF deployment package '{file.filename}' uploaded successfully."}
 
 if __name__ == "__main__":  # pragma: no cover
     # Start the FastAPI server

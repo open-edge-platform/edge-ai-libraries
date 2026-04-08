@@ -1,6 +1,6 @@
 # Get Started
 
-The ChatQ&A Sample Application is a Retrieval Augmented Generation (RAG) pipeline designed to be used in a single user non concurrent deployment primarily targeting  Intel® Core&trade; deployments.  The application is intended to help developers create personal intelligent chatbots that can answer questions based on their private data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
+The Chat Question & Answer (Chat Q&A) Sample Application is a Retrieval Augmented Generation (RAG) pipeline designed to be used in a single user non concurrent deployment primarily targeting  Intel® Core&trade; deployments.  The application is intended to help developers create personal intelligent chatbots that can answer questions based on their private data. This guide will help you set up, run, and modify the Chat Q&A Sample Application on Intel Edge AI systems.
 
 By following this guide, you will learn how to:
 
@@ -39,7 +39,7 @@ By following this guide, you will learn how to:
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
 
-   To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
+   To utilize the release images for the Chat Q&A sample application from the registry, set the following environment variables:
 
    ```bash
    export REGISTRY="intel/"

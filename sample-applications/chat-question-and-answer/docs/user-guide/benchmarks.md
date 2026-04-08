@@ -1,6 +1,6 @@
 # Benchmarks
 
-This document provides reference benchmark results for the ChatQ&A sample application. The benchmark numbers published here are indicative of the performance to be expected on given test environment.
+This document provides reference benchmark results for the Chat Question & Answer (Chat Q&A) Sample Application. The benchmark numbers published here are indicative of the performance to be expected on given test environment.
 
 ## Test Environment
 

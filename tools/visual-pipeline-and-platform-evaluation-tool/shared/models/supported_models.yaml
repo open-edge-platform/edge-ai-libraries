@@ -161,6 +161,24 @@
   unsupported_devices: "NPU"
   default: true
 
+- name: yolov8n
+  display_name: YOLO v8n 640x640
+  source: public
+  type: detection
+  precisions:
+    - precision: INT8
+      model_path: public/yolov8n/INT8/yolov8n.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: public/yolov8n/FP16/yolov8n.xml
+      model_proc: ""
+    - precision: FP32
+      model_path: public/yolov8n/FP32/yolov8n.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  default: true
+
 - name: yolov10m
   display_name: YOLO v10m 640x640
   source: public

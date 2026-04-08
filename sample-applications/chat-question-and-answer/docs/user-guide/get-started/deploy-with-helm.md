@@ -1,6 +1,6 @@
 # Deploy with Helm
 
-This guide provides step-by-step instructions for deploying the ChatQ&A Sample Application using Helm.
+This guide provides step-by-step instructions for deploying the Chat Question & Answer (Chat Q&A) Sample Application using Helm.
 
 ## Prerequisites
 
