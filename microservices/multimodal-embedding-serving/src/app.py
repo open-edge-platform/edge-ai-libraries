@@ -26,7 +26,14 @@ from typing import List, Union, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
-from .utils import ErrorMessages, logger, settings, decode_base64_image, download_image
+from .utils import (
+    ErrorMessages,
+    logger,
+    settings,
+    decode_base64_image,
+    download_image,
+    sanitize_for_log,
+)
 from .models import ModelFactory, get_model_handler, list_available_models
 from .wrapper import EmbeddingModel
 
@@ -336,7 +343,7 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
     try:
         # Check if requested model matches the currently loaded model
         if request.model != settings.EMBEDDING_MODEL_NAME:
-            logger.warning(f"Model mismatch: requested '{request.model}', but server is running '{settings.EMBEDDING_MODEL_NAME}'")
+            logger.warning("Model mismatch between requested model and active server model")
             raise HTTPException(
                 status_code=400, 
                 detail=f"Model mismatch: requested model '{request.model}' does not match the currently loaded model '{settings.EMBEDDING_MODEL_NAME}'. Please use the correct model name or restart the server with the desired model."

@@ -88,7 +88,7 @@ The following is a summary of key configuration options available in the `values
 helm install model-download . -n <your-namespace>
 ```
 
-> **Note:** `model-download` creates and manages a shared PVC that can be used by dependent applications such as ChatQnA.
+> **Note:** `model-download` creates and manages a shared PVC that can be used by dependent applications such as Chat Q&A.
 
 ## Verify the Deployment
 

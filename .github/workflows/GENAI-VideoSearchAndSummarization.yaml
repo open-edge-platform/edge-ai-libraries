@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       
@@ -209,7 +209,7 @@ jobs:
           report_suffix: "-config-videosummary-pipeline-manager-CT222"
            
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: trivy-report-video-summary
           path: security-results/trivy*
@@ -219,7 +219,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Run Bandit Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
@@ -232,7 +232,7 @@ jobs:
           report_suffix: "-bandit-video-summary-CT161"
           
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandit-report-video-summary
           path: bandit-report-*.txt
@@ -243,7 +243,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Run ClamAV Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
@@ -256,7 +256,7 @@ jobs:
           exclude_dirs: ".git,node_modules,venv,ui/test,tests"
           
       - name: Upload Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: clamav-report-video-summary
           path: security-results/clamav*
@@ -268,7 +268,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           
@@ -282,7 +282,7 @@ jobs:
         run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
         
       - name: Clone CI repo
-        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: open-edge-platform/orch-ci
           path: ci
@@ -293,7 +293,7 @@ jobs:
           gitleaks dir "sample-applications/video-search-and-summarization/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-video-summary.json -r gitleaks-video-summary.json || true
           
       - name: Upload Gitleaks Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: gitleaks-report-video-summary-${{ steps.timestamp.outputs.time }}
           path: gitleaks-video-summary.json
@@ -304,10 +304,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -349,7 +349,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pylint-report-search-ms
           path: sample-applications/video-search-and-summarization/search-ms/security-results/pylint-report-search-ms.txt
@@ -360,10 +360,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
       
@@ -400,7 +400,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pylint-report-video-ingestion
           path: sample-applications/video-search-and-summarization/video-ingestion/security-results/pylint-report-video-ingestion.txt
@@ -411,7 +411,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Setup environment with shellcheck
         uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
@@ -435,7 +435,7 @@ jobs:
           echo "ShellCheck scan completed"
       
       - name: Upload ShellCheck Report
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: shellcheck-report-video-summary
           path: security-results/shellcheck-report-video-summary.txt
@@ -446,10 +446,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: '22'
           
@@ -472,7 +472,7 @@ jobs:
           npx eslint . --format html --output-file lint-results/eslint-report.html || true
       
       - name: Upload lint results
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: frontend-lint-results
           path: sample-applications/video-search-and-summarization/ui/react/lint-results/
@@ -483,10 +483,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: '22'
           
@@ -506,7 +506,7 @@ jobs:
           npx prettier --check "**/*.{js,ts,json}" > lint-results/prettier-check.txt 2>&1 || true
       
       - name: Upload lint results
-        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pipeline-manager-lint-results
           path: sample-applications/video-search-and-summarization/pipeline-manager/lint-results/

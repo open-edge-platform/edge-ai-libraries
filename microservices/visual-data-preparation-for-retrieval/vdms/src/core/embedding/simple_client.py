@@ -230,13 +230,29 @@ class SimpleVDMSClient:
                     batch_size=batch_size,
                 )
             except Exception as exc:
-                logger.error(
-                    "VDMS add_from failed for batch %d-%d: %s",
+                logger.warning(
+                    "VDMS add_from failed for batch %d-%d. Reinitializing VDMS client and retrying once. Error: %s",
                     start_idx,
                     end_idx - 1,
                     exc,
                 )
-                raise
+                self.init_db()
+                try:
+                    inserted_ids = self.video_db.add_from(
+                        texts=batch_texts,
+                        embeddings=batch_embeddings,
+                        metadatas=batch_metadatas,
+                        ids=batch_ids,
+                        batch_size=batch_size,
+                    )
+                except Exception as retry_exc:
+                    logger.error(
+                        "VDMS add_from retry failed for batch %d-%d: %s",
+                        start_idx,
+                        end_idx - 1,
+                        retry_exc,
+                    )
+                    raise
 
             if not inserted_ids or len(inserted_ids) != len(batch_ids):
                 raise ValueError(

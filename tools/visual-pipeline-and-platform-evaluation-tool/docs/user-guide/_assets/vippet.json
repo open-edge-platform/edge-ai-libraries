@@ -428,6 +428,162 @@
         }
       }
     },
+    "/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get metadata snapshot for a specific pipeline stream",
+        "description": "**Return the most recent metadata records for a specific pipeline stream.**\n\n## Operation\n\nReturns a snapshot of up to ``limit`` JSON records read directly from disk,\nwritten by the ``gvametapublish`` element identified by *pipeline_id* and\nthe per-pipeline *file_index*.  Records remain available after the job\ncompletes.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job\n- `pipeline_id`: Pipeline identifier\n- `file_index`: Zero-based index of the metadata file within that pipeline\n\n## Query Parameters\n\n- `limit` *(optional, default 100, max 1000)*: Maximum number of records to return\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of metadata records (may be empty) |\n| 404  | Job id, pipeline id, or file index is unknown |",
+        "operationId": "get_performance_job_metadata_snapshot",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "file_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "File Index"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of metadata records for the specified pipeline stream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job, pipeline, or file index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/tests/performance/{job_id}/metadata/{pipeline_id}/{file_index}/stream": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stream metadata from a running performance test job via SSE",
+        "description": "**Stream live metadata records from gvametapublish via Server-Sent Events.**\n\n## Operation\n\nOpens a persistent HTTP connection and pushes each new JSON record emitted\nby the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.\nThe stream terminates automatically when the pipeline finishes.\nA ``\": keepalive\"`` comment is sent every 30 s to prevent proxy timeouts.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to stream metadata from\n\n## Response Format\n\n``text/event-stream`` \u2014 each event is:\n```\ndata: {<json record>}\n\n\n```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | SSE stream opened |\n| 404  | Job id is unknown or no metadata is available for this job |",
+        "operationId": "stream_performance_job_metadata",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "file_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "File Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of metadata records",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {}
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/jobs/tests/density/status": {
       "get": {
         "tags": [
@@ -1900,7 +2056,7 @@
           "tests"
         ],
         "summary": "Start a performance test job",
-        "description": "**Start an asynchronous performance test job.**\n\n## Operation\n\n1. Validates the performance test request\n2. Creates a PerformanceJob with RUNNING state\n3. Spawns a background thread that runs the pipelines using a GStreamer-based runner\n4. Returns the job identifier for status polling\n\n## Request Body\n\n- `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode and runtime limits\n  - `output_mode`: disabled (default), file, or live_stream\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created performance job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, zero streams, missing variant, invalid output config) |\n| 500  | Unexpected error when creating the job or starting background thread |\n\n## Conditions\n\n### \u2705 Success\n- At least one stream is requested across all pipelines\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- TestsManager.test_performance() successfully enqueues the job\n\n### \u274c Failure\n- Validation or configuration error \u2192 400\n- Unhandled exception in job creation \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 8\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job123\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"At least one stream must be specified to run the pipeline.\"\n}\n```",
+        "description": "**Start an asynchronous performance test job.**\n\n## Operation\n\n1. Validates the performance test request\n2. Creates a PerformanceJob with RUNNING state\n3. Spawns a background thread that runs the pipelines using a GStreamer-based runner\n4. Returns the job identifier for status polling\n\n## Request Body\n\n- `pipeline_performance_specs`: List of pipelines and number of streams per pipeline. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default), file, or live_stream\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: disabled (default) or file\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created performance job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, zero streams, missing variant, invalid output config) |\n| 500  | Unexpected error when creating the job or starting background thread |\n\n## Conditions\n\n### \u2705 Success\n- At least one stream is requested across all pipelines\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- TestsManager.test_performance() successfully enqueues the job\n\n### \u274c Failure\n- Validation or configuration error \u2192 400\n- Unhandled exception in job creation \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 8\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job123\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"At least one stream must be specified to run the pipeline.\"\n}\n```",
         "operationId": "run_performance_test",
         "requestBody": {
           "content": {
@@ -1962,7 +2118,7 @@
           "tests"
         ],
         "summary": "Start a density test job",
-        "description": "**Start an asynchronous density test job.**\n\n## Operation\n\n1. Validates the density test request\n2. Uses requested fps_floor and per-pipeline stream_rate ratios\n3. Creates a DensityJob with RUNNING state\n4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor\n5. Returns the job identifier for status polling\n\n## Request Body\n\n- `fps_floor`: Minimum acceptable FPS per stream\n- `pipeline_density_specs`: List of pipelines with stream_rate percentages that must sum to 100. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode and runtime limits\n  - `output_mode`: disabled (default) or file (live_stream not supported)\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created density job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100, missing variant, live_stream mode, invalid output config) |\n| 500  | Unexpected error when creating or starting the job |\n\n## Conditions\n\n### \u2705 Success\n- pipeline_density_specs is not empty\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- stream_rate ratios sum to 100%\n- DensityTestSpec is valid and Benchmark.run() can be started in background thread\n\n### \u274c Failure\n- Validation errors \u2192 400\n- Unhandled exception \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"stream_rate\": 100\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job456\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n}\n```",
+        "description": "**Start an asynchronous density test job.**\n\n## Operation\n\n1. Validates the density test request\n2. Uses requested fps_floor and per-pipeline stream_rate ratios\n3. Creates a DensityJob with RUNNING state\n4. Spawns a background thread that runs a Benchmark to determine the maximum number of streams that still meets fps_floor\n5. Returns the job identifier for status polling\n\n## Request Body\n\n- `fps_floor`: Minimum acceptable FPS per stream\n- `pipeline_density_specs`: List of pipelines with stream_rate percentages that must sum to 100. Each pipeline can be:\n  - Variant reference: `{\"source\": \"variant\", \"pipeline_id\": \"...\", \"variant_id\": \"...\"}`\n  - Inline graph: `{\"source\": \"graph\", \"pipeline_graph\": {...}}`\n  - Pipeline description: `{\"source\": \"description\", \"pipeline_description\": \"...\"}`\n- `execution_config`: Configuration for output mode, metadata mode and runtime limits\n  - `output_mode`: disabled (default) or file (live_stream not supported)\n  - `max_runtime`: maximum runtime in seconds (0 = run until EOS)\n  - `metadata_mode`: must be disabled (metadata output not supported)\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202  | TestJobResponse with job_id of the created density job |\n| 400  | Invalid request (empty specs, duplicate pipeline_ids, stream_rate not summing to 100, missing variant, live_stream mode, invalid output config) |\n| 500  | Unexpected error when creating or starting the job |\n\n## Conditions\n\n### \u2705 Success\n- pipeline_density_specs is not empty\n- All referenced variants exist\n- No duplicate pipeline_ids in request\n- stream_rate ratios sum to 100%\n- DensityTestSpec is valid and Benchmark.run() can be started in background thread\n\n### \u274c Failure\n- Validation errors \u2192 400\n- Unhandled exception \u2192 500\n\n## Examples\n\nRequest (variant reference):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b7c2e114\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nRequest (inline graph):\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"graph\",\n        \"pipeline_graph\": {\n          \"nodes\": [...],\n          \"edges\": [...]\n        }\n      },\n      \"stream_rate\": 100\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```\n\nSuccess (202):\n```json\n{\n  \"job_id\": \"job456\"\n}\n```\n\nError (400):\n```json\n{\n  \"message\": \"Pipeline stream_rate ratios must sum to 100%, got 110%\"\n}\n```",
         "operationId": "run_density_test",
         "requestBody": {
           "content": {
@@ -2565,11 +2721,13 @@
             "description": "Execution configuration for output and runtime.",
             "default": {
               "output_mode": "disabled",
-              "max_runtime": 0.0
+              "max_runtime": 0.0,
+              "metadata_mode": "disabled"
             },
             "examples": [
               {
                 "max_runtime": 0,
+                "metadata_mode": "disabled",
                 "output_mode": "disabled"
               }
             ]
@@ -2581,7 +2739,7 @@
           "pipeline_density_specs"
         ],
         "title": "DensityTestSpec",
-        "description": "**Request body for starting a density test.**\n\n## Attributes\n- `fps_floor` - Minimum acceptable FPS per stream\n- `pipeline_density_specs` - List of pipelines with relative stream_rate ratios\n- `execution_config` - Configuration for output generation and runtime limits\n\n### Example\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b4c6e2f8\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```"
+        "description": "**Request body for starting a density test.**\n\n## Attributes\n- `fps_floor` - Minimum acceptable FPS per stream\n- `pipeline_density_specs` - List of pipelines with relative stream_rate ratios\n- `execution_config` - Configuration for output generation, metadata publishing and runtime limits\n\n### Example\n```json\n{\n  \"fps_floor\": 30,\n  \"pipeline_density_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"stream_rate\": 50\n    },\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-b4c6e2f8\",\n        \"variant_id\": \"variant-def456\"\n      },\n      \"stream_rate\": 50\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```"
       },
       "Device": {
         "properties": {
@@ -2678,11 +2836,16 @@
             "title": "Max Runtime",
             "description": "Maximum runtime in seconds (0 = run until EOS, >0 = time limit with looping for live_stream/disabled).",
             "default": 0.0
+          },
+          "metadata_mode": {
+            "$ref": "#/components/schemas/MetadataMode",
+            "description": "Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.",
+            "default": "disabled"
           }
         },
         "type": "object",
         "title": "ExecutionConfig",
-        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls both output generation and runtime limits\nfor test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```"
+        "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits, and\nmetadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```"
       },
       "GraphInline": {
         "properties": {
@@ -2765,6 +2928,15 @@
         ],
         "title": "MessageResponse",
         "description": "**Generic message payload used as a simple response body.**\n\nThis model is used mainly for non-2xx responses to provide a plain\nEnglish description of what happened (error or informational status).\n\n## Attributes\n- `message` - Human-readable error or status message\n\n### Example\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```"
+      },
+      "MetadataMode": {
+        "type": "string",
+        "enum": [
+          "disabled",
+          "file"
+        ],
+        "title": "MetadataMode",
+        "description": "**Mode for pipeline metadata publishing via gvametapublish elements.**\n\nControls whether and how inference metadata produced by `gvametapublish`\nelements in the pipeline is published.\n\n## Values\n- `DISABLED` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n- `FILE` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example\n```json\n\"file\"\n```"
       },
       "Model": {
         "properties": {
@@ -3153,6 +3325,23 @@
               }
             ],
             "title": "Live Stream Urls"
+          },
+          "metadata_stream_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Stream Urls"
           }
         },
         "type": "object",
@@ -3167,10 +3356,11 @@
           "total_streams",
           "streams_per_pipeline",
           "video_output_paths",
-          "live_stream_urls"
+          "live_stream_urls",
+          "metadata_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls\nfor live-streaming output mode support.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)"
+        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)"
       },
       "PerformanceJobSummary": {
         "properties": {
@@ -3219,11 +3409,13 @@
             "description": "Execution configuration for output and runtime.",
             "default": {
               "output_mode": "disabled",
-              "max_runtime": 0.0
+              "max_runtime": 0.0,
+              "metadata_mode": "disabled"
             },
             "examples": [
               {
                 "max_runtime": 0,
+                "metadata_mode": "disabled",
                 "output_mode": "disabled"
               }
             ]
@@ -3234,7 +3426,7 @@
           "pipeline_performance_specs"
         ],
         "title": "PerformanceTestSpec",
-        "description": "**Request body for starting a performance test.**\n\n## Attributes\n- `pipeline_performance_specs` - List of pipelines and their stream counts\n- `execution_config` - Configuration for output generation and runtime limits\n\n### Example\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0\n  }\n}\n```"
+        "description": "**Request body for starting a performance test.**\n\n## Attributes\n- `pipeline_performance_specs` - List of pipelines and their stream counts\n- `execution_config` - Configuration for output generation, metadata publishing and runtime limits\n\n### Example\n```json\n{\n  \"pipeline_performance_specs\": [\n    {\n      \"pipeline\": {\n        \"source\": \"variant\",\n        \"pipeline_id\": \"pipeline-a3f5d9e1\",\n        \"variant_id\": \"variant-abc123\"\n      },\n      \"streams\": 4\n    }\n  ],\n  \"execution_config\": {\n    \"output_mode\": \"disabled\",\n    \"max_runtime\": 0,\n    \"metadata_mode\": \"disabled\"\n  }\n}\n```"
       },
       "Pipeline": {
         "properties": {

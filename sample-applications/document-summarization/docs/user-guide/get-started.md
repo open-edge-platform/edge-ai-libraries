@@ -31,9 +31,9 @@ Note: Limited validation was done on DeepSeek model.
 
 ### Getting access to models
 
-To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
+To run a **GATED MODEL** like llama models, the user will need to pass their [Hugging Face token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
 
-Visit https://huggingface.co/settings/tokens to get your token.
+Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to get your token.
 
 ## Run the Application using Docker Compose
 
@@ -136,7 +136,7 @@ Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure
 
 To run the units tests ensure you follow all the steps from below document
 
-- [How to run Unit Tests](./../../tests/unit_tests/README.md)
+- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/tests/unit_tests/README.md)
 
 ## Advanced Setup Options
 

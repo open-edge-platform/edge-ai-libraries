@@ -33,6 +33,8 @@ num2words = "^0.5.14"
 urllib3 = "^2.6.3"
 protobuf = "^6.33.5"
 filelock = "^3.20.3"
+setuptools = "^82.0.1"
+wheel = "^0.46.3"
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"

@@ -233,6 +233,13 @@ def get_current_timestamp() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def make_output_dir(base: str, name: str) -> str:
+    """Join base with slugified name, create the directory, and return the path."""
+    path = os.path.join(base, slugify_text(name))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def load_thumbnail_as_base64(
     thumbnail_path: str, pipeline_name: str, base_path: Optional[str] = None
 ) -> Optional[str]:

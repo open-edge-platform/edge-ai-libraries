@@ -8,3 +8,4 @@ shared/videos/input/*
 shared/videos/output/*
 shared/videos/video-generator/*
 shared/onvif/*
+shared/metadata/*

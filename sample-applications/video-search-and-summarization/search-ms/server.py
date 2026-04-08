@@ -199,16 +199,34 @@ async def query_endpoint(request: list[QueryRequest]):
             logger.debug(f"Searching with initial_k={initial_k}")
 
             vdms_start = time.perf_counter()
-            docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
-                query_request.query,
-                k=initial_k,
-                fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
-                filter=vdms_filter,
-                # normalize_distance=True
-            )
+            vdms_attempt = 1
+            try:
+                docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
+                    query_request.query,
+                    k=initial_k,
+                    fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
+                    filter=vdms_filter,
+                    # normalize_distance=True
+                )
+            except Exception as first_error:
+                first_attempt_duration_ms = (time.perf_counter() - vdms_start) * 1000
+                logger.warning(
+                    "VDMS similarity search failed on first attempt after %.2f ms; refreshing client and retrying once. Error: %s",
+                    first_attempt_duration_ms,
+                    first_error,
+                )
+                refreshed_db: VDMS = get_vectordb()
+                vdms_attempt = 2
+                vdms_start = time.perf_counter()
+                docs_with_score = refreshed_db.similarity_search_with_score(
+                    query_request.query,
+                    k=initial_k,
+                    fetch_k=initial_k + 1,
+                    filter=vdms_filter,
+                )
             vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000
             logger.info(
-                f"VDMS similarity search (embedding + retrieval) completed in {vdms_duration_ms:.2f} ms with {len(docs_with_score)} results"
+                f"VDMS similarity search (attempt {vdms_attempt}, embedding + retrieval) completed in {vdms_duration_ms:.2f} ms with {len(docs_with_score)} results"
             )
 
             logger.info(f"Raw search returned {len(docs_with_score)} results")

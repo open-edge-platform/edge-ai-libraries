@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
-from src.common import DataPrepException, Strings, logger
+from src.common import DataPrepException, Strings, logger, sanitize_for_log
 from src.common.schema import DataPrepResponse
 from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
@@ -77,7 +77,11 @@ async def delete_video(
                 )
 
             minio_client.delete_object(bucket_name, object_name)
-            logger.info(f"Deleted video {object_name} from bucket {bucket_name}")
+            logger.info(
+                "Deleted video %s from bucket %s",
+                sanitize_for_log(object_name, max_length=256),
+                sanitize_for_log(bucket_name, max_length=128),
+            )
             return DataPrepResponse(message=f"Video {video_name} deleted successfully")
         else:
             # Delete all videos in the directory
@@ -91,7 +95,11 @@ async def delete_video(
             for obj in objects:
                 minio_client.delete_object(bucket_name, obj.object_name)
 
-            logger.info(f"Deleted all videos in directory {video_id} from bucket {bucket_name}")
+            logger.info(
+                "Deleted all videos in directory %s from bucket %s",
+                sanitize_for_log(video_id, max_length=128),
+                sanitize_for_log(bucket_name, max_length=128),
+            )
             return DataPrepResponse(
                 message=f"All videos in directory {video_id} deleted successfully"
             )

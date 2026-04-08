@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useAppSelector } from '../../redux/store';
 import { Video } from '../../redux/video/video';
+import { SearchResult } from '../../redux/search/search';
 import { videosSelector } from '../../redux/video/videoSlice';
 import { SearchSelector } from '../../redux/search/searchSlice';
+import { ASSETS_ENDPOINT } from '../../config';
+import { resolveVideoUrl } from '../../redux/video/videoUrl';
 
 const VideoGroupsContainer = styled.div`
   padding: 1rem;
@@ -147,6 +150,16 @@ interface TagGroup {
   color: string;
 }
 
+const toPlayableMetadataUrl = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('/videos/download?video_id=')) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/')) return `${ASSETS_ENDPOINT}${trimmed}`;
+  return `${ASSETS_ENDPOINT}/${trimmed}`;
+};
+
 export const VideoGroupsView: FC = () => {
   const { t } = useTranslation();
   const { getVideoUrl } = useAppSelector(videosSelector);
@@ -155,7 +168,7 @@ export const VideoGroupsView: FC = () => {
   // Build a map of relevance scores from search results
   const videoRelevanceMap = useMemo(() => {
     const map = new Map<string, number>();
-    selectedResults?.forEach((result) => {
+    selectedResults?.forEach((result: SearchResult) => {
       const vid = result.metadata?.video_id;
       const score = result.metadata?.relevance_score;
       if (vid && typeof score === 'number') map.set(vid, score);
@@ -167,7 +180,7 @@ export const VideoGroupsView: FC = () => {
   const searchVideos: Video[] = useMemo(() => {
     if (!selectedResults || selectedResults.length === 0) return [];
     return selectedResults
-      .map((result) => {
+      .map((result: SearchResult) => {
         const meta: any = result.metadata ?? {};
         const vid = meta.video_id || meta.id;
         if (!vid) return null;
@@ -195,13 +208,18 @@ export const VideoGroupsView: FC = () => {
         return {
           videoId: vid,
           name: meta.name ?? meta.title ?? vid,
-          url: '',
+          url:
+            resolveVideoUrl(result.video, ASSETS_ENDPOINT) ||
+            toPlayableMetadataUrl(meta.video_rel_url) ||
+            toPlayableMetadataUrl(meta.video_url) ||
+            '',
           tags: tagsArr,
           createdAt: (meta.date_time as string) ?? (meta.date as string) ?? '',
           updatedAt: '',
+          dataStore: result.video?.dataStore,
         } as Video;
       })
-      .filter((v): v is Video => v !== null);
+        .filter((v: Video | null): v is Video => v !== null);
   }, [selectedResults]);
 
   // If no search results, show a helpful empty state
@@ -229,13 +247,19 @@ export const VideoGroupsView: FC = () => {
       if (validTags.length === 0) {
         // Video has no valid tags - add to Untagged group
         if (!groups.has('Untagged')) groups.set('Untagged', []);
-        groups.get('Untagged')!.push(video);
+        const untaggedVideos = groups.get('Untagged')!;
+        if (!untaggedVideos.some((existing) => existing.videoId === video.videoId)) {
+          untaggedVideos.push(video);
+        }
       } else {
         // Video has valid tags - add to each tag group
         validTags.forEach((tag) => {
           const trimmedTag = tag.trim();
           if (!groups.has(trimmedTag)) groups.set(trimmedTag, []);
-          groups.get(trimmedTag)!.push(video);
+          const tagVideos = groups.get(trimmedTag)!;
+          if (!tagVideos.some((existing) => existing.videoId === video.videoId)) {
+            tagVideos.push(video);
+          }
         });
       }
     });
@@ -277,11 +301,12 @@ export const VideoGroupsView: FC = () => {
 
           <VideoGrid>
             {group.videos.map((video) => {
-              const videoUrl = getVideoUrl ? getVideoUrl(video.videoId) : video.url;
+              const reduxVideoUrl = getVideoUrl ? getVideoUrl(video.videoId) : null;
+              const videoUrl = reduxVideoUrl || video.url;
               const relevanceScore = videoRelevanceMap.get(video.videoId) ?? 0;
 
               return (
-                <VideoCard key={video.videoId}>
+                <VideoCard key={`${group.tag}-${video.videoId}`}>
                   <VideoCardWrapper>
                     {videoUrl ? (
                       <VideoPlayer controls preload="metadata">

@@ -7,7 +7,7 @@ and run the microservice efficiently.
 
 This microservice currently supports CPU based runs only. This microservice is intended to run
 in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is
-as per the sample application, i.e. Video Search and Summarization, [documentation](../../../../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md).
+as per the sample application, i.e. Video Search and Summarization, [documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/get-started/system-requirements.html).
 The documentation here does not provide separate requirements.
 
 **Operating Systems**

@@ -134,6 +134,19 @@ class InternalOutputMode(str, Enum):
     LIVE_STREAM = "live_stream"
 
 
+class InternalMetadataMode(str, Enum):
+    """
+    Internal representation of metadata publishing mode.
+
+    Values:
+        DISABLED: No metadata file paths are injected; gvametapublish elements remain unchanged (default).
+        FILE: gvametapublish elements write JSON-Lines metadata, available via SSE endpoints.
+    """
+
+    DISABLED = "disabled"
+    FILE = "file"
+
+
 @dataclass
 class InternalVariant:
     """
@@ -339,10 +352,12 @@ class InternalExecutionConfig:
     Attributes:
         output_mode: Mode for pipeline output generation.
         max_runtime: Maximum runtime in seconds (0 = run until EOS).
+        metadata_mode: Mode for metadata publishing via gvametapublish elements.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
+    metadata_mode: InternalMetadataMode
 
 
 @dataclass
@@ -426,6 +441,7 @@ class InternalPerformanceJobStatus:
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
     live_stream_urls: dict[str, str] | None = None
+    metadata_stream_urls: dict[str, list[str]] | None = None
 
 
 @dataclass

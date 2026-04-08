@@ -2,199 +2,114 @@
 
 Model Download replaces Model Registry, which will be deprecated soon. Intel suggests the following migration approach, depending on your needs:
 
-| Category         | Model Registry  | Model Download                          | Migration Approach                |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Core Role        | Model           | Runtime model acquisition and           | Core usage shifts from model      |
-|                  | management      | preparation.                            | management to runtime fetching    |
-|                  | system          |                                         | and model preparation before      |
-|                  |                 |                                         | application startup.              |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Primary          | Storage,        | Fetches, converts to the OpenVINO™      | Replace registry-based storage    |
-| Purpose          | version         | Intermediate Representation (IR)        | with direct model pulling from    |
-|                  | control, and    | format, optimizes through precision     | external sources. No additional   |
-|                  | model           | reduction and hardware-specific         | action is required for            |
-|                  | management      | tuning, and stores the models.          | conversion or optimization.       |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Onboarding       | - Downloads     | No onboarding required.\                | Remove manual onboarding flow.    |
-| Process          | model\          | Directly pulls models from external     | Configure model source details    |
-|                  | - Compressed    | sources using API.                      | during setup and use the pull     |
-|                  | package\        |                                         | API.                              |
-|                  | - Uploads to    |                                         |                                   |
-|                  | registry        |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Model Sources    | Only models     | All supported models from multiple      | Update model references to        |
-|                  | that were       | model hubs:\                            | point to the source instead of    |
-|                  | uploaded to     | - Hugging Face\                         | the registry by enabling the      |
-|                  | the registry    | - Ollama\                               | required source plugins during    |
-|                  |                 | - Geti™ software\                       | setup and passing the             |
-|                  |                 | - Ultralytics                           | appropriate model hub to the      |
-|                  |                 |                                         | download API.                     |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Storage Type     | Centralized:\   | Local filesystem storage or             | Update applications to read       |
-|                  | - Metadata      | PersistentVolumeClaim (PVC)             | models from the local             |
-|                  | database\       |                                         | filesystem path managed by        |
-|                  | - Object        |                                         | Model\                            |
-|                  | storage         |                                         | Download.\                        |
-|                  |                 |                                         | \                                 |
-|                  |                 |                                         | In Docker deployments, this       |
-|                  |                 |                                         | path is typically mounted as a    |
-|                  |                 |                                         | volume to persist downloaded      |
-|                  |                 |                                         | models across container           |
-|                  |                 |                                         | restarts                          |
-|                  |                 |                                         |                                   |
-|                  |                 |                                         | In Helm/Kubernetes deployments,   |
-|                  |                 |                                         | this is configured using          |
-|                  |                 |                                         | Persistent Volumes (PVCs) to      |
-|                  |                 |                                         | retain models across pod          |
-|                  |                 |                                         | restartsand avoid redundant       |
-|                  |                 |                                         | downloads. Shared PVCs are used   |
-|                  |                 |                                         | between Model Download and        |
-|                  |                 |                                         | dependent applications to         |
-|                  |                 |                                         | enable direct access to           |
-|                  |                 |                                         | downloaded models                 |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Metadata         | Stored in       | Encoded in model path                   | No metadata management overhead   |
-| Storage          | separate        | (name/device/precision)                 | because most of the required      |
-|                  | databases       |                                         | metadata details are encoded in   |
-|                  |                 |                                         | the model path. If still          |
-|                  |                 |                                         | needed, manage externally. (can   |
-|                  |                 |                                         | use MLOps tools, config files,    |
-|                  |                 |                                         | and etc)                          |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Persistence      | Strong          | Persistent shared storage (host         | No change is needed.\             |
-|                  | centralized     | volume / PVC)                           | \                                 |
-|                  | persistence     |                                         | Models remain in local storage    |
-|                  |                 |                                         | on the host machine in Docker     |
-|                  |                 |                                         | deployments. In Kubernetes,       |
-|                  |                 |                                         | they are stored in a PVC until    |
-|                  |                 |                                         | manually deleted.\                |
-|                  |                 |                                         | \                                 |
-|                  |                 |                                         | Lightweight and sufficient for    |
-|                  |                 |                                         | runtime use.                      |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Infrastructure   | High:\          | Low:\                                   | Replace all registry components   |
-| Overhead         | - Registry      | - Single service\                       | with a single Model Download      |
-|                  | service\        | - Local storage                         | service.\                         |
-|                  | - Database\     |                                         | \                                 |
-|                  | - Storage       |                                         | Simplify architecture and         |
-|                  |                 |                                         | reduce maintenance.               |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Metadata         | Supported       | Not supported                           | Avoid continuous metadata         |
-| Updates          | (score,         |                                         | maintenance. Use external         |
-|                  | format, and     |                                         | systems/tools if needed.          |
-|                  | etc.)           |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Versioning       | Mandatory and   | Not enforced                            | Reduce complexity for dynamic     |
-|                  | enforced        |                                         | workloads because models are      |
-|                  |                 |                                         | pulled directly from hubs;        |
-|                  |                 |                                         | specific versions can be          |
-|                  |                 |                                         | fetched using version tags or     |
-|                  |                 |                                         | identifiers. Use external tools   |
-|                  |                 |                                         | if version management is          |
-|                  |                 |                                         | required.                         |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Conversion       | Not supported   | Converts models to the                  | Enable                            |
-| Support          |                 | OpenVINO™ format                        | OpenVINO™                         |
-|                  |                 | automatically.                          | plugin during the setup and       |
-|                  |                 |                                         | configure the required fields     |
-|                  |                 |                                         | based on the parameters           |
-|                  |                 |                                         | provided via the download API.    |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Precision        | Not             | Supports all OpenVINO™                  | Specify required precision in     |
-| Support          | applicable      | toolkit-supported formats:\             | the download API configuration    |
-|                  |                 | - INT4\                                 | if needed.                        |
-|                  |                 | - INT8\                                 |                                   |
-|                  |                 | - FP16\                                 |                                   |
-|                  |                 | - FP32                                  |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Device           | Not supported   | Supports all OpenVINO™                  | Configure the target device in    |
-| Targeting        |                 | toolkit-supported devices:\             | the download API configuration    |
-|                  |                 | - CPU\                                  | if needed.                        |
-|                  |                 | - GPU\                                  |                                   |
-|                  |                 | - NPU                                   |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Parallel         | Not supported   | Supports parallel downloads of          | Set the parallel download flag    |
-| Downloads        |                 | multiple models. Leads to a faster      | to true in the Model Download     |
-|                  |                 | startup when multiple models are        | API configuration.                |
-|                  |                 | required.                               |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Caching          | No runtime      | Configurable local caching:\            | Specify the path for model        |
-|                  | caching         | - Reuses existing models\               | download during setup. No         |
-|                  | mechanism       | - Skips re-download if already          | additional configuration is       |
-|                  |                 | exists.                                 | needed.                           |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| API Style        | CRUD-heavy:\    | Minimal pull-based API with Optimum     | Replace registry APIs with the    |
-|                  | - Upload        | CLI compliance                          | pull API to download models       |
-|                  | models\         |                                         | directly from thesource at        |
-|                  | - List          |                                         | runtime.\                         |
-|                  | models\         |                                         | \                                 |
-|                  | - Delete        |                                         | Supports Optimum CLI              |
-|                  | models\         |                                         | compliance, where parameters      |
-|                  | - Update        |                                         | compatible with the OpenVINO      |
-|                  | metadata        |                                         | backend (via optimum-cli ...      |
-|                  |                 |                                         | openvino ...) can be used for     |
-|                  |                 |                                         | model export, compilation, and    |
-|                  |                 |                                         | quantization.                     |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Model Listing    | From the        | From the local filesystem               | Replace registry dependencies     |
-|                  | registry        |                                         | with the relevant GET API from    |
-|                  | database        |                                         | Model Download.                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Geti             | Import ,        | Direct pull from                        | Configure                         |
-| Integration      | store, and      | Geti™ software                          | Geti™                             |
-|                  | download        |                                         | software details during setup     |
-|                  |                 |                                         | and use the pull API. The rest    |
-|                  |                 |                                         | is handled by the                 |
-|                  |                 |                                         | Geti™                             |
-|                  |                 |                                         | plugin.                           |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Upload Models    | Supported       | Not supported                           | Not required. Remove registry     |
-|                  |                 |                                         | upload workflows. Ensure models   |
-|                  |                 |                                         | are accessible via the source.    |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Delete Models    | Supported       | Not supported                           | Delete downloaded models          |
-|                  |                 |                                         | manually or implement simple      |
-|                  |                 |                                         | cleanup scripts if required.      |
-|                  |                 |                                         | Deletion of model at the hub      |
-|                  |                 |                                         | source is not supported.          |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Runtime          | Not required    | Mandatory (must run before              | Ensure Model Download is          |
-| Dependency       |                 | application startup)                    | deployed and ready before         |
-|                  |                 |                                         | dependent services start.         |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Startup          | None            | Must be available before dependent      | Use API to check download job     |
-| Dependency       |                 | application services start              | status and ensure completion      |
-|                  |                 |                                         | before app startup.               |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Model Location   | Stored in       | Stored in the local download path.      | Update model paths in             |
-|                  | registry        | Fast local access.                      | application configuration.        |
-|                  | storage         |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Operational      | High:\          | Low:\                                   | No additional action is           |
-| Overhead         | - Manage        | - Single service\                       | required.                         |
-|                  | registry        | - Local storage only                    |                                   |
-|                  | service\        |                                         |                                   |
-|                  | - Metadata      | Fewer components to manage. Reduced     |                                   |
-|                  | database\       | operational effort.                     |                                   |
-|                  | - Storage\      |                                         |                                   |
-|                  | - Model         |                                         |                                   |
-|                  | lifecycle\      |                                         |                                   |
-|                  | - More          |                                         |                                   |
-|                  | towards         |                                         |                                   |
-|                  | deployment,     |                                         |                                   |
-|                  | monitoring,     |                                         |                                   |
-|                  | debugging,      |                                         |                                   |
-|                  | and scaling     |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
-| Scalability      | Limited:\       | Flexible:\                              | No additional changes are         |
-|                  | - Central       | - Independent downloads\                | required. Model Download uses a   |
-|                  | bottleneck\     | - Local caching\                        | decentralized approach in which   |
-|                  | - Storage       | - No central bottleneck                 | each service manages models       |
-|                  | pressure with   |                                         | independently, enabling it to     |
-|                  | an increased    |                                         | scale naturally.                  |
-|                  | number of       |                                         |                                   |
-|                  | models          |                                         |                                   |
-| ---------------- | --------------- | --------------------------------------- | --------------------------------- |
+```{list-table}
+:header-rows: 1
+
+* - Category
+  - Model Registry
+  - Model Download
+  - Migration Approach
+* - Core Role
+  - Model management system
+  - Runtime model acquisition and preparation
+  - Core usage shifts from model management to runtime fetching and model preparation before application startup.
+* - Primary Purpose
+  - Storage, version control, and model management
+  - Fetches models, converts to OpenVINO™ Intermediate Representation (IR) format, optimizes via precision reduction and hardware tuning, and stores the models.
+  - Replace registry storage with direct model pulls from external sources; no extra conversion or optimization steps needed.
+* - Onboarding Process
+  - Downloads models, compresses the packages, and uploads to the registry
+  - No onboarding required; directly pulls models from external sources via API
+  - Remove the manual onboarding flow; configure model source during setup and use pull API.
+* - Model Sources
+  - Only models that were uploaded to the registry
+  - All supported models from multiple module hubs: Hugging Face / Ollama / Geti™ software / Ultralytics
+  - Update model references to point to the source instead of the registry by enabling the required source plugins during setup and passing the appropriate model hub to the download API.
+* - Storage Type
+  - Centralized metadata database and object storage
+  - Local filesystem storage or PersistentVolumeClaim (PVC)
+  - Update applications to read models from the local filesystem path managed by Model Download. In Docker deployments, this path is typically mounted as a volume to persist downloaded models across container restarts. In Helm / Kubernetes deployments, this is configured using PersistentVolumeClaims (PVCs) to retain models across pod restarts and avoid redundant downloads. Shared PVCs are used between Model Download and dependent applications to enable direct access to downloaded models.
+* - Metadata Storage
+  - Stored in separate databases
+  - Encoded in model path (name / device / precision)
+  - No metadata management overhead as most of the metadata details are encoded in the model path. If needed, manage externally (e.g., use MLOps tools, config files, etc.).
+* - Persistence
+  - Strong centralized persistence
+  - Persistent shared storage (host volume / PVC)
+  - No change needed. In Docker deployments, models remain in local storage on the host machine; in Kubernetes, they are stored in a PVC until manual deletion. The app is lightweight and sufficient for runtime use.
+* - Infrastructure Overhead
+  - High: registry service, database, storage
+  - Low: single service, local storage
+  - Replace registry components with a single Model Download service, simplifying architecture and reducing maintenance.
+* - Metadata Updates
+  - Supported (score, format, etc.)
+  - Not supported
+  - Avoid continuous metadata maintenance. Use external systems or tools if needed.
+* - Versioning
+  - Mandatory and enforced
+  - Not enforced
+  - Reduce complexity for dynamic workloads with models pulled directly from hubs. If needed, fetch specific versions via version tags or identifiers. Use external tools if version management is required.
+* - Conversion Support
+  - Not supported
+  - Automatic conversion to OpenVINO™ format
+  - Enable OpenVINO™ plugin during setup and configure the required fields based on the parameters provided via the download API.
+* - Precision Support
+  - Not applicable
+  - All OpenVINO™ toolkit-supported formats: INT4 / INT8 / FP16 / FP32
+  - Specify precision in the download API configuration, if needed.
+* - Device Targeting
+  - Not supported
+  - All OpenVINO™ toolkit-supported devices: CPU / GPU / NPU
+  - Configure the target device in the download API configuration, if needed.
+* - Parallel Downloads
+  - Not supported
+  - Parallel downloads of multiple models, leading to faster startup when multiple models are required
+  - Enable parallel download flag in the Model Download API configuration.
+* - Caching
+  - No runtime caching
+  - Configurable local caching: Reuses existing models, or skips re-download if models already exist
+  - Specify model download path during setup; no further configuration needed.
+* - API Style
+  - CRUD-heavy: upload, list and delete models, update metadata
+  - Minimal pull-based API with Optimum CLI compliance
+  - Replace registry APIs with pull APIs to download models from the source at runtime. Optimum CLI compliance support enables the use of OpenVINO backend-compatible parameters for model export, compilation and quantization.
+* - Model Listing
+  - From the registry database
+  - From the local filesystem
+  - Replace registry dependencies with Model Download GET APIs.
+* - Geti Integration
+  - Import, store, and download
+  - Direct pull from Geti™ software
+  - Configure Geti™ details during setup and use the pull API; the Geti™ plugin handles integration.
+* - Upload Models
+  - Supported
+  - Not supported
+  - Not required; Model Download removes registry upload workflows and ensures model accesibility via the source.
+* - Delete Models
+  - Supported
+  - Not supported
+  - Delete downloaded models locally (manually or via cleanup scripts). Deletion of models at hub source is not supported.
+* - Runtime Dependency
+  - Not required
+  - Mandatory before application startup
+  - Ensure Model Download is deployed and ready before dependent services start.
+* - Startup Dependency
+  - None
+  - Model Download must be available before dependent services start
+  - Use API to check download job status and ensure completion before application startup.
+* - Model Location
+  - Stored in registry
+  - Stored in local download path, ensuring fast local access
+  - Update model paths in application configuration.
+* - Operational Overhead
+  - High: manage registry service, metadata database storage, model lifecycle; deployment, monitoring, debugging, and scaling
+  - Low: single service, local storage only; fewer components to manage, reduced operational effort
+  - No additional action required.
+* - Scalability
+  - Limited: central registry bottleneck, storage pressure with an increased number of models
+  - Flexible: decentralized, independent downloads, local caching
+  - No additional changes required. Model Download uses a decentralized approach in which each service manages models independently, scaling naturally.
+```
 
 Conclusion:
 
